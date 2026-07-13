@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser } from '../../../Redux/slices/userSlice';
+import { lightColors as C } from '../../../theme/colors';
+import { spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -60,8 +64,6 @@ function Register({ navigation }) {
       password,
       passwordConfirmation: confirmPassword,
       referralCode: referralCode.trim() || undefined,
-      // affiliate_code isn't collected in this form — it's expected to come from
-      // marketing-link attribution (deep link / UTM), not manual entry.
       affiliateCode: undefined,
     }))
       .unwrap()
@@ -79,148 +81,378 @@ function Register({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandRow}>
-          <Icon name="radio-button-checked" size={24} color="#007AFF" />
-          <Text style={styles.brandText}>NRI Circle</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: C.background }]}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
+
+      {/* Dynamic Geometric Background Layering */}
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
+
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={{ flex: 1 }}
+      >
+        <View style={styles.headerSection}>
+          {/* Enhanced Concentric Logo Design */}
+          <View style={styles.logoCenterWrap}>
+            <View style={styles.logoOuterRing}>
+              <View style={styles.logoInnerRing}>
+                <View style={[styles.iconContainer, { backgroundColor: C.surface }]}>
+                  <Icon name="public" size={32} color={C.primary} />
+                </View>
+              </View>
+            </View>
+            <Text style={styles.brandText}>NRI <Text style={{ color: C.primary }}>Circle</Text></Text>
+          </View>
+
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join NRI Circle to start managing everything back home with ease.</Text>
         </View>
 
-        <Text style={styles.title}>Create your account</Text>
-        <Text style={styles.subtitle}>Join NRI Circle to start managing everything back home with ease.</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          
+          <Text style={styles.inputLabel}>Full Name</Text>
+          <View style={[styles.inputWrap, errorFor('name') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="person-outline" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Your full name"
+              placeholderTextColor={C.textPlaceholder}
+              value={name}
+              onChangeText={(v) => { setName(v); clearError('name'); }}
+            />
+          </View>
+          {!!errorFor('name') && <Text style={styles.errorText}>{errorFor('name')}</Text>}
 
-        <Text style={styles.inputLabel}>Full Name</Text>
-        <View style={[styles.inputWrap, errorFor('name') && styles.inputWrapError]}>
-          <Icon name="person-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Your full name"
-            placeholderTextColor="#94A3B8"
-            value={name}
-            onChangeText={(v) => { setName(v); clearError('name'); }}
-          />
-        </View>
-        {!!errorFor('name') && <Text style={styles.errorText}>{errorFor('name')}</Text>}
+          <Text style={styles.inputLabel}>Email Address</Text>
+          <View style={[styles.inputWrap, errorFor('email') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="mail-outline" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="name@domain.com"
+              placeholderTextColor={C.textPlaceholder}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={(v) => { setEmail(v); clearError('email'); }}
+            />
+          </View>
+          {!!errorFor('email') && <Text style={styles.errorText}>{errorFor('email')}</Text>}
 
-        <Text style={styles.inputLabel}>Email Address</Text>
-        <View style={[styles.inputWrap, errorFor('email') && styles.inputWrapError]}>
-          <Icon name="mail-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="name@domain.com"
-            placeholderTextColor="#94A3B8"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={(v) => { setEmail(v); clearError('email'); }}
-          />
-        </View>
-        {!!errorFor('email') && <Text style={styles.errorText}>{errorFor('email')}</Text>}
+          <Text style={styles.inputLabel}>Phone Number</Text>
+          <View style={[styles.inputWrap, errorFor('phone') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="phone-iphone" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="+1 555 000 0000"
+              placeholderTextColor={C.textPlaceholder}
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={(v) => { setPhone(v); clearError('phone'); }}
+            />
+          </View>
+          {!!errorFor('phone') && <Text style={styles.errorText}>{errorFor('phone')}</Text>}
 
-        <Text style={styles.inputLabel}>Phone Number</Text>
-        <View style={[styles.inputWrap, errorFor('phone') && styles.inputWrapError]}>
-          <Icon name="phone-iphone" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="+1 555 000 0000"
-            placeholderTextColor="#94A3B8"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={(v) => { setPhone(v); clearError('phone'); }}
-          />
-        </View>
-        {!!errorFor('phone') && <Text style={styles.errorText}>{errorFor('phone')}</Text>}
+          <Text style={styles.inputLabel}>Password</Text>
+          <View style={[styles.inputWrap, errorFor('password') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="lock-outline" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Minimum 8 characters"
+              placeholderTextColor={C.textPlaceholder}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={(v) => { setPassword(v); clearError('password'); }}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
+              <Icon name={showPassword ? 'visibility-off' : 'visibility'} size={20} color={C.textPlaceholder} />
+            </TouchableOpacity>
+          </View>
+          {!!errorFor('password') && <Text style={styles.errorText}>{errorFor('password')}</Text>}
 
-        <Text style={styles.inputLabel}>Password</Text>
-        <View style={[styles.inputWrap, errorFor('password') && styles.inputWrapError]}>
-          <Icon name="lock-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Minimum 8 characters"
-            placeholderTextColor="#94A3B8"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={(v) => { setPassword(v); clearError('password'); }}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(v => !v)}>
-            <Icon name={showPassword ? 'visibility-off' : 'visibility'} size={18} color="#94A3B8" />
+          <Text style={styles.inputLabel}>Confirm Password</Text>
+          <View style={[styles.inputWrap, errorFor('password_confirmation') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="lock-outline" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Re-enter your password"
+              placeholderTextColor={C.textPlaceholder}
+              secureTextEntry={!showConfirm}
+              value={confirmPassword}
+              onChangeText={(v) => { setConfirmPassword(v); clearError('password_confirmation'); }}
+            />
+            <TouchableOpacity onPress={() => setShowConfirm(v => !v)} style={styles.eyeBtn}>
+              <Icon name={showConfirm ? 'visibility-off' : 'visibility'} size={20} color={C.textPlaceholder} />
+            </TouchableOpacity>
+          </View>
+          {!!errorFor('password_confirmation') && <Text style={styles.errorText}>{errorFor('password_confirmation')}</Text>}
+
+          <Text style={styles.inputLabel}>Referral Code <Text style={{fontWeight: 'normal', color: '#94A3B8'}}>(optional)</Text></Text>
+          <View style={[styles.inputWrap, errorFor('referral_code') && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="card-giftcard" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Have a friend's code?"
+              placeholderTextColor={C.textPlaceholder}
+              autoCapitalize="characters"
+              value={referralCode}
+              onChangeText={(v) => { setReferralCode(v); clearError('referral_code'); }}
+            />
+          </View>
+          {!!errorFor('referral_code') && <Text style={styles.errorText}>{errorFor('referral_code')}</Text>}
+
+          <View style={styles.ctaWrapper}>
+            <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, submitting && styles.ctaBtnDisabled]} onPress={handleCreateAccount} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.ctaText}>Create Account</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.signUpRow} onPress={() => navigation.navigate('Login')} disabled={submitting}>
+            <Text style={styles.signUpText}>Already have an account? <Text style={[styles.signUpLink, { color: C.accent }]}>Sign In</Text></Text>
           </TouchableOpacity>
-        </View>
-        {!!errorFor('password') && <Text style={styles.errorText}>{errorFor('password')}</Text>}
 
-        <Text style={styles.inputLabel}>Confirm Password</Text>
-        <View style={[styles.inputWrap, errorFor('password_confirmation') && styles.inputWrapError]}>
-          <Icon name="lock-outline" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Re-enter your password"
-            placeholderTextColor="#94A3B8"
-            secureTextEntry={!showConfirm}
-            value={confirmPassword}
-            onChangeText={(v) => { setConfirmPassword(v); clearError('password_confirmation'); }}
-          />
-          <TouchableOpacity onPress={() => setShowConfirm(v => !v)}>
-            <Icon name={showConfirm ? 'visibility-off' : 'visibility'} size={18} color="#94A3B8" />
-          </TouchableOpacity>
-        </View>
-        {!!errorFor('password_confirmation') && <Text style={styles.errorText}>{errorFor('password_confirmation')}</Text>}
-
-        <Text style={styles.inputLabel}>Referral Code <Text style={styles.optional}>(optional)</Text></Text>
-        <View style={[styles.inputWrap, errorFor('referral_code') && styles.inputWrapError]}>
-          <Icon name="card-giftcard" size={18} color="#94A3B8" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Have a friend's code? Enter it here"
-            placeholderTextColor="#94A3B8"
-            autoCapitalize="characters"
-            value={referralCode}
-            onChangeText={(v) => { setReferralCode(v); clearError('referral_code'); }}
-          />
-        </View>
-        {!!errorFor('referral_code') && <Text style={styles.errorText}>{errorFor('referral_code')}</Text>}
-
-        <TouchableOpacity style={[styles.ctaBtn, submitting && styles.ctaBtnDisabled]} onPress={handleCreateAccount} disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <>
-              <Text style={styles.ctaText}>Create Account</Text>
-              <Icon name="arrow-forward" size={18} color="white" />
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.signInRow} onPress={() => navigation.navigate('Login')} disabled={submitting}>
-          <Text style={styles.signInText}>Already have an account? <Text style={styles.signInLink}>Sign in</Text></Text>
-        </TouchableOpacity>
-
-        <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
-      </ScrollView>
-    </View>
+          <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  scrollContent: { padding: 24, paddingTop: 56, paddingBottom: 40 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 28 },
-  brandText: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#0F172A' },
-  subtitle: { fontSize: 13, color: '#64748B', marginTop: 6, lineHeight: 19, marginBottom: 24 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#334155', marginBottom: 6, marginTop: 14 },
-  optional: { fontSize: 12, color: '#94A3B8', fontWeight: '400' },
-  inputWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 48 },
-  inputWrapError: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
-  inputIcon: { marginRight: 0 },
-  input: { flex: 1, fontSize: 14, color: '#1E293B', height: '100%' },
-  errorText: { fontSize: 12, color: '#EF4444', marginTop: 5 },
-  ctaBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 26, shadowColor: '#FF7C1A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 3 },
-  ctaBtnDisabled: { opacity: 0.7 },
-  ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  signInRow: { alignItems: 'center', marginTop: 20 },
-  signInText: { fontSize: 13, color: '#64748B' },
-  signInLink: { color: '#007AFF', fontWeight: '700' },
-  footer: { fontSize: 11, color: '#CBD5E1', textAlign: 'center', marginTop: 24 },
+  container: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden'
+  },
+
+  // Dynamic Background Layers
+  bgShape1: {
+    position: 'absolute',
+    top: -H * 0.25,
+    right: -W * 0.4,
+    width: W * 2,
+    height: H * 0.7,
+    backgroundColor: C.primaryLight + '15',
+    borderRadius: 80, 
+    transform: [{ rotate: '-35deg' }]
+  },
+  bgShape2: {
+    position: 'absolute',
+    bottom: -H * 0.35,
+    left: -W * 0.6,
+    width: W * 2,
+    height: H * 0.5,
+    backgroundColor: C.accent + '15',
+    borderRadius: 60,
+    transform: [{ rotate: '-35deg' }]
+  },
+  bgShape3: {
+    position: 'absolute',
+    top: '40%',
+    left: -W * 0.2,
+    width: W * 1.5,
+    height: H * 0.03,
+    backgroundColor: C.primary + '10',
+    borderRadius: 10,
+    transform: [{ rotate: '-35deg' }]
+  },
+
+  headerSection: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 80,
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+    justifyContent: 'flex-start',
+    zIndex: 2,
+  },
+
+  // Concentric Logo Design
+  logoCenterWrap: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  logoOuterRing: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.full,
+    backgroundColor: C.primaryLight + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoInnerRing: {
+    width: 78,
+    height: 78,
+    borderRadius: radius.full,
+    backgroundColor: C.primaryLight + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+  },
+  brandText: {
+    fontSize: 26,
+    fontFamily: 'Montserrat-Bold',
+    color: '#1A1A1A',
+    letterSpacing: -0.5
+  },
+  title: {
+    fontSize: 34,
+    fontFamily: 'Montserrat-Bold',
+    color: '#1A1A1A',
+    letterSpacing: -0.5,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: '#64748B',
+    marginTop: 8,
+    lineHeight: 24,
+    marginBottom: 32,
+    textAlign: 'center',
+    paddingHorizontal: 10,
+  },
+
+  // Premium Inputs
+  inputLabel: {
+    fontSize: 14,
+    fontFamily: 'Poppins-SemiBold',
+    color: '#334155',
+    marginBottom: 8,
+    marginTop: 16,
+    marginLeft: 4,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['2xl'],
+    paddingHorizontal: spacing.sm,
+    height: 64,
+    elevation: 8,
+    shadowColor: C.primaryLight,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: '#FFFFFF'
+  },
+  inputWrapError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+    shadowColor: '#EF4444',
+  },
+  iconFloat: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: '#1E293B',
+    height: '100%',
+  },
+  eyeBtn: {
+    padding: 10,
+    marginRight: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#EF4444',
+    marginTop: 8,
+    marginLeft: 8,
+  },
+
+  // Glowing CTA
+  ctaWrapper: {
+    marginTop: 40,
+    position: 'relative',
+    alignItems: 'center',
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    height: 60,
+    width: '100%',
+    borderRadius: radius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+  },
+  ctaBtnDisabled: {
+    opacity: 0.7
+  },
+  ctaText: {
+    color: 'white',
+    fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5
+  },
+  
+  // Sign Up Row
+  signUpRow: {
+    alignItems: 'center',
+    marginTop: 32
+  },
+  signUpText: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Regular',
+    color: '#64748B'
+  },
+  signUpLink: {
+    fontFamily: 'Poppins-Bold'
+  },
+  
+  // Footer
+  footer: {
+    fontSize: 12,
+    fontFamily: 'Poppins-Regular',
+    color: '#CBD5E1',
+    textAlign: 'center',
+    marginTop: 40
+  },
 });
 
 export default Register;
