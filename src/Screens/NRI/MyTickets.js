@@ -145,22 +145,6 @@ function MyTickets({ navigation }) {
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{filteredTickets.length}</Text>
             </View>
-      <Header navigation={navigation} title="My Tickets" />
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
-      >
-        <View style={styles.filtersCard}>
-          <View style={styles.searchBox}>
-            <Icon name="search" size={18} color="#94A3B8" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search ticket # or service..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-            />
           </View>
           <TouchableOpacity
             style={styles.newRequestBtn}
@@ -172,7 +156,11 @@ function MyTickets({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        >
 
           {loading && (
             <View style={styles.loadingBox}>

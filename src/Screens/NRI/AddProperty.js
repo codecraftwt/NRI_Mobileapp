@@ -18,6 +18,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { addProperty, updateProperty } from '../../Redux/slices/propertiesSlice';
 import { usePropertyDetail } from '../../Hooks/usePropertyDetail';
 import { useStates } from '../../Hooks/useStates';
@@ -59,7 +61,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
             <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>
               {value || placeholder}
             </Text>
-            <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+            <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
           </>
         )}
       </TouchableOpacity>
@@ -81,7 +83,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                   }}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
                 </TouchableOpacity>
               )}
             />
@@ -191,10 +193,10 @@ function AttachmentsCard({ propertyId }) {
         <View style={{ gap: 8 }}>
           {attachments.map(a => (
             <View key={a.id} style={styles.attachmentRow}>
-              <Icon name={a.type === 'photo' ? 'image' : 'description'} size={18} color="#8B5CF6" />
+              <Icon name={a.type === 'photo' ? 'image' : 'description'} size={18} color={colors.primaryDark} />
               <Text style={styles.attachmentLabel} numberOfLines={1}>{a.label || (a.type === 'photo' ? 'Photo' : 'Document')}</Text>
               <TouchableOpacity onPress={() => handleRemove(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Icon name="delete-outline" size={18} color="#EF4444" />
+                <Icon name="delete-outline" size={18} color={colors.error} />
               </TouchableOpacity>
             </View>
           ))}
@@ -208,17 +210,17 @@ function AttachmentsCard({ propertyId }) {
           value={label}
           onChangeText={setLabel}
           placeholder="e.g. Front view, Tax receipt"
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={colors.textPlaceholder}
         />
       </View>
 
       <View style={styles.row}>
         <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => pickAndUpload('photo')} disabled={uploadingAttachment}>
-          {uploadingAttachment ? <ActivityIndicator size="small" color="#007AFF" /> : <Icon name="add-a-photo" size={16} color="#007AFF" />}
+          {uploadingAttachment ? <ActivityIndicator size="small" color={colors.primary} /> : <Icon name="add-a-photo" size={16} color={colors.primary} />}
           <Text style={styles.attachBtnText}>Add Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => pickAndUpload('document')} disabled={uploadingAttachment}>
-          {uploadingAttachment ? <ActivityIndicator size="small" color="#007AFF" /> : <Icon name="note-add" size={16} color="#007AFF" />}
+          {uploadingAttachment ? <ActivityIndicator size="small" color={colors.primary} /> : <Icon name="note-add" size={16} color={colors.primary} />}
           <Text style={styles.attachBtnText}>Add Document</Text>
         </TouchableOpacity>
       </View>
@@ -443,7 +445,7 @@ function AddProperty({ navigation, route }) {
                   />
                   <TouchableOpacity style={styles.lookupBtn} onPress={handleLookupPincode} disabled={loadingPostalLookup}>
                     {loadingPostalLookup ? (
-                      <ActivityIndicator size="small" color="#007AFF" />
+                      <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                       <Text style={styles.lookupBtnText}>Find</Text>
                     )}
@@ -493,7 +495,7 @@ function AddProperty({ navigation, route }) {
                 <View style={[styles.fieldWrap, styles.rowItem]}>
                   <Text style={styles.inputLabel}>Tenant Phone</Text>
                   <TextInput
-                    style={july14styles.input}
+                    style={styles.input}
                     value={tenantPhone}
                     onChangeText={setTenantPhone}
                     keyboardType="phone-pad"
@@ -509,7 +511,7 @@ function AddProperty({ navigation, route }) {
                 title="Utility Accounts"
                 action={
                   <TouchableOpacity style={styles.addUtilityBtn} onPress={addUtilityRow} activeOpacity={0.8}>
-                    <Icon name="add" size={16} color="#007AFF" />
+                    <Icon name="add" size={16} color={colors.primary} />
                     <Text style={styles.addUtilityBtnText}>Add</Text>
                   </TouchableOpacity>
                 }
@@ -540,7 +542,7 @@ function AddProperty({ navigation, route }) {
                         onPress={() => removeUtilityRow(u.id)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Icon name="delete-outline" size={18} color="#EF4444" />
+                        <Icon name="delete-outline" size={18} color={colors.error} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -586,23 +588,23 @@ function AddProperty({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
-  detailLoadingText: { fontSize: 13, color: '#64748B' },
+  detailLoadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 40 },
 
   card: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 18,
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: 20,
+    gap: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
 
   sectionHeaderRow: {
@@ -611,145 +613,145 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.surfaceSecondary,
   },
-  sectionHeaderText: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
+  sectionHeaderText: { ...typography.h4, color: colors.textPrimary },
 
   row: { flexDirection: 'row', gap: 12 },
   rowItem: { flex: 1 },
 
   fieldWrap: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  required: { color: '#EF4444' },
+  inputLabel: { ...typography.labelMedium, color: colors.textPrimary },
+  required: { color: colors.error },
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
-    color: '#1E293B',
-    fontSize: 14,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    color: colors.textPrimary,
+    ...typography.body,
   },
-  multiline: { height: 100, textAlignVertical: 'top', paddingVertical: 12 },
-  pincodeRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  multiline: { height: 100, textAlignVertical: 'top', paddingVertical: 14 },
+  pincodeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   pincodeInput: { flex: 1 },
-  lookupBtn: { height: 48, minWidth: 64, borderRadius: 10, borderWidth: 1, borderColor: '#007AFF', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 14 },
-  lookupBtnText: { color: '#007AFF', fontSize: 13, fontWeight: '700' },
+  lookupBtn: { height: 52, minWidth: 70, borderRadius: 12, borderWidth: 1.5, borderColor: colors.primary, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  lookupBtnText: { color: colors.primary, ...typography.labelMedium },
 
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
   },
-  selectBoxDisabled: { backgroundColor: '#F1F5F9', opacity: 0.6 },
-  selectText: { fontSize: 14, color: '#1E293B', flex: 1 },
-  placeholderText: { color: '#94A3B8' },
-  retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600' },
+  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary },
+  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  placeholderText: { color: colors.textPlaceholder },
+  retryText: { ...typography.labelMedium, color: colors.error },
 
-  hint: { fontSize: 12.5, color: '#94A3B8' },
+  hint: { ...typography.small, color: colors.textSecondary },
 
   addUtilityBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: '#DCEBFF',
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#F0F7FF',
+    backgroundColor: colors.surface,
   },
-  addUtilityBtnText: { color: '#007AFF', fontSize: 12.5, fontWeight: '700' },
+  addUtilityBtnText: { color: colors.primary, ...typography.labelMedium },
 
-  utilityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  utilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   utilityLabelInput: { flex: 1.2 },
   utilityValueInput: { flex: 1 },
   removeUtilityBtn: {
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 10,
-    height: 48,
-    width: 44,
+    borderWidth: 1.5,
+    borderColor: colors.error,
+    borderRadius: 12,
+    height: 52,
+    width: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.surface,
   },
 
   attachmentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
+    gap: 12,
+    paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.surfaceSecondary,
   },
-  attachmentLabel: { flex: 1, fontSize: 13, color: '#374151' },
+  attachmentLabel: { flex: 1, ...typography.body, color: colors.textPrimary },
   attachBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  attachBtnText: { color: '#007AFF', fontSize: 13, fontWeight: '700' },
-
-  actions: { flexDirection: 'row', gap: 12, paddingTop: 4 },
-  cancelBtn: {
-    flex: 1,
-    height: 50,
+    gap: 8,
+    height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: colors.primary,
+  },
+  attachBtnText: { color: colors.primary, ...typography.labelMedium },
+
+  actions: { flexDirection: 'row', gap: 16, paddingTop: 8 },
+  cancelBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
   },
-  cancelBtnText: { color: '#64748B', fontSize: 15, fontWeight: '700' },
+  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
   submitBtn: {
     flex: 1.5,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
+    height: 52,
+    borderRadius: 24,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
-  submitBtnDisabled: { backgroundColor: '#9CC7FF' },
-  submitBtnText: { color: 'white', fontSize: 15, fontWeight: '700' },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: colors.onAccent, ...typography.labelLarge },
 
   // ---- dropdown modal ----
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(42,43,44,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '60%',
     paddingBottom: 24,
-    paddingTop: 10,
+    paddingTop: 12,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalHandle: { width: 48, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { ...typography.h4, color: colors.textPrimary, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    borderBottomColor: colors.surfaceSecondary,
   },
-  modalOptionText: { fontSize: 14.5, color: '#1E293B' },
+  modalOptionText: { ...typography.body, color: colors.textPrimary },
 });
 
 export default AddProperty;

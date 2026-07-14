@@ -4,6 +4,8 @@ import { useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { removeProperty } from '../../Redux/slices/propertiesSlice';
 import { useProperties } from '../../Hooks/useProperties';
 
@@ -58,7 +60,7 @@ function Properties({ navigation }) {
       >
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading properties…</Text>
           </View>
         )}
@@ -73,7 +75,7 @@ function Properties({ navigation }) {
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View style={styles.propertyIcon}>
-                  <Icon name={p.type === 'farm' ? 'grass' : 'location-city'} size={20} color="white" />
+                  <Icon name={p.type === 'farm' ? 'grass' : 'location-city'} size={24} color={colors.accent} />
                 </View>
                 <View style={styles.propertyInfo}>
                   <Text style={styles.propertyName}>{p.nickname}</Text>
@@ -86,34 +88,34 @@ function Properties({ navigation }) {
                   onPress={() => navigation.navigate('AddProperty', { propertyId: p.id })}
                   activeOpacity={0.7}
                 >
-                  <Icon name="edit" size={18} color="#007AFF" />
+                  <Icon name="edit" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
                   onPress={() => handleDelete(p)}
                   activeOpacity={0.7}
                 >
-                  <Icon name="delete" size={18} color="#EF4444" />
+                  <Icon name="delete" size={18} color={colors.error} />
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.cardBody}>
               <View style={styles.metaRow}>
-                <Icon name="location-on" size={13} color="#94A3B8" />
+                <Icon name="location-on" size={16} color={colors.textSecondary} />
                 <Text style={styles.propertyAddress} numberOfLines={1}>
                   {[p.address, [p.cityName, p.stateName].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}
                 </Text>
               </View>
               {!!p.tenantName && (
                 <View style={styles.metaRow}>
-                  <Icon name="person" size={13} color="#FF9800" />
+                  <Icon name="person" size={16} color={colors.accent} />
                   <Text style={styles.tenantText}>Tenant: {p.tenantName}</Text>
                 </View>
               )}
               {p.utilityAccounts.length > 0 && (
                 <View style={styles.metaRow}>
-                  <Icon name="bolt" size={13} color="#007AFF" />
+                  <Icon name="bolt" size={16} color={colors.primary} />
                   <Text style={styles.utilityText} numberOfLines={1}>
                     {p.utilityAccounts.map(u => `${u.type}: ${u.account}`).join('  ·  ')}
                   </Text>
@@ -121,7 +123,7 @@ function Properties({ navigation }) {
               )}
               {p.attachments.length > 0 && (
                 <View style={styles.metaRow}>
-                  <Icon name="attach-file" size={13} color="#8B5CF6" />
+                  <Icon name="attach-file" size={16} color={colors.primaryDark} />
                   <Text style={styles.utilityText}>{p.attachments.length} attachment{p.attachments.length === 1 ? '' : 's'}</Text>
                 </View>
               )}
@@ -130,7 +132,7 @@ function Properties({ navigation }) {
         ))}
 
         <TouchableOpacity style={styles.addCard} onPress={() => navigation.navigate('AddProperty')} activeOpacity={0.8}>
-          <Icon name="add-location" size={24} color="#007AFF" />
+          <Icon name="add" size={24} color={colors.onAccent} />
           <Text style={styles.addCardText}>Add Property</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -139,38 +141,38 @@ function Properties({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   backToCustomerBtn: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  backToCustomerText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  backToCustomerText: { ...typography.small, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#64748B' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
+  retryText: { ...typography.labelMedium, color: colors.error },
 
   propertyCard: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 14,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: 20,
+    gap: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -183,32 +185,41 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  propertyIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F59E0B', justifyContent: 'center', alignItems: 'center' },
+  propertyIcon: { width: 48, height: 48, borderRadius: 12, backgroundColor: colors.amberBackground, justifyContent: 'center', alignItems: 'center' },
   propertyInfo: { flex: 1 },
-  propertyName: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
-  propertyType: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  propertyName: { ...typography.h4, color: colors.textPrimary },
+  propertyType: { ...typography.small, color: colors.textSecondary, marginTop: 2 },
 
-  cardActions: { flexDirection: 'row', gap: 6 },
+  cardActions: { flexDirection: 'row', gap: 8 },
   actionIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F7FF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceHighlight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionIconBtnDanger: {
-    backgroundColor: '#FFF0F0',
+    backgroundColor: '#FEE2E2',
   },
 
-  cardBody: { gap: 6, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  propertyAddress: { fontSize: 12.5, color: '#64748B', flexShrink: 1 },
-  tenantText: { fontSize: 12.5, color: '#FF9800', fontWeight: '500' },
-  utilityText: { fontSize: 12, color: '#64748B', flexShrink: 1 },
+  cardBody: { gap: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  propertyAddress: { ...typography.body, color: colors.textSecondary, flexShrink: 1 },
+  tenantText: { ...typography.body, color: colors.accent, fontFamily: typography.labelMedium.fontFamily },
+  utilityText: { ...typography.body, color: colors.textSecondary, flexShrink: 1 },
 
-  addCard: { flexDirection: 'row', backgroundColor: 'white', borderRadius: 12, padding: 20, justifyContent: 'center', alignItems: 'center', gap: 8, borderWidth: 2, borderColor: '#FFF3E0', borderStyle: 'dashed' },
-  addCardText: { color: '#F59E0B', fontSize: 15, fontWeight: '600' },
+  addCard: { 
+    flexDirection: 'row', 
+    backgroundColor: colors.accent, 
+    borderRadius: 24, 
+    padding: 16, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 8,
+    marginTop: 8 
+  },
+  addCardText: { color: colors.onAccent, ...typography.labelLarge },
 });
 
 export default Properties;

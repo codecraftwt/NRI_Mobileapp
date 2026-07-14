@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useDocuments } from '../../Hooks/useDocuments';
 import { toggleShareDocument, removeDocument } from '../../Redux/slices/documentsSlice';
 import { getDocumentDownloadUrl } from '../../Api/documentApi';
@@ -90,7 +92,7 @@ function DocumentVault({ navigation }) {
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading documents…</Text>
           </View>
         )}
@@ -100,65 +102,58 @@ function DocumentVault({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {documents.length > 0 && (
-          <View style={styles.tableHeader}>
-            <Text style={[styles.thCell, { flex: 1.5 }]}>Document</Text>
-            <Text style={[styles.thCell, { flex: 1 }]}>Type</Text>
-            <Text style={[styles.thCell, { flex: 0.8 }]}>Expiry</Text>
-            <Text style={[styles.thCell, { flex: 1 }]}>Shared with RM</Text>
-            <Text style={[styles.thCell, { flex: 0.7, textAlign: 'center' }]}>Actions</Text>
-          </View>
-        )}
-
         {documents.length === 0 && !loading ? (
           <View style={styles.emptyState}>
-            <Icon name="folder-open" size={48} color="#CBD5E1" />
+            <Icon name="folder-open" size={64} color={colors.textPlaceholder} />
             <Text style={styles.emptyText}>No documents yet</Text>
             <Text style={styles.emptySubText}>Upload your first document to get started.</Text>
           </View>
         ) : (
           documents.map(doc => (
-            <View key={doc.id} style={styles.tableRow}>
-              <View style={{ flex: 1.5 }}>
-                <Text style={styles.cellName} numberOfLines={1}>{doc.documentName}</Text>
-                {doc.isExpired ? (
-                  <Text style={styles.expiredBadge}>Expired</Text>
-                ) : doc.expiringSoon ? (
-                  <Text style={styles.expiringSoonBadge}>Expiring soon</Text>
-                ) : null}
+            <View key={doc.id} style={styles.docCard}>
+              <View style={styles.docIconWrap}>
+                <Icon name="description" size={24} color={colors.accent} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cellText}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</Text>
-              </View>
-              <View style={{ flex: 0.8 }}>
-                <Text style={styles.cellText}>{doc.expiryDate || '—'}</Text>
-              </View>
-              <TouchableOpacity
-                style={{ flex: 1 }}
-                onPress={() => toggleShare(doc)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.pill, doc.sharedWithRm && styles.pillActive]}>
-                  <Icon
-                    name={doc.sharedWithRm ? 'check-circle' : 'block'}
-                    size={12}
-                    color={doc.sharedWithRm ? '#10B981' : '#94A3B8'}
-                  />
-                  <Text style={[styles.pillText, doc.sharedWithRm && styles.pillTextActive]}>
-                    {doc.sharedWithRm ? 'Shared' : 'Private'}
+              
+              <View style={styles.docInfo}>
+                <Text style={styles.docName} numberOfLines={1}>{doc.documentName}</Text>
+                
+                <View style={styles.docSubRow}>
+                  <Text style={styles.docType}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</Text>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={styles.docExpiry}>
+                    {doc.expiryDate || 'No Expiry'}
                   </Text>
+                  {doc.isExpired && <Text style={styles.expiredBadge}>Expired</Text>}
+                  {doc.expiringSoon && !doc.isExpired && <Text style={styles.expiringSoonBadge}>Soon</Text>}
                 </View>
-              </TouchableOpacity>
-              <View style={{ flex: 0.7, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+
+                <TouchableOpacity onPress={() => toggleShare(doc)} activeOpacity={0.7} style={styles.compactPillWrap}>
+                  <View style={[styles.compactPill, doc.sharedWithRm && styles.compactPillActive]}>
+                    <Icon
+                      name={doc.sharedWithRm ? 'check-circle' : 'lock'}
+                      size={12}
+                      color={doc.sharedWithRm ? colors.success : colors.textSecondary}
+                    />
+                    <Text style={[styles.compactPillText, doc.sharedWithRm && styles.compactPillTextActive]}>
+                      {doc.sharedWithRm ? 'Shared with RM' : 'Private'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.actionCol}>
                 {downloadingId === doc.id ? (
-                  <ActivityIndicator size="small" color="#007AFF" />
+                  <View style={styles.actionBtn}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
                 ) : (
-                  <TouchableOpacity onPress={() => handleDownload(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="file-download" size={18} color="#007AFF" />
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => handleDownload(doc)}>
+                    <Icon name="file-download" size={18} color={colors.primary} />
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => handleDelete(doc)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Icon name="delete-outline" size={18} color="#EF4444" />
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(doc)}>
+                  <Icon name="delete-outline" size={18} color={colors.error} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -170,7 +165,7 @@ function DocumentVault({ navigation }) {
           activeOpacity={0.85}
           onPress={() => navigation.navigate('UploadDocument')}
         >
-          <Icon name="upload-file" size={18} color="#fff" />
+          <Icon name="add" size={24} color={colors.onAccent} />
           <Text style={styles.uploadBtnText}>Upload Document</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -179,87 +174,103 @@ function DocumentVault({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 8 },
-
-  backToCustomerBtn: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    marginBottom: 4,
-  },
-  backToCustomerText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#64748B' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
+  retryText: { ...typography.labelMedium, color: colors.error },
 
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyText: { fontSize: 16, fontWeight: '700', color: '#64748B' },
-  emptySubText: { fontSize: 13, color: '#94A3B8' },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyText: { ...typography.h3, color: colors.textSecondary },
+  emptySubText: { ...typography.body, color: colors.textPlaceholder },
 
-  tableHeader: {
+  docCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
+    elevation: 3,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 16,
   },
-  thCell: { fontSize: 11, fontWeight: '800', color: '#64748B', textTransform: 'uppercase' },
-
-  tableRow: {
+  docIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.amberBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  docInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  docName: { ...typography.h4, fontSize: 15, color: colors.textPrimary },
+  docSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: 4,
+    flexWrap: 'wrap',
   },
-  cellName: { fontSize: 13, fontWeight: '700', color: '#1E293B' },
-  cellText: { fontSize: 12.5, color: '#64748B' },
-  expiredBadge: { fontSize: 10.5, color: '#EF4444', fontWeight: '700', marginTop: 2 },
-  expiringSoonBadge: { fontSize: 10.5, color: '#F59E0B', fontWeight: '700', marginTop: 2 },
-
-  pill: {
+  docType: { ...typography.small, color: colors.textSecondary },
+  bullet: { ...typography.small, color: colors.textPlaceholder },
+  docExpiry: { ...typography.small, color: colors.textSecondary },
+  expiredBadge: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.error, backgroundColor: '#FEE2E2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  expiringSoonBadge: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.warning, backgroundColor: colors.warningBackground, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  
+  compactPillWrap: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  compactPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
+    borderColor: colors.border,
+    borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
   },
-  pillActive: { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
-  pillText: { fontSize: 11, color: '#94A3B8', fontWeight: '600' },
-  pillTextActive: { color: '#10B981' },
+  compactPillActive: { borderColor: colors.success, backgroundColor: colors.successBackground },
+  compactPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.textSecondary },
+  compactPillTextActive: { color: colors.success },
+
+  actionCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceHighlight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBtnDanger: {
+    backgroundColor: '#FEE2E2',
+  },
 
   uploadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 12,
+    backgroundColor: colors.accent,
+    borderRadius: 24,
+    paddingVertical: 16,
+    marginTop: 8,
   },
-  uploadBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  uploadBtnText: { color: colors.onAccent, ...typography.labelLarge },
 });
 
 export default DocumentVault;

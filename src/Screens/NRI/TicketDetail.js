@@ -9,12 +9,12 @@ import { typography } from '../../theme/typography';
 
 function getStatusColor(statusLabel) {
   switch (statusLabel) {
-    case 'New': return { bg: '#E5F1FF', text: '#3298D4' };
-    case 'Assigned': return { bg: '#FFF3E0', text: '#FF9800' };
-    case 'In Progress': return { bg: '#E8F5E9', text: '#4CAF50' };
-    case 'Completed': return { bg: 'rgba(50,152,212,0.15)', text: '#21709F' };
-    case 'Cancelled': return { bg: '#FEE2E2', text: '#EF4444' };
-    default: return { bg: '#F0F1F1', text: '#94A3B8' };
+    case 'New': return { bg: colors.badgeBackground, text: colors.primary };
+    case 'Assigned': return { bg: colors.warningBackground, text: colors.warning };
+    case 'In Progress': return { bg: colors.successBackground, text: colors.success };
+    case 'Completed': return { bg: colors.primaryLight + '30', text: colors.primaryDark };
+    case 'Cancelled': return { bg: colors.errorBackground, text: colors.error };
+    default: return { bg: colors.surfaceSecondary, text: colors.textSecondary };
   }
 }
 
@@ -117,9 +117,9 @@ function TicketDetail({ route, navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
-        <View style={styles.card}>
+        <View style={styles.section}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
@@ -218,7 +218,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        <View style={styles.lastSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Request Timeline</Text>
           {timeline.map((event, idx) => {
             const eventStatusStyle = getStatusColor(event.to === 'new' ? 'New' : event.to === 'assigned' ? 'Assigned' : event.to === 'in_progress' ? 'In Progress' : event.to === 'completed' ? 'Completed' : event.to === 'cancelled' ? 'Cancelled' : event.to);
@@ -261,82 +261,70 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  lastSection: {
-    backgroundColor: colors.surface,
-    padding: 20, 
-    borderRadius: 16,
-    gap: 16,
-    marginBottom: 16,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 3,
-  },
   
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   badgeRow: { flexDirection: 'row', gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  badgeNeutral: { backgroundColor: '#F0F1F1' },
+  badgeNeutral: { backgroundColor: colors.surfaceSecondary },
   badgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase' },
-  badgeTextNeutral: { color: '#94A3B8' },
+  badgeTextNeutral: { color: colors.textSecondary },
   
   submittedWrap: { alignItems: 'flex-end' },
-  hint: { ...typography.tiny, color: '#94A3B8' },
-  submittedDate: { ...typography.small, color: '#333', fontFamily: typography.labelMedium.fontFamily, marginTop: 2 },
+  hint: { ...typography.tiny, color: colors.textSecondary },
+  submittedDate: { ...typography.small, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily, marginTop: 2 },
   
-  ticketId: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#333' },
+  ticketId: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
   
   infoGrid: { gap: 16, marginTop: 8 },
   infoBlock: { gap: 4 },
-  label: { ...typography.small, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
-  value: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#333' },
-  subValue: { ...typography.small, color: '#94A3B8' },
+  label: { ...typography.small, color: colors.textSecondary, fontFamily: typography.labelMedium.fontFamily },
+  value: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: colors.textPrimary },
+  subValue: { ...typography.small, color: colors.textSecondary },
   
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  overdueText: { color: '#EF4444' },
+  overdueText: { color: colors.error },
   overdueBadge: { backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  overdueBadgeText: { ...typography.tiny, color: '#EF4444', fontFamily: typography.labelMedium.fontFamily },
+  overdueBadgeText: { ...typography.tiny, color: colors.error, fontFamily: typography.labelMedium.fontFamily },
   
-  sectionTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#333', marginBottom: 8 },
+  sectionTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: colors.textPrimary, marginBottom: 8 },
   
   chargesList: { gap: 0 },
-  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F0F1F1', borderStyle: 'dashed' },
-  chargeLabel: { ...typography.small, color: '#94A3B8', flex: 1, paddingRight: 8 },
-  chargeValue: { fontSize: 14, color: '#333', fontFamily: typography.labelMedium.fontFamily },
-  discountValue: { color: '#10B981' },
+  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary, borderStyle: 'dashed' },
+  chargeLabel: { ...typography.small, color: colors.textSecondary, flex: 1, paddingRight: 8 },
+  chargeValue: { fontSize: 14, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
+  discountValue: { color: colors.success },
   
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: '#F3F4F6' },
-  totalLabel: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#333' },
-  totalValue: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#333' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: colors.surfaceSecondary },
+  totalLabel: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: colors.textPrimary },
+  totalValue: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
   
   timelineRow: { flexDirection: 'row', gap: 16 },
   timelineDotCol: { alignItems: 'center', width: 16 },
-  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#D1D5DB', marginTop: 4 },
-  timelineDotActive: { backgroundColor: '#E97A24' }, // Accent color for active dot
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#F0F1F1', marginTop: 4, marginBottom: -4 },
+  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.border, marginTop: 4 },
+  timelineDotActive: { backgroundColor: colors.accent }, 
+  timelineLine: { flex: 1, width: 2, backgroundColor: colors.surfaceSecondary, marginTop: 4, marginBottom: -4 },
   timelineContent: { flex: 1, paddingBottom: 24, gap: 4 },
   timelineBadge: { alignSelf: 'flex-start' },
-  timelineDate: { ...typography.small, color: '#94A3B8' },
-  timelineDesc: { ...typography.body, color: '#333' },
+  timelineDate: { ...typography.small, color: colors.textSecondary },
+  timelineDesc: { ...typography.body, color: colors.textPrimary },
   
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#3298D4', // Primary color
+    backgroundColor: colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     marginTop: 20,
     paddingHorizontal: 24,
   },
-  backBtnText: { ...typography.labelLarge, color: '#FFFFFF' },
+  backBtnText: { ...typography.labelLarge, color: colors.surface },
   
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyText: { ...typography.body, color: '#94A3B8' },
+  emptyText: { ...typography.body, color: colors.textSecondary },
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backLinkText: { ...typography.labelMedium, color: '#3298D4' },
+  backLinkText: { ...typography.labelMedium, color: colors.primary },
 });
 
 export default TicketDetail;

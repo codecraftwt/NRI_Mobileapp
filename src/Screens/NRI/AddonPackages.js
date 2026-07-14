@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
 
@@ -14,9 +16,9 @@ const GATEWAYS = [
 
 function statusStyle(status) {
   switch (status) {
-    case 'active': return { bg: '#E8F5E9', text: '#4CAF50' };
-    case 'pending': return { bg: '#FFF3E0', text: '#FF9800' };
-    default: return { bg: '#F3F4F6', text: '#6B7280' };
+    case 'active': return { bg: colors.successBackground, text: colors.success };
+    case 'pending': return { bg: colors.warningBackground, text: colors.warning };
+    default: return { bg: colors.surfaceSecondary, text: colors.textSecondary };
   }
 }
 
@@ -141,7 +143,7 @@ function AddonPackages({ navigation }) {
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading add-on packages…</Text>
           </View>
         )}
@@ -157,16 +159,22 @@ function AddonPackages({ navigation }) {
           return (
             <View key={pkg.id} style={styles.pkgCard}>
               <View style={styles.pkgHeaderRow}>
-                <Text style={styles.pkgName}>{pkg.name}</Text>
-                {!!subscription && (
-                  <View style={[styles.statusBadge, { backgroundColor: statusStyle(subscription.status).bg }]}>
-                    <Text style={[styles.statusBadgeText, { color: statusStyle(subscription.status).text }]}>{subscription.status}</Text>
-                  </View>
-                )}
+                <View style={styles.pkgTitleWrap}>
+                  <Icon name="stars" size={18} color={colors.gold || '#FACC15'} />
+                  <Text style={styles.pkgName} numberOfLines={2}>{pkg.name}</Text>
+                </View>
+                <View style={styles.pkgPriceWrap}>
+                  <Text style={styles.pkgPrice}>₹{pkg.priceMonthly.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.pkgPriceUnit}>/mo</Text>
+                </View>
               </View>
-              <Text style={styles.pkgPrice}>
-                ₹{pkg.priceMonthly.toLocaleString('en-IN')}<Text style={styles.pkgPriceUnit}>/month</Text>
-              </Text>
+              
+              {!!subscription && (
+                <View style={[styles.statusBadge, { backgroundColor: statusStyle(subscription.status).bg, alignSelf: 'flex-start', marginTop: 4, marginBottom: 4 }]}>
+                  <Text style={[styles.statusBadgeText, { color: statusStyle(subscription.status).text }]}>{subscription.status}</Text>
+                </View>
+              )}
+              
               {!!pkg.description && <Text style={styles.pkgDesc}>{pkg.description}</Text>}
 
               {subscription ? (
@@ -181,7 +189,7 @@ function AddonPackages({ navigation }) {
                     <Text style={styles.methodSelectText} numberOfLines={1}>
                       {GATEWAYS.find(g => g.key === (gateways[pkg.id] || GATEWAYS[0].key)).label}
                     </Text>
-                    <Icon name="arrow-drop-down" size={20} color="#6B7280" />
+                    <Icon name="arrow-drop-down" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.subBtn} onPress={() => handleSubscribe(pkg)} disabled={isProcessing}>
                     {isProcessing ? <ActivityIndicator size="small" color="white" /> : <Text style={styles.subBtnText}>Subscribe</Text>}
@@ -197,28 +205,70 @@ function AddonPackages({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
-  introText: { fontSize: 13, color: '#6B7280', lineHeight: 19, marginBottom: 4 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  introText: { ...typography.body, color: colors.textSecondary, marginBottom: 8 },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#6B7280' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  pkgCard: { backgroundColor: 'white', borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  pkgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  pkgName: { fontSize: 16, fontWeight: 'bold', color: '#111827', flex: 1 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statusBadgeText: { fontSize: 10.5, fontWeight: 'bold', textTransform: 'capitalize' },
-  pkgPrice: { fontSize: 20, color: '#007AFF', fontWeight: '700', marginTop: 4 },
-  pkgPriceUnit: { fontSize: 13, color: '#6B7280', fontWeight: '400' },
-  pkgDesc: { fontSize: 12.5, color: '#6B7280', lineHeight: 18, marginTop: 8 },
-  pkgActions: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  methodSelect: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 9 },
-  methodSelectText: { fontSize: 12, color: '#374151', flexShrink: 1 },
-  subBtn: { backgroundColor: '#007AFF', borderRadius: 8, paddingHorizontal: 18, justifyContent: 'center', alignItems: 'center', minWidth: 90 },
-  subBtnText: { fontSize: 13, color: 'white', fontWeight: '600' },
-  cancelBtn: { flex: 1, borderWidth: 1, borderColor: '#EF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  cancelBtnText: { fontSize: 13, color: '#EF4444', fontWeight: '600' },
+  retryText: { ...typography.labelMedium, color: colors.error },
+  pkgCard: { 
+    backgroundColor: colors.surface, 
+    borderRadius: 16, 
+    padding: 16, 
+    shadowColor: colors.shadow, 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 1, 
+    shadowRadius: 12, 
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
+  },
+  pkgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  pkgTitleWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flex: 1, paddingTop: 2 },
+  pkgName: { ...typography.h4, color: colors.textPrimary, flex: 1, lineHeight: 22 },
+  pkgPriceWrap: { alignItems: 'flex-end' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  statusBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
+  pkgPrice: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
+  pkgPriceUnit: { ...typography.tiny, color: colors.textSecondary, marginTop: -2 },
+  pkgDesc: { ...typography.body, color: colors.textSecondary, lineHeight: 20, marginTop: 12 },
+  pkgActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  methodSelect: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    borderWidth: 1, 
+    borderColor: colors.border, 
+    borderRadius: 12, 
+    paddingHorizontal: 16, 
+    height: 52, 
+    backgroundColor: colors.surfaceMuted 
+  },
+  methodSelectText: { ...typography.body, color: colors.textPrimary, flexShrink: 1 },
+  subBtn: { 
+    backgroundColor: colors.accent, 
+    borderRadius: 24, 
+    paddingHorizontal: 24, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    height: 52,
+    minWidth: 110 
+  },
+  subBtnText: { ...typography.labelMedium, color: colors.onAccent },
+  cancelBtn: { 
+    flex: 1, 
+    borderWidth: 1.5, 
+    borderColor: colors.error, 
+    borderRadius: 24, 
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center' 
+  },
+  cancelBtnText: { ...typography.labelMedium, color: colors.error },
 });
 
 export default AddonPackages;
