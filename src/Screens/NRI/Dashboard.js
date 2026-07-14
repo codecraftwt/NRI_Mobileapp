@@ -1,9 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import RMWidget from '../../Components/RMWidget';
 import { useDashboard } from '../../Hooks/useDashboard';
+import { lightColors as colors, typography, spacing, radius } from '../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
@@ -14,176 +17,173 @@ function Dashboard({ navigation }) {
   const recentReports = data?.recentReports || [];
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'New': return { bg: '#E5F1FF', text: '#007AFF' };
-      case 'Assigned': return { bg: '#FFF3E0', text: '#FF9800' };
-      case 'In Progress': return { bg: '#E8F5E9', text: '#4CAF50' };
-      default: return { bg: '#F3F4F6', text: '#6B7280' };
+    switch (status?.toLowerCase()) {
+      case 'new': return { bg: colors.badgeBackground, text: colors.primary };
+      case 'assigned': return { bg: colors.warningBackground, text: colors.warning };
+      case 'in progress': return { bg: colors.successBackground, text: colors.success };
+      default: return { bg: colors.surfaceSecondary, text: colors.textSecondary };
     }
   };
 
   const quickActions = [
-    { id: 'props', name: 'My Properties', icon: 'location-city', screen: 'Properties', color: '#F59E0B' },
-    { id: 'vault', name: 'Document Vault', icon: 'folder_open', screen: 'Document Vault', color: '#8B5CF6' },
-    { id: 'billing', name: 'Billing & Payments', icon: 'receipt', screen: 'Billing & Payments', color: '#EC4899' },
-    { id: 'addons', name: 'Add-on Packages', icon: 'layers', screen: 'Add-on Packages', color: '#6B7280' },
-    { id: 'reports', name: 'Reports & Media', icon: 'insert-chart', screen: 'Reports & Media', color: '#EF4444' },
-    { id: 'wallet', name: 'Wallet & Coupons', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#14B8A6' },
-    { id: 'refer', name: 'Refer & Earn', icon: 'card-giftcard', screen: 'Refer & Earn', color: '#F97316' },
+    { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: colors.primary },
+    { id: 'vault', name: 'Document Vault', icon: 'folder-shared', screen: 'Document Vault', color: colors.accent },
+    { id: 'billing', name: 'Billing', icon: 'receipt-long', screen: 'Billing & Payments', color: colors.primaryDark },
+    { id: 'addons', name: 'Packages', icon: 'auto-awesome-mosaic', screen: 'Add-on Packages', color: colors.warning },
+    { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: colors.success },
+    { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: colors.primaryLight },
   ];
+
+  const renderKPICard = (title, value, icon, color) => (
+    <View style={styles.kpiCard}>
+      <View style={[styles.kpiIconWrapper, { backgroundColor: color + '15' }]}>
+        <Icon name={icon} size={28} color={color} />
+      </View>
+      <View style={styles.kpiTextContainer}>
+        <Text style={styles.kpiValue} numberOfLines={1}>{value}</Text>
+        <Text style={styles.kpiLabel}>{title}</Text>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title="NRI Circle" />
+      {/* Dynamic Geometric Background Layering matching Auth screens */}
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
+
+      <Header navigation={navigation} />
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {loading && !data && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading your dashboard…</Text>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>Fetching your dashboard...</Text>
           </View>
         )}
         {failed && !data && (
           <TouchableOpacity style={styles.retryBox} onPress={retry}>
-            <Text style={styles.retryText}>Couldn't load dashboard. Tap to retry.</Text>
+            <Icon name="refresh" size={20} color={colors.error} />
+            <Text style={styles.retryText}>Failed to load. Tap to retry.</Text>
           </TouchableOpacity>
         )}
-
-        {/* KPI Cards */}
-        <View style={styles.kpiRow}>
-          <View style={styles.kpiCard}>
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#E5F1FF' }]}>
-                <Icon name="assignment" size={18} color="#007AFF" />
-              </View>
-              <Text style={styles.kpiLabel}>Active Requests</Text>
-            </View>
-            <Text style={styles.kpiValue}>{stats.activeTickets}</Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#E8F5E9' }]}>
-                <Icon name="verified" size={18} color="#4CAF50" />
-              </View>
-              <Text style={styles.kpiLabel}>Completed Services</Text>
-            </View>
-            <Text style={styles.kpiValue}>{stats.completedTickets}</Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#FFF3E0' }]}>
-                <Icon name="card-membership" size={18} color="#FF9800" />
-              </View>
-              <Text style={styles.kpiLabel}>Membership</Text>
-            </View>
-            <Text style={styles.kpiValue}>{membership?.planName || 'Free'}</Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <View style={styles.kpiTopRow}>
-              <View style={[styles.kpiIconContainer, { backgroundColor: '#E0F2FE' }]}>
-                <Icon name="account-balance-wallet" size={18} color="#0284C7" />
-              </View>
-              <Text style={styles.kpiLabel}>Wallet Credits</Text>
-            </View>
-            <Text style={styles.kpiValue}>₹{stats.walletBalance}</Text>
-          </View>
-        </View>
-
-        {!!membership?.renewalAlert && (
-          <View style={styles.renewalBanner}>
-            <Icon name="notifications-active" size={16} color="#B45309" />
-            <Text style={styles.renewalBannerText}>{membership.renewalAlert}</Text>
-          </View>
-        )}
-
-        {/* Active Requests List */}
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Requests</Text>
-            <TouchableOpacity style={styles.newRequestBtn} onPress={() => navigation.navigate('CreateTicket')}>
-              <Icon name="add-circle" size={15} color="white" />
-              <Text style={styles.newRequestBtnText}>New Request</Text>
-            </TouchableOpacity>
-          </View>
-
-          {recentTickets.length > 0 ? (
-            <>
-              {recentTickets.map(ticket => {
-                const statusStyle = getStatusColor(ticket.status);
-                return (
-                  <View key={ticket.id} style={styles.ticketRow}>
-                    <View style={styles.ticketInfo}>
-                      <Text style={styles.ticketId}>{ticket.reference}</Text>
-                      <Text style={styles.ticketService} numberOfLines={1}>{ticket.service}</Text>
-                      {!!ticket.vendor && <Text style={styles.ticketVendor}>Vendor: {ticket.vendor}</Text>}
-                    </View>
-                    <View style={styles.ticketRight}>
-                      <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                        <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>{ticket.status}</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.detailsBtn}
-                        onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
-                      >
-                        <Icon name="visibility" size={18} color="#007AFF" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })}
-              <TouchableOpacity style={styles.seeAllRow} onPress={() => navigation.navigate('My Tickets')}>
-                <Text style={styles.seeAllText}>All My Requests</Text>
-                <Icon name="chevron-right" size={16} color="#007AFF" />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={styles.emptyState}>
-              <Icon name="assignment-late" size={40} color="#999" />
-              <Text style={styles.emptyText}>No active requests. Book a service below.</Text>
-            </View>
-          )}
-        </View>
 
         {/* RM Connection */}
         <RMWidget rm={data?.rm} />
 
-        {/* Recent Reports Media Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Recent Reports</Text>
-          {recentReports.length > 0 ? (
-            recentReports.map(report => (
-              <View key={report.id} style={styles.reportRow}>
-                <Icon name="description" size={16} color="#6B7280" />
-                <Text style={styles.reportRowText} numberOfLines={1}>{report.title}</Text>
-              </View>
-            ))
+        {/* KPI Grid */}
+        <View style={styles.kpiGrid}>
+          {renderKPICard('Active Requests', stats.activeTickets, 'assignment', colors.primary)}
+          {renderKPICard('Completed', stats.completedTickets, 'check-circle', colors.success)}
+          {renderKPICard('Membership', membership?.planName || 'Free', 'workspace-premium', colors.accent)}
+          {renderKPICard('Wallet', `₹${stats.walletBalance}`, 'account-balance-wallet', colors.primaryDark)}
+        </View>
+
+        {!!membership?.renewalAlert && (
+          <View style={styles.alertBanner}>
+            <View style={styles.alertIcon}>
+              <Icon name="error-outline" size={24} color={colors.warning} />
+            </View>
+            <Text style={styles.alertText}>{membership.renewalAlert}</Text>
+          </View>
+        )}
+
+        {/* Active Requests List */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Requests</Text>
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('CreateTicket')}>
+              <Icon name="add" size={20} color={colors.onPrimary} />
+              <Text style={styles.actionButtonText}>New</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentTickets.length > 0 ? (
+            <View style={styles.cardBlock}>
+              {recentTickets.slice(0, 3).map((ticket, index, arr) => {
+                const statusStyle = getStatusColor(ticket.status);
+                const isLast = index === arr.length - 1;
+                return (
+                  <TouchableOpacity 
+                    key={ticket.id} 
+                    style={[styles.ticketItem, !isLast && styles.borderBottom]}
+                    onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
+                    activeOpacity={0.6}
+                  >
+                    <View style={styles.ticketDetails}>
+                      <Text style={styles.ticketRef}>{ticket.reference}</Text>
+                      <Text style={styles.ticketName} numberOfLines={1}>{ticket.service}</Text>
+                    </View>
+                    <View style={styles.ticketMeta}>
+                      <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
+                        <Text style={[styles.badgeText, { color: statusStyle.text }]}>{ticket.status}</Text>
+                      </View>
+                      <Icon name="chevron-right" size={24} color={colors.primaryLight} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity style={styles.viewAllBtn} onPress={() => navigation.navigate('My Tickets')}>
+                <Text style={styles.viewAllText}>View All Requests</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
-            <Text style={styles.reportText}>No reports yet. Visit reports appear here after each service.</Text>
+            <View style={styles.emptyCard}>
+              <View style={[styles.emptyIconCircle, { backgroundColor: colors.primaryLight + '15' }]}>
+                <Icon name="receipt" size={32} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>No active requests</Text>
+              <Text style={styles.emptySub}>Book your first service with us today.</Text>
+            </View>
           )}
         </View>
 
         {/* Quick Actions Grid */}
-        <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.grid}>
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Explore</Text>
+          <View style={styles.actionGrid}>
             {quickActions.map(action => (
               <TouchableOpacity
                 key={action.id}
-                style={styles.gridItem}
+                style={styles.actionSquare}
                 onPress={() => navigation.navigate(action.screen)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.gridIconContainer, { backgroundColor: action.color }]}>
-                  <Icon name={action.icon} size={22} color="white" />
+                <View style={[styles.actionIconBg, { backgroundColor: action.color + '15' }]}>
+                  <Icon name={action.icon} size={28} color={action.color} />
                 </View>
-                <Text style={styles.gridItemLabel}>{action.name}</Text>
+                <Text style={styles.actionLabel} numberOfLines={2}>{action.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
+
+        {/* Recent Reports Media Card */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Recent Reports</Text>
+          <View style={styles.cardBlock}>
+            {recentReports.length > 0 ? (
+              recentReports.map((report, index) => {
+                const isLast = index === recentReports.length - 1;
+                return (
+                  <TouchableOpacity key={report.id} style={[styles.reportItem, !isLast && styles.borderBottom]}>
+                    <View style={styles.reportIconBg}>
+                      <Icon name="insert-drive-file" size={20} color={colors.primary} />
+                    </View>
+                    <Text style={styles.reportTitle} numberOfLines={1}>{report.title}</Text>
+                    <Icon name="arrow-forward" size={20} color={colors.primaryLight} />
+                  </TouchableOpacity>
+                )
+              })
+            ) : (
+              <View style={styles.emptyStateMinimal}>
+                <Text style={styles.emptySub}>No reports available yet.</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
       </ScrollView>
     </View>
   );
@@ -192,228 +192,307 @@ function Dashboard({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF', // Clean white back to let shapes shine
+    position: 'relative',
+    overflow: 'hidden',
   },
+  
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: {
+    position: 'absolute',
+    top: -H * 0.15,
+    right: -W * 0.3,
+    width: W * 1.5,
+    height: H * 0.5,
+    backgroundColor: colors.primaryLight + '10', // Very light blue
+    borderRadius: 80, 
+    transform: [{ rotate: '-25deg' }]
+  },
+  bgShape2: {
+    position: 'absolute',
+    bottom: -H * 0.2,
+    left: -W * 0.4,
+    width: W * 1.5,
+    height: H * 0.4,
+    backgroundColor: colors.accent + '08', // Very light orange
+    borderRadius: 60,
+    transform: [{ rotate: '-35deg' }]
+  },
+  bgShape3: {
+    position: 'absolute',
+    top: '35%',
+    left: -W * 0.1,
+    width: W * 1.2,
+    height: H * 0.05,
+    backgroundColor: colors.primary + '05',
+    borderRadius: 20,
+    transform: [{ rotate: '15deg' }]
+  },
+
   scrollContainer: {
-    padding: 16,
-    paddingBottom: 90,
+    padding: spacing.lg,
+    paddingBottom: 100,
+    zIndex: 2,
   },
-  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#666' },
-  retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  kpiRow: {
+  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.xl },
+  loadingText: { ...typography.body, color: colors.textSecondary },
+  retryBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.xl },
+  retryText: { ...typography.labelMedium, color: colors.error },
+  
+  kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: spacing.xl,
+    rowGap: spacing.md,
   },
   kpiCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  kpiTopRow: {
-    flexDirection: 'row',
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['2xl'], // Like inputs on Auth
+    padding: spacing.md,
+    flexDirection: 'row', // Align horizontal instead of vertical stack
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    shadowColor: colors.primaryLight, // Premium colorful shadow
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+    gap: spacing.sm,
   },
-  kpiIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  kpiIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  kpiTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   kpiValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 22,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1A1A1A',
+    marginBottom: -4,
   },
   kpiLabel: {
-    fontSize: 11,
-    color: '#666',
-    flexShrink: 1,
+    ...typography.tiny,
+    color: '#64748B',
+    fontFamily: typography.labelMedium.fontFamily,
   },
-  renewalBanner: {
+  
+  alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: '#FFFBEB',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+    gap: spacing.sm,
+  },
+  alertIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#FEF3C7',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  renewalBannerText: { fontSize: 12.5, color: '#92400E', fontWeight: '600', flex: 1 },
-  usageRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  usageLabel: { fontSize: 12.5, color: '#475569' },
-  usageValue: { fontSize: 12.5, color: '#1E293B', fontWeight: '700' },
-  sectionCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+  alertText: { ...typography.body, color: '#92400E', flex: 1 },
+
+  sectionContainer: {
+    marginBottom: spacing.xl,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    fontFamily: 'Roboto',
+    fontSize: 20,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1A1A1A',
   },
-  newRequestBtn: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#10B981',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    backgroundColor: colors.accent, // Use accent (orange) to make it pop like Auth buttons
+    borderRadius: radius.full,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 4,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  newRequestBtnText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '700',
+  actionButtonText: {
+    ...typography.labelMedium,
+    color: colors.onPrimary,
   },
-  seeAllRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-    paddingTop: 12,
+
+  cardBlock: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['2xl'],
+    paddingHorizontal: spacing.md,
+    shadowColor: colors.primaryLight,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
-  seeAllText: {
-    color: '#007AFF',
-    fontSize: 13,
-    fontWeight: '600',
+  borderBottom: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  ticketRow: {
+
+  ticketItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    paddingVertical: spacing.md,
   },
-  ticketInfo: {
+  ticketDetails: {
     flex: 1,
-    marginRight: 12,
+    paddingRight: spacing.sm,
+    justifyContent: 'center',
   },
-  ticketId: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
+  ticketRef: {
+    ...typography.tiny,
+    color: '#94A3B8',
+    marginBottom: 4,
+    fontFamily: typography.labelMedium.fontFamily,
   },
-  ticketService: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginVertical: 2,
+  ticketName: {
+    fontSize: 15,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#1E293B',
   },
-  ticketVendor: {
-    fontSize: 12,
-    color: '#666',
+  ticketMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  ticketRight: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
+  badge: {
+    paddingHorizontal: spacing.sm,
     paddingVertical: 4,
-    borderRadius: 6,
-    minWidth: 70,
+    borderRadius: radius.sm,
+  },
+  badgeText: {
+    ...typography.tiny,
+    fontFamily: typography.labelMedium.fontFamily,
+    textTransform: 'uppercase',
+  },
+  viewAllBtn: {
+    paddingVertical: spacing.md,
     alignItems: 'center',
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  detailsBtn: {
-    padding: 4,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  reportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: '#F1F5F9',
   },
-  reportRowText: { fontSize: 12.5, color: '#374151', flex: 1 },
-  reportText: {
-    fontSize: 12.5,
-    color: '#999',
-    textAlign: 'center',
-    paddingVertical: 16,
+  viewAllText: {
+    ...typography.labelMedium,
+    color: colors.primary,
   },
-  quickActionsContainer: {
-    marginBottom: 16,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 10,
-  },
-  gridItem: {
-    width: '48%',
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['2xl'],
+    padding: spacing.xl,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
   },
-  gridIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.md,
   },
-  gridItemLabel: {
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  emptySub: {
+    ...typography.small,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  emptyStateMinimal: {
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+
+  actionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  actionSquare: {
+    width: '30%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['xl'],
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
+    alignItems: 'center',
+    shadowColor: colors.primaryLight,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.8)',
+  },
+  actionIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  actionLabel: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#444',
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#334155',
+    textAlign: 'center',
+  },
+
+  reportItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+  },
+  reportIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reportTitle: {
+    flex: 1,
+    ...typography.body,
+    color: '#1E293B',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 });
 

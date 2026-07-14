@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { lightColors as colors, typography } from '../theme';
 
 // Import Auth Screens
 import Splash from '../Screens/NRI/Auth/Splash';
@@ -137,7 +138,7 @@ function MainTabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#007AFF',
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: '#94A3B8',
         tabBarLabelStyle: styles.tabLabel,
       }}
@@ -241,20 +242,18 @@ export default function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    height: 80,
-    paddingBottom: 20,
-    paddingTop: 8,
+    borderTopColor: '#F1F5F9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowRadius: 6,
+    elevation: 8,
   },
   tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    ...typography.tiny,
+    fontFamily: typography.labelMedium.fontFamily,
+    paddingBottom: 4,
   },
 });
