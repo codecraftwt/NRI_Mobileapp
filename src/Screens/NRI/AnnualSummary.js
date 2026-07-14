@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useAnnualSummary } from '../../Hooks/useAnnualSummary';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
@@ -71,19 +73,19 @@ function AnnualSummary({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.yearSelect} onPress={chooseYear}>
             <Text style={styles.yearLabel}>Year</Text>
             <Text style={styles.yearValue}>{year}</Text>
-            <Icon name="arrow-drop-down" size={20} color="#6B7280" />
+            <Icon name="arrow-drop-down" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.pdfBtn} onPress={downloadPdf} disabled={!summary || generatingPdf}>
             {generatingPdf ? (
-              <ActivityIndicator size="small" color="white" />
+              <ActivityIndicator size="small" color={colors.onAccent} />
             ) : (
-              <Icon name="picture-as-pdf" size={16} color="white" />
+              <Icon name="picture-as-pdf" size={16} color={colors.onAccent} />
             )}
             <Text style={styles.pdfBtnText}>{generatingPdf ? 'Preparing…' : 'Download PDF'}</Text>
           </TouchableOpacity>
@@ -91,7 +93,7 @@ function AnnualSummary({ navigation }) {
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading summary…</Text>
           </View>
         )}
@@ -110,7 +112,7 @@ function AnnualSummary({ navigation }) {
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Completed Services</Text>
-                <Text style={[styles.statValue, { color: '#10B981' }]}>{summary.completed}</Text>
+                <Text style={[styles.statValue, { color: colors.success }]}>{summary.completed}</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Total Spend</Text>
@@ -141,22 +143,22 @@ function AnnualSummary({ navigation }) {
             <View style={styles.panelCard}>
               <Text style={styles.panelTitle}>Care Highlights</Text>
               <View style={styles.highlightRow}>
-                <Icon name="home" size={18} color="#6B7280" />
+                <Icon name="home" size={18} color={colors.textSecondary} />
                 <Text style={styles.highlightLabel}>Property visits & services</Text>
                 <Text style={styles.highlightCount}>{summary.propertyVisits}</Text>
               </View>
               <View style={styles.highlightRow}>
-                <Icon name="favorite-border" size={18} color="#6B7280" />
+                <Icon name="favorite-border" size={18} color={colors.textSecondary} />
                 <Text style={styles.highlightLabel}>Parent & family care services</Text>
                 <Text style={styles.highlightCount}>{summary.parentCare}</Text>
               </View>
               <View style={styles.highlightRow}>
-                <Icon name="group" size={18} color="#6B7280" />
+                <Icon name="group" size={18} color={colors.textSecondary} />
                 <Text style={styles.highlightLabel}>Family members on file</Text>
                 <Text style={styles.highlightCount}>{members.length}</Text>
               </View>
               <View style={styles.highlightRow}>
-                <Icon name="bar-chart" size={18} color="#6B7280" />
+                <Icon name="bar-chart" size={18} color={colors.textSecondary} />
                 <Text style={styles.highlightLabel}>Properties managed</Text>
                 <Text style={styles.highlightCount}>{properties.length}</Text>
               </View>
@@ -169,32 +171,32 @@ function AnnualSummary({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  yearSelect: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'white', borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 8 },
-  yearLabel: { fontSize: 12, color: '#6B7280' },
-  yearValue: { fontSize: 13, color: '#111827', fontWeight: '600' },
-  pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#007AFF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
-  pdfBtnText: { fontSize: 12, color: 'white', fontWeight: '600' },
+  yearSelect: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 12 },
+  yearLabel: { ...typography.labelMedium, color: colors.textSecondary },
+  yearValue: { ...typography.labelLarge, color: colors.textPrimary },
+  pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  pdfBtnText: { ...typography.labelLarge, color: colors.onAccent },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#6B7280' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
+  retryText: { ...typography.labelMedium, color: colors.error },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  statCard: { flexBasis: '47%', flexGrow: 1, backgroundColor: 'white', borderRadius: 14, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  statLabel: { fontSize: 12, color: '#6B7280' },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginTop: 6 },
-  panelCard: { backgroundColor: 'white', borderRadius: 14, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  panelTitle: { fontSize: 15, fontWeight: 'bold', color: '#111827', marginBottom: 10 },
-  panelEmptyText: { fontSize: 12, color: '#9CA3AF' },
-  categoryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
-  categoryName: { fontSize: 13, color: '#111827' },
-  categoryBadge: { backgroundColor: '#E5F1FF', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 2 },
-  categoryBadgeText: { fontSize: 12, color: '#007AFF', fontWeight: 'bold' },
-  highlightRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  highlightLabel: { fontSize: 13, color: '#374151', flex: 1 },
-  highlightCount: { fontSize: 14, fontWeight: 'bold', color: '#111827' },
+  statCard: { flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  statLabel: { ...typography.labelMedium, color: colors.textSecondary },
+  statValue: { ...typography.h3, color: colors.textPrimary, marginTop: 8 },
+  panelCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  panelTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 12 },
+  panelEmptyText: { ...typography.body, color: colors.textPlaceholder },
+  categoryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  categoryName: { ...typography.body, color: colors.textPrimary },
+  categoryBadge: { backgroundColor: colors.surfaceSecondary, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  categoryBadgeText: { ...typography.labelMedium, color: colors.primary },
+  highlightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
+  highlightLabel: { ...typography.body, color: colors.textSecondary, flex: 1 },
+  highlightCount: { ...typography.labelLarge, color: colors.textPrimary },
 });
 
 export default AnnualSummary;

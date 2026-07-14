@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useMembership } from '../../Hooks/useMembership';
 
 // Icon per plan feature slug, verified live against GET /plans (Essential/Family/Premium/Elite/Corporate
@@ -36,10 +38,10 @@ function formatDate(dateStr) {
 
 function getStatusStyle(status) {
   switch ((status || '').toLowerCase()) {
-    case 'active': return { bg: '#E8F5E9', text: '#4CAF50' };
-    case 'pending': return { bg: '#FFF3E0', text: '#FF9800' };
-    case 'expired': return { bg: '#FFEBEE', text: '#EF4444' };
-    default: return { bg: '#F3F4F6', text: '#6B7280' };
+    case 'active': return { bg: colors.successBackground, text: colors.success };
+    case 'pending': return { bg: colors.warningBackground, text: colors.warning };
+    case 'expired': return { bg: colors.error + '20', text: colors.error };
+    default: return { bg: colors.surfaceMuted, text: colors.textSecondary };
   }
 }
 
@@ -79,11 +81,11 @@ function MyMembership({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading your membership…</Text>
           </View>
         )}
@@ -95,7 +97,7 @@ function MyMembership({ navigation }) {
 
         {!loading && !membership ? (
           <View style={styles.noPlanCard}>
-            <Icon name="card-membership" size={40} color="#94A3B8" />
+            <Icon name="card-membership" size={40} color={colors.textPlaceholder} />
             <Text style={styles.noPlanTitle}>No active membership</Text>
             <Text style={styles.noPlanText}>Choose a plan to unlock service requests, parent-care visits and more.</Text>
             <TouchableOpacity style={styles.choosePlanBtn} onPress={() => navigation.navigate('MembershipCheckout', { mode: 'new' })}>
@@ -103,7 +105,11 @@ function MyMembership({ navigation }) {
             </TouchableOpacity>
           </View>
         ) : membership ? (
-          <View style={styles.activePlanCard}>
+          <TouchableOpacity
+            style={styles.activePlanCard}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('MembershipFeatures', { features: membership.features, planName: membership.planName })}
+          >
             <View style={styles.heroTopRow}>
               <View style={styles.heroLeftCol}>
                 <Text style={styles.activePlanLabel}>Active Plan</Text>
@@ -123,26 +129,20 @@ function MyMembership({ navigation }) {
             {membership.features.length > 0 && (
               <>
                 <View style={styles.heroDivider} />
-                <View style={styles.featureGrid}>
-                  {membership.features.map((feature, idx) => (
-                    <View key={feature.id ?? idx} style={styles.heroFeatureCol}>
-                      <Icon name={FEATURE_ICONS[feature.slug] || 'check-circle'} size={15} color="rgba(255,255,255,0.85)" />
-                      <Text style={styles.heroFeatureText}>
-                        {feature.name || ''} — <Text style={styles.heroFeatureValue}>{feature.value || '—'}</Text>
-                      </Text>
-                    </View>
-                  ))}
+                <View style={styles.viewBenefitsRow}>
+                  <Text style={styles.viewBenefitsText}>View all {membership.features.length} benefits</Text>
+                  <Icon name="chevron-right" size={20} color="white" />
                 </View>
               </>
             )}
-          </View>
+          </TouchableOpacity>
         ) : null}
 
         <View style={styles.historyCard}>
           <Text style={styles.sectionTitle}>Membership History</Text>
           {historyLoading && (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={colors.primary} />
               <Text style={styles.loadingText}>Loading history…</Text>
             </View>
           )}
@@ -204,55 +204,53 @@ function MyMembership({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#6B7280' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  emptyText: { fontSize: 12.5, color: '#9CA3AF' },
+  retryText: { ...typography.labelMedium, color: colors.error },
+  emptyText: { ...typography.body, color: colors.textPlaceholder },
 
-  noPlanCard: { backgroundColor: 'white', borderRadius: 16, padding: 24, alignItems: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
-  noPlanTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
-  noPlanText: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19 },
-  choosePlanBtn: { backgroundColor: '#007AFF', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12, marginTop: 6 },
-  choosePlanBtnText: { color: 'white', fontSize: 14, fontWeight: '700' },
+  noPlanCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 24, alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  noPlanTitle: { ...typography.h4, color: colors.textPrimary },
+  noPlanText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  choosePlanBtn: { backgroundColor: colors.primary, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 },
+  choosePlanBtnText: { color: colors.onPrimary, ...typography.labelLarge },
 
   // Active Plan Hero Card
-  activePlanCard: { backgroundColor: '#1D4ED8', borderRadius: 20, padding: 20, shadowColor: '#1D4ED8', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 5 },
+  activePlanCard: { backgroundColor: colors.primaryDark, borderRadius: 20, padding: 20, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeftCol: { flex: 1, paddingRight: 12 },
-  activePlanLabel: { fontSize: 12.5, color: 'rgba(255,255,255,0.7)' },
-  activePlanName: { fontSize: 26, fontWeight: 'bold', color: 'white', marginTop: 2 },
+  activePlanLabel: { ...typography.small, color: 'rgba(255,255,255,0.7)' },
+  activePlanName: { ...typography.h2, color: colors.onPrimary, marginTop: 2 },
   heroPriceCol: { alignItems: 'flex-end' },
-  priceValue: { fontSize: 20, fontWeight: 'bold', color: 'white' },
-  paymentBadge: { backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, marginTop: 6 },
-  paymentText: { fontSize: 11, fontWeight: 'bold', color: '#1D4ED8' },
-  validUntil: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
+  priceValue: { ...typography.h3, color: colors.onPrimary },
+  paymentBadge: { backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6 },
+  paymentText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.primaryDark },
+  validUntil: { ...typography.body, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
   heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 16, marginBottom: 14 },
-  featureGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  heroFeatureCol: { width: '33.33%', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingRight: 6 },
-  heroFeatureText: { fontSize: 12.5, color: 'rgba(255,255,255,0.85)', flex: 1, flexShrink: 1 },
-  heroFeatureValue: { fontWeight: 'bold', color: 'white' },
+  viewBenefitsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  viewBenefitsText: { ...typography.labelLarge, color: colors.onPrimary },
 
   // History Card
-  historyCard: { backgroundColor: 'white', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 4 },
-  historyRow: { paddingVertical: 12 },
-  historyRowBorder: { borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  historyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  sectionTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 12 },
+  historyRow: { paddingVertical: 14 },
+  historyRowBorder: { borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
   historyTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyPlan: { fontSize: 14.5, fontWeight: 'bold', color: '#1E293B' },
-  historyAmount: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  historyDates: { fontSize: 12, color: '#6B7280', marginTop: 3 },
-  historyBadgeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
-  statusText: { fontSize: 10, fontWeight: 'bold', textTransform: 'capitalize' },
+  historyPlan: { ...typography.labelLarge, color: colors.textPrimary },
+  historyAmount: { ...typography.labelMedium, color: colors.textPrimary },
+  historyDates: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
+  historyBadgeRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
+  statusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
 
   // Action Buttons
   actionRow: { flexDirection: 'row', gap: 12 },
-  upgradeBtn: { flex: 1, flexDirection: 'row', backgroundColor: 'white', height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#007AFF' },
-  upgradeBtnText: { color: '#007AFF', fontSize: 15, fontWeight: 'bold' },
+  upgradeBtn: { flex: 1, flexDirection: 'row', backgroundColor: colors.surface, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.primary },
+  upgradeBtnText: { color: colors.primary, ...typography.labelLarge },
 });
 
 export default MyMembership;

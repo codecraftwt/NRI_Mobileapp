@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useReports } from '../../Hooks/useReports';
 
 function ReportsMedia({ navigation }) {
@@ -27,11 +29,11 @@ function ReportsMedia({ navigation }) {
 
   const getTypeColor = (type) => {
     switch (type) {
-      case 'Health': return '#10B981';
-      case 'Property': return '#F59E0B';
+      case 'Health': return colors.success;
+      case 'Property': return colors.warning;
       case 'Lab': return '#8B5CF6';
-      case 'Maintenance': return '#3B82F6';
-      default: return '#6B7280';
+      case 'Maintenance': return colors.primary;
+      default: return colors.textSecondary;
     }
   };
 
@@ -41,19 +43,24 @@ function ReportsMedia({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
         <View style={styles.topRow}>
-          <Text style={styles.countText}>{reports.length} report(s) · {mediaCount} media file(s) on this page</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pageTitle}>Your Reports</Text>
+            {reports.length > 0 && (
+              <Text style={styles.countText}>{reports.length} report{reports.length !== 1 ? 's' : ''} available</Text>
+            )}
+          </View>
           <TouchableOpacity style={styles.summaryBtn} onPress={() => navigation.navigate('Annual Summary')}>
-            <Icon name="event-note" size={16} color="#007AFF" />
+            <Icon name="event-note" size={16} color={colors.onAccent} />
             <Text style={styles.summaryBtnText}>Annual Summary</Text>
           </TouchableOpacity>
         </View>
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading reports…</Text>
           </View>
         )}
@@ -65,8 +72,11 @@ function ReportsMedia({ navigation }) {
 
         {!loading && reports.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Icon name="image" size={40} color="#C4C9D2" />
-            <Text style={styles.emptyText}>No reports shared with you yet. After each service visit, your report and photos will appear here.</Text>
+            <View style={styles.emptyIconBox}>
+              <Icon name="folder-open" size={36} color={colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No reports yet</Text>
+            <Text style={styles.emptyText}>After each service visit, your detailed reports and photos will securely appear here.</Text>
           </View>
         ) : (
           reports.map(r => (
@@ -80,17 +90,17 @@ function ReportsMedia({ navigation }) {
                   {!!r.vendor && <Text style={styles.reportVendor}>{r.vendor}</Text>}
                 </View>
                 {!!r.status && (
-                  <View style={[styles.reportStatus, { backgroundColor: r.status === 'New' ? '#E5F1FF' : '#F3F4F6' }]}>
-                    <Text style={[styles.reportStatusText, { color: r.status === 'New' ? '#007AFF' : '#666' }]}>{r.status}</Text>
+                  <View style={[styles.reportStatus, { backgroundColor: r.status === 'New' ? colors.primary + '1A' : colors.surfaceSecondary }]}>
+                    <Text style={[styles.reportStatusText, { color: r.status === 'New' ? colors.primary : colors.textSecondary }]}>{r.status}</Text>
                   </View>
                 )}
               </View>
               <View style={styles.reportFooter}>
-                <Icon name="calendar-today" size={12} color="#999" />
+                <Icon name="calendar-today" size={14} color={colors.textSecondary} />
                 <Text style={styles.reportDate}>{r.date}</Text>
                 <TouchableOpacity style={styles.viewBtn}>
                   <Text style={styles.viewBtnText}>View Report</Text>
-                  <Icon name="chevron-right" size={14} color="#007AFF" />
+                  <Icon name="chevron-right" size={16} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -104,7 +114,7 @@ function ReportsMedia({ navigation }) {
               disabled={meta.currentPage <= 1}
               onPress={() => fetchPage(meta.currentPage - 1)}
             >
-              <Icon name="chevron-left" size={18} color={meta.currentPage <= 1 ? '#C4C9D2' : '#007AFF'} />
+              <Icon name="chevron-left" size={18} color={meta.currentPage <= 1 ? colors.textPlaceholder : colors.primary} />
             </TouchableOpacity>
             <Text style={styles.pagerText}>Page {meta.currentPage} of {meta.lastPage}</Text>
             <TouchableOpacity
@@ -112,7 +122,7 @@ function ReportsMedia({ navigation }) {
               disabled={meta.currentPage >= meta.lastPage}
               onPress={() => fetchPage(meta.currentPage + 1)}
             >
-              <Icon name="chevron-right" size={18} color={meta.currentPage >= meta.lastPage ? '#C4C9D2' : '#007AFF'} />
+              <Icon name="chevron-right" size={18} color={meta.currentPage >= meta.lastPage ? colors.textPlaceholder : colors.primary} />
             </TouchableOpacity>
           </View>
         )}
@@ -122,33 +132,36 @@ function ReportsMedia({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  countText: { fontSize: 12, color: '#6B7280', flex: 1 },
-  summaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  summaryBtnText: { fontSize: 12, color: '#007AFF', fontWeight: '600' },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 },
+  pageTitle: { ...typography.h3, color: colors.textPrimary },
+  countText: { ...typography.labelMedium, color: colors.textSecondary, marginTop: 4 },
+  summaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10 },
+  summaryBtnText: { ...typography.labelLarge, color: colors.onAccent },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#6B7280' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  emptyCard: { backgroundColor: 'white', borderRadius: 14, paddingVertical: 48, paddingHorizontal: 24, alignItems: 'center', gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  emptyText: { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 19 },
-  reportCard: { backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  reportHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  reportTypeIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  reportTitle: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  reportVendor: { fontSize: 11, color: '#666', marginTop: 2 },
-  reportStatus: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  reportStatusText: { fontSize: 10, fontWeight: 'bold' },
-  reportFooter: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  reportDate: { fontSize: 11, color: '#999', flex: 1 },
-  viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewBtnText: { fontSize: 12, color: '#007AFF', fontWeight: '600' },
-  pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, paddingVertical: 8 },
-  pagerBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
+  retryText: { ...typography.labelMedium, color: colors.error },
+  emptyCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingVertical: 48, paddingHorizontal: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  emptyIconBox: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceMuted, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  emptyTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 8 },
+  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  reportCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  reportHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  reportTypeIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  reportTitle: { ...typography.h4, color: colors.textPrimary },
+  reportVendor: { ...typography.labelMedium, color: colors.textSecondary, marginTop: 4 },
+  reportStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  reportStatusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily },
+  reportFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary, paddingTop: 16 },
+  reportDate: { ...typography.labelMedium, color: colors.textSecondary, flex: 1 },
+  viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  viewBtnText: { ...typography.labelLarge, color: colors.primary },
+  pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, paddingVertical: 12 },
+  pagerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { fontSize: 12.5, color: '#374151', fontWeight: '600' },
+  pagerText: { ...typography.labelLarge, color: colors.textPrimary },
 });
 
 export default ReportsMedia;

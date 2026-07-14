@@ -24,6 +24,7 @@ import MyAccount from '../Screens/NRI/MyAccount';
 import MyTickets from '../Screens/NRI/MyTickets';
 import MyMembership from '../Screens/NRI/MyMembership';
 import MembershipCheckout from '../Screens/NRI/MembershipCheckout';
+import MembershipFeatures from '../Screens/NRI/MembershipFeatures';
 import Family from '../Screens/NRI/Family';
 import Properties from '../Screens/NRI/Properties';
 import DocumentVault from '../Screens/NRI/DocumentVault';
@@ -117,6 +118,7 @@ function MyMembershipStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MyMembershipMain" component={MyMembership} />
+      <Stack.Screen name="MembershipFeatures" component={MembershipFeatures} />
       <Stack.Screen name="MembershipCheckout" component={MembershipCheckout} />
     </Stack.Navigator>
   );
@@ -195,10 +197,14 @@ function MainTabNavigator() {
       <Tab.Screen
         name="My Membership"
         component={MyMembershipStack}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="card-membership" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyMembershipMain';
+          return {
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="card-membership" size={size} color={color} />
+            ),
+            tabBarStyle: focusedRouteName === 'MyMembershipMain' ? styles.tabBar : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen
