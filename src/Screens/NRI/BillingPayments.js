@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useBilling } from '../../Hooks/useBilling';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 import { getReceiptDownloadUrl } from '../../Api/paymentsApi';
@@ -31,7 +33,7 @@ function PageSizeField({ value, onSelect }) {
     <>
       <TouchableOpacity style={styles.pageSizeBox} onPress={() => setOpen(true)} activeOpacity={0.7}>
         <Text style={styles.pageSizeText}>{value}</Text>
-        <Icon name="keyboard-arrow-down" size={18} color="#6B7280" />
+        <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
@@ -41,8 +43,8 @@ function PageSizeField({ value, onSelect }) {
               keyExtractor={(item) => String(item)}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); setOpen(false); }}>
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  <Text style={[styles.modalOptionText, item === value && { color: colors.primary, fontFamily: typography.labelLarge.fontFamily }]}>{item}</Text>
+                  {item === value && <Icon name="check" size={20} color={colors.primary} />}
                 </TouchableOpacity>
               )}
             />
@@ -219,7 +221,7 @@ function BillingPayments({ navigation }) {
       >
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading billing overview…</Text>
           </View>
         )}
@@ -233,25 +235,29 @@ function BillingPayments({ navigation }) {
           <>
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
-                <View style={[styles.statIconBox, styles.statIconBoxRed]}>
-                  <Icon name="error-outline" size={20} color="#EF4444" />
+                <View style={styles.statHeaderRow}>
+                  <View style={[styles.statIconBox, styles.statIconBoxRed]}>
+                    <Icon name="error-outline" size={18} color={colors.error} />
+                  </View>
+                  <Text style={styles.statLabel}>Outstanding</Text>
                 </View>
-                <Text style={styles.statLabel}>Outstanding</Text>
                 <Text style={styles.statValue}>₹{overview.outstandingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.statCard}>
-                <View style={[styles.statIconBox, styles.statIconBoxGreen]}>
-                  <Icon name="receipt-long" size={20} color="#10B981" />
+                <View style={styles.statHeaderRow}>
+                  <View style={[styles.statIconBox, styles.statIconBoxGreen]}>
+                    <Icon name="receipt-long" size={18} color={colors.success} />
+                  </View>
+                  <Text style={styles.statLabel}>Total Invoices</Text>
                 </View>
-                <Text style={styles.statLabel}>Total Invoices</Text>
                 <Text style={styles.statValue}>{allItems.length}</Text>
               </View>
             </View>
 
             {hasAutoRenewals && (
-              <View style={styles.invoicesCard}>
+              <View style={styles.autoRenewCard}>
                 <View style={styles.autoRenewHeaderRow}>
-                  <Icon name="autorenew" size={16} color="#10B981" />
+                  <Icon name="autorenew" size={18} color={colors.success} />
                   <Text style={styles.sectionTitle}>Auto-renewal Settings</Text>
                 </View>
 
@@ -267,7 +273,7 @@ function BillingPayments({ navigation }) {
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopMembershipAutoRenew(overview.autoRenewingMembership)} disabled={stopAutoRenewLoading}>
-                      {stopAutoRenewLoading ? <ActivityIndicator size="small" color="#EF4444" /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
+                      {stopAutoRenewLoading ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
                     </TouchableOpacity>
                   </View>
                 )}
@@ -283,18 +289,18 @@ function BillingPayments({ navigation }) {
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopAddonAutoRenew(sub)} disabled={cancelingId === sub.id}>
-                      {cancelingId === sub.id ? <ActivityIndicator size="small" color="#EF4444" /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
+                      {cancelingId === sub.id ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
                     </TouchableOpacity>
                   </View>
                 ))}
               </View>
             )}
 
-            <View style={styles.invoicesCard}>
-              <View style={styles.tableHeaderRow}>
+            <View style={styles.invoicesContainer}>
+              <View style={styles.sectionHeaderRow}>
                 <PageSizeField value={pageSize} onSelect={(v) => { setPageSize(v); setPage(1); }} />
                 <View style={styles.listTitleRow}>
-                  <Text style={styles.sectionTitle}>Invoices & Membership Dues</Text>
+                  <Text style={styles.sectionTitle}>Invoices & Dues</Text>
                   <View style={styles.countBadge}>
                     <Text style={styles.countBadgeText}>{allItems.length}</Text>
                   </View>
@@ -310,9 +316,11 @@ function BillingPayments({ navigation }) {
                   const isDownloading = downloadingId === key;
                   const receiptId = resolveReceiptId(item);
                   return (
-                    <View key={key} style={styles.invoiceRow}>
+                    <View key={key} style={styles.invoiceCard}>
                       <View style={styles.invoiceTopRow}>
-                        <Text style={styles.invoiceIndex}>{(currentPage - 1) * pageSize + index + 1}</Text>
+                        <View style={styles.invoiceIconBox}>
+                          <Icon name="receipt" size={20} color={colors.primary} />
+                        </View>
                         <Text style={styles.invoiceDesc} numberOfLines={2}>{item.label}</Text>
                       </View>
                       <View style={styles.invoiceMetaRow}>
@@ -327,18 +335,18 @@ function BillingPayments({ navigation }) {
                         </View>
                         {item.isPaid ? (
                           <TouchableOpacity style={styles.receiptBtn} activeOpacity={0.7} onPress={() => handleDownloadReceipt(item)} disabled={isDownloading || !receiptId}>
-                            {isDownloading ? <ActivityIndicator size="small" color="#007AFF" /> : (
+                            {isDownloading ? <ActivityIndicator size="small" color={colors.primary} /> : (
                               <>
-                                <Icon name="file-download" size={16} color="#007AFF" />
+                                <Icon name="file-download" size={18} color={colors.primary} />
                                 <Text style={styles.receiptBtnText}>Receipt</Text>
                               </>
                             )}
                           </TouchableOpacity>
                         ) : (
                           <TouchableOpacity style={styles.payNowBtn} activeOpacity={0.7} onPress={() => handlePayNow(item)} disabled={isPaying}>
-                            {isPaying ? <ActivityIndicator size="small" color="white" /> : (
+                            {isPaying ? <ActivityIndicator size="small" color={colors.onAccent} /> : (
                               <>
-                                <Icon name="credit-card" size={16} color="white" />
+                                <Icon name="credit-card" size={18} color={colors.onAccent} />
                                 <Text style={styles.payNowBtnText}>Pay Now</Text>
                               </>
                             )}
@@ -358,11 +366,11 @@ function BillingPayments({ navigation }) {
                   {lastPage > 1 && (
                     <View style={styles.pagerRow}>
                       <TouchableOpacity style={[styles.pagerBtn, currentPage <= 1 && styles.pagerBtnDisabled]} disabled={currentPage <= 1} onPress={() => setPage(currentPage - 1)}>
-                        <Icon name="chevron-left" size={18} color={currentPage <= 1 ? '#C4C9D2' : '#007AFF'} />
+                        <Icon name="chevron-left" size={24} color={currentPage <= 1 ? colors.textPlaceholder : colors.primary} />
                       </TouchableOpacity>
                       <Text style={styles.pagerText}>{currentPage} / {lastPage}</Text>
                       <TouchableOpacity style={[styles.pagerBtn, currentPage >= lastPage && styles.pagerBtnDisabled]} disabled={currentPage >= lastPage} onPress={() => setPage(currentPage + 1)}>
-                        <Icon name="chevron-right" size={18} color={currentPage >= lastPage ? '#C4C9D2' : '#007AFF'} />
+                        <Icon name="chevron-right" size={24} color={currentPage >= lastPage ? colors.textPlaceholder : colors.primary} />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -377,68 +385,76 @@ function BillingPayments({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#6B7280' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  emptyText: { fontSize: 12.5, color: '#9CA3AF' },
+  retryText: { ...typography.labelMedium, color: colors.error },
+  emptyText: { ...typography.body, color: colors.textPlaceholder },
+  
   statsRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: 'white', borderRadius: 14, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  statIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  statIconBoxRed: { backgroundColor: '#FDECEC' },
-  statIconBoxGreen: { backgroundColor: '#E6F7EF' },
-  statValue: { fontSize: 18, fontWeight: 'bold', color: '#111827', marginTop: 2 },
-  statLabel: { fontSize: 12, color: '#6B7280' },
-  sectionTitle: { fontSize: 15, fontWeight: 'bold', color: '#333' },
-  invoicesCard: { backgroundColor: 'white', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
+  statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 16, padding: 16, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
+  statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  statIconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statIconBoxRed: { backgroundColor: '#FEE2E2' },
+  statIconBoxGreen: { backgroundColor: colors.successBackground },
+  statLabel: { ...typography.small, color: colors.textSecondary },
+  statValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
+  
+  sectionTitle: { ...typography.sectionTitle, color: colors.textPrimary },
+  
+  autoRenewCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
+  autoRenewHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
+  autoRenewName: { ...typography.labelMedium, fontSize: 14, color: colors.textPrimary },
+  autoRenewType: { ...typography.small, color: colors.textSecondary },
+  autoRenewMeta: { ...typography.tiny, color: colors.textSecondary, marginTop: 4 },
+  stopRenewBtn: { borderWidth: 1, borderColor: colors.error, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  stopRenewBtnText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.error },
 
-  autoRenewHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  autoRenewName: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
-  autoRenewType: { fontSize: 12, fontWeight: '400', color: '#6B7280' },
-  autoRenewMeta: { fontSize: 12, color: '#6B7280', marginTop: 3 },
-  stopRenewBtn: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  stopRenewBtnText: { fontSize: 12, fontWeight: '700', color: '#EF4444' },
-
-  tableHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  pageSizeBox: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  pageSizeText: { fontSize: 12.5, color: '#374151', fontWeight: '600' },
+  invoicesContainer: { marginTop: 4 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },
+  pageSizeBox: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.surface },
+  pageSizeText: { ...typography.small, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
   listTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  countBadge: { backgroundColor: '#E5F1FF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  countBadgeText: { fontSize: 11.5, color: '#007AFF', fontWeight: '700' },
+  countBadge: { backgroundColor: colors.primaryLight + '30', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2 },
+  countBadgeText: { ...typography.tiny, color: colors.primaryDark, fontFamily: typography.labelMedium.fontFamily },
 
-  invoiceRow: { paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  invoiceTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
-  invoiceIndex: { fontSize: 12, color: '#9CA3AF', fontWeight: '600', width: 16 },
-  invoiceDesc: { fontSize: 14, fontWeight: '600', color: '#111827', flex: 1 },
-  invoiceMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  invoiceDate: { fontSize: 12, color: '#6B7280' },
-  invoiceAmount: { fontSize: 15, fontWeight: 'bold', color: '#111827' },
+  invoiceCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 6, elevation: 2 },
+  invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  invoiceIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primaryLight + '20', justifyContent: 'center', alignItems: 'center' },
+  invoiceDesc: { ...typography.labelMedium, color: colors.textPrimary, flex: 1, lineHeight: 20 },
+  
+  invoiceMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
+  invoiceDate: { ...typography.small, color: colors.textSecondary },
+  invoiceAmount: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: colors.textPrimary },
+  
   invoiceFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  invoiceStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  invoiceStatusDue: { backgroundColor: '#FEF3C7' },
-  invoiceStatusPaid: { backgroundColor: '#E6F7EF' },
-  invoiceStatusText: { fontSize: 11, fontWeight: 'bold' },
-  invoiceStatusTextDue: { color: '#D97706' },
-  invoiceStatusTextPaid: { color: '#10B981' },
-  receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: '#007AFF', minWidth: 90, justifyContent: 'center' },
-  receiptBtnText: { fontSize: 12, fontWeight: '600', color: '#007AFF' },
-  payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: '#FF7C1A', minWidth: 90, justifyContent: 'center' },
-  payNowBtnText: { fontSize: 12, fontWeight: '600', color: 'white' },
+  
+  invoiceStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  invoiceStatusDue: { backgroundColor: colors.warningBackground },
+  invoiceStatusPaid: { backgroundColor: colors.successBackground },
+  invoiceStatusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase' },
+  invoiceStatusTextDue: { color: colors.warning },
+  invoiceStatusTextPaid: { color: colors.success },
+  
+  receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.primary, minWidth: 90, justifyContent: 'center' },
+  receiptBtnText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: colors.primary },
+  payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.accent, minWidth: 90, justifyContent: 'center' },
+  payNowBtnText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: colors.onAccent },
 
-  pagerFooter: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 10 },
-  pagerSummary: { fontSize: 11.5, color: '#9CA3AF' },
-  pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-  pagerBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB' },
-  pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { fontSize: 12.5, color: '#374151', fontWeight: '600' },
+  pagerFooter: { marginTop: 4, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border, gap: 12 },
+  pagerSummary: { ...typography.tiny, color: colors.textSecondary },
+  pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
+  pagerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceMuted, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  pagerBtnDisabled: { opacity: 0.3 },
+  pagerText: { ...typography.labelMedium, color: colors.textPrimary },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '40%', paddingBottom: 20, paddingTop: 10 },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
-  modalOptionText: { fontSize: 14, color: '#111827' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '50%', paddingBottom: 30, paddingTop: 12 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
+  modalOptionText: { ...typography.body, color: colors.textPrimary },
 });
 
 export default BillingPayments;

@@ -17,6 +17,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { uploadDocument } from '../../Redux/slices/documentsSlice';
 
 const DOCUMENT_TYPE_OPTIONS = ['Passport', 'PAN Card', 'Aadhaar Card', 'Property Papers', 'Will', 'Power of Attorney', 'Insurance Policy', 'Other'];
@@ -43,7 +45,7 @@ function SelectField({ label, required, value, placeholder, options, onSelect })
         <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>
           {value || placeholder}
         </Text>
-        <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+        <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -62,8 +64,8 @@ function SelectField({ label, required, value, placeholder, options, onSelect })
                     setOpen(false);
                   }}
                 >
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  <Text style={[styles.modalOptionText, item === value && { color: colors.primary, fontFamily: typography.labelLarge.fontFamily }]}>{item}</Text>
+                  {item === value && <Icon name="check" size={20} color={colors.primary} />}
                 </TouchableOpacity>
               )}
             />
@@ -153,7 +155,7 @@ function UploadDocument({ navigation }) {
               value={documentName}
               onChangeText={setDocumentName}
               placeholder="e.g. Passport — Rahul Sharma"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textPlaceholder}
             />
           </View>
 
@@ -176,7 +178,7 @@ function UploadDocument({ navigation }) {
               <Text style={[styles.selectText, !formattedExpiry && styles.placeholderText]}>
                 {formattedExpiry || 'dd-mm-yyyy'}
               </Text>
-              <Icon name="event" size={18} color="#94A3B8" />
+              <Icon name="event" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
             {showDatePicker && (
               <DateTimePicker
@@ -210,7 +212,7 @@ function UploadDocument({ navigation }) {
               onChangeText={setNotes}
               placeholder=""
               multiline
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={colors.textPlaceholder}
             />
           </View>
         </View>
@@ -234,130 +236,132 @@ function UploadDocument({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   card: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 18,
+    padding: 20,
     gap: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
+  sectionTitle: { ...typography.sectionTitle, color: colors.textPrimary },
 
   fieldWrap: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  required: { color: '#EF4444' },
-  hint: { fontSize: 11.5, color: '#9CA3AF', fontWeight: '400' },
+  inputLabel: { ...typography.labelMedium, color: colors.textPrimary },
+  required: { color: colors.error },
+  hint: { ...typography.tiny, color: colors.textSecondary },
 
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
-    color: '#1E293B',
-    fontSize: 14,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    color: colors.textPrimary,
+    ...typography.body,
   },
-  multiline: { height: 90, textAlignVertical: 'top', paddingVertical: 12 },
+  multiline: { height: 100, textAlignVertical: 'top', paddingVertical: 12 },
 
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
   },
-  selectText: { fontSize: 14, color: '#1E293B', flex: 1 },
-  placeholderText: { color: '#94A3B8' },
+  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  placeholderText: { color: colors.textPlaceholder },
 
   fileRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderColor: colors.border,
+    borderRadius: 12,
     overflow: 'hidden',
-    height: 48,
+    height: 52,
   },
   chooseFileBtn: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceHighlight,
     paddingHorizontal: 16,
     height: '100%',
     justifyContent: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: colors.border,
   },
-  chooseFileBtnText: { fontSize: 13.5, fontWeight: '700', color: '#334155' },
-  fileNameText: { flex: 1, fontSize: 13.5, color: '#64748B', paddingHorizontal: 12 },
+  chooseFileBtnText: { ...typography.labelMedium, color: colors.primary },
+  fileNameText: { flex: 1, ...typography.body, color: colors.textSecondary, paddingHorizontal: 12 },
 
-  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: '#CBD5E1',
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.surface,
   },
-  checkboxChecked: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  checkboxLabel: { flex: 1, fontSize: 13.5, color: '#334155', fontWeight: '500' },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxLabel: { flex: 1, ...typography.small, color: colors.textPrimary },
 
-  actions: { flexDirection: 'row', gap: 12 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   submitBtn: {
     flex: 1,
-    height: 50,
+    height: 52,
     borderRadius: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  submitBtnDisabled: { backgroundColor: '#9CC7FF' },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  submitBtnDisabled: { backgroundColor: colors.accent + '80' },
+  submitBtnText: { color: colors.onAccent, ...typography.labelLarge },
   cancelBtn: {
     flex: 1,
-    height: 50,
+    height: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
   },
-  cancelBtnText: { color: '#64748B', fontSize: 15, fontWeight: '700' },
+  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '60%',
-    paddingBottom: 24,
-    paddingTop: 10,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: 40,
+    paddingTop: 12,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { ...typography.sectionTitle, color: colors.textPrimary, paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    borderBottomColor: colors.surfaceSecondary,
   },
-  modalOptionText: { fontSize: 14.5, color: '#1E293B' },
+  modalOptionText: { ...typography.body, color: colors.textPrimary },
 });
 
 export default UploadDocument;

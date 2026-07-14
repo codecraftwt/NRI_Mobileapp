@@ -16,6 +16,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { addFamilyMember, updateFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMemberDetail } from '../../Hooks/useFamilyMemberDetail';
 import { useStates } from '../../Hooks/useStates';
@@ -41,7 +43,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
       >
         {loading ? (
           <>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
           </>
         ) : (
@@ -49,7 +51,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
             <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>
               {value || placeholder}
             </Text>
-            <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+            <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
           </>
         )}
       </TouchableOpacity>
@@ -71,7 +73,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                   }}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
                 </TouchableOpacity>
               )}
             />
@@ -172,7 +174,7 @@ function AddFamilyMember({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {isEditing && loadingDetail && !hasPopulated ? (
           <View style={styles.detailLoadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.detailLoadingText}>Loading member details…</Text>
           </View>
         ) : isEditing && detailFailed && !hasPopulated ? (
@@ -189,7 +191,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={name}
                   onChangeText={setName}
                   placeholder="e.g. Sushila Patel"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
 
@@ -210,7 +212,7 @@ function AddFamilyMember({ navigation, route }) {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   placeholder="e.g. +91 98765 43210"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
 
@@ -222,7 +224,7 @@ function AddFamilyMember({ navigation, route }) {
                   onChangeText={setEmergencyContact}
                   keyboardType="phone-pad"
                   placeholder="e.g. +91 98765 43211"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
 
@@ -262,7 +264,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Complete address"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textPlaceholder}
                   multiline
                 />
               </View>
@@ -273,7 +275,7 @@ function AddFamilyMember({ navigation, route }) {
                   <Text style={[styles.selectText, !formattedDob && styles.placeholderText]}>
                     {formattedDob || 'dd-mm-yyyy'}
                   </Text>
-                  <Icon name="event" size={18} color="#94A3B8" />
+                  <Icon name="event" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 {showDobPicker && (
                   <DateTimePicker
@@ -296,7 +298,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={healthNotes}
                   onChangeText={setHealthNotes}
                   placeholder="e.g. Diabetes, needs medicine reminders"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.textPlaceholder}
                   multiline
                 />
               </View>
@@ -308,10 +310,10 @@ function AddFamilyMember({ navigation, route }) {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
                 {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.onAccent} />
                 ) : (
                   <>
-                    <Icon name="check" size={18} color="#fff" />
+                    <Icon name="check" size={18} color={colors.onAccent} />
                     <Text style={styles.submitBtnText}>{isEditing ? 'Update Member' : 'Add Member'}</Text>
                   </>
                 )}
@@ -325,102 +327,104 @@ function AddFamilyMember({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
-  detailLoadingText: { fontSize: 13, color: '#64748B' },
+  detailLoadingText: { ...typography.body, color: colors.textSecondary },
 
   card: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 16,
-    padding: 18,
+    padding: 20,
     gap: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
 
-  fieldWrap: { gap: 6 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  required: { color: '#EF4444' },
+  fieldWrap: { gap: 8 },
+  inputLabel: { ...typography.labelMedium, color: colors.textPrimary },
+  required: { color: colors.error },
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
-    color: '#1E293B',
-    fontSize: 14,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    color: colors.textPrimary,
+    ...typography.body,
   },
-  multiline: { height: 88, textAlignVertical: 'top', paddingVertical: 12 },
+  multiline: { height: 96, textAlignVertical: 'top', paddingVertical: 14 },
 
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 48,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
   },
-  selectBoxDisabled: { backgroundColor: '#F1F5F9', opacity: 0.6 },
-  selectText: { fontSize: 14, color: '#1E293B', flex: 1 },
-  placeholderText: { color: '#94A3B8' },
-  retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600' },
+  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary, opacity: 0.6 },
+  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  placeholderText: { color: colors.textPlaceholder },
+  retryText: { ...typography.labelMedium, color: colors.error },
   retryBox: { alignItems: 'center', paddingVertical: 40 },
 
-  actions: { flexDirection: 'row', gap: 12 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 12 },
   cancelBtn: {
     flex: 1,
-    height: 50,
-    borderRadius: 12,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
   },
-  cancelBtnText: { color: '#64748B', fontSize: 15, fontWeight: '700' },
+  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
   submitBtn: {
     flex: 1.5,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.accent,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
-  submitBtnDisabled: { backgroundColor: '#9CC7FF' },
-  submitBtnText: { color: 'white', fontSize: 15, fontWeight: '700' },
+  submitBtnDisabled: { opacity: 0.5 },
+  submitBtnText: { color: colors.onAccent, ...typography.labelLarge },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: '60%',
     paddingBottom: 24,
-    paddingTop: 10,
+    paddingTop: 12,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { ...typography.h4, color: colors.textPrimary, paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    borderBottomColor: colors.surfaceSecondary,
   },
-  modalOptionText: { fontSize: 14.5, color: '#1E293B' },
+  modalOptionText: { ...typography.body, color: colors.textPrimary },
 });
 
 export default AddFamilyMember;

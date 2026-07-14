@@ -4,10 +4,12 @@ import { useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 
-const AVATAR_COLORS = ['#10B981', '#007AFF', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+const AVATAR_COLORS = [colors.success, colors.primary, colors.warning, colors.error, '#8B5CF6', '#06B6D4'];
 function avatarColorFor(name) {
   const idx = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[idx];
@@ -76,12 +78,12 @@ function Family({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading family members…</Text>
           </View>
         )}
@@ -111,14 +113,14 @@ function Family({ navigation }) {
                   onPress={() => navigation.navigate('AddFamilyMember', { memberId: m.id })}
                   activeOpacity={0.7}
                 >
-                  <Icon name="edit" size={18} color="#007AFF" />
+                  <Icon name="edit" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
                   onPress={() => handleDelete(m)}
                   activeOpacity={0.7}
                 >
-                  <Icon name="delete" size={18} color="#EF4444" />
+                  <Icon name="delete" size={18} color={colors.error} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -126,7 +128,7 @@ function Family({ navigation }) {
             <View style={styles.cardBody}>
               {!!(m.phone || m.cityName || m.stateName) && (
                 <View style={styles.metaRow}>
-                  <Icon name="call" size={13} color="#94A3B8" />
+                  <Icon name="call" size={14} color={colors.textSecondary} />
                   <Text style={styles.memberMeta} numberOfLines={1}>
                     {[m.phone, [m.cityName, m.stateName].filter(Boolean).join(', ')].filter(Boolean).join('  ·  ')}
                   </Text>
@@ -134,7 +136,7 @@ function Family({ navigation }) {
               )}
               {!!m.healthNotes && (
                 <View style={styles.metaRow}>
-                  <Icon name="favorite-border" size={13} color="#F59E0B" />
+                  <Icon name="favorite-border" size={14} color={colors.warning} />
                   <Text style={styles.memberHealth} numberOfLines={2}>{m.healthNotes}</Text>
                 </View>
               )}
@@ -148,7 +150,7 @@ function Family({ navigation }) {
           activeOpacity={0.8}
         >
           <View style={styles.addIconWrap}>
-            <Icon name="person-add" size={20} color="#007AFF" />
+            <Icon name="person-add" size={20} color={colors.primary} />
           </View>
           <Text style={styles.addCardText}>Add Family Member</Text>
         </TouchableOpacity>
@@ -158,38 +160,40 @@ function Family({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   backToCustomerBtn: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  backToCustomerText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  backToCustomerText: { ...typography.labelMedium, color: colors.textPrimary },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { fontSize: 13, color: '#64748B' },
+  loadingText: { ...typography.body, color: colors.textSecondary },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
+  retryText: { ...typography.labelMedium, color: colors.error },
 
   memberCard: {
-    backgroundColor: 'white',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 16,
-    padding: 14,
-    gap: 10,
+    padding: 16,
+    gap: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -202,52 +206,52 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
   },
-  memberAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
-  memberAvatarText: { fontSize: 15, fontWeight: 'bold', color: 'white' },
+  memberAvatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  memberAvatarText: { ...typography.h4, color: colors.surface },
   memberInfo: { flex: 1, gap: 4 },
-  memberName: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  relationPill: { backgroundColor: '#E5F1FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 2, alignSelf: 'flex-start' },
-  relationPillText: { fontSize: 11, fontWeight: '700', color: '#007AFF' },
+  memberName: { ...typography.labelLarge, color: colors.textPrimary },
+  relationPill: { backgroundColor: colors.primaryLight + '20', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
+  relationPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.primary },
 
-  cardActions: { flexDirection: 'row', gap: 6 },
+  cardActions: { flexDirection: 'row', gap: 8 },
   actionIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0F7FF',
+    backgroundColor: colors.primaryLight + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionIconBtnDanger: {
-    backgroundColor: '#FFF0F0',
+    backgroundColor: colors.errorBackground,
   },
 
-  cardBody: { gap: 6, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  memberMeta: { fontSize: 12.5, color: '#64748B', flexShrink: 1 },
-  memberHealth: { fontSize: 12.5, color: '#78716C', flexShrink: 1 },
+  cardBody: { gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  memberMeta: { ...typography.small, color: colors.textSecondary, flexShrink: 1 },
+  memberHealth: { ...typography.small, color: colors.warning, flexShrink: 1 },
 
   addCard: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: colors.primaryLight + '10',
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     borderWidth: 1.5,
-    borderColor: '#DCEBFF',
+    borderColor: colors.primaryLight,
     borderStyle: 'dashed',
   },
   addIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#E5F1FF',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight + '30',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addCardText: { color: '#007AFF', fontSize: 15, fontWeight: '700' },
+  addCardText: { ...typography.labelMedium, color: colors.primary },
 });
 
 export default Family;
