@@ -3,15 +3,17 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 
 function getStatusColor(statusLabel) {
   switch (statusLabel) {
-    case 'New': return { bg: '#E5F1FF', text: '#007AFF' };
+    case 'New': return { bg: '#E5F1FF', text: '#3298D4' };
     case 'Assigned': return { bg: '#FFF3E0', text: '#FF9800' };
     case 'In Progress': return { bg: '#E8F5E9', text: '#4CAF50' };
-    case 'Completed': return { bg: '#F3E5F5', text: '#9C27B0' };
+    case 'Completed': return { bg: 'rgba(50,152,212,0.15)', text: '#21709F' };
     case 'Cancelled': return { bg: '#FEE2E2', text: '#EF4444' };
-    default: return { bg: '#F3F4F6', text: '#6B7280' };
+    default: return { bg: '#F0F1F1', text: '#94A3B8' };
   }
 }
 
@@ -42,8 +44,8 @@ function TicketDetail({ route, navigation }) {
       <View style={styles.container}>
         <Header navigation={navigation} title="Request" showBack />
         <View style={styles.emptyState}>
-          <ActivityIndicator size="small" color="#007AFF" />
-          <Text style={styles.emptyText}>Loading request…</Text>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.emptyText}>Loading request...</Text>
         </View>
       </View>
     );
@@ -70,7 +72,7 @@ function TicketDetail({ route, navigation }) {
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Request not found.</Text>
           <TouchableOpacity style={styles.backLink} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={16} color="#007AFF" />
+            <Icon name="arrow-back" size={16} color={colors.primary} />
             <Text style={styles.backLinkText}>Back to My Requests</Text>
           </TouchableOpacity>
         </View>
@@ -93,7 +95,7 @@ function TicketDetail({ route, navigation }) {
     <View style={styles.container}>
       <Header navigation={navigation} title={ticket.ticketNumber} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
+        <View style={styles.section}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
@@ -120,7 +122,7 @@ function TicketDetail({ route, navigation }) {
             </View>
             <View style={styles.infoBlock}>
               <Text style={styles.label}>Vendor</Text>
-              <Text style={styles.value}>{ticket.vendorName || 'Pending'}</Text>
+              <Text style={styles.value}>{ticket.vendorName || 'Pending Assignment'}</Text>
             </View>
             {!!ticket.location?.address && (
               <View style={styles.infoBlock}>
@@ -159,8 +161,8 @@ function TicketDetail({ route, navigation }) {
         </View>
 
         {!!ticket.pricing && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Charges</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Charges Breakdown</Text>
             <View style={styles.chargesList}>
               <View style={styles.chargeRow}>
                 <Text style={styles.chargeLabel}>Base: {ticket.serviceName}</Text>
@@ -192,15 +194,16 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        <View style={styles.card}>
+        <View style={styles.lastSection}>
           <Text style={styles.sectionTitle}>Request Timeline</Text>
           {timeline.map((event, idx) => {
             const eventStatusStyle = getStatusColor(event.to === 'new' ? 'New' : event.to === 'assigned' ? 'Assigned' : event.to === 'in_progress' ? 'In Progress' : event.to === 'completed' ? 'Completed' : event.to === 'cancelled' ? 'Cancelled' : event.to);
+            const isLast = idx === timeline.length - 1;
             return (
               <View key={idx} style={styles.timelineRow}>
                 <View style={styles.timelineDotCol}>
-                  <View style={[styles.timelineDot, idx === timeline.length - 1 && styles.timelineDotActive]} />
-                  {idx < timeline.length - 1 && <View style={styles.timelineLine} />}
+                  <View style={[styles.timelineDot, isLast && styles.timelineDotActive]} />
+                  {!isLast && <View style={styles.timelineLine} />}
                 </View>
                 <View style={styles.timelineContent}>
                   <View style={[styles.badge, styles.timelineBadge, { backgroundColor: eventStatusStyle.bg }]}>
@@ -212,11 +215,6 @@ function TicketDetail({ route, navigation }) {
               </View>
             );
           })}
-
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={16} color="#374151" />
-            <Text style={styles.backBtnText}>Back to My Requests</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -224,63 +222,97 @@ function TicketDetail({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 16, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 16 },
+  
+  section: { 
+    backgroundColor: colors.surface,
+    padding: 20, 
+    borderRadius: 16,
+    gap: 16,
+    marginBottom: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  lastSection: {
+    backgroundColor: colors.surface,
+    padding: 20, 
+    borderRadius: 16,
+    gap: 16,
+    marginBottom: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   badgeRow: { flexDirection: 'row', gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  badgeNeutral: { backgroundColor: '#F3F4F6' },
-  badgeText: { fontSize: 11, fontWeight: 'bold' },
-  badgeTextNeutral: { color: '#6B7280' },
+  badgeNeutral: { backgroundColor: '#F0F1F1' },
+  badgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase' },
+  badgeTextNeutral: { color: '#94A3B8' },
+  
   submittedWrap: { alignItems: 'flex-end' },
-  hint: { fontSize: 11.5, color: '#9CA3AF' },
-  submittedDate: { fontSize: 12.5, color: '#374151', fontWeight: '600', marginTop: 2 },
-  ticketId: { fontSize: 20, fontWeight: '800', color: '#111827' },
-  infoGrid: { gap: 12 },
+  hint: { ...typography.tiny, color: '#94A3B8' },
+  submittedDate: { ...typography.small, color: '#333', fontFamily: typography.labelMedium.fontFamily, marginTop: 2 },
+  
+  ticketId: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#333' },
+  
+  infoGrid: { gap: 16, marginTop: 8 },
   infoBlock: { gap: 4 },
-  label: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
-  value: { fontSize: 14, color: '#111827', fontWeight: '700' },
-  subValue: { fontSize: 12.5, color: '#6B7280' },
+  label: { ...typography.small, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
+  value: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#333' },
+  subValue: { ...typography.small, color: '#94A3B8' },
+  
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   overdueText: { color: '#EF4444' },
   overdueBadge: { backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  overdueBadgeText: { fontSize: 10.5, color: '#EF4444', fontWeight: '700' },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
+  overdueBadgeText: { ...typography.tiny, color: '#EF4444', fontFamily: typography.labelMedium.fontFamily },
+  
+  sectionTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#333', marginBottom: 8 },
+  
   chargesList: { gap: 0 },
-  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' },
-  chargeLabel: { fontSize: 13, color: '#6B7280', flex: 1, paddingRight: 8 },
-  chargeValue: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F0F1F1', borderStyle: 'dashed' },
+  chargeLabel: { ...typography.small, color: '#94A3B8', flex: 1, paddingRight: 8 },
+  chargeValue: { fontSize: 14, color: '#333', fontFamily: typography.labelMedium.fontFamily },
   discountValue: { color: '#10B981' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 2, borderTopWidth: 1, borderTopColor: '#111827' },
-  totalLabel: { fontSize: 15, fontWeight: '800', color: '#111827' },
-  totalValue: { fontSize: 17, fontWeight: '800', color: '#111827' },
-  timelineRow: { flexDirection: 'row', gap: 12 },
+  
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: '#F3F4F6' },
+  totalLabel: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#333' },
+  totalValue: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#333' },
+  
+  timelineRow: { flexDirection: 'row', gap: 16 },
   timelineDotCol: { alignItems: 'center', width: 16 },
-  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D1D5DB', marginTop: 4 },
-  timelineDotActive: { backgroundColor: '#007AFF' },
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#E5E7EB', marginTop: 2, marginBottom: -2 },
-  timelineContent: { flex: 1, paddingBottom: 16, gap: 4 },
+  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#D1D5DB', marginTop: 4 },
+  timelineDotActive: { backgroundColor: '#E97A24' }, // Accent color for active dot
+  timelineLine: { flex: 1, width: 2, backgroundColor: '#F0F1F1', marginTop: 4, marginBottom: -4 },
+  timelineContent: { flex: 1, paddingBottom: 24, gap: 4 },
   timelineBadge: { alignSelf: 'flex-start' },
-  timelineDate: { fontSize: 12, color: '#6B7280' },
-  timelineDesc: { fontSize: 13, color: '#374151' },
+  timelineDate: { ...typography.small, color: '#94A3B8' },
+  timelineDesc: { ...typography.body, color: '#333' },
+  
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
+    gap: 8,
+    backgroundColor: '#3298D4', // Primary color
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 20,
+    paddingHorizontal: 24,
   },
-  backBtnText: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  backBtnText: { ...typography.labelLarge, color: '#FFFFFF' },
+  
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyText: { fontSize: 14, color: '#6B7280' },
+  emptyText: { ...typography.body, color: '#94A3B8' },
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backLinkText: { fontSize: 13, color: '#007AFF', fontWeight: '600' },
+  backLinkText: { ...typography.labelMedium, color: '#3298D4' },
 });
 
 export default TicketDetail;

@@ -5,10 +5,10 @@ import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 
-function Header({ navigation, title, showBack }) {
-  const isMain = !showBack;
+function Header({ navigation, title, showBack, isTabRoot }) {
+  const isDashboard = !showBack && !isTabRoot && !title;
   
-  if (isMain) {
+  if (isDashboard) {
     return (
       <View style={styles.mainContainer}>
         <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
@@ -31,15 +31,19 @@ function Header({ navigation, title, showBack }) {
     );
   }
 
-  // Standard Header for inner screens
+  // Standard Header for inner screens or Tab Roots
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={colors.surface} barStyle="dark-content" translucent={false} />
-      <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-        <Icon name="arrow-back-ios" size={20} color={colors.textPrimary} style={{ marginLeft: 6 }} />
-      </TouchableOpacity>
+      <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
+      {showBack ? (
+        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
+        </TouchableOpacity>
+      ) : (
+        <View style={{ width: 44 }} />
+      )}
       {!!title && <Text style={styles.title}>{title}</Text>}
-      <View style={{ width: 44 }} /> {/* Spacer for centering the title */}
+      <View style={{ width: 44 }} />
     </View>
   );
 }
@@ -49,22 +53,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     paddingTop: 56, // Clear the status bar
     paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomWidth: 0,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   iconBtn: { 
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  title: { flex: 1, ...typography.h4, color: colors.textPrimary, textAlign: 'center' },
+  title: { flex: 1, ...typography.h4, color: '#FFFFFF', textAlign: 'center' },
   
   // Clean Modern Colored Header
   mainContainer: {

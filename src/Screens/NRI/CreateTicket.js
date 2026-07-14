@@ -19,6 +19,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useStates } from '../../Hooks/useStates';
 import { useDistricts } from '../../Hooks/useDistricts';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -53,7 +55,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
       >
         {loading ? (
           <>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color="#3298D4" />
             <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
           </>
         ) : (
@@ -82,7 +84,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                   }}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  {item === value && <Icon name="check" size={18} color="#3298D4" />}
                 </TouchableOpacity>
               )}
             />
@@ -450,7 +452,7 @@ function CreateTicket({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {membership && usage && (
           <View style={styles.usageBanner}>
-            <Icon name="info-outline" size={16} color="#007AFF" />
+            <Icon name="info-outline" size={16} color="#3298D4" />
             <Text style={styles.usageBannerText}>
               You have used <Text style={styles.bold}>{usage.requestsUsed ?? 0}{serviceRequestsLimit != null ? ` of ${serviceRequestsLimit}` : ''}</Text> service requests included in your {membership.planName} plan this month.
               {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
@@ -492,7 +494,7 @@ function CreateTicket({ navigation }) {
               <Text style={styles.hint}>Select a category to see available services.</Text>
             ) : loadingBaseServices ? (
               <View style={styles.inlineLoading}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color="#3298D4" />
                 <Text style={styles.hint}>Loading services…</Text>
               </View>
             ) : (
@@ -535,7 +537,7 @@ function CreateTicket({ navigation }) {
               <Text style={styles.label}>Optional Add-ons</Text>
               {loadingAddonServices ? (
                 <View style={styles.inlineLoading}>
-                  <ActivityIndicator size="small" color="#007AFF" />
+                  <ActivityIndicator size="small" color="#3298D4" />
                   <Text style={styles.hint}>Loading add-ons…</Text>
                 </View>
               ) : addonServices.length === 0 ? (
@@ -691,7 +693,7 @@ function CreateTicket({ navigation }) {
                 disabled={files.length >= MAX_FILES}
                 onPress={handleChooseFiles}
               >
-                <Icon name="attach-file" size={16} color={files.length >= MAX_FILES ? '#9CA3AF' : '#007AFF'} />
+                <Icon name="attach-file" size={16} color={files.length >= MAX_FILES ? '#9CA3AF' : '#3298D4'} />
                 <Text style={[styles.chooseFileText, files.length >= MAX_FILES && { color: '#9CA3AF' }]}>Choose Files</Text>
               </TouchableOpacity>
               {files.length === 0 && <Text style={styles.noFileText}>No file chosen</Text>}
@@ -699,7 +701,7 @@ function CreateTicket({ navigation }) {
 
             {files.map(f => (
               <View key={f.uri} style={styles.filePill}>
-                <Icon name={f.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#007AFF" />
+                <Icon name={f.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#3298D4" />
                 <Text style={styles.filePillText} numberOfLines={1}>{f.name}</Text>
                 <TouchableOpacity onPress={() => handleRemoveFile(f.uri)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="close" size={16} color="#9CA3AF" />
@@ -742,7 +744,7 @@ function CreateTicket({ navigation }) {
             </>
           ) : quoteLoading && stateId ? (
             <View style={styles.inlineLoading}>
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color="#3298D4" />
               <Text style={styles.hint}>Calculating…</Text>
             </View>
           ) : selectedAddonServices.length > 0 || localBasePrice > 0 ? (
@@ -784,7 +786,7 @@ function CreateTicket({ navigation }) {
                   onChangeText={setCouponCode}
                 />
                 <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon} disabled={couponApplyLoading}>
-                  {couponApplyLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.applyBtnText}>Apply</Text>}
+                  {couponApplyLoading ? <ActivityIndicator size="small" color="#3298D4" /> : <Text style={styles.applyBtnText}>Apply</Text>}
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
@@ -820,7 +822,7 @@ function CreateTicket({ navigation }) {
             <Text style={styles.modalTitle}>Available Coupons</Text>
             {couponsLoading ? (
               <View style={[styles.inlineLoading, { padding: 16 }]}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color="#3298D4" />
                 <Text style={styles.hint}>Loading coupons…</Text>
               </View>
             ) : (
@@ -840,7 +842,7 @@ function CreateTicket({ navigation }) {
                       {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
                       {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
                     </View>
-                    {item.eligible && <Icon name="chevron-right" size={20} color="#007AFF" />}
+                    {item.eligible && <Icon name="chevron-right" size={20} color="#3298D4" />}
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={<Text style={[styles.hint, { padding: 16 }]}>No coupons available right now.</Text>}
@@ -854,169 +856,193 @@ function CreateTicket({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 12 },
   usageBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     backgroundColor: '#E5F1FF',
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
   },
-  usageBannerText: { flex: 1, fontSize: 12.5, color: '#1E3A5F', lineHeight: 18 },
-  bold: { fontWeight: '700' },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 4 },
-  card: { backgroundColor: 'white', borderRadius: 12, padding: 16, gap: 14 },
-  estimateCard: { backgroundColor: 'white', borderRadius: 12, padding: 16, gap: 8 },
+  usageBannerText: { flex: 1, ...typography.small, color: '#3298D4', lineHeight: 20 },
+  bold: { fontFamily: typography.labelMedium.fontFamily },
+  sectionTitle: { ...typography.sectionTitle, color: colors.textPrimary, marginTop: 8, marginBottom: 12 },
+  card: { 
+    backgroundColor: colors.surface, 
+    padding: 20, 
+    borderRadius: 16, 
+    gap: 16, 
+    marginBottom: 24,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  estimateCard: { 
+    backgroundColor: colors.surface, 
+    padding: 20, 
+    borderRadius: 16, 
+    gap: 12,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  priceRowDashed: { paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#D1D5DB', borderStyle: 'dashed' },
-  priceLabel: { fontSize: 13, color: '#6B7280', flex: 1 },
-  priceValue: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  discountText: { color: '#10B981' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 2 },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  totalValue: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
+  priceRowDashed: { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, borderStyle: 'dashed' },
+  priceLabel: { ...typography.body, color: colors.textSecondary, flex: 1 },
+  priceValue: { ...typography.labelMedium, color: colors.textPrimary },
+  discountText: { color: colors.success },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: colors.surfaceSecondary },
+  totalLabel: { ...typography.h4, color: colors.textPrimary },
+  totalValue: { ...typography.appTitle, color: colors.textPrimary },
   fieldWrap: { gap: 6 },
-  label: { fontSize: 13, fontWeight: '600', color: '#374151' },
-  required: { color: '#EF4444' },
-  hint: { fontSize: 11.5, color: '#9CA3AF' },
+  label: { ...typography.labelMedium, color: colors.textPrimary },
+  required: { color: colors.error },
+  hint: { ...typography.small, color: colors.textPlaceholder },
   inlineLoading: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: colors.surfaceMuted,
   },
-  selectBoxDisabled: { backgroundColor: '#F3F4F6' },
-  selectText: { fontSize: 13.5, color: '#111827', flex: 1 },
-  placeholderText: { color: '#9CA3AF' },
-  retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600' },
+  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary },
+  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  placeholderText: { color: colors.textPlaceholder },
+  retryText: { ...typography.small, color: colors.error, fontFamily: typography.labelMedium.fontFamily },
   textArea: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13.5,
-    color: '#111827',
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    ...typography.body,
+    color: colors.textPrimary,
+    backgroundColor: colors.surfaceMuted,
     textAlignVertical: 'top',
-    minHeight: 70,
+    minHeight: 100,
   },
 
   serviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: colors.surfaceMuted,
   },
-  serviceRowSelected: { borderColor: '#007AFF', backgroundColor: '#F0F7FF' },
-  serviceName: { fontSize: 13.5, fontWeight: '600', color: '#111827' },
-  serviceSub: { fontSize: 11.5, color: '#9CA3AF', marginTop: 2 },
-  servicePrice: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
-  includedPill: { backgroundColor: '#DCFCE7', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  includedPillText: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
+  serviceRowSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceHighlight },
+  serviceName: { ...typography.labelMedium, color: colors.textPrimary },
+  serviceSub: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
+  servicePrice: { ...typography.labelMedium, color: colors.textPrimary },
+  includedPill: { backgroundColor: colors.successBackground, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  includedPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.success },
 
   addonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: colors.surfaceMuted,
   },
-  addonRowSelected: { borderColor: '#007AFF', backgroundColor: '#F0F7FF' },
-  addonCheckbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  addonCheckboxChecked: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  addonName: { flex: 1, fontSize: 13, color: '#111827', fontWeight: '500' },
+  addonRowSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceHighlight },
+  addonCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+  addonCheckboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  addonName: { flex: 1, ...typography.body, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
 
-  couponLabel: { fontSize: 14, color: '#1E293B', fontWeight: '700', marginTop: 8 },
-  couponRow: { flexDirection: 'row', gap: 8 },
-  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 24, paddingHorizontal: 14, height: 44, color: '#111827', fontSize: 13 },
-  applyBtn: { borderWidth: 1.5, borderColor: '#007AFF', borderRadius: 22, paddingHorizontal: 18, justifyContent: 'center', minWidth: 72, alignItems: 'center' },
-  applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
-  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
-  viewCouponsLink: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  couponLabel: { ...typography.labelMedium, color: colors.textPrimary, marginTop: 12 },
+  couponRow: { flexDirection: 'row', gap: 12 },
+  couponInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 24, paddingHorizontal: 16, height: 48, color: colors.textPrimary, ...typography.body },
+  applyBtn: { borderWidth: 1.5, borderColor: colors.primary, borderRadius: 24, paddingHorizontal: 24, justifyContent: 'center', minWidth: 80, alignItems: 'center' },
+  applyBtnText: { color: colors.primary, ...typography.labelMedium },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 4 },
+  viewCouponsLink: { ...typography.body, color: colors.accent, fontFamily: typography.labelMedium.fontFamily },
 
-  couponCodeText: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
-  couponIneligibleText: { color: '#9CA3AF' },
-  couponDescText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 2 },
+  couponCodeText: { ...typography.labelMedium, color: colors.textPrimary },
+  couponIneligibleText: { color: colors.textPlaceholder },
+  couponDescText: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
+  couponReasonText: { ...typography.small, color: colors.error, marginTop: 4 },
 
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   chooseFileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  chooseFileBtnDisabled: { borderColor: '#E5E7EB' },
-  chooseFileText: { color: '#007AFF', fontSize: 13, fontWeight: '600' },
-  noFileText: { fontSize: 12.5, color: '#9CA3AF' },
+  chooseFileBtnDisabled: { borderColor: colors.border },
+  chooseFileText: { color: colors.primary, ...typography.labelMedium },
+  noFileText: { ...typography.body, color: colors.textPlaceholder },
   filePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  filePillText: { flex: 1, fontSize: 12.5, color: '#374151' },
+  filePillText: { flex: 1, ...typography.body, color: colors.textPrimary },
   submitBtn: {
-    backgroundColor: '#FF7C1A',
-    borderRadius: 25,
-    paddingVertical: 14,
+    backgroundColor: colors.accent,
+    borderRadius: 24,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 16,
   },
-  submitBtnDisabled: { backgroundColor: '#FFC999' },
-  submitBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  submitBtnDisabled: { backgroundColor: '#FCD3B3' },
+  submitBtnText: { color: '#fff', ...typography.labelLarge },
   cancelBtn: {
     borderWidth: 1.5,
-    borderColor: '#007AFF',
-    borderRadius: 25,
-    paddingVertical: 14,
+    borderColor: colors.primary,
+    borderRadius: 24,
+    paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 12,
   },
-  cancelBtnText: { color: '#007AFF', fontSize: 15, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '60%',
-    paddingBottom: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: 24,
   },
-  modalTitle: { fontSize: 14, fontWeight: '700', color: '#333', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalTitle: { ...typography.sectionTitle, color: colors.textPrimary, padding: 24, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F9FAFB',
+    borderBottomColor: colors.border,
   },
-  modalOptionText: { fontSize: 14, color: '#111827' },
+  modalOptionText: { ...typography.jobTitle, color: colors.textPrimary },
 });
 
 export default CreateTicket;
