@@ -17,6 +17,15 @@ export const fetchTicketDetail = createAsyncThunk('myTickets/fetchDetail', async
   }
 });
 
+export const rateTicket = createAsyncThunk('myTickets/rate', async ({ ticketId, rating, note }, { rejectWithValue }) => {
+  try {
+    await ticketApi.rateTicket(ticketId, { rating, note });
+    return { ticketId, rating, note };
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   tickets: [],
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
@@ -25,6 +34,8 @@ const initialState = {
   detail: null,
   detailStatus: 'idle',
   detailError: null,
+  rateStatus: 'idle',
+  rateError: null,
 };
 
 const myTicketsSlice = createSlice({
@@ -57,6 +68,27 @@ const myTicketsSlice = createSlice({
       .addCase(fetchTicketDetail.rejected, (state, action) => {
         state.detailStatus = 'failed';
         state.detailError = action.payload;
+      })
+      .addCase(rateTicket.pending, (state) => {
+        state.rateStatus = 'loading';
+        state.rateError = null;
+      })
+      .addCase(rateTicket.fulfilled, (state, action) => {
+        state.rateStatus = 'succeeded';
+        // Optimistically reflect the submitted rating on the currently
+        // loaded detail (the backend doesn't echo the stored rating back in
+        // the /rate response, only a confirmation message).
+        if (state.detail && state.detail.id === action.payload.ticketId) {
+          state.detail.rating = {
+            value: action.payload.rating,
+            note: action.payload.note || null,
+            createdAt: new Date().toISOString(),
+          };
+        }
+      })
+      .addCase(rateTicket.rejected, (state, action) => {
+        state.rateStatus = 'failed';
+        state.rateError = action.payload;
       });
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator, PermissionsAndroid, Linking, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator, PermissionsAndroid, Linking, RefreshControl, Image } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -439,7 +439,11 @@ function Profile({ navigation, route }) {
       >
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            {user?.avatarUri ? (
+              <Image source={{ uri: user.avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{initials}</Text>
+            )}
           </View>
           <Text style={styles.profileName}>{name || 'Customer'}</Text>
           <Text style={styles.profileEmail}>{user?.email}</Text>
@@ -793,7 +797,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
   profileCard: { backgroundColor: 'white', borderRadius: 16, padding: 24, alignItems: 'center', gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginBottom: 8, overflow: 'hidden' },
+  avatarImage: { width: '100%', height: '100%' },
   avatarText: { fontSize: 24, fontWeight: 'bold', color: 'white' },
   profileName: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
   profileEmail: { fontSize: 13, color: '#6B7280' },

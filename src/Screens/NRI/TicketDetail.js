@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Linking, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
+import { useReports } from '../../Hooks/useReports';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -38,13 +39,46 @@ function isOverdue(dateStr) {
 
 function TicketDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
-  const { detail: ticket, loading, failed, retry } = useTicketDetail(ticketId);
+  const { detail: ticket, loading, failed, retry, rate, rateLoading } = useTicketDetail(ticketId);
+
+  // Visit reports are their own resource (GET /customer/reports), not
+  // embedded in the ticket detail payload — the ticket detail endpoint never
+  // returns a `report` object, only a `has_report` boolean on the list item.
+  // Each report carries a `ticket_id`, so match it client-side. The reports
+  // endpoint only supports a `page` param (no ticket_id filter), so a report
+  // sitting past page 1 won't be found here — acceptable for now since
+  // reports are far less frequent than tickets.
+  const { reports, retry: retryReports } = useReports();
+  const report = reports.find(r => r.ticketId === ticket?.id) || null;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await retry();
+    await Promise.all([retry(), retryReports()]);
     setRefreshing(false);
+  };
+
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [feedbackNote, setFeedbackNote] = useState('');
+
+  const handleSubmitRating = async () => {
+    if (!selectedStars) {
+      Alert.alert('Select a Rating', 'Please tap a star to rate this service.');
+      return;
+    }
+    try {
+      await rate(selectedStars, feedbackNote.trim() || undefined).unwrap();
+      Alert.alert('Thank You', 'Your rating has been submitted.');
+    } catch (error) {
+      Alert.alert('Could Not Submit Rating', error?.message || 'Please try again.');
+    }
+  };
+
+  const handleViewAttachment = (url) => {
+    if (!url) return;
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Could Not Open', 'This attachment could not be opened.');
+    });
   };
 
   // `retry` is a fresh function reference every render (not memoized by the
@@ -55,6 +89,7 @@ function TicketDetail({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       if (ticketId) retry();
+      retryReports();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticketId])
   );
@@ -240,6 +275,88 @@ function TicketDetail({ route, navigation }) {
             );
           })}
         </View>
+
+        {(ticket.status === 'completed' || !!report) && (
+          <View style={styles.section}>
+            <View style={styles.reportHeaderRow}>
+              <View style={styles.reportTitleWrap}>
+                <Icon name="description" size={18} color={colors.success} />
+                <Text style={styles.sectionTitle}>Service Report</Text>
+              </View>
+              {!!report?.status && (
+                <View style={styles.reportStatusBadge}>
+                  <Text style={styles.reportStatusText}>{report.status}</Text>
+                </View>
+              )}
+            </View>
+            {report ? (
+              <>
+                {!!report.title && <Text style={styles.reportNote}>{report.title}</Text>}
+                {!!(report.vendor || report.date) && (
+                  <Text style={styles.subValue}>
+                    {[report.vendor, formatDateTime(report.date)].filter(Boolean).join(' · ')}
+                  </Text>
+                )}
+                {report.media.length > 0 && (
+                  <View style={styles.attachmentRow}>
+                    {report.media.map((m, idx) => (
+                      <TouchableOpacity key={m.url ?? idx} style={styles.attachmentPill} onPress={() => handleViewAttachment(m.url)}>
+                        <Icon name="attach-file" size={14} color={colors.primary} />
+                        <Text style={styles.attachmentPillText}>{report.media.length > 1 ? `View Attachment ${idx + 1}` : 'View Attachment'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : (
+              <Text style={styles.subValue}>Your service report hasn't been shared yet.</Text>
+            )}
+          </View>
+        )}
+
+        {ticket.status === 'completed' && (
+          <View style={styles.section}>
+            <View style={styles.reportTitleWrap}>
+              <Icon name="star" size={18} color="#F59E0B" />
+              <Text style={styles.sectionTitle}>Rate this Service</Text>
+            </View>
+
+            {ticket.rating ? (
+              <>
+                <Text style={styles.label}>Your rating</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <Icon key={n} name={n <= ticket.rating.value ? 'star' : 'star-border'} size={28} color="#F59E0B" />
+                  ))}
+                </View>
+                {!!ticket.rating.note && <Text style={styles.reportNote}>{ticket.rating.note}</Text>}
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>How did we do?</Text>
+                <View style={styles.starRow}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <TouchableOpacity key={n} onPress={() => setSelectedStars(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Icon name={n <= selectedStars ? 'star' : 'star-border'} size={32} color="#F59E0B" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={styles.feedbackInput}
+                  placeholder="Any feedback? (optional)"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  numberOfLines={3}
+                  value={feedbackNote}
+                  onChangeText={setFeedbackNote}
+                />
+                <TouchableOpacity style={[styles.submitRatingBtn, rateLoading && styles.submitRatingBtnDisabled]} onPress={handleSubmitRating} disabled={rateLoading}>
+                  {rateLoading ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={styles.submitRatingBtnText}>Submit Rating</Text>}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -325,6 +442,31 @@ const styles = StyleSheet.create({
   emptyText: { ...typography.body, color: colors.textSecondary },
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backLinkText: { ...typography.labelMedium, color: colors.primary },
+
+  reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reportTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reportStatusBadge: { backgroundColor: colors.successBackground, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  reportStatusText: { ...typography.tiny, color: colors.success, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
+  reportNote: { fontSize: 15, color: colors.textPrimary },
+  attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.badgeBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  attachmentPillText: { fontSize: 13, color: colors.primary, fontFamily: typography.labelMedium.fontFamily, textDecorationLine: 'underline' },
+
+  starRow: { flexDirection: 'row', gap: 8 },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.textPrimary,
+    textAlignVertical: 'top',
+    minHeight: 70,
+  },
+  submitRatingBtn: { backgroundColor: '#FF7C1A', borderRadius: 25, paddingVertical: 14, alignItems: 'center' },
+  submitRatingBtnDisabled: { opacity: 0.7 },
+  submitRatingBtnText: { color: colors.surface, fontSize: 15, fontFamily: typography.labelLarge.fontFamily },
 });
 
 export default TicketDetail;

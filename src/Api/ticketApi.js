@@ -91,6 +91,19 @@ function mapTimelineEvent(raw) {
   return { from: raw.from, to: raw.to, note: raw.note, at: raw.at };
 }
 
+// Verified live via the backend's OpenAPI spec (POST /customer/tickets/{id}/rate
+// takes {rating: 1-5, note?}) — but the shape of an ALREADY-submitted rating
+// as it comes back embedded in ticket detail (`raw.rating`) was never
+// observed live for the same reason as report above.
+function mapRating(raw) {
+  if (!raw) return null;
+  return {
+    value: raw.rating ?? raw.value ?? raw.stars ?? null,
+    note: raw.note || raw.feedback || null,
+    createdAt: raw.created_at || null,
+  };
+}
+
 // Tolerant across the three shapes this backend returns a ticket in:
 // the create-response (id/service/addons/pricing), the paginated list item
 // (id/service/status/urgency/total_amount/is_paid/has_report/vendor — no
@@ -124,8 +137,7 @@ function mapTicket(raw) {
     customerNotes: raw.customer_notes || null,
     attachments: raw.attachments || [],
     timeline: (raw.timeline || []).map(mapTimelineEvent),
-    report: raw.report || null,
-    rating: raw.rating || null,
+    rating: mapRating(raw.rating),
     slaDeadline: raw.sla_deadline || null,
     serviceStartedAt: raw.service_started_at || null,
     serviceCompletedAt: raw.service_completed_at || null,
@@ -232,6 +244,21 @@ export async function getTicketDetail(ticketId) {
   try {
     const response = await apiClient.get(`/customer/tickets/${ticketId}`);
     return mapTicket(response.data?.data || response.data);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
+// POST /customer/tickets/{ticket}/rate, body {rating: 1-5, note?}, 422s with
+// "Ticket not completed yet" if rated before the service is done.
+export async function rateTicket(ticketId, { rating, note }) {
+  try {
+    const response = await apiClient.post(`/customer/tickets/${ticketId}/rate`, {
+      rating,
+      note: note || undefined,
+    });
+    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }
