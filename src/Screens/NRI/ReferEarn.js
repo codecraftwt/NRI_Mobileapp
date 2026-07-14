@@ -1,13 +1,32 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
 
 function ReferEarn({ navigation }) {
-  const { referralCode, shareLink, totals, referred, rewards, leaderboard, loading } = useReferrals();
-  const { cashout } = useWalletAccount();
+  const { referralCode, shareLink, totals, referred, rewards, leaderboard, loading, retry } = useReferrals();
+  const { cashout, retry: retryWallet } = useWalletAccount();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([retry(), retryWallet()]);
+    setRefreshing(false);
+  };
+
+  // `retry`/`retryWallet` are new function references every render (not
+  // memoized by the hooks) — keeping them out of these deps avoids an
+  // infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      retryWallet();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const handleCopy = () => {
     // TODO: use a clipboard library to copy `referralCode`
@@ -21,7 +40,11 @@ function ReferEarn({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Refer & Earn" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>Your Referral Code</Text>
           {loading ? (

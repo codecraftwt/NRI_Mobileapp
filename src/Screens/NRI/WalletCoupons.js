@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
@@ -13,11 +14,31 @@ function WalletCoupons({ navigation }) {
     balance,
     cashout,
     loading,
+    retry,
     transactions,
     transactionsLoading,
+    fetchTransactions,
     cashoutLoading,
     requestCashout,
   } = useWalletAccount();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([retry(), fetchTransactions()]);
+    setRefreshing(false);
+  };
+
+  // `retry`/`fetchTransactions` are new function references every render
+  // (not memoized by the hook) — keeping them out of these deps avoids an
+  // infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      fetchTransactions();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const [amount, setAmount] = useState('');
   const [bankDetails, setBankDetails] = useState('');
@@ -45,7 +66,11 @@ function WalletCoupons({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Coupon & Credits Wallet" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconBox, { backgroundColor: '#E6F7EF' }]}>

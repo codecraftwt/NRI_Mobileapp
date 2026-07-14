@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, FlatList, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useBilling } from '../../Hooks/useBilling';
@@ -62,6 +63,22 @@ function BillingPayments({ navigation }) {
   const [cancelingId, setCancelingId] = useState(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (not memoized by the
+  // hook) — keeping it out of these deps avoids an infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const handleGatewayPayment = async (item, gateway) => {
     const key = `${item.type}:${item.id}`;
@@ -195,7 +212,11 @@ function BillingPayments({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Billing & Payments" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         {loading && (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color="#007AFF" />

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
@@ -24,6 +25,22 @@ function AddonPackages({ navigation }) {
   const user = useSelector(state => state.user.user);
   const [gateways, setGateways] = useState({});
   const [processingId, setProcessingId] = useState(null);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (not memoized by the
+  // hook) — keeping it out of these deps avoids an infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const chooseGateway = (pkgId) => {
     Alert.alert(
@@ -113,7 +130,11 @@ function AddonPackages({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Add-on Packages" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <Text style={styles.introText}>
           Recurring monthly care packages that top up your membership. Pay with Razorpay to auto-renew every month (cancel anytime), or pay month-by-month with Stripe.
         </Text>

@@ -1,5 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useMembership } from '../../Hooks/useMembership';
@@ -54,10 +55,32 @@ function MyMembership({ navigation }) {
     retryHistory,
   } = useMembership();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([retry(), retryHistory()]);
+    setRefreshing(false);
+  };
+
+  // `retry`/`retryHistory` are new function references every render (not
+  // memoized by the hook) — keeping them out of these deps avoids an
+  // infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      retryHistory();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="My Membership" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         {loading && (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color="#007AFF" />
@@ -101,11 +124,11 @@ function MyMembership({ navigation }) {
               <>
                 <View style={styles.heroDivider} />
                 <View style={styles.featureGrid}>
-                  {membership.features.map(feature => (
-                    <View key={feature.id} style={styles.heroFeatureCol}>
+                  {membership.features.map((feature, idx) => (
+                    <View key={feature.id ?? idx} style={styles.heroFeatureCol}>
                       <Icon name={FEATURE_ICONS[feature.slug] || 'check-circle'} size={15} color="rgba(255,255,255,0.85)" />
                       <Text style={styles.heroFeatureText}>
-                        {feature.name} — <Text style={styles.heroFeatureValue}>{feature.value ?? '—'}</Text>
+                        {feature.name || ''} — <Text style={styles.heroFeatureValue}>{feature.value || '—'}</Text>
                       </Text>
                     </View>
                   ))}

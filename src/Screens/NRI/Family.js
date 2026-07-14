@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useDispatch } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
@@ -31,6 +32,25 @@ function Family({ navigation }) {
   const dispatch = useDispatch();
   const { members, loading, failed, retry } = useFamilyMembers();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (the hook doesn't
+  // memoize it) — putting it in this deps array recreated the callback each
+  // render, and since retry() itself triggers a re-render, that became an
+  // infinite refetch loop (the screen never stopped "loading"). Empty deps:
+  // fetch once per focus, not once per render.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
   const handleDelete = (member) => {
     Alert.alert(
       'Delete Member',
@@ -53,7 +73,11 @@ function Family({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Family" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
 
         {loading && (
           <View style={styles.loadingBox}>

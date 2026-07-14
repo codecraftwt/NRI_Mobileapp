@@ -14,8 +14,23 @@ function mapUsage(raw) {
   };
 }
 
-function mapFeature(raw) {
-  return { id: raw.id, name: raw.name, slug: raw.slug, value: raw.value };
+// The catalog endpoint (GET /plans) confirmed live that each feature is
+// {id, name, slug, value} with a real numeric id — but this account has
+// never held an active membership, so the *embedded* `plan.features` shape
+// returned by GET /customer/membership itself was never actually verified
+// live. Defensive fallbacks here (index-based id, name coerced to a string)
+// so a differently-shaped or string-only entry can't collide render keys or
+// slip a non-string value into a <Text>.
+function mapFeature(raw, index) {
+  if (raw && typeof raw === 'object') {
+    return {
+      id: raw.id ?? raw.slug ?? `feature-${index}`,
+      name: raw.name != null ? String(raw.name) : '',
+      slug: raw.slug ?? null,
+      value: raw.value != null ? String(raw.value) : null,
+    };
+  }
+  return { id: `feature-${index}`, name: raw != null ? String(raw) : '', slug: null, value: null };
 }
 
 // NOTE: verified live against GET /customer/memberships — an item there
@@ -38,7 +53,7 @@ function mapMembership(raw) {
     endDate: raw.end_date || raw.expires_at || null,
     autoRenew: !!raw.auto_renew,
     paymentStatus: raw.payment_status || (status === 'active' || status === 'expired' ? 'Paid' : status === 'pending' ? 'Pending' : null),
-    features: (raw.plan?.features || raw.features || []).map(mapFeature),
+    features: (raw.plan?.features || raw.features || []).map((f, idx) => mapFeature(f, idx)),
   };
 }
 

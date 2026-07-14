@@ -1,17 +1,31 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Switch } from 'react-native';
-import { useSelector } from 'react-redux';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Switch, RefreshControl } from 'react-native';
+import { useSelector, useDispatch } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { fetchCurrentUser } from '../../Redux/slices/userSlice';
 
 function MyAccount({ navigation }) {
+  const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
+  const refreshing = useSelector(state => state.user.profileStatus === 'loading');
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [notifications, setNotifications] = useState(true);
   const [whatsappUpdates, setWhatsappUpdates] = useState(true);
+
+  const onRefresh = () => {
+    dispatch(fetchCurrentUser());
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchCurrentUser());
+    }, [dispatch])
+  );
 
   const handleSave = () => {
     Alert.alert('Profile Updated', 'Your profile has been saved successfully.');
@@ -23,7 +37,11 @@ function MyAccount({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="My Account" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{name.split(' ').map(n => n[0]).join('').slice(0, 2)}</Text>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useDocuments } from '../../Hooks/useDocuments';
@@ -24,6 +25,22 @@ function DocumentVault({ navigation }) {
   const { documents, loading, failed, retry } = useDocuments();
   const token = useSelector(state => state.user.token);
   const [downloadingId, setDownloadingId] = useState(null);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (not memoized by the
+  // hook) — keeping it out of these deps avoids an infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const toggleShare = (doc) => {
     dispatch(toggleShareDocument(doc.id)).unwrap().catch((error) => {
@@ -65,7 +82,11 @@ function DocumentVault({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Document Vault" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
 
         {loading && (
           <View style={styles.loadingBox}>

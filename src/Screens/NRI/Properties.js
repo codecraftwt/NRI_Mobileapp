@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useDispatch } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { removeProperty } from '../../Redux/slices/propertiesSlice';
@@ -11,6 +12,22 @@ const TYPE_LABELS = { flat: 'Flat', house: 'House', farm: 'Farm / Agricultural L
 function Properties({ navigation }) {
   const dispatch = useDispatch();
   const { properties, loading, failed, retry } = useProperties();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (not memoized by the
+  // hook) — keeping it out of these deps avoids an infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const handleDelete = (property) => {
     Alert.alert(
@@ -34,7 +51,11 @@ function Properties({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Properties" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         {loading && (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color="#007AFF" />

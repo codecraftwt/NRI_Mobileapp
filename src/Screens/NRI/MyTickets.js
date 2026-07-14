@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useMyTickets } from '../../Hooks/useMyTickets';
@@ -75,6 +76,26 @@ function MyTickets({ navigation }) {
 
   const hasFilters = search.trim() || statusFilter !== 'All Statuses' || urgencyFilter !== 'Any Urgency';
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a fresh function reference on every render (it's not memoized
+  // by the hook), so it can't be a dependency here — including it would
+  // recreate this callback each render, and since retry() itself triggers a
+  // re-render (loading -> succeeded/failed), that becomes an infinite
+  // refetch loop. Empty deps + focus-only firing is what we actually want:
+  // fetch once each time the screen is focused, nothing more.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('All Statuses');
@@ -124,6 +145,22 @@ function MyTickets({ navigation }) {
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{filteredTickets.length}</Text>
             </View>
+      <Header navigation={navigation} title="My Tickets" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
+        <View style={styles.filtersCard}>
+          <View style={styles.searchBox}>
+            <Icon name="search" size={18} color="#94A3B8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search ticket # or service..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
           </View>
           <TouchableOpacity
             style={styles.newRequestBtn}

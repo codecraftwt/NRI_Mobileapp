@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator, PermissionsAndroid, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator, PermissionsAndroid, Linking, RefreshControl } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -15,6 +15,8 @@ import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import { useDocuments } from '../../Hooks/useDocuments';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
 import { useReferrals } from '../../Hooks/useReferrals';
+import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import { useProperties } from '../../Hooks/useProperties';
 
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
@@ -164,11 +166,36 @@ function Profile({ navigation, route }) {
   const { cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state, district);
   const { loading: loadingPostalLookup, lookup: lookupPostalCode } = usePostalCodeLookup();
 
-  const familyMembers = useSelector(s => s.family.members);
-  const properties = useSelector(s => s.properties.properties);
-  const { documents } = useDocuments();
-  const { balance: walletBalance } = useWalletAccount();
-  const { referralCode } = useReferrals();
+  // These previously read straight from Redux without going through a
+  // fetch-capable hook, so this screen had no way to actually refresh them —
+  // it relied on some other screen (Family.js/Properties.js) having already
+  // populated the store first. Using the real hooks here fixes that.
+  const { members: familyMembers, retry: retryFamily } = useFamilyMembers();
+  const { properties, retry: retryProperties } = useProperties();
+  const { documents, retry: retryDocuments } = useDocuments();
+  const { balance: walletBalance, retry: retryWallet } = useWalletAccount();
+  const { referralCode, retry: retryReferrals } = useReferrals();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([retryFamily(), retryProperties(), retryDocuments(), retryWallet(), retryReferrals()]);
+    setRefreshing(false);
+  };
+
+  // These retry functions are new references every render (not memoized by
+  // the hooks) — keeping them out of these deps avoids an infinite refetch
+  // loop.
+  useFocusEffect(
+    useCallback(() => {
+      retryFamily();
+      retryProperties();
+      retryDocuments();
+      retryWallet();
+      retryReferrals();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   // NRI & Membership tab — editable profile fields from PUT /auth/profile.
   const [nriCountry, setNriCountry] = useState(user?.countryOfResidence || '');
@@ -405,7 +432,11 @@ function Profile({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="My Profile" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>

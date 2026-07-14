@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useAnnualSummary } from '../../Hooks/useAnnualSummary';
@@ -19,6 +20,22 @@ function AnnualSummary({ navigation }) {
   const { properties } = useProperties();
   const { membership } = useMembership();
   const user = useSelector(state => state.user.user);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a new function reference every render (not memoized by the
+  // hook) — keeping it out of these deps avoids an infinite refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const chooseYear = () => {
     Alert.alert(
@@ -51,7 +68,11 @@ function AnnualSummary({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title={`Annual Summary — ${year}`} showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
         <View style={styles.topRow}>
           <TouchableOpacity style={styles.yearSelect} onPress={chooseYear}>
             <Text style={styles.yearLabel}>Year</Text>

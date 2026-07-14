@@ -1,5 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
@@ -38,6 +39,25 @@ function isOverdue(dateStr) {
 function TicketDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
   const { detail: ticket, loading, failed, retry } = useTicketDetail(ticketId);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await retry();
+    setRefreshing(false);
+  };
+
+  // `retry` is a fresh function reference every render (not memoized by the
+  // hook) — keeping it out of the deps array avoids an infinite refetch loop
+  // (retry() causes a re-render, which would recreate the callback, which
+  // would re-trigger the effect). Only re-fire on an actual focus event or a
+  // genuine ticketId change.
+  useFocusEffect(
+    useCallback(() => {
+      if (ticketId) retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticketId])
+  );
 
   if (loading && !ticket) {
     return (
@@ -94,8 +114,12 @@ function TicketDetail({ route, navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title={ticket.ticketNumber} showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+      >
+        <View style={styles.card}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
