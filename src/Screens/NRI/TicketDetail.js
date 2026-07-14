@@ -86,6 +86,8 @@ function TicketDetail({ route, navigation }) {
   const timeline = ticket.timeline.length
     ? ticket.timeline
     : [{ to: ticket.status, at: ticket.createdAt, note: 'Ticket created' }];
+  const addonsTotal = ticket.addons.reduce((sum, a) => sum + Number(a.customerPrice || 0), 0);
+  const baseAmount = Math.max(0, Number(ticket.pricing?.customerPrice || 0) - addonsTotal);
 
   return (
     <View style={styles.container}>
@@ -156,6 +158,40 @@ function TicketDetail({ route, navigation }) {
           )}
         </View>
 
+        {!!ticket.pricing && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Charges</Text>
+            <View style={styles.chargesList}>
+              <View style={styles.chargeRow}>
+                <Text style={styles.chargeLabel}>Base: {ticket.serviceName}</Text>
+                <Text style={styles.chargeValue}>₹{baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+              </View>
+              {ticket.addons.map((addon, idx) => (
+                <View key={addon.serviceId ?? idx} style={styles.chargeRow}>
+                  <Text style={styles.chargeLabel}>+ {addon.name}</Text>
+                  <Text style={styles.chargeValue}>₹{Number(addon.customerPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                </View>
+              ))}
+              {ticket.pricing.expressSurcharge > 0 && (
+                <View style={styles.chargeRow}>
+                  <Text style={styles.chargeLabel}>+ Express Surcharge</Text>
+                  <Text style={styles.chargeValue}>₹{ticket.pricing.expressSurcharge.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                </View>
+              )}
+              {ticket.pricing.discountAmount > 0 && (
+                <View style={styles.chargeRow}>
+                  <Text style={styles.chargeLabel}>− Discount{ticket.pricing.couponCode ? ` (${ticket.pricing.couponCode})` : ''}</Text>
+                  <Text style={[styles.chargeValue, styles.discountValue]}>−₹{ticket.pricing.discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                </View>
+              )}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={styles.totalValue}>₹{Number(ticket.pricing.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Request Timeline</Text>
           {timeline.map((event, idx) => {
@@ -211,6 +247,14 @@ const styles = StyleSheet.create({
   overdueBadge: { backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   overdueBadgeText: { fontSize: 10.5, color: '#EF4444', fontWeight: '700' },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: '#333' },
+  chargesList: { gap: 0 },
+  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E5E7EB', borderStyle: 'dashed' },
+  chargeLabel: { fontSize: 13, color: '#6B7280', flex: 1, paddingRight: 8 },
+  chargeValue: { fontSize: 13, color: '#374151', fontWeight: '600' },
+  discountValue: { color: '#10B981' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 2, borderTopWidth: 1, borderTopColor: '#111827' },
+  totalLabel: { fontSize: 15, fontWeight: '800', color: '#111827' },
+  totalValue: { fontSize: 17, fontWeight: '800', color: '#111827' },
   timelineRow: { flexDirection: 'row', gap: 12 },
   timelineDotCol: { alignItems: 'center', width: 16 },
   timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D1D5DB', marginTop: 4 },

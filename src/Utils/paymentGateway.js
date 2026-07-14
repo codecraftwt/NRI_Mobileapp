@@ -17,6 +17,13 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
 
   if (order.subscription_id) {
     options.subscription_id = order.subscription_id;
+    // Required on Razorpay's native Android/iOS SDKs (react-native-razorpay
+    // wraps these directly) alongside subscription_id — without it the
+    // native checkout falls back to a plain one-time card-entry screen that
+    // then gets declined as "does not support recurring payments" instead
+    // of running the proper e-mandate authorization flow. Not needed on the
+    // web/JS checkout, where subscription_id alone is sufficient.
+    options.recurring = '1';
   } else {
     options.order_id = order.order_id;
     options.amount = order.amount;

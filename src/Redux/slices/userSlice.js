@@ -80,6 +80,20 @@ export const fetchCurrentUser = createAsyncThunk(
   }
 );
 
+// Saves profile fields to the backend (PUT /auth/profile) — named distinctly
+// from the plain local `updateProfile` reducer below (still used for fields
+// this endpoint doesn't accept, like dob/gender/bio/emergency contact).
+export const saveUserProfile = createAsyncThunk(
+  'user/saveProfile',
+  async (payload, { rejectWithValue }) => {
+    try {
+      return await authApi.updateProfile(payload);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 // Change password revokes the user's OTHER active tokens server-side but
 // leaves the current session's token valid, so no user/token state needs
 // updating here beyond tracking request status for the UI.
@@ -122,6 +136,8 @@ const initialState = {
   logoutStatus: 'idle', // 'idle' | 'loading' | 'succeeded'
   profileStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   profileError: null,
+  saveProfileStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  saveProfileError: null,
   changePasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   changePasswordError: null,
   forgotPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -251,6 +267,19 @@ const userSlice = createSlice({
           state.token = null;
           state.isAuthenticated = false;
         }
+      })
+      .addCase(saveUserProfile.pending, (state) => {
+        state.saveProfileStatus = 'loading';
+        state.saveProfileError = null;
+      })
+      .addCase(saveUserProfile.fulfilled, (state, action) => {
+        state.saveProfileStatus = 'succeeded';
+        state.saveProfileError = null;
+        state.user = { ...state.user, ...action.payload.user };
+      })
+      .addCase(saveUserProfile.rejected, (state, action) => {
+        state.saveProfileStatus = 'failed';
+        state.saveProfileError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
       .addCase(changeUserPassword.pending, (state) => {
         state.changePasswordStatus = 'loading';

@@ -1,5 +1,12 @@
 import apiClient, { normalizeApiError } from './client';
 
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function mapPlanUsage(raw) {
   if (!raw) return null;
   return {
@@ -47,11 +54,21 @@ function mapDashboard(raw) {
       avatar: raw.rm.avatar || null,
     } : null,
     membership: raw.membership ? {
-      planName: raw.membership.plan_name || raw.membership.name || null,
+      id: raw.membership.id,
+      planId: raw.membership.plan?.id ?? null,
+      planName: raw.membership.plan?.name || null,
+      planSlug: raw.membership.plan?.slug || null,
       status: raw.membership.status || null,
-      startDate: raw.membership.start_date || null,
-      endDate: raw.membership.end_date || null,
-      renewalAlert: raw.membership.renewal_alert || raw.membership.renewal_notice || null,
+      startDate: raw.membership.starts_at || null,
+      endDate: raw.membership.expires_at || null,
+      autoRenew: !!raw.membership.auto_renew,
+      renewalDue: !!raw.membership.renewal_due,
+      // The backend only exposes a `renewal_due` boolean, not a ready-made
+      // message — compose one client-side so the existing renewal banner
+      // has something to show.
+      renewalAlert: raw.membership.renewal_due
+        ? `Your ${raw.membership.plan?.name || 'membership'} plan expires on ${formatDate(raw.membership.expires_at)} — renew soon to avoid a lapse.`
+        : null,
     } : null,
     planUsage: mapPlanUsage(raw.plan_usage),
     recentTickets: (raw.recent_tickets || []).map(mapRecentTicket),

@@ -1,5 +1,6 @@
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  fetchMembershipCoupons,
   validateMembershipCoupon,
   checkoutMembership,
   verifyMembershipPayment,
@@ -13,6 +14,10 @@ import {
 export function useMembershipCheckout() {
   const dispatch = useDispatch();
 
+  const coupons = useSelector(state => state.membership.coupons);
+  const couponsLoading = useSelector(state => state.membership.couponsStatus === 'loading');
+  const couponsError = useSelector(state => state.membership.couponsError);
+
   const couponResult = useSelector(state => state.membership.couponResult);
   const couponLoading = useSelector(state => state.membership.couponStatus === 'loading');
   const couponError = useSelector(state => state.membership.couponError);
@@ -24,6 +29,11 @@ export function useMembershipCheckout() {
   const verifyError = useSelector(state => state.membership.verifyError);
 
   return {
+    coupons,
+    couponsLoading,
+    couponsError,
+    fetchCoupons: (params) => dispatch(fetchMembershipCoupons(params)),
+
     couponResult,
     couponLoading,
     couponError,

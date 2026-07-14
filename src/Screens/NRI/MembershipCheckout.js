@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Modal, FlatList } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -18,6 +18,7 @@ function MembershipCheckout({ navigation, route }) {
   const { packages, loading: packagesLoading, failed: packagesFailed, retry: retryPackages } = useAddonPackages();
   const { retry: refetchMembership } = useMembership();
   const {
+    coupons, couponsLoading, fetchCoupons,
     couponResult, couponLoading, validateCoupon, clearCoupon,
     checkoutLoading, checkout,
     verifyLoading, verifyPayment,
@@ -32,6 +33,7 @@ function MembershipCheckout({ navigation, route }) {
   const [useWallet, setUseWallet] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [showCouponsModal, setShowCouponsModal] = useState(false);
 
   useEffect(() => {
     if (!selectedPlanId && regularPlans.length > 0) {
@@ -76,6 +78,26 @@ function MembershipCheckout({ navigation, route }) {
       });
   };
 
+  const handleViewCoupons = () => {
+    if (!selectedPlanId) return;
+    fetchCoupons({ planId: selectedPlanId });
+    setShowCouponsModal(true);
+  };
+
+  const handlePickCoupon = (coupon) => {
+    if (!coupon.eligible || !selectedPlanId) return;
+    setPlanCouponCode(coupon.code);
+    setShowCouponsModal(false);
+    validateCoupon({ planId: selectedPlanId, code: coupon.code })
+      .unwrap()
+      .then((result) => {
+        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`);
+      })
+      .catch((error) => {
+        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+      });
+  };
+
   const handleSubmit = async () => {
     if (!selectedPlanId) {
       Alert.alert('Select a Plan', 'Please choose a membership plan to continue.');
@@ -106,6 +128,7 @@ function MembershipCheckout({ navigation, route }) {
           razorpayOrderId: rzpResult.razorpayOrderId,
           razorpayPaymentId: rzpResult.razorpayPaymentId,
           razorpaySignature: rzpResult.razorpaySignature,
+          razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
         }).unwrap();
         refetchMembership();
         Alert.alert('Membership Activated', 'Your membership payment was verified successfully.', [
@@ -250,6 +273,11 @@ function MembershipCheckout({ navigation, route }) {
               {couponLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.applyBtnText}>Apply</Text>}
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+            <Icon name="local-offer" size={14} color="#7C3AED" />
+            <Text style={styles.viewCouponsLink}>View available coupons</Text>
+            <Icon name="expand-more" size={16} color="#7C3AED" />
+          </TouchableOpacity>
 
           {selectedAddons.length > 0 && (
             <>
@@ -299,6 +327,42 @@ function MembershipCheckout({ navigation, route }) {
           )}
         </View>
       </ScrollView>
+
+      <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Available Coupons</Text>
+            {couponsLoading ? (
+              <View style={styles.modalLoadingBox}>
+                <ActivityIndicator size="small" color="#007AFF" />
+                <Text style={styles.hint}>Loading coupons…</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={coupons}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => handlePickCoupon(item)}
+                    disabled={!item.eligible}
+                  >
+                    <View style={styles.modalOptionTextWrap}>
+                      <Text style={[styles.couponCodeText, !item.eligible && styles.couponIneligibleText]}>
+                        {item.code} · {item.valueLabel}
+                      </Text>
+                      {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
+                      {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
+                    </View>
+                    {item.eligible && <Icon name="chevron-right" size={20} color="#007AFF" />}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<Text style={styles.modalEmptyText}>No coupons available right now.</Text>}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -335,6 +399,19 @@ const styles = StyleSheet.create({
   couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 42, color: '#1E293B', fontSize: 13 },
   applyBtn: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
   applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 4 },
+  viewCouponsLink: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },
+  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  modalOptionTextWrap: { flex: 1 },
+  modalEmptyText: { fontSize: 12.5, color: '#94A3B8', padding: 16 },
+  couponCodeText: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
+  couponIneligibleText: { color: '#9CA3AF' },
+  couponDescText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 2 },
 
   gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#CBD5E1' },

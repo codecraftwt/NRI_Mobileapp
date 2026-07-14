@@ -5,18 +5,11 @@ import Header from '../../Components/Header';
 import RMWidget from '../../Components/RMWidget';
 import { useDashboard } from '../../Hooks/useDashboard';
 
-function usageRow(label, used, limit) {
-  if (used == null && limit == null) return null;
-  const valueText = limit == null ? `${used ?? 0} used` : `${used ?? 0} / ${limit}`;
-  return { label, valueText };
-}
-
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
 
   const stats = data?.stats || { activeTickets: 0, completedTickets: 0, walletBalance: 0 };
   const membership = data?.membership;
-  const planUsage = data?.planUsage;
   const recentTickets = data?.recentTickets || [];
   const recentReports = data?.recentReports || [];
 
@@ -28,13 +21,6 @@ function Dashboard({ navigation }) {
       default: return { bg: '#F3F4F6', text: '#6B7280' };
     }
   };
-
-  const usageRows = planUsage ? [
-    usageRow('Service Requests', planUsage.requestsUsed, planUsage.requestsLimit),
-    usageRow('Fee Waivers', planUsage.waiversUsed, planUsage.waiversLimit),
-    usageRow('Parent Care Visits', planUsage.visitsUsed, planUsage.visitsLimit),
-    planUsage.inspectionsRemaining != null ? { label: 'Property Inspections Left', valueText: `${planUsage.inspectionsRemaining}` } : null,
-  ].filter(Boolean) : [];
 
   const quickActions = [
     { id: 'props', name: 'My Properties', icon: 'location-city', screen: 'Properties', color: '#F59E0B' },
@@ -113,18 +99,6 @@ function Dashboard({ navigation }) {
           </View>
         )}
 
-        {usageRows.length > 0 && (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Your Plan Usage</Text>
-            {usageRows.map(row => (
-              <View key={row.label} style={styles.usageRow}>
-                <Text style={styles.usageLabel}>{row.label}</Text>
-                <Text style={styles.usageValue}>{row.valueText}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
         {/* Active Requests List */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -152,7 +126,7 @@ function Dashboard({ navigation }) {
                       </View>
                       <TouchableOpacity
                         style={styles.detailsBtn}
-                        onPress={() => navigation.navigate('My Tickets', { screen: 'RequestTracker', params: { ticketId: ticket.id } })}
+                        onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
                       >
                         <Icon name="visibility" size={18} color="#007AFF" />
                       </TouchableOpacity>

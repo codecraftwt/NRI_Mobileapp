@@ -20,6 +20,9 @@ import membershipReducer from './slices/membershipSlice';
 import addonSubscriptionReducer from './slices/addonSubscriptionSlice';
 import billingReducer from './slices/billingSlice';
 import myTicketsReducer from './slices/myTicketsSlice';
+import walletAccountReducer from './slices/walletAccountSlice';
+import referralReducer from './slices/referralSlice';
+import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
   key: 'root',
@@ -34,7 +37,24 @@ const persistConfig = {
   },
 };
 
-const rootReducer = combineReducers({
+// Every domain slice (dashboard, family, properties, catalog, membership,
+// billing, etc.) caches itself as 'succeeded' after its first fetch and,
+// per the app-wide fetch-if-idle hook pattern, never refetches while that
+// status stands — including across a logout/login within the same running
+// app. Without a reset, a second user signing in on the same session sees
+// the previous user's cached dashboard/tickets/etc. until the whole JS
+// process restarts. So on any auth-identity change we wipe the entire store
+// back to its initial state before letting the triggering action itself
+// (e.g. loginUser.fulfilled) populate the fresh `user` slice as normal.
+const RESET_ACTION_TYPES = new Set([
+  loginUser.fulfilled.type,
+  registerUser.fulfilled.type,
+  logoutUser.fulfilled.type,
+  login.type,
+  logout.type,
+]);
+
+const appReducer = combineReducers({
   counter: counterReducer,
   user: userReducer,
   tickets: ticketsReducer,
@@ -52,7 +72,16 @@ const rootReducer = combineReducers({
   addonSubscription: addonSubscriptionReducer,
   billing: billingReducer,
   myTickets: myTicketsReducer,
+  walletAccount: walletAccountReducer,
+  referral: referralReducer,
 });
+
+const rootReducer = (state, action) => {
+  if (RESET_ACTION_TYPES.has(action.type)) {
+    state = undefined;
+  }
+  return appReducer(state, action);
+};
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 

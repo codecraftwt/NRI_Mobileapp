@@ -4,6 +4,8 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useDocuments } from '../../Hooks/useDocuments';
+import { useWalletAccount } from '../../Hooks/useWalletAccount';
+import { useReferrals } from '../../Hooks/useReferrals';
 
 const PROPERTY_TYPE_LABELS = { flat: 'Flat', house: 'House', farm: 'Farm / Agricultural Land', commercial: 'Commercial', plot: 'Plot' };
 
@@ -42,13 +44,13 @@ function InfoRow({ label, value }) {
 
 function Customer({ navigation }) {
   const user = useSelector(state => state.user.user);
-  const wallet = useSelector(state => state.wallet);
   const familyMembers = useSelector(state => state.family.members);
   const properties = useSelector(state => state.properties.properties);
   const { documents } = useDocuments();
+  const { balance: walletBalance } = useWalletAccount();
+  const { referralCode } = useReferrals();
 
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const referralCode = `REF-${(user?.name || 'USER').split(' ')[0].toUpperCase()}-001`;
   const timezone = TIMEZONE_BY_COUNTRY[user?.countryOfResidence] || '—';
 
   return (
@@ -75,7 +77,7 @@ function Customer({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Wallet Balance</Text>
-          <Text style={styles.walletValue}>₹{wallet.walletCredits.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+          <Text style={styles.walletValue}>₹{walletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
         </View>
 
         <View style={styles.card}>

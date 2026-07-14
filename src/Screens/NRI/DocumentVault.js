@@ -66,9 +66,13 @@ function DocumentVault({ navigation }) {
     <View style={styles.container}>
       <Header navigation={navigation} title="Document Vault" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.backToCustomerBtn} onPress={() => navigation.navigate('Customer')} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.backToCustomerBtn}
+          onPress={() => navigation.navigate('Profile', { screen: 'ProfileMain', params: { initialTab: 'nri' } })}
+          activeOpacity={0.7}
+        >
           <Icon name="arrow-back" size={16} color="#374151" />
-          <Text style={styles.backToCustomerText}>Back to Customer</Text>
+          <Text style={styles.backToCustomerText}>Back to My Profile</Text>
         </TouchableOpacity>
 
         {loading && (

@@ -21,11 +21,11 @@ import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-nat
 import Header from '../../Components/Header';
 import { useStates } from '../../Hooks/useStates';
 import { useDistricts } from '../../Hooks/useDistricts';
-import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
+import { useMembership } from '../../Hooks/useMembership';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
 import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
@@ -101,7 +101,6 @@ function CreateTicket({ navigation }) {
   const [familyMember, setFamilyMember] = useState(NO_FAMILY_MEMBER);
   const [property, setProperty] = useState(NO_PROPERTY);
   const [state, setState] = useState('');
-  const [district, setDistrict] = useState('');
   const [city, setCity] = useState('');
   const [taluka, setTaluka] = useState('');
   const [fullAddress, setFullAddress] = useState('');
@@ -113,12 +112,15 @@ function CreateTicket({ navigation }) {
   const [showCouponsModal, setShowCouponsModal] = useState(false);
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
-  const { districtNames, loading: loadingDistricts, failed: districtsFailed, retry: retryDistricts } = useDistricts(state);
-  const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state, district);
-  const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas(district, city);
+  // The districts endpoint is what actually returns city-level data for this
+  // backend (same fix as AddFamilyMember.js) — there's no separate District
+  // picker in this form, so its results are surfaced directly as "City".
+  const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(state);
+  const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas(city, '');
   const { categoryNames, loading: loadingCategories, failed: categoriesFailed, retry: retryCategories } = useServiceCategories();
   const { members: familyMembers } = useFamilyMembers();
   const { properties } = useProperties();
+  const { membership, usage } = useMembership();
   const user = useSelector(s => s.user.user);
   const {
     services: baseServices,
@@ -159,6 +161,14 @@ function CreateTicket({ navigation }) {
   const familyMemberId = familyMember !== NO_FAMILY_MEMBER ? familyMembers.find(m => m.name === familyMember)?.id : null;
   const propertyId = property !== NO_PROPERTY ? properties.find(p => p.nickname === property)?.id : null;
   const selectedService = baseServices.find(s => s.id === selectedBaseServiceId) || null;
+
+  // The backend's usage endpoint always returns null for requests_limit/
+  // visits_limit — the actual per-plan entitlement lives on the active
+  // membership's plan features instead (verified live via GET /plans:
+  // slugs 'service-requests' and 'parent-care-visits', values like "10"/"2"
+  // that vary per plan tier), so that's what we cross-reference here.
+  const serviceRequestsLimit = membership?.features?.find(f => f.slug === 'service-requests')?.value ?? usage?.requestsLimit ?? null;
+  const parentCareVisitsLimit = membership?.features?.find(f => f.slug === 'parent-care-visits')?.value ?? usage?.visitsLimit ?? null;
 
   // The base service is what the category's membership already includes
   // (per the backend: "Standard ... request — included in your membership.
@@ -438,13 +448,15 @@ function CreateTicket({ navigation }) {
     <View style={styles.container}>
       <Header navigation={navigation} title="Submit a Service Request" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.usageBanner}>
-          <Icon name="info-outline" size={16} color="#007AFF" />
-          <Text style={styles.usageBannerText}>
-            You have used <Text style={styles.bold}>4 of 10</Text> service requests included in your Family plan this month.
-            Parent-care visits used: 4 of 2.
-          </Text>
-        </View>
+        {membership && usage && (
+          <View style={styles.usageBanner}>
+            <Icon name="info-outline" size={16} color="#007AFF" />
+            <Text style={styles.usageBannerText}>
+              You have used <Text style={styles.bold}>{usage.requestsUsed ?? 0}{serviceRequestsLimit != null ? ` of ${serviceRequestsLimit}` : ''}</Text> service requests included in your {membership.planName} plan this month.
+              {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>What do you need?</Text>
         <View style={styles.card}>
@@ -582,7 +594,6 @@ function CreateTicket({ navigation }) {
             options={stateNames}
             onSelect={(v) => {
               setState(v);
-              setDistrict('');
               setCity('');
               setTaluka('');
             }}
@@ -594,31 +605,11 @@ function CreateTicket({ navigation }) {
             </TouchableOpacity>
           )}
           <SelectField
-            label="District"
-            required
-            value={district}
-            placeholder="Select district..."
-            options={districtNames}
-            disabled={!state}
-            loading={loadingDistricts}
-            onSelect={(v) => {
-              setDistrict(v);
-              setCity('');
-              setTaluka('');
-            }}
-          />
-          {districtsFailed && (
-            <TouchableOpacity onPress={retryDistricts}>
-              <Text style={styles.retryText}>Couldn't load districts. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-          <SelectField
             label="City / District"
-            required
             value={city}
             placeholder="Select city..."
             options={cityNames}
-            disabled={!district}
+            disabled={!state}
             loading={loadingCities}
             onSelect={(v) => {
               setCity(v);
@@ -635,7 +626,7 @@ function CreateTicket({ navigation }) {
             value={taluka}
             placeholder="Select taluka..."
             options={talukaNames}
-            disabled={!district && !city}
+            disabled={!city}
             loading={loadingTalukas}
             onSelect={setTaluka}
           />

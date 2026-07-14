@@ -17,6 +17,14 @@ export const fetchMembershipHistory = createAsyncThunk('membership/fetchHistory'
   }
 });
 
+export const fetchMembershipCoupons = createAsyncThunk('membership/fetchCoupons', async (params, { rejectWithValue }) => {
+  try {
+    return await membershipApi.getMembershipCoupons(params);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 export const validateMembershipCoupon = createAsyncThunk('membership/validateCoupon', async (params, { rejectWithValue }) => {
   try {
     return await membershipApi.validateMembershipCoupon(params);
@@ -52,6 +60,9 @@ const initialState = {
   history: [],
   historyStatus: 'idle',
   historyError: null,
+  coupons: [],
+  couponsStatus: 'idle',
+  couponsError: null,
   couponResult: null,
   couponStatus: 'idle',
   couponError: null,
@@ -103,6 +114,18 @@ const membershipSlice = createSlice({
       .addCase(fetchMembershipHistory.rejected, (state, action) => {
         state.historyStatus = 'failed';
         state.historyError = action.payload;
+      })
+      .addCase(fetchMembershipCoupons.pending, (state) => {
+        state.couponsStatus = 'loading';
+        state.couponsError = null;
+      })
+      .addCase(fetchMembershipCoupons.fulfilled, (state, action) => {
+        state.couponsStatus = 'succeeded';
+        state.coupons = action.payload;
+      })
+      .addCase(fetchMembershipCoupons.rejected, (state, action) => {
+        state.couponsStatus = 'failed';
+        state.couponsError = action.payload;
       })
       .addCase(validateMembershipCoupon.pending, (state) => {
         state.couponStatus = 'loading';

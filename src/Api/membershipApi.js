@@ -18,22 +18,26 @@ function mapFeature(raw) {
   return { id: raw.id, name: raw.name, slug: raw.slug, value: raw.value };
 }
 
-// NOTE: the backend only documents "membership or null" without a field-level
-// schema, and this account has never held a paid membership to verify a real
-// payload against — so this mapper is defensive/best-effort on field names,
-// following the same snake_case conventions confirmed elsewhere (plans, usage).
+// NOTE: verified live against GET /customer/memberships — an item there
+// looks like {id, plan:{id,name,slug}, status, starts_at, expires_at,
+// auto_renew, amount_paid} with NO explicit payment/paid field. Cross-checked
+// against GET /customer/billing (which does carry a real `is_paid` per
+// billing item) for this same membership id and found is_paid:false while
+// status:'pending' — so paymentStatus below is inferred from `status`
+// ('active'/'expired' => Paid, 'pending' => Pending) rather than a real field.
 function mapMembership(raw) {
   if (!raw) return null;
+  const status = raw.status || null;
   return {
     id: raw.id,
     planId: raw.plan_id ?? raw.plan?.id ?? null,
     planName: raw.plan?.name || raw.plan_name || null,
-    price: raw.price ?? raw.plan?.price ?? null,
-    status: raw.status || null,
+    price: raw.amount_paid ?? raw.price ?? raw.plan?.price ?? null,
+    status,
     startDate: raw.start_date || raw.starts_at || null,
     endDate: raw.end_date || raw.expires_at || null,
     autoRenew: !!raw.auto_renew,
-    paymentStatus: raw.payment_status || null,
+    paymentStatus: raw.payment_status || (status === 'active' || status === 'expired' ? 'Paid' : status === 'pending' ? 'Pending' : null),
     features: (raw.plan?.features || raw.features || []).map(mapFeature),
   };
 }
@@ -56,6 +60,33 @@ export async function getMembershipHistory() {
     const response = await apiClient.get('/customer/memberships');
     const list = response.data?.data || response.data || [];
     return list.map(mapMembership);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+function mapCoupon(raw) {
+  return {
+    code: raw.code,
+    description: raw.description,
+    valueLabel: raw.value_label,
+    minOrder: raw.min_order,
+    validUntil: raw.valid_until,
+    eligible: raw.eligible,
+    reason: raw.reason,
+    savings: raw.savings,
+  };
+}
+
+// Verified live: POST /customer/membership/coupons requires `plan_id` in the
+// body (422s without it) and returns the full list of offers applicable to
+// that plan (both eligible and ineligible, with a `reason` on the latter) —
+// same shape as the ticket-coupons endpoint in ticketApi.js.
+export async function getMembershipCoupons({ planId }) {
+  try {
+    const response = await apiClient.post('/customer/membership/coupons', { plan_id: planId });
+    const list = response.data?.data || response.data || [];
+    return list.map(mapCoupon);
   } catch (error) {
     throw normalizeApiError(error);
   }

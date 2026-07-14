@@ -1,24 +1,13 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useSelector } from 'react-redux';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
-
-// TODO: replace with GET /referrals once the API is wired up
-const REFERRALS = [
-  { name: 'John D.', plan: 'Family', joined: '15 Jun 2026', reward: 2000, status: 'Paid' },
-  { name: 'Sarah P.', plan: 'Essential', joined: '20 Jun 2026', reward: 1500, status: 'Paid' },
-  { name: 'Mansi', plan: 'Essential', joined: '06 Jul 2026', reward: 500, status: 'Pending' },
-];
-
-const PLAN = 'Essential'; // TODO: source from the user's actual membership plan
+import { useReferrals } from '../../Hooks/useReferrals';
+import { useWalletAccount } from '../../Hooks/useWalletAccount';
 
 function ReferEarn({ navigation }) {
-  const user = useSelector(state => state.user.user);
-  const referralCode = `REF-${user?.name?.split(' ')[0]?.toUpperCase() || 'USER'}-001`;
-
-  const earned = REFERRALS.filter(r => r.status === 'Paid').reduce((sum, r) => sum + r.reward, 0);
-  const pending = REFERRALS.filter(r => r.status === 'Pending').reduce((sum, r) => sum + r.reward, 0);
+  const { referralCode, shareLink, totals, referred, rewards, leaderboard, loading } = useReferrals();
+  const { cashout } = useWalletAccount();
 
   const handleCopy = () => {
     // TODO: use a clipboard library to copy `referralCode`
@@ -26,7 +15,7 @@ function ReferEarn({ navigation }) {
   };
 
   const handleShare = () => {
-    Alert.alert('Share on WhatsApp', `Share your code ${referralCode} with friends and family!`);
+    Alert.alert('Share on WhatsApp', `Share your code ${referralCode} with friends and family!\n${shareLink || ''}`);
   };
 
   return (
@@ -35,7 +24,11 @@ function ReferEarn({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>Your Referral Code</Text>
-          <Text style={styles.codeValue}>{referralCode}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color="#007AFF" style={{ marginVertical: 10 }} />
+          ) : (
+            <Text style={styles.codeValue}>{referralCode || '—'}</Text>
+          )}
           <View style={styles.codeBtnRow}>
             <TouchableOpacity style={styles.copyBtn} onPress={handleCopy}>
               <Icon name="content-copy" size={16} color="#007AFF" />
@@ -52,44 +45,52 @@ function ReferEarn({ navigation }) {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Sign-ups</Text>
-            <Text style={styles.statValue}>{REFERRALS.length}</Text>
+            <Text style={styles.statValue}>{totals.signups}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Earned</Text>
-            <Text style={[styles.statValue, { color: '#10B981' }]}>₹{earned.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={[styles.statValue, { color: '#10B981' }]}>₹{totals.earned.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Pending Approval</Text>
-            <Text style={[styles.statValue, { color: '#D97706' }]}>₹{pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={[styles.statValue, { color: '#D97706' }]}>₹{totals.pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>People You Referred</Text>
-          {REFERRALS.map((r, i) => (
-            <View key={i} style={styles.referralRow}>
-              <Text style={styles.referralName}>{r.name}</Text>
-              <Text style={styles.referralMeta}>{r.plan} · Joined {r.joined}</Text>
-            </View>
-          ))}
+          {referred.length === 0 ? (
+            <Text style={styles.emptyText}>No referrals yet.</Text>
+          ) : (
+            referred.map((r, i) => (
+              <View key={i} style={styles.referralRow}>
+                <Text style={styles.referralName}>{r.name}</Text>
+                <Text style={styles.referralMeta}>{r.plan || 'Member'} · Joined {r.joinedAt || '—'}</Text>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Reward History</Text>
-          {REFERRALS.map((r, i) => (
-            <View key={i} style={styles.rewardRow}>
-              <View style={styles.rewardTopRow}>
-                <Text style={styles.rewardName}>{r.name}</Text>
-                <Text style={styles.rewardAmount}>₹{r.reward.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-              </View>
-              <View style={styles.rewardBottomRow}>
-                <View style={[styles.rewardStatus, { backgroundColor: r.status === 'Paid' ? '#E6F7EF' : '#FEF3C7' }]}>
-                  <Text style={[styles.rewardStatusText, { color: r.status === 'Paid' ? '#10B981' : '#D97706' }]}>{r.status}</Text>
+          {rewards.length === 0 ? (
+            <Text style={styles.emptyText}>No rewards yet.</Text>
+          ) : (
+            rewards.map((r, i) => (
+              <View key={i} style={styles.rewardRow}>
+                <View style={styles.rewardTopRow}>
+                  <Text style={styles.rewardName}>{r.name}</Text>
+                  <Text style={styles.rewardAmount}>₹{Number(r.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
                 </View>
-                <Text style={styles.rewardDate}>{r.joined}</Text>
+                <View style={styles.rewardBottomRow}>
+                  <View style={[styles.rewardStatus, { backgroundColor: r.status === 'Paid' ? '#E6F7EF' : '#FEF3C7' }]}>
+                    <Text style={[styles.rewardStatusText, { color: r.status === 'Paid' ? '#10B981' : '#D97706' }]}>{r.status}</Text>
+                  </View>
+                  <Text style={styles.rewardDate}>{r.date}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -97,11 +98,17 @@ function ReferEarn({ navigation }) {
             <Icon name="emoji-events" size={18} color="#F59E0B" />
             <Text style={styles.sectionTitle}>Referral Leaderboard</Text>
           </View>
-          <View style={styles.leaderboardRow}>
-            <Text style={styles.leaderboardMedal}>🥇</Text>
-            <Text style={styles.leaderboardName}>Customer (you)</Text>
-            <Text style={styles.leaderboardCount}>{REFERRALS.length} referral{REFERRALS.length === 1 ? '' : 's'}</Text>
-          </View>
+          {leaderboard.length === 0 ? (
+            <Text style={styles.emptyText}>No leaderboard data yet.</Text>
+          ) : (
+            leaderboard.map((entry, i) => (
+              <View key={i} style={styles.leaderboardRow}>
+                <Text style={styles.leaderboardMedal}>{['🥇', '🥈', '🥉'][i] || '🏅'}</Text>
+                <Text style={styles.leaderboardName}>{entry.isMe ? `${entry.name} (you)` : entry.name}</Text>
+                <Text style={styles.leaderboardCount}>{entry.count} referral{entry.count === 1 ? '' : 's'}</Text>
+              </View>
+            ))
+          )}
           <Text style={styles.leaderboardNote}>Top referrers earn bonus rewards every quarter.</Text>
         </View>
 
@@ -116,8 +123,15 @@ function ReferEarn({ navigation }) {
           <Text style={styles.cashOutText}>
             Bank cash-out of referral credits is an <Text style={styles.bold}>Elite plan</Text> benefit. Other plans use credits on renewals and add-on purchases.
           </Text>
-          {PLAN !== 'Elite' && (
-            <Text style={styles.cashOutPlanNote}>Your current plan: {PLAN}</Text>
+          {cashout && !cashout.isElite && (
+            <TouchableOpacity onPress={() => navigation.navigate('Coupon & Credits Wallet')}>
+              <Text style={styles.cashOutPlanNote}>Go to Wallet to view your credit balance.</Text>
+            </TouchableOpacity>
+          )}
+          {cashout?.eligible && (
+            <TouchableOpacity style={styles.cashOutBtn} onPress={() => navigation.navigate('Coupon & Credits Wallet')}>
+              <Text style={styles.cashOutBtnText}>Request Cash Out</Text>
+            </TouchableOpacity>
           )}
         </View>
       </ScrollView>
@@ -155,16 +169,19 @@ const styles = StyleSheet.create({
   rewardStatus: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   rewardStatusText: { fontSize: 10, fontWeight: 'bold' },
   rewardDate: { fontSize: 11, color: '#999' },
-  leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#E5F1FF', borderRadius: 10, padding: 12 },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#E5F1FF', borderRadius: 10, padding: 12, marginBottom: 8 },
   leaderboardMedal: { fontSize: 18 },
   leaderboardName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#333' },
   leaderboardCount: { fontSize: 12, color: '#333', fontWeight: '600' },
-  leaderboardNote: { fontSize: 12, color: '#6B7280', marginTop: 10 },
+  leaderboardNote: { fontSize: 12, color: '#6B7280', marginTop: 2 },
   eliteBadge: { backgroundColor: '#111827', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 'auto' },
   eliteBadgeText: { fontSize: 10, color: 'white', fontWeight: 'bold' },
   cashOutText: { fontSize: 13, color: '#374151', lineHeight: 19 },
   bold: { fontWeight: 'bold', color: '#111827' },
-  cashOutPlanNote: { fontSize: 12, color: '#9CA3AF', marginTop: 8 },
+  cashOutPlanNote: { fontSize: 12, color: '#007AFF', marginTop: 8 },
+  cashOutBtn: { backgroundColor: '#007AFF', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
+  cashOutBtnText: { color: 'white', fontSize: 14, fontWeight: '600' },
+  emptyText: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', paddingVertical: 12 },
 });
 
 export default ReferEarn;

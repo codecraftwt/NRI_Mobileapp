@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Import Auth Screens
@@ -144,28 +145,50 @@ function MainTabNavigator() {
       <Tab.Screen
         name="Dashboard"
         component={DashboardStack}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="dashboard" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          // Bottom tabs are only meaningful on the Dashboard's own landing
+          // screen — every sub-screen reached from it (Properties, Document
+          // Vault, Billing, CreateTicket, TicketDetail, etc.) hides the tab
+          // bar so it doesn't compete with each screen's own back navigation,
+          // and it reappears automatically once the user backs out to
+          // DashboardMain.
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'DashboardMain';
+          return {
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="dashboard" size={size} color={color} />
+            ),
+            tabBarStyle: focusedRouteName === 'DashboardMain' ? styles.tabBar : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen
         name="My Tickets"
         component={MyTicketsStack}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="assignment" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          // Same rule as the Dashboard tab: tab bar shows only on this
+          // stack's own landing screen, hidden on CreateTicket/TicketDetail.
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyTicketsMain';
+          return {
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="assignment" size={size} color={color} />
+            ),
+            tabBarStyle: focusedRouteName === 'MyTicketsMain' ? styles.tabBar : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen
         name="Family"
         component={FamilyStack}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="people" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          // Same rule as the Dashboard/My Tickets tabs: tab bar shows only
+          // on this stack's own landing screen, hidden on AddFamilyMember.
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'FamilyMain';
+          return {
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="people" size={size} color={color} />
+            ),
+            tabBarStyle: focusedRouteName === 'FamilyMain' ? styles.tabBar : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen

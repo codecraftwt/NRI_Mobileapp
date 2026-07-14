@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
+import { saveUserProfile } from '../../../Redux/slices/userSlice';
 
 function SelectField({ label, required, value, placeholder, options, onSelect, loading }) {
   const [open, setOpen] = useState(false);
@@ -54,22 +55,38 @@ function SelectField({ label, required, value, placeholder, options, onSelect, l
 }
 
 function OnboardingProfile({ navigation }) {
+  const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
   const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
-  const { stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const [country, setCountry] = useState(user?.countryOfResidence || '');
   const [city, setCity] = useState(user?.city || '');
   const [homeState, setHomeState] = useState(user?.homeState || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!country || !homeState) {
       Alert.alert('Missing Fields', 'Please select your Country of Residence and Home State in India.');
       return;
     }
-    navigation.navigate('OnboardingPlan', {
-      profile: { countryOfResidence: country, city, homeState, phone },
-    });
+    const stateId = states.find(s => s.name === homeState)?.id;
+    setSubmitting(true);
+    try {
+      await dispatch(saveUserProfile({
+        phone: phone || undefined,
+        nriCountry: country,
+        nriCity: city || undefined,
+        stateId,
+      })).unwrap();
+      navigation.navigate('OnboardingPlan', {
+        profile: { countryOfResidence: country, city, homeState, phone },
+      });
+    } catch (error) {
+      Alert.alert('Could Not Save Profile', error?.message || 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -133,9 +150,15 @@ function OnboardingProfile({ navigation }) {
           <TextInput style={styles.input} placeholder="+1 555 000 0000" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
           <Text style={styles.hint}>Include your country code so we can reach you abroad.</Text>
 
-          <TouchableOpacity style={styles.ctaBtn} onPress={handleContinue}>
-            <Text style={styles.ctaText}>Continue to Plans</Text>
-            <Icon name="arrow-forward" size={18} color="white" />
+          <TouchableOpacity style={[styles.ctaBtn, submitting && styles.ctaBtnDisabled]} onPress={handleContinue} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <Text style={styles.ctaText}>Continue to Plans</Text>
+                <Icon name="arrow-forward" size={18} color="white" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -165,6 +188,7 @@ const styles = StyleSheet.create({
   placeholderText: { color: '#94A3B8' },
   retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600', marginTop: 6 },
   ctaBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 24 },
+  ctaBtnDisabled: { opacity: 0.7 },
   ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },

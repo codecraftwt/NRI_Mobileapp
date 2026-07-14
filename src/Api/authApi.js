@@ -26,10 +26,13 @@ function initialsFor(name) {
 }
 
 // Maps the API's auth-payload response into this app's canonical
-// `state.user.user` shape (see userSlice.js). Handles two response shapes
-// interchangeably: { token, user, customer } (register/login) and
-// { user, customer, membership, rm } (auth/me — membership & RM contact may
-// arrive as siblings of `customer` rather than nested inside it).
+// `state.user.user` shape (see userSlice.js). Verified live against
+// GET /auth/me and PUT /auth/profile — the real shape nests the customer
+// profile inside `data.user.customer` (not as a sibling `data.customer`),
+// `roles` is an array (not a singular `role` string), and the NRI-specific
+// fields are `nri_country`/`nri_city`/`preferred_language`/`timezone` on the
+// customer object, while the home state is a separate `{id, name}` object
+// (or null) at `data.user.state`, not nested under customer at all.
 //
 // `onboarded` is deliberately OMITTED from the returned user object unless we
 // know it for certain:
@@ -47,9 +50,11 @@ function initialsFor(name) {
 // absent, since only they know the existing local value.
 function mapAuthResponse(data, { onboardedOverride } = {}) {
   const apiUser = data?.user || {};
-  const customer = data?.customer || {};
+  const customer = apiUser.customer || data?.customer || {};
+  const homeState = apiUser.state || null;
   const membership = data?.membership ?? customer.membership_plan ?? customer.membership;
-  const relationshipManager = data?.rm ?? customer.relationship_manager;
+  const relationshipManager = data?.rm ?? customer.rm ?? customer.relationship_manager;
+  const roles = Array.isArray(apiUser.roles) ? apiUser.roles : null;
 
   const user = {
     id: apiUser.id,
@@ -57,14 +62,16 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     name: apiUser.name,
     email: apiUser.email,
     phone: apiUser.phone || '',
-    role: apiUser.role || 'Customer',
+    role: apiUser.role || (roles?.[0] ? roles[0].charAt(0).toUpperCase() + roles[0].slice(1) : 'Customer'),
     membership: membership || 'None',
     membershipExpiry: customer.membership_expiry || null,
-    language: customer.language || 'English',
-    countryOfResidence: customer.country_of_residence || customer.country || null,
-    city: customer.city || null,
-    homeState: customer.home_state || customer.state || null,
-    referredByCode: customer.referred_by_code || customer.referral_code || null,
+    language: customer.preferred_language || customer.language || 'en',
+    timezone: customer.timezone || null,
+    countryOfResidence: customer.nri_country || customer.country_of_residence || customer.country || null,
+    city: customer.nri_city || customer.city || null,
+    homeState: homeState?.name || customer.home_state || customer.state || null,
+    homeStateId: homeState?.id ?? null,
+    referredByCode: customer.referred_by_code || null,
     rm: relationshipManager
       ? {
           name: relationshipManager.name,
@@ -113,6 +120,29 @@ export async function logout() {
 export async function me() {
   try {
     const response = await apiClient.get('/auth/me');
+    return mapAuthResponse(response.data?.data || response.data);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Also serves as onboarding step 1 (collects NRI country + home state before
+// plan checkout). Verified live: the backend only touches keys that are
+// actually present in the body (a partial update, not a full overwrite), so
+// callers only need to send the fields relevant to whichever form they're
+// saving — `|| undefined` on each optional field keeps axios/JSON.stringify
+// from sending it at all when unset.
+export async function updateProfile({ name, phone, nriCountry, nriCity, preferredLanguage, timezone, stateId }) {
+  try {
+    const response = await apiClient.put('/auth/profile', {
+      name: name || undefined,
+      phone: phone || undefined,
+      nri_country: nriCountry || undefined,
+      nri_city: nriCity || undefined,
+      preferred_language: preferredLanguage || undefined,
+      timezone: timezone || undefined,
+      state_id: stateId || undefined,
+    });
     return mapAuthResponse(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Modal, FlatList } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -14,12 +14,17 @@ function OnboardingPayment({ route, navigation }) {
   const { profile, plan, selectedAddons = [] } = route.params || {};
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
-  const { couponResult, couponLoading, validateCoupon, checkoutLoading, checkout, verifyLoading, verifyPayment } = useMembershipCheckout();
+  const {
+    coupons, couponsLoading, fetchCoupons,
+    couponResult, couponLoading, validateCoupon,
+    checkoutLoading, checkout, verifyLoading, verifyPayment,
+  } = useMembershipCheckout();
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [autoRenew, setAutoRenew] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showCouponsModal, setShowCouponsModal] = useState(false);
 
   const basePrice = plan?.price || 0;
   const addonsSubtotal = selectedAddons.reduce((sum, a) => sum + a.priceMonthly, 0);
@@ -44,13 +49,34 @@ function OnboardingPayment({ route, navigation }) {
       });
   };
 
+  const handleViewCoupons = () => {
+    if (!plan?.id) return;
+    fetchCoupons({ planId: plan.id });
+    setShowCouponsModal(true);
+  };
+
+  const handlePickCoupon = (coupon) => {
+    if (!coupon.eligible || !plan?.id) return;
+    setPlanCouponCode(coupon.code);
+    setShowCouponsModal(false);
+    validateCoupon({ planId: plan.id, code: coupon.code })
+      .unwrap()
+      .then((result) => {
+        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`);
+      })
+      .catch((error) => {
+        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+      });
+  };
+
   const loading = submitting || checkoutLoading || verifyLoading;
 
-  const handlePay = async () => {
+  const handlePay = async (overrideAutoRenew) => {
     if (!plan?.id) {
       Alert.alert('No Plan Selected', 'Please go back and choose a membership plan.');
       return;
     }
+    const effectiveAutoRenew = overrideAutoRenew ?? autoRenew;
     setSubmitting(true);
     try {
       const result = await checkout({
@@ -58,7 +84,7 @@ function OnboardingPayment({ route, navigation }) {
         gateway: paymentMethod,
         addons: selectedAddons.map(a => a.id),
         couponCode: planCouponCode.trim() || undefined,
-        autoRenew,
+        autoRenew: effectiveAutoRenew,
         useWallet: false,
       }).unwrap();
 
@@ -96,6 +122,7 @@ function OnboardingPayment({ route, navigation }) {
           razorpayOrderId: rzpResult.razorpayOrderId,
           razorpayPaymentId: rzpResult.razorpayPaymentId,
           razorpaySignature: rzpResult.razorpaySignature,
+          razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
         }).unwrap();
         finishUp();
       } else if (result.checkoutUrl) {
@@ -123,7 +150,23 @@ function OnboardingPayment({ route, navigation }) {
         finishUp();
       }
     } catch (error) {
-      Alert.alert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.');
+      // Razorpay declines recurring/e-mandate authorization when the card's
+      // issuing bank hasn't enabled recurring payments for that card (an
+      // RBI e-mandate/bank-side restriction, not something this request can
+      // force to succeed) — offer a one-time payment instead of a dead end.
+      const isRecurringUnsupported = effectiveAutoRenew && /recurring/i.test(error?.message || '');
+      if (isRecurringUnsupported) {
+        Alert.alert(
+          'Auto-Renew Not Supported',
+          "Your card's bank doesn't support recurring/auto-renew payments. You can complete this as a one-time payment now and turn on auto-renew later from a different card or UPI.",
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Pay Once Instead', onPress: () => handlePay(false) },
+          ]
+        );
+      } else {
+        Alert.alert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -198,6 +241,11 @@ function OnboardingPayment({ route, navigation }) {
               {couponLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.applyBtnText}>Apply</Text>}
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+            <Icon name="local-offer" size={14} color="#7C3AED" />
+            <Text style={styles.viewCouponsLink}>View available coupons</Text>
+            <Icon name="expand-more" size={16} color="#7C3AED" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
@@ -228,7 +276,7 @@ function OnboardingPayment({ route, navigation }) {
           <View style={[styles.autoRenewRow, !autoRenewAllowed && styles.autoRenewRowDisabled]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.autoRenewLabel}>Auto-renew my membership</Text>
-              <Text style={styles.autoRenewDesc}>Auto-renewal is available with Razorpay (UPI/Indian cards) only, and can't combine with a coupon.</Text>
+              <Text style={styles.autoRenewDesc}>Auto-renewal is available with Razorpay (UPI/Indian cards) only, and can't combine with a coupon. Your card's bank must support recurring/e-mandate payments — if it doesn't, you can pay once now and enable this later.</Text>
             </View>
             <Switch
               value={autoRenew}
@@ -242,7 +290,7 @@ function OnboardingPayment({ route, navigation }) {
           {loading ? (
             <ActivityIndicator size="large" color="#FF7C1A" style={styles.payLoading} />
           ) : (
-            <TouchableOpacity style={styles.payBtn} onPress={handlePay}>
+            <TouchableOpacity style={styles.payBtn} onPress={() => handlePay()}>
               <Icon name="lock" size={16} color="white" />
               <Text style={styles.payBtnText}>Secure Payment & Activation</Text>
             </TouchableOpacity>
@@ -264,6 +312,42 @@ function OnboardingPayment({ route, navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Available Coupons</Text>
+            {couponsLoading ? (
+              <View style={styles.modalLoadingBox}>
+                <ActivityIndicator size="small" color="#007AFF" />
+                <Text style={styles.gatewayDesc}>Loading coupons…</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={coupons}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => handlePickCoupon(item)}
+                    disabled={!item.eligible}
+                  >
+                    <View style={styles.modalOptionTextWrap}>
+                      <Text style={[styles.couponCodeText, !item.eligible && styles.couponIneligibleText]}>
+                        {item.code} · {item.valueLabel}
+                      </Text>
+                      {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
+                      {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
+                    </View>
+                    {item.eligible && <Icon name="chevron-right" size={20} color="#007AFF" />}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<Text style={styles.modalEmptyText}>No coupons available right now.</Text>}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -292,6 +376,19 @@ const styles = StyleSheet.create({
   couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 42, color: '#1E293B', fontSize: 13 },
   applyBtn: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
   applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10 },
+  viewCouponsLink: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },
+  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  modalOptionTextWrap: { flex: 1 },
+  modalEmptyText: { fontSize: 12.5, color: '#94A3B8', padding: 16 },
+  couponCodeText: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
+  couponIneligibleText: { color: '#9CA3AF' },
+  couponDescText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 2 },
   gatewayIntro: { fontSize: 12.5, color: '#64748B', marginBottom: 12 },
   gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, marginBottom: 10 },
   gatewayRowActive: { borderColor: '#007AFF', backgroundColor: '#F0F6FF' },
