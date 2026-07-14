@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -20,6 +20,7 @@ const { width: W, height: H } = Dimensions.get('window');
 function Profile({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
   const name = user?.name || '';
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -80,6 +81,7 @@ function Profile({ navigation }) {
   };
 
   const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
     const allowed = await requestCameraPermission();
     if (!allowed) return;
     launchCamera({ mediaType: 'photo', quality: 0.8 }, response => {
@@ -90,6 +92,7 @@ function Profile({ navigation }) {
   };
 
   const handleChooseFromGallery = async () => {
+    setShowPhotoModal(false);
     const allowed = await requestGalleryPermission();
     if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
@@ -100,11 +103,7 @@ function Profile({ navigation }) {
   };
 
   const handleUploadPhoto = () => {
-    Alert.alert('Update Profile Photo', 'Choose a source', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Take Photo', onPress: handleTakePhoto },
-      { text: 'Choose from Gallery', onPress: handleChooseFromGallery },
-    ]);
+    setShowPhotoModal(true);
   };
 
 
@@ -181,6 +180,29 @@ function Profile({ navigation }) {
           <Text style={styles.logoutBtnText}>Logout from App</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={showPhotoModal} transparent animationType="slide" onRequestClose={() => setShowPhotoModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPhotoModal(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Update Profile Photo</Text>
+            <TouchableOpacity style={styles.modalOption} onPress={handleTakePhoto}>
+              <View style={styles.modalOptionLeft}>
+                <Icon name="photo-camera" size={22} color={colors.primary} />
+                <Text style={styles.modalOptionText}>Take Photo</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textPlaceholder} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalOption} onPress={handleChooseFromGallery}>
+              <View style={styles.modalOptionLeft}>
+                <Icon name="photo-library" size={22} color={colors.primary} />
+                <Text style={styles.modalOptionText}>Choose from Gallery</Text>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textPlaceholder} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -212,6 +234,13 @@ const styles = StyleSheet.create({
   menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   menuIconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent + '15', justifyContent: 'center', alignItems: 'center' },
   menuLabel: { ...typography.labelLarge, color: colors.textPrimary },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, paddingTop: 12 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { ...typography.h3, color: '#1E293B', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', marginBottom: 8 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16 },
+  modalOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  modalOptionText: { ...typography.body, color: '#1E293B' },
 });
 
 export default Profile;

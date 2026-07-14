@@ -76,8 +76,8 @@ function Dashboard({ navigation }) {
         <View style={styles.kpiGrid}>
           {renderKPICard('Active Requests', stats.activeTickets, 'assignment', colors.primary)}
           {renderKPICard('Completed', stats.completedTickets, 'check-circle', colors.success)}
-          {renderKPICard('Membership', membership?.planName || 'Free', 'workspace-premium', colors.accent)}
           {renderKPICard('Wallet', `₹${stats.walletBalance}`, 'account-balance-wallet', colors.primaryDark)}
+          {renderKPICard('Membership', membership?.planName || 'Free', 'workspace-premium', colors.accent)}
         </View>
 
         {!!membership?.renewalAlert && (
