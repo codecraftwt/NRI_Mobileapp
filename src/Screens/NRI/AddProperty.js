@@ -493,7 +493,7 @@ function AddProperty({ navigation, route }) {
                 <View style={[styles.fieldWrap, styles.rowItem]}>
                   <Text style={styles.inputLabel}>Tenant Phone</Text>
                   <TextInput
-                    style={styles.input}
+                    style={july14styles.input}
                     value={tenantPhone}
                     onChangeText={setTenantPhone}
                     keyboardType="phone-pad"

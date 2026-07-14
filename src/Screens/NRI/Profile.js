@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, Modal, FlatList, Platform, ActivityIndicator, PermissionsAndroid, Linking } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Header from '../../Components/Header';
 import { updateProfile, updateAddress, logoutUser, changeUserPassword, saveUserProfile } from '../../Redux/slices/userSlice';
 import { useCountries } from '../../Hooks/useCountries';
@@ -196,12 +196,87 @@ function Profile({ navigation, route }) {
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   const formattedDob = dob ? dob.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : '';
 
-  const handleUploadPhoto = () => {
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+    if (already) return true;
+
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+      title: 'Allow Camera Access',
+      message: 'NRI Circle needs access to your camera to take a profile photo.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+
+    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      Alert.alert(
+        'Permission Required',
+        'Camera access is blocked. Please enable it from app settings to take a photo.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
+      );
+    } else {
+      Alert.alert('Permission Denied', 'Camera access is required to take a photo.');
+    }
+    return false;
+  };
+
+  const requestGalleryPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const permission = Platform.Version >= 33
+      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+    const already = await PermissionsAndroid.check(permission);
+    if (already) return true;
+
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Allow Photo Access',
+      message: 'NRI Circle needs access to your photos so you can set a profile picture.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+
+    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      Alert.alert(
+        'Permission Required',
+        'Photo access is blocked. Please enable it from app settings to choose a profile picture.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
+      );
+    } else {
+      Alert.alert('Permission Denied', 'Photo access is required to choose a profile picture.');
+    }
+    return false;
+  };
+
+  const handleTakePhoto = async () => {
+    const allowed = await requestCameraPermission();
+    if (!allowed) return;
+    launchCamera({ mediaType: 'photo', quality: 0.8 }, response => {
+      if (response.didCancel || response.errorCode) return;
+      const uri = response.assets?.[0]?.uri;
+      if (uri) dispatch(updateProfile({ avatarUri: uri }));
+    });
+  };
+
+  const handleChooseFromGallery = async () => {
+    const allowed = await requestGalleryPermission();
+    if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
       if (response.didCancel || response.errorCode) return;
       const uri = response.assets?.[0]?.uri;
       if (uri) dispatch(updateProfile({ avatarUri: uri }));
     });
+  };
+
+  const handleUploadPhoto = () => {
+    Alert.alert('Update Profile Photo', 'Choose a source', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Take Photo', onPress: handleTakePhoto },
+      { text: 'Choose from Gallery', onPress: handleChooseFromGallery },
+    ]);
   };
 
   const handleSavePersonal = async () => {

@@ -198,8 +198,24 @@ export async function getTickets({ page } = {}) {
     if (page) params.page = page;
     const response = await apiClient.get('/customer/tickets', { params });
     const list = response.data?.data || [];
+    const tickets = list.map(mapTicket);
+
+    // Verified live: the list endpoint never returns a `vendor` field at all
+    // (tried with `?with=vendor` / `?include=vendor` too — no effect), only
+    // the detail payload does. Without this, every row would show "Pending"
+    // forever even after a vendor is actually assigned. Backfill it with a
+    // per-ticket detail fetch — Promise.allSettled so one failing ticket
+    // doesn't take down the whole list, it just stays "Pending".
+    const detailResults = await Promise.allSettled(tickets.map(t => getTicketDetail(t.id)));
+    const ticketsWithVendor = tickets.map((t, i) => {
+      const result = detailResults[i];
+      return result.status === 'fulfilled' && result.value?.vendorName
+        ? { ...t, vendorName: result.value.vendorName }
+        : t;
+    });
+
     return {
-      tickets: list.map(mapTicket),
+      tickets: ticketsWithVendor,
       meta: {
         currentPage: response.data?.meta?.current_page ?? 1,
         lastPage: response.data?.meta?.last_page ?? 1,

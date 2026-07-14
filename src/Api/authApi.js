@@ -52,7 +52,18 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
   const apiUser = data?.user || {};
   const customer = apiUser.customer || data?.customer || {};
   const homeState = apiUser.state || null;
-  const membership = data?.membership ?? customer.membership_plan ?? customer.membership;
+  // `customer.membership` (or `data.membership`) is NOT a plan-name string —
+  // for an account with an active membership it's a nested object shaped
+  // like {id, plan:{id,name,slug}, status, starts_at, expires_at, auto_renew,
+  // renewal_due} (verified live for the equivalent GET /customer/dashboard
+  // field). Assigning that object straight to `user.membership` crashed
+  // every screen that renders it as text ("Objects are not valid as a React
+  // child") — so pull out just the plan name/expiry here instead.
+  const membershipRaw = data?.membership ?? customer.membership_plan ?? customer.membership;
+  const membershipName = membershipRaw && typeof membershipRaw === 'object'
+    ? membershipRaw.plan?.name || membershipRaw.name || null
+    : membershipRaw || null;
+  const membershipExpiry = (membershipRaw && typeof membershipRaw === 'object' ? membershipRaw.expires_at : null) || customer.membership_expiry || null;
   const relationshipManager = data?.rm ?? customer.rm ?? customer.relationship_manager;
   const roles = Array.isArray(apiUser.roles) ? apiUser.roles : null;
 
@@ -63,8 +74,8 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     email: apiUser.email,
     phone: apiUser.phone || '',
     role: apiUser.role || (roles?.[0] ? roles[0].charAt(0).toUpperCase() + roles[0].slice(1) : 'Customer'),
-    membership: membership || 'None',
-    membershipExpiry: customer.membership_expiry || null,
+    membership: membershipName || 'None',
+    membershipExpiry,
     language: customer.preferred_language || customer.language || 'en',
     timezone: customer.timezone || null,
     countryOfResidence: customer.nri_country || customer.country_of_residence || customer.country || null,
