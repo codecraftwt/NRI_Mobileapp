@@ -1,11 +1,14 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, setOnboarded } from '../../../Redux/slices/userSlice';
+import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 const NEXT_STEPS = [
   { icon: 'person-add', title: 'Add your family & property details', desc: "Tell us who and what we're looking after so vendors can be matched." },
@@ -26,6 +29,9 @@ function OnboardingWelcome({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={5} />
@@ -63,19 +69,23 @@ function OnboardingWelcome({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF3FA' },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  card: { backgroundColor: 'white', borderRadius: 20, padding: 24, alignItems: 'center', marginTop: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
-  checkCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#E6F7EF', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  activeBadge: { backgroundColor: '#E6F7EF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, marginBottom: 16 },
-  activeBadgeText: { fontSize: 10.5, color: '#10B981', fontWeight: '700', letterSpacing: 0.5 },
-  title: { fontSize: 21, fontWeight: 'bold', color: '#0F172A', textAlign: 'center', lineHeight: 27 },
-  desc: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginTop: 12, marginBottom: 20 },
-  stepRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: '#F0F6FF', borderRadius: 12, padding: 14, marginBottom: 10, alignSelf: 'stretch' },
-  stepTitle: { fontSize: 13.5, fontWeight: '700', color: '#1E293B' },
-  stepDesc: { fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 17 },
-  ctaBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12, alignSelf: 'stretch' },
-  ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+  scrollContent: { paddingHorizontal: spacing.md, paddingBottom: 40, paddingTop: spacing.md },
+  card: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.lg, alignItems: 'center', marginTop: 12, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  checkCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#E6F7EF', alignItems: 'center', justifyContent: 'center', marginBottom: 16, shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
+  activeBadge: { backgroundColor: '#10B981', borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 16, shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 2 },
+  activeBadgeText: { fontSize: 11, color: 'white', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
+  title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', lineHeight: 32 },
+  desc: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 12, marginBottom: 24 },
+  stepRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', backgroundColor: colors.primaryLight + '10', borderRadius: radius.lg, padding: 16, marginBottom: 12, alignSelf: 'stretch', borderWidth: 1, borderColor: colors.primaryLight + '30' },
+  stepTitle: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  stepDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#64748B', marginTop: 4, lineHeight: 18 },
+  ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 20, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
+  ctaText: { color: 'white', fontSize: 16, fontFamily: 'Montserrat-Bold' },
 });
 
 export default OnboardingWelcome;

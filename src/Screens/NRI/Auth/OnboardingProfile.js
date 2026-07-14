@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator, Dimensions } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -8,6 +8,9 @@ import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
 import { saveUserProfile } from '../../../Redux/slices/userSlice';
+import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 function SelectField({ label, required, value, placeholder, options, onSelect, loading }) {
   const [open, setOpen] = useState(false);
@@ -91,6 +94,9 @@ function OnboardingProfile({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={1} />
@@ -167,27 +173,31 @@ function OnboardingProfile({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF3FA' },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  eyebrow: { fontSize: 11, color: '#007AFF', fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#0F172A', textAlign: 'center', marginTop: 8 },
-  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginTop: 8, marginBottom: 20 },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] }, // colors.primaryLight
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] }, // colors.accent
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] }, // colors.primary
+  scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 40 },
+  eyebrow: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
+  title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
+  subtitle: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 8, marginBottom: 24, paddingHorizontal: spacing.md },
+  card: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.lg, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  sectionHeader: { fontSize: 11, color: '#007AFF', fontWeight: '700', letterSpacing: 0.5 },
+  sectionHeader: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 18 },
-  fieldWrap: { gap: 0, marginBottom: 4 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#334155', marginBottom: 6, marginTop: 10 },
-  required: { color: '#EF4444' },
+  fieldWrap: { gap: 0, marginBottom: spacing.md },
+  inputLabel: { ...typography.labelLarge, color: '#334155', marginBottom: 8, marginTop: 4 },
+  required: { color: colors.error },
   optional: { fontSize: 12, color: '#94A3B8', fontWeight: '400' },
   hint: { fontSize: 11.5, color: '#94A3B8', marginTop: 6 },
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 46, color: '#1E293B', fontSize: 14 },
-  selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 46 },
+  input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 56, color: '#1E293B', fontSize: 15, fontFamily: 'Poppins-Regular', shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 56, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   selectBoxDisabled: { backgroundColor: '#F1F5F9' },
-  selectText: { fontSize: 14, color: '#1E293B', flex: 1 },
+  selectText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', flex: 1 },
   placeholderText: { color: '#94A3B8' },
-  retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600', marginTop: 6 },
-  ctaBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 24 },
+  retryText: { fontSize: 12, color: colors.error, fontWeight: '600', marginTop: 6 },
+  ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
   ctaBtnDisabled: { opacity: 0.7 },
   ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },

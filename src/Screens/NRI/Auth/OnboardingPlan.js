@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Modal, Alert, ActivityIndicator, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS, PLAN_SUPPORT_FEATURE_SLUGS, PLAN_CARD_FEATURE_SLUGS } from '../../../Constants/onboardingCatalog';
 import { usePlans } from '../../../Hooks/usePlans';
 import { usePlanDetail } from '../../../Hooks/usePlanDetail';
+import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 function cardFeatureLines(plan) {
   return PLAN_CARD_FEATURE_SLUGS
@@ -117,6 +120,9 @@ function OnboardingPlan({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={2} />
@@ -198,40 +204,44 @@ function OnboardingPlan({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF3FA' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 40, paddingTop: spacing.md, gap: 16 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 },
-  eyebrow: { fontSize: 10.5, color: '#007AFF', fontWeight: '700', letterSpacing: 0.5 },
-  title: { fontSize: 21, fontWeight: 'bold', color: '#0F172A', textAlign: 'center', marginTop: 8 },
-  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginTop: 8 },
+  eyebrow: { fontSize: 11, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
+  title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
+  subtitle: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 8 },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
   loadingText: { fontSize: 13, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
   retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  planCard: { borderRadius: 16, padding: 20, position: 'relative', backgroundColor: 'white', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 2, marginTop: 6 },
+  planCard: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.xl, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)', position: 'relative', marginTop: 6 },
   planCardDark: { backgroundColor: '#0F172A', borderWidth: 2, borderColor: '#FF7C1A' },
-  popularBadge: { position: 'absolute', top: -10, alignSelf: 'center', backgroundColor: '#FF7C1A', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
-  popularBadgeText: { color: 'white', fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
-  planName: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 6, marginBottom: 14 },
-  planPrice: { fontSize: 26, fontWeight: 'bold' },
-  planPeriod: { fontSize: 12, marginLeft: 6, color: '#64748B' },
-  featuresList: { marginBottom: 14, gap: 9 },
+  popularBadge: { position: 'absolute', top: -12, alignSelf: 'center', backgroundColor: '#FF7C1A', paddingHorizontal: 14, paddingVertical: 6, borderRadius: radius.sm, shadowColor: '#FF7C1A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3 },
+  popularBadgeText: { color: 'white', fontSize: 10, fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
+  planName: { fontSize: 22, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 6, marginBottom: 16 },
+  planPrice: { fontSize: 32, fontFamily: 'Montserrat-Bold', letterSpacing: -0.5 },
+  planPeriod: { fontSize: 13, fontFamily: 'Poppins-Regular', marginLeft: 6, color: '#64748B' },
+  featuresList: { marginBottom: 20, gap: 10 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureDot: { width: 5, height: 5, borderRadius: 2.5 },
-  featureText: { fontSize: 13, color: '#334155' },
-  detailsLink: { fontSize: 12.5, color: '#007AFF', fontWeight: '700', marginBottom: 14 },
-  selectBtn: { height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
-  btnOrange: { backgroundColor: '#FF7C1A', borderColor: '#FF7C1A' },
+  featureDot: { width: 6, height: 6, borderRadius: 3 },
+  featureText: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#334155' },
+  detailsLink: { fontSize: 13, color: '#007AFF', fontFamily: 'Montserrat-SemiBold', marginBottom: 16 },
+  selectBtn: { width: '100%', height: 52, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  btnOrange: { backgroundColor: '#FF7C1A', borderColor: '#FF7C1A', shadowColor: '#FF7C1A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 4 },
   btnBorderBlue: { backgroundColor: 'transparent', borderColor: '#007AFF' },
-  selectBtnText: { fontSize: 14, fontWeight: 'bold' },
+  selectBtnText: { fontSize: 15, fontFamily: 'Montserrat-Bold' },
   textWhite: { color: 'white' },
   textDark: { color: '#1E293B' },
   textBlue: { color: '#007AFF' },
   textGrayLight: { color: '#94A3B8' },
-  corporateLabel: { fontSize: 13, color: '#007AFF', fontWeight: '700' },
-  corporatePrice: { fontSize: 20, fontWeight: 'bold', color: '#1E293B', marginTop: 6 },
-  corporatePriceNote: { fontSize: 12, color: '#64748B', marginBottom: 14 },
+  corporateLabel: { fontSize: 14, color: '#007AFF', fontFamily: 'Montserrat-Bold' },
+  corporatePrice: { fontSize: 24, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginTop: 6 },
+  corporatePriceNote: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#64748B', marginBottom: 16 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
   detailSheet: { backgroundColor: 'white', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', paddingTop: 20, paddingHorizontal: 20, paddingBottom: 20 },

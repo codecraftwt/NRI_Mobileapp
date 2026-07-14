@@ -1,11 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Dimensions } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { useAddonPackages } from '../../../Hooks/useAddonPackages';
+import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 function OnboardingAddons({ route, navigation }) {
   const { profile, plan } = route.params || {};
@@ -55,6 +58,9 @@ function OnboardingAddons({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={3} />
@@ -159,50 +165,54 @@ function OnboardingAddons({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF3FA' },
-  scrollContent: { padding: 16, paddingBottom: 40 },
-  eyebrow: { fontSize: 11, color: '#007AFF', fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#0F172A', textAlign: 'center', marginTop: 8 },
-  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginTop: 8, marginBottom: 16 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'white', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, height: 46, marginBottom: 16 },
-  searchInput: { flex: 1, fontSize: 13, color: '#1E293B', height: '100%' },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 40, paddingTop: spacing.md },
+  eyebrow: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
+  title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
+  subtitle: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 8, marginBottom: 24, paddingHorizontal: spacing.md },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 56, marginBottom: 16, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', height: '100%' },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadingText: { fontSize: 13, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
   retryText: { fontSize: 12.5, color: '#EF4444', fontWeight: '600' },
-  itemListWrap: { backgroundColor: 'white', borderRadius: 12, paddingHorizontal: 14, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  itemCheckbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  itemCheckboxChecked: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  itemName: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
-  itemDesc: { fontSize: 11, color: '#94A3B8', marginTop: 2, lineHeight: 15 },
-  itemPrice: { fontSize: 13, fontWeight: '700', color: '#1E293B' },
-  summaryCard: { backgroundColor: 'white', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  itemListWrap: { backgroundColor: 'white', borderRadius: radius.xl, paddingHorizontal: spacing.md, marginBottom: 16, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  itemCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+  itemCheckboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  itemName: { fontSize: 15, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  itemDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 4, lineHeight: 18 },
+  itemPrice: { fontSize: 15, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  summaryCard: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.lg, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
   summaryHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
-  summaryBadge: { backgroundColor: '#E5F1FF', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
-  summaryBadgeText: { fontSize: 11, color: '#007AFF', fontWeight: '700' },
-  membershipChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 12 },
-  membershipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
-  membershipChipText: { fontSize: 12, color: '#334155', fontWeight: '600' },
-  emptyText: { fontSize: 12.5, color: '#94A3B8', textAlign: 'center', paddingVertical: 16 },
-  selectedRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 4 },
-  selectedName: { fontSize: 12.5, color: '#334155', flex: 1, marginRight: 8 },
-  selectedPrice: { fontSize: 12.5, color: '#1E293B', fontWeight: '700' },
-  couponLabel: { fontSize: 10.5, color: '#94A3B8', fontWeight: '700', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
+  summaryTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  summaryBadge: { backgroundColor: colors.primaryLight + '20', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
+  summaryBadgeText: { fontSize: 11, color: colors.primary, fontFamily: 'Montserrat-Bold' },
+  membershipChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC', borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12 },
+  membershipDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
+  membershipChipText: { fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: '#334155' },
+  emptyText: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#94A3B8', textAlign: 'center', paddingVertical: 16 },
+  selectedRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8 },
+  selectedName: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#334155', flex: 1, marginRight: 8 },
+  selectedPrice: { fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  couponLabel: { fontSize: 11, color: '#94A3B8', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
   couponRow: { flexDirection: 'row', gap: 8 },
-  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 42, color: '#1E293B', fontSize: 13 },
-  applyBtn: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center' },
-  applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
-  viewCouponsLink: { fontSize: 12, color: '#007AFF', fontWeight: '600', marginTop: 8 },
-  summaryDivider: { height: 1, backgroundColor: '#F1F5F9', marginTop: 16, marginBottom: 12 },
+  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 48, color: '#1E293B', fontSize: 14, fontFamily: 'Poppins-Regular' },
+  applyBtn: { borderWidth: 1, borderColor: colors.primary, borderRadius: radius.lg, paddingHorizontal: 20, justifyContent: 'center' },
+  applyBtnText: { color: colors.primary, fontFamily: 'Montserrat-Bold', fontSize: 14 },
+  viewCouponsLink: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-SemiBold', marginTop: 10 },
+  summaryDivider: { height: 1, backgroundColor: '#F1F5F9', marginTop: 20, marginBottom: 16 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  totalValue: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
-  ctaBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 16 },
-  ctaText: { color: 'white', fontSize: 15, fontWeight: 'bold' },
-  skipRow: { alignItems: 'center', marginTop: 14 },
-  skipText: { fontSize: 12.5, color: '#64748B', fontWeight: '600' },
+  totalLabel: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  totalValue: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
+  ctaText: { color: 'white', fontSize: 16, fontFamily: 'Montserrat-Bold' },
+  skipRow: { alignItems: 'center', marginTop: 20 },
+  skipText: { fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: '#64748B' },
 });
 
 export default OnboardingAddons;

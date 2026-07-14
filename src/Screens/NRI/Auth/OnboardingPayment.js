@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch, Modal, FlatList, Dimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -9,6 +9,9 @@ import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
 import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../../Utils/paymentGateway';
+import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 function OnboardingPayment({ route, navigation }) {
   const { profile, plan, selectedAddons = [] } = route.params || {};
@@ -174,6 +177,9 @@ function OnboardingPayment({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={4} />
@@ -353,59 +359,63 @@ function OnboardingPayment({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EFF3FA' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
-  eyebrow: { fontSize: 11, color: '#007AFF', fontWeight: '700', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#0F172A', textAlign: 'center', marginTop: 8 },
-  subtitle: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 19, marginTop: 8 },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+  scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 40, paddingTop: spacing.md, gap: 16 },
+  eyebrow: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
+  title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
+  subtitle: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 8, paddingHorizontal: spacing.md },
+  card: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.xl, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  cardHeaderText: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
-  planChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#E5F1FF', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 12 },
-  planChipText: { fontSize: 12, color: '#007AFF', fontWeight: '700' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  rowLabel: { fontSize: 13, color: '#64748B', flex: 1, marginRight: 8 },
-  rowValue: { fontSize: 13, color: '#1E293B', fontWeight: '600' },
-  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 10 },
-  addonsHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  addonsHeaderText: { fontSize: 10.5, color: '#94A3B8', fontWeight: '700', letterSpacing: 0.5 },
-  amountPayableLabel: { fontSize: 15, fontWeight: 'bold', color: '#1E293B' },
-  amountPayableValue: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
-  couponLabel: { fontSize: 10.5, color: '#94A3B8', fontWeight: '700', letterSpacing: 0.5, marginTop: 16, marginBottom: 8 },
+  cardHeaderText: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  planChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.primaryLight + '20', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 16 },
+  planChipText: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-Bold' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
+  rowLabel: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#64748B', flex: 1, marginRight: 8 },
+  rowValue: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
+  addonsHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  addonsHeaderText: { fontSize: 11, color: '#94A3B8', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
+  amountPayableLabel: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  amountPayableValue: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: colors.primary },
+  couponLabel: { fontSize: 11, color: '#94A3B8', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
   couponRow: { flexDirection: 'row', gap: 8 },
-  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 42, color: '#1E293B', fontSize: 13 },
-  applyBtn: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
-  applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
-  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10 },
-  viewCouponsLink: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 48, color: '#1E293B', fontSize: 14, fontFamily: 'Poppins-Regular' },
+  applyBtn: { borderWidth: 1, borderColor: colors.primary, borderRadius: radius.lg, paddingHorizontal: 20, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
+  applyBtnText: { color: colors.primary, fontFamily: 'Montserrat-Bold', fontSize: 14 },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 12 },
+  viewCouponsLink: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-SemiBold' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: '60%', paddingBottom: 24, paddingTop: 16 },
+  modalTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
   modalOptionTextWrap: { flex: 1 },
-  modalEmptyText: { fontSize: 12.5, color: '#94A3B8', padding: 16 },
-  couponCodeText: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
+  modalEmptyText: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#94A3B8', padding: 24, textAlign: 'center' },
+  couponCodeText: { fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#111827' },
   couponIneligibleText: { color: '#9CA3AF' },
-  couponDescText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 2 },
-  gatewayIntro: { fontSize: 12.5, color: '#64748B', marginBottom: 12 },
-  gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 10, padding: 12, marginBottom: 10 },
-  gatewayRowActive: { borderColor: '#007AFF', backgroundColor: '#F0F6FF' },
-  gatewayName: { fontSize: 13.5, fontWeight: '700', color: '#1E293B' },
-  gatewayDesc: { fontSize: 11.5, color: '#94A3B8', marginTop: 2 },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#CBD5E1' },
-  radioActive: { borderColor: '#007AFF', backgroundColor: '#007AFF' },
-  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, marginTop: 4 },
+  couponDescText: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#6B7280', marginTop: 4 },
+  couponReasonText: { fontSize: 12, fontFamily: 'Poppins-Regular', color: colors.error, marginTop: 4 },
+  gatewayIntro: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#64748B', marginBottom: 16 },
+  gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: radius.lg, padding: 16, marginBottom: 12 },
+  gatewayRowActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight + '10' },
+  gatewayName: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  gatewayDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 4 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1' },
+  radioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F8FAFC', borderRadius: radius.lg, padding: 16, marginTop: 8 },
   autoRenewRowDisabled: { opacity: 0.55 },
-  autoRenewLabel: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
-  autoRenewDesc: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  payBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 18 },
-  payBtnText: { color: 'white', fontSize: 15, fontWeight: 'bold' },
+  autoRenewLabel: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  autoRenewDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 4, lineHeight: 18 },
+  payBtn: { flexDirection: 'row', backgroundColor: colors.accent, height: 56, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
+  payBtnText: { color: 'white', fontSize: 16, fontFamily: 'Montserrat-Bold' },
   payLoading: { marginTop: 20 },
-  trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 14 },
-  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  trustText: { fontSize: 10.5, color: '#64748B', fontWeight: '600' },
+  trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 20 },
+  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trustText: { fontSize: 11, fontFamily: 'Montserrat-SemiBold', color: '#64748B' },
 });
 
 export default OnboardingPayment;

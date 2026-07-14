@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useMembership } from '../../Hooks/useMembership';
+
+const { width: W, height: H } = Dimensions.get('window');
 
 // Icon per plan feature slug, verified live against GET /plans (Essential/Family/Premium/Elite/Corporate
 // all share this same 17-feature set).
@@ -77,6 +79,11 @@ function MyMembership({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Dynamic Geometric Background Layering matching Auth screens */}
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
+
       <Header navigation={navigation} title="My Membership" showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -185,26 +192,17 @@ function MyMembership({ navigation }) {
             })
           )}
         </View>
-
-        {/* {membership && (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.renewBtn} onPress={() => navigation.navigate('MembershipCheckout', { mode: 'renew', planId: membership.planId })}>
-              <Icon name="autorenew" size={18} color="white" />
-              <Text style={styles.renewBtnText}>Renew Plan</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.upgradeBtn} onPress={() => navigation.navigate('MembershipCheckout', { mode: 'upgrade', planId: membership.planId })}>
-              <Icon name="upgrade" size={18} color="#007AFF" />
-              <Text style={styles.upgradeBtnText}>Upgrade Plan</Text>
-            </TouchableOpacity>
-          </View>
-        )} */}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
+  // Dynamic Background Layers matching Auth screen
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: colors.primaryLight + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: colors.accent + '08', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: colors.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },

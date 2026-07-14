@@ -35,6 +35,10 @@ import AnnualSummary from '../Screens/NRI/AnnualSummary';
 import WalletCoupons from '../Screens/NRI/WalletCoupons';
 import ReferEarn from '../Screens/NRI/ReferEarn';
 import Profile from '../Screens/NRI/Profile';
+import ProfilePersonal from '../Screens/NRI/ProfilePersonal';
+import ProfileAddress from '../Screens/NRI/ProfileAddress';
+import ProfileNri from '../Screens/NRI/ProfileNri';
+import ProfilePassword from '../Screens/NRI/ProfilePassword';
 import Customer from '../Screens/NRI/Customer';
 
 // Import Service Booking Sub-Screens
@@ -129,6 +133,10 @@ function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={Profile} />
+      <Stack.Screen name="ProfilePersonal" component={ProfilePersonal} />
+      <Stack.Screen name="ProfileAddress" component={ProfileAddress} />
+      <Stack.Screen name="ProfileNri" component={ProfileNri} />
+      <Stack.Screen name="ProfilePassword" component={ProfilePassword} />
     </Stack.Navigator>
   );
 }
@@ -210,10 +218,14 @@ function MainTabNavigator() {
       <Tab.Screen
         name="Profile"
         component={ProfileStack}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="person" size={size} color={color} />
-          ),
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'ProfileMain';
+          return {
+            tabBarIcon: ({ color, size }) => (
+              <Icon name="person" size={size} color={color} />
+            ),
+            tabBarStyle: focusedRouteName === 'ProfileMain' ? styles.tabBar : { display: 'none' },
+          };
         }}
       />
     </Tab.Navigator>
