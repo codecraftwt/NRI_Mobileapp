@@ -214,17 +214,20 @@ export async function getTickets({ page } = {}) {
 
     // Verified live: the list endpoint never returns a `vendor` field at all
     // (tried with `?with=vendor` / `?include=vendor` too — no effect), only
-    // the detail payload does. Without this, every row would show "Pending"
-    // forever even after a vendor is actually assigned. Backfill it with a
-    // per-ticket detail fetch — Promise.allSettled so one failing ticket
-    // doesn't take down the whole list, it just stays "Pending".
-    const detailResults = await Promise.allSettled(tickets.map(t => getTicketDetail(t.id)));
-    const ticketsWithVendor = tickets.map((t, i) => {
+    // the detail payload does. Backfill it with a per-ticket detail fetch —
+    // but only for tickets that could actually have one: a vendor can't be
+    // assigned before status leaves 'new' (per the backend's own status
+    // workflow), so skipping those avoids firing a wasted detail request
+    // (and its ngrok round trip) for every single 'new' ticket on every list
+    // load/refresh — this was the main source of MyTickets' slow loading.
+    const ticketsNeedingVendor = tickets.filter(t => t.status !== 'new' && !t.vendorName);
+    const detailResults = await Promise.allSettled(ticketsNeedingVendor.map(t => getTicketDetail(t.id)));
+    const vendorById = new Map();
+    ticketsNeedingVendor.forEach((t, i) => {
       const result = detailResults[i];
-      return result.status === 'fulfilled' && result.value?.vendorName
-        ? { ...t, vendorName: result.value.vendorName }
-        : t;
+      if (result.status === 'fulfilled' && result.value?.vendorName) vendorById.set(t.id, result.value.vendorName);
     });
+    const ticketsWithVendor = tickets.map(t => (vendorById.has(t.id) ? { ...t, vendorName: vendorById.get(t.id) } : t));
 
     return {
       tickets: ticketsWithVendor,

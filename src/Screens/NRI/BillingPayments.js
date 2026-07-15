@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, FlatList, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useBilling } from '../../Hooks/useBilling';
@@ -65,6 +66,7 @@ function BillingPayments({ navigation }) {
   const [cancelingId, setCancelingId] = useState(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+  const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -102,10 +104,10 @@ function BillingPayments({ navigation }) {
           razorpaySignature: rzpResult.razorpaySignature,
         }).unwrap();
         retry();
-        Alert.alert('Payment Successful', `${item.label} has been paid.`);
+        showAlert('Payment Successful', `${item.label} has been paid.`);
       } else if (result.checkoutUrl) {
         openStripeCheckout(result.checkoutUrl);
-        Alert.alert(
+        showAlert(
           'Complete Payment',
           'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
           [
@@ -118,10 +120,10 @@ function BillingPayments({ navigation }) {
                   .unwrap()
                   .then(() => {
                     retry();
-                    Alert.alert('Payment Successful', `${item.label} has been paid.`);
+                    showAlert('Payment Successful', `${item.label} has been paid.`);
                   })
                   .catch((error) => {
-                    Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+                    showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
                   });
               },
             },
@@ -129,17 +131,17 @@ function BillingPayments({ navigation }) {
         );
       } else {
         retry();
-        Alert.alert('Payment Successful', result.message || `${item.label} has been paid.`);
+        showAlert('Payment Successful', result.message || `${item.label} has been paid.`);
       }
     } catch (error) {
-      Alert.alert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
+      showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
     } finally {
       setPayingKey(null);
     }
   };
 
   const handlePayNow = (item) => {
-    Alert.alert(
+    showAlert(
       'Choose Payment Method',
       `Pay ₹${item.amount.toLocaleString('en-IN')} for ${item.label}`,
       [
@@ -161,23 +163,23 @@ function BillingPayments({ navigation }) {
         filename: `Receipt-${item.label}.pdf`,
         token,
       });
-      Alert.alert('Download Complete', 'Your receipt has been saved to your Downloads folder.');
+      showAlert('Download Complete', 'Your receipt has been saved to your Downloads folder.');
     } catch (error) {
-      Alert.alert('Download Failed', error?.message || 'Receipt is not available yet.');
+      showAlert('Download Failed', error?.message || 'Receipt is not available yet.');
     } finally {
       setDownloadingId(null);
     }
   };
 
   const handleStopMembershipAutoRenew = (membership) => {
-    Alert.alert('Stop Auto-Renewal', `Stop auto-renewal for ${membership.planName}? It stays active until it expires.`, [
+    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${membership.planName}? It stays active until it expires.`, [
       { text: 'Keep It', style: 'cancel' },
       {
         text: 'Stop Renewal',
         style: 'destructive',
         onPress: () => {
           stopAutoRenew(membership.id).unwrap().catch((error) => {
-            Alert.alert('Failed', error?.message || 'Could not stop auto-renewal.');
+            showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
           });
         },
       },
@@ -185,7 +187,7 @@ function BillingPayments({ navigation }) {
   };
 
   const handleStopAddonAutoRenew = (sub) => {
-    Alert.alert('Stop Auto-Renewal', `Stop auto-renewal for ${sub.packageName}?`, [
+    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${sub.packageName}?`, [
       { text: 'Keep It', style: 'cancel' },
       {
         text: 'Stop Renewal',
@@ -195,7 +197,7 @@ function BillingPayments({ navigation }) {
           cancelSubscription(sub.id)
             .unwrap()
             .catch((error) => {
-              Alert.alert('Failed', error?.message || 'Could not stop auto-renewal.');
+              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
             })
             .finally(() => setCancelingId(null));
         },
@@ -380,6 +382,7 @@ function BillingPayments({ navigation }) {
           </>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

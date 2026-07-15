@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useDocuments } from '../../Hooks/useDocuments';
@@ -27,6 +28,7 @@ function DocumentVault({ navigation }) {
   const { documents, loading, failed, retry } = useDocuments();
   const token = useSelector(state => state.user.token);
   const [downloadingId, setDownloadingId] = useState(null);
+  const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -46,19 +48,19 @@ function DocumentVault({ navigation }) {
 
   const toggleShare = (doc) => {
     dispatch(toggleShareDocument(doc.id)).unwrap().catch((error) => {
-      Alert.alert('Failed', error?.message || 'Could not update sharing for this document.');
+      showAlert('Failed', error?.message || 'Could not update sharing for this document.');
     });
   };
 
   const handleDelete = (doc) => {
-    Alert.alert('Delete', `Delete "${doc.documentName}"?`, [
+    showAlert('Delete', `Delete "${doc.documentName}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: () => {
           dispatch(removeDocument(doc.id)).unwrap().catch((error) => {
-            Alert.alert('Failed', error?.message || 'Could not delete this document.');
+            showAlert('Failed', error?.message || 'Could not delete this document.');
           });
         },
       },
@@ -73,9 +75,9 @@ function DocumentVault({ navigation }) {
         filename: doc.documentName,
         token,
       });
-      Alert.alert('Download Complete', `"${doc.documentName}" has been saved to your Downloads folder.`);
+      showAlert('Download Complete', `"${doc.documentName}" has been saved to your Downloads folder.`);
     } catch (error) {
-      Alert.alert('Download Failed', error?.message || 'Could not download this document.');
+      showAlert('Download Failed', error?.message || 'Could not download this document.');
     } finally {
       setDownloadingId(null);
     }
@@ -169,6 +171,7 @@ function DocumentVault({ navigation }) {
           <Text style={styles.uploadBtnText}>Upload Document</Text>
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

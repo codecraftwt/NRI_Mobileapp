@@ -7,6 +7,13 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useReports } from '../../Hooks/useReports';
 
+function formatReportDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function ReportsMedia({ navigation }) {
   const { reports, meta, loading, failed, retry, fetchPage } = useReports();
   const mediaCount = reports.reduce((sum, r) => sum + (r.mediaCount || 0), 0);
@@ -26,16 +33,6 @@ function ReportsMedia({ navigation }) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
-
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'Health': return colors.success;
-      case 'Property': return colors.warning;
-      case 'Lab': return '#8B5CF6';
-      case 'Maintenance': return colors.primary;
-      default: return colors.textSecondary;
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -82,11 +79,8 @@ function ReportsMedia({ navigation }) {
           reports.map(r => (
             <TouchableOpacity key={r.id} style={styles.reportCard} activeOpacity={0.7}>
               <View style={styles.reportHeader}>
-                <View style={[styles.reportTypeIcon, { backgroundColor: getTypeColor(r.type) + '20' }]}>
-                  <Icon name={r.type === 'Health' ? 'favorite' : r.type === 'Property' ? 'location-city' : r.type === 'Lab' ? 'science' : 'build'} size={18} color={getTypeColor(r.type)} />
-                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.reportTitle} numberOfLines={1}>{r.title}</Text>
+                  <Text style={styles.reportTitle} numberOfLines={1}>{r.service || r.title}</Text>
                   {!!r.vendor && <Text style={styles.reportVendor}>{r.vendor}</Text>}
                 </View>
                 {!!r.status && (
@@ -97,7 +91,7 @@ function ReportsMedia({ navigation }) {
               </View>
               <View style={styles.reportFooter}>
                 <Icon name="calendar-today" size={14} color={colors.textSecondary} />
-                <Text style={styles.reportDate}>{r.date}</Text>
+                <Text style={styles.reportDate}>{formatReportDate(r.date)}</Text>
                 <TouchableOpacity style={styles.viewBtn}>
                   <Text style={styles.viewBtnText}>View Report</Text>
                   <Icon name="chevron-right" size={16} color={colors.primary} />
@@ -149,7 +143,6 @@ const styles = StyleSheet.create({
   emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   reportCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
   reportHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  reportTypeIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   reportTitle: { ...typography.h4, color: colors.textPrimary },
   reportVendor: { ...typography.labelMedium, color: colors.textSecondary, marginTop: 4 },
   reportStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },

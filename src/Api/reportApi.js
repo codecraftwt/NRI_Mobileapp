@@ -4,10 +4,14 @@ function mapReport(raw) {
   return {
     id: raw.id,
     title: raw.title || raw.name || 'Report',
+    service: raw.service?.name || raw.service_name || raw.ticket?.service?.name || null,
     type: raw.type || raw.category || null,
     vendor: raw.vendor?.name || raw.vendor_name || null,
     status: raw.status || null,
-    date: raw.visit_date || raw.date || raw.created_at || null,
+    // `sent_at` is when the RM dispatched the reviewed report to the
+    // customer (POST /rm/reports/{report}/send) — the date the customer
+    // actually sees is more meaningful than the internal visit/created date.
+    date: raw.sent_at || raw.visit_date || raw.date || raw.created_at || null,
     mediaCount: (raw.media || raw.media_urls || []).length,
     media: (raw.media || raw.media_urls || []).map(m => (typeof m === 'string' ? { url: m } : { url: m.url, type: m.type })),
     ticketId: raw.ticket_id || null,

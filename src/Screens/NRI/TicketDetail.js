@@ -48,7 +48,7 @@ function TicketDetail({ route, navigation }) {
   // endpoint only supports a `page` param (no ticket_id filter), so a report
   // sitting past page 1 won't be found here — acceptable for now since
   // reports are far less frequent than tickets.
-  const { reports, retry: retryReports } = useReports();
+  const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
   const report = reports.find(r => r.ticketId === ticket?.id) || null;
 
   const [refreshing, setRefreshing] = useState(false);
@@ -276,7 +276,7 @@ function TicketDetail({ route, navigation }) {
           })}
         </View>
 
-        {(ticket.status === 'completed' || !!report) && (
+        {(ticket.status === 'completed' || !!report || reportsFailed) && (
           <View style={styles.section}>
             <View style={styles.reportHeaderRow}>
               <View style={styles.reportTitleWrap}>
@@ -289,7 +289,12 @@ function TicketDetail({ route, navigation }) {
                 </View>
               )}
             </View>
-            {report ? (
+            {reportsFailed ? (
+              <TouchableOpacity style={styles.backLink} onPress={retryReports}>
+                <Icon name="refresh" size={16} color={colors.error} />
+                <Text style={[styles.backLinkText, { color: colors.error }]}>Couldn't load the report. Tap to retry.</Text>
+              </TouchableOpacity>
+            ) : report ? (
               <>
                 {!!report.title && <Text style={styles.reportNote}>{report.title}</Text>}
                 {!!(report.vendor || report.date) && (
@@ -308,6 +313,11 @@ function TicketDetail({ route, navigation }) {
                   </View>
                 )}
               </>
+            ) : reportsLoading ? (
+              <View style={styles.reportLoadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.subValue}>Checking for your service report...</Text>
+              </View>
             ) : (
               <Text style={styles.subValue}>Your service report hasn't been shared yet.</Text>
             )}
@@ -448,6 +458,7 @@ const styles = StyleSheet.create({
   reportStatusBadge: { backgroundColor: colors.successBackground, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   reportStatusText: { ...typography.tiny, color: colors.success, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
   reportNote: { fontSize: 15, color: colors.textPrimary },
+  reportLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.badgeBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   attachmentPillText: { fontSize: 13, color: colors.primary, fontFamily: typography.labelMedium.fontFamily, textDecorationLine: 'underline' },

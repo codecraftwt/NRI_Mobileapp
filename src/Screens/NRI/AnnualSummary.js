@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useAnnualSummary } from '../../Hooks/useAnnualSummary';
@@ -22,6 +23,7 @@ function AnnualSummary({ navigation }) {
   const { properties } = useProperties();
   const { membership } = useMembership();
   const user = useSelector(state => state.user.user);
+  const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -40,7 +42,7 @@ function AnnualSummary({ navigation }) {
   );
 
   const chooseYear = () => {
-    Alert.alert(
+    showAlert(
       'Select Year',
       undefined,
       YEARS.map(y => ({ text: String(y), onPress: () => setYear(y) })).concat({ text: 'Cancel', style: 'cancel' })
@@ -59,9 +61,9 @@ function AnnualSummary({ navigation }) {
         propertiesCount: properties.length,
         customerName: user?.name || 'Customer',
       });
-      Alert.alert('Download Complete', `Your ${year} annual summary PDF has been saved to your Downloads folder.`);
+      showAlert('Download Complete', `Your ${year} annual summary PDF has been saved to your Downloads folder.`);
     } catch (error) {
-      Alert.alert('Download Failed', error?.message || 'Could not generate the PDF. Please try again.');
+      showAlert('Download Failed', error?.message || 'Could not generate the PDF. Please try again.');
     } finally {
       setGeneratingPdf(false);
     }
@@ -166,6 +168,7 @@ function AnnualSummary({ navigation }) {
           </>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
