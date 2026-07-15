@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, logoutUser } from '../../Redux/slices/userSlice';
@@ -21,6 +22,7 @@ function Profile({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const name = user?.name || '';
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -108,7 +110,7 @@ function Profile({ navigation }) {
 
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    showAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
@@ -203,6 +205,7 @@ function Profile({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

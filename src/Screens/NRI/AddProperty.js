@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   Modal,
   FlatList,
   Platform,
@@ -18,6 +17,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { addProperty, updateProperty } from '../../Redux/slices/propertiesSlice';
@@ -103,7 +103,7 @@ function SectionHeader({ title, action }) {
   );
 }
 
-async function requestFilePermission() {
+async function requestFilePermission(showAlert) {
   if (Platform.OS !== 'android') return true;
   const permission = Platform.Version >= 33
     ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
@@ -121,13 +121,13 @@ async function requestFilePermission() {
   if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
 
   if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-    Alert.alert(
+    showAlert(
       'Permission Required',
       'Photo & document access is blocked. Please enable it from app settings to attach files.',
       [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
     );
   } else {
-    Alert.alert('Permission Denied', 'Photo & document access is required to attach files.');
+    showAlert('Permission Denied', 'Photo & document access is required to attach files.');
   }
   return false;
 }
@@ -136,9 +136,10 @@ function AttachmentsCard({ propertyId }) {
   const [label, setLabel] = useState('');
   const { detail, uploadingAttachment, uploadAttachment, removeAttachment } = usePropertyDetail();
   const attachments = detail?.id === propertyId ? detail.attachments : [];
+  const { showAlert, alertProps } = useAppAlert();
 
   const pickAndUpload = async (kind) => {
-    const allowed = await requestFilePermission();
+    const allowed = await requestFilePermission(showAlert);
     if (!allowed) return;
     try {
       const [result] = await pick({
@@ -148,7 +149,7 @@ function AttachmentsCard({ propertyId }) {
       });
       if (!result) return;
       if (result.size && result.size > 10 * 1024 * 1024) {
-        Alert.alert('File Too Large', 'Attachments must be 10 MB or smaller.');
+        showAlert('File Too Large', 'Attachments must be 10 MB or smaller.');
         return;
       }
       const file = {
@@ -160,23 +161,23 @@ function AttachmentsCard({ propertyId }) {
         .unwrap()
         .then(() => setLabel(''))
         .catch((error) => {
-          Alert.alert('Upload Failed', error?.message || 'Could not upload this file.');
+          showAlert('Upload Failed', error?.message || 'Could not upload this file.');
         });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
+      showAlert('Error', 'Could not select the file. Please try again.');
     }
   };
 
   const handleRemove = (attachmentId) => {
-    Alert.alert('Remove Attachment', 'Are you sure you want to remove this attachment?', [
+    showAlert('Remove Attachment', 'Are you sure you want to remove this attachment?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
         style: 'destructive',
         onPress: () => {
           removeAttachment(propertyId, attachmentId).unwrap().catch((error) => {
-            Alert.alert('Failed', error?.message || 'Could not remove this attachment.');
+            showAlert('Failed', error?.message || 'Could not remove this attachment.');
           });
         },
       },
@@ -224,6 +225,7 @@ function AttachmentsCard({ propertyId }) {
           <Text style={styles.attachBtnText}>Add Document</Text>
         </TouchableOpacity>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -247,6 +249,7 @@ function AddProperty({ navigation, route }) {
   const [utilities, setUtilities] = useState([]);
   const [notes, setNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
@@ -289,7 +292,7 @@ function AddProperty({ navigation, route }) {
 
   const handleLookupPincode = () => {
     if (!pincode || pincode.trim().length < 4) {
-      Alert.alert('Enter Pincode', 'Please enter a valid pincode to look up.');
+      showAlert('Enter Pincode', 'Please enter a valid pincode to look up.');
       return;
     }
     lookupPostalCode(pincode.trim())
@@ -297,20 +300,20 @@ function AddProperty({ navigation, route }) {
       .then((result) => {
         const match = result?.results?.[0];
         if (!match) {
-          Alert.alert('Not Found', 'No address found for that pincode.');
+          showAlert('Not Found', 'No address found for that pincode.');
           return;
         }
         if (match.stateName) setStateVal(match.stateName);
         if (match.cityName) setCity(match.cityName);
       })
       .catch((error) => {
-        Alert.alert('Lookup Failed', error?.message || 'Could not look up that pincode. Please try again.');
+        showAlert('Lookup Failed', error?.message || 'Could not look up that pincode. Please try again.');
       });
   };
 
   const handleSubmit = () => {
     if (!name || !address || !type) {
-      Alert.alert('Required', 'Nickname, Property Type and Address are required.');
+      showAlert('Required', 'Nickname, Property Type and Address are required.');
       return;
     }
 
@@ -340,11 +343,12 @@ function AddProperty({ navigation, route }) {
     dispatch(action)
       .unwrap()
       .then(() => {
-        Alert.alert(isEdit ? 'Updated' : 'Added', `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`);
-        navigation.goBack();
+        showAlert(isEdit ? 'Updated' : 'Added', `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
       })
       .catch((error) => {
-        Alert.alert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
+        showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
       });
   };
 
@@ -583,6 +587,7 @@ function AddProperty({ navigation, route }) {
           </>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

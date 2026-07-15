@@ -44,12 +44,13 @@ function TicketDetail({ route, navigation }) {
   // Visit reports are their own resource (GET /customer/reports), not
   // embedded in the ticket detail payload — the ticket detail endpoint never
   // returns a `report` object, only a `has_report` boolean on the list item.
-  // Each report carries a `ticket_id`, so match it client-side. The reports
-  // endpoint only supports a `page` param (no ticket_id filter), so a report
-  // sitting past page 1 won't be found here — acceptable for now since
-  // reports are far less frequent than tickets.
+  // Verified live: a report carries `ticket_number` (e.g. "NRI-2026-00008"),
+  // not a numeric `ticket_id` — match on that. The reports endpoint only
+  // supports a `page` param (no ticket filter), so a report sitting past
+  // page 1 won't be found here — acceptable for now since reports are far
+  // less frequent than tickets.
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
-  const report = reports.find(r => r.ticketId === ticket?.id) || null;
+  const report = reports.find(r => r.ticketNumber === ticket?.ticketNumber || r.ticketId === ticket?.id) || null;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -296,12 +297,13 @@ function TicketDetail({ route, navigation }) {
               </TouchableOpacity>
             ) : report ? (
               <>
-                {!!report.title && <Text style={styles.reportNote}>{report.title}</Text>}
+                {!!report.service && <Text style={styles.reportNote}>{report.service}</Text>}
                 {!!(report.vendor || report.date) && (
                   <Text style={styles.subValue}>
                     {[report.vendor, formatDateTime(report.date)].filter(Boolean).join(' · ')}
                   </Text>
                 )}
+                {!!report.reportText && <Text style={styles.reportBody}>{report.reportText}</Text>}
                 {report.media.length > 0 && (
                   <View style={styles.attachmentRow}>
                     {report.media.map((m, idx) => (
@@ -458,6 +460,7 @@ const styles = StyleSheet.create({
   reportStatusBadge: { backgroundColor: colors.successBackground, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   reportStatusText: { ...typography.tiny, color: colors.success, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
   reportNote: { fontSize: 15, color: colors.textPrimary },
+  reportBody: { fontSize: 14, color: colors.textSecondary, marginTop: 4, lineHeight: 20 },
   reportLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.badgeBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },

@@ -36,6 +36,16 @@ function OnboardingPayment({ route, navigation }) {
 
   // auto_renew is Razorpay-only and can't combine with a coupon.
   const autoRenewAllowed = paymentMethod === 'razorpay' && !planCouponCode.trim();
+  // `autoRenewalDiscount` is the plan's own `auto-renewal-discount` feature
+  // value (e.g. "5%"/"8%", varies per tier — verified live via GET /plans),
+  // threaded through from OnboardingPlan.js. Guard against "None"/blank
+  // values some tiers may carry instead of a real percentage.
+  const autoRenewDiscountLabel = plan?.autoRenewalDiscount && !/^none$/i.test(plan.autoRenewalDiscount)
+    ? plan.autoRenewalDiscount
+    : null;
+  const autoRenewDescText = autoRenewDiscountLabel
+    ? `Save ${autoRenewDiscountLabel} with auto-renewal! Renews automatically with a reminder 10 days before each charge. Cancel anytime from Billing.`
+    : 'Renews automatically with a reminder 10 days before each charge. Cancel anytime from Billing.';
   useEffect(() => {
     if (!autoRenewAllowed && autoRenew) setAutoRenew(false);
   }, [autoRenewAllowed, autoRenew]);
@@ -282,7 +292,7 @@ function OnboardingPayment({ route, navigation }) {
           <View style={[styles.autoRenewRow, !autoRenewAllowed && styles.autoRenewRowDisabled]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.autoRenewLabel}>Auto-renew my membership</Text>
-              <Text style={styles.autoRenewDesc}>Auto-renewal is available with Razorpay (UPI/Indian cards) only, and can't combine with a coupon. Your card's bank must support recurring/e-mandate payments — if it doesn't, you can pay once now and enable this later.</Text>
+              <Text style={styles.autoRenewDesc}>{autoRenewDescText}</Text>
             </View>
             <Switch
               value={autoRenew}

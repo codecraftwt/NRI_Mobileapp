@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Modal, FlatList } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, saveUserProfile } from '../../Redux/slices/userSlice';
@@ -58,12 +59,13 @@ export default function ProfilePersonal({ navigation }) {
   const [emergencyPhone, setEmergencyPhone] = useState(user?.emergencyContactPhone || '');
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const formattedDob = dob ? dob.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : '';
 
   const handleSavePersonal = async () => {
     if (!name.trim()) {
-      Alert.alert('Full Name is required');
+      showAlert('Required', 'Full Name is required.');
       return;
     }
     setSavingPersonal(true);
@@ -78,9 +80,9 @@ export default function ProfilePersonal({ navigation }) {
         emergencyContactName: emergencyName,
         emergencyContactPhone: emergencyPhone,
       }));
-      Alert.alert('Profile Updated', 'Your profile has been saved successfully.');
+      showAlert('Profile Updated', 'Your profile has been saved successfully.');
     } catch (error) {
-      Alert.alert('Could Not Save Profile', error?.message || 'Please try again.');
+      showAlert('Could Not Save Profile', error?.message || 'Please try again.');
     } finally {
       setSavingPersonal(false);
     }
@@ -130,6 +132,7 @@ export default function ProfilePersonal({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

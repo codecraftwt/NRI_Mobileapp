@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { changeUserPassword } from '../../Redux/slices/userSlice';
@@ -15,6 +16,7 @@ export default function ProfilePassword({ navigation }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState({});
+  const { showAlert, alertProps } = useAppAlert();
 
   const clearPasswordError = (field) => {
     if (passwordErrors[field]) setPasswordErrors(prev => ({ ...prev, [field]: undefined }));
@@ -47,7 +49,7 @@ export default function ProfilePassword({ navigation }) {
     }))
       .unwrap()
       .then(() => {
-        Alert.alert('Password Changed', 'Your password has been updated successfully. Other signed-in devices have been logged out.');
+        showAlert('Password Changed', 'Your password has been updated successfully. Other signed-in devices have been logged out.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -56,7 +58,7 @@ export default function ProfilePassword({ navigation }) {
         if (error?.errors) {
           setPasswordErrors(error.errors);
         }
-        Alert.alert('Change Password Failed', error?.message || 'Please check your current password and try again.');
+        showAlert('Change Password Failed', error?.message || 'Please check your current password and try again.');
       });
   };
 
@@ -101,6 +103,7 @@ export default function ProfilePassword({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

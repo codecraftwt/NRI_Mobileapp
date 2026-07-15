@@ -1,13 +1,19 @@
 import apiClient, { normalizeApiError } from './client';
 
+// Verified live against GET /customer/reports: `service` and `vendor` come
+// back as plain strings (not objects), the report's free-text body is
+// `report_text`, and — critically — there is no `ticket_id` on this
+// resource, only `ticket_number` (e.g. "NRI-2026-00008"). TicketDetail
+// matches a report to its ticket by that string, not a numeric id.
 function mapReport(raw) {
   return {
     id: raw.id,
     title: raw.title || raw.name || 'Report',
-    service: raw.service?.name || raw.service_name || raw.ticket?.service?.name || null,
+    service: typeof raw.service === 'string' ? raw.service : (raw.service?.name || raw.service_name || raw.ticket?.service?.name || null),
     type: raw.type || raw.category || null,
-    vendor: raw.vendor?.name || raw.vendor_name || null,
+    vendor: typeof raw.vendor === 'string' ? raw.vendor : (raw.vendor?.name || raw.vendor_name || null),
     status: raw.status || null,
+    reportText: raw.report_text || null,
     // `sent_at` is when the RM dispatched the reviewed report to the
     // customer (POST /rm/reports/{report}/send) — the date the customer
     // actually sees is more meaningful than the internal visit/created date.
@@ -15,6 +21,7 @@ function mapReport(raw) {
     mediaCount: (raw.media || raw.media_urls || []).length,
     media: (raw.media || raw.media_urls || []).map(m => (typeof m === 'string' ? { url: m } : { url: m.url, type: m.type })),
     ticketId: raw.ticket_id || null,
+    ticketNumber: raw.ticket_number || null,
   };
 }
 

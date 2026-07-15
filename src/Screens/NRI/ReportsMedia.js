@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useReports } from '../../Hooks/useReports';
@@ -17,6 +18,18 @@ function formatReportDate(dateStr) {
 function ReportsMedia({ navigation }) {
   const { reports, meta, loading, failed, retry, fetchPage } = useReports();
   const mediaCount = reports.reduce((sum, r) => sum + (r.mediaCount || 0), 0);
+  const { showAlert, alertProps } = useAppAlert();
+
+  const handleViewReport = (report) => {
+    const url = report.media?.[0]?.url;
+    if (!url) {
+      showAlert('No Attachment', 'This report has no file attached yet.');
+      return;
+    }
+    Linking.openURL(url).catch(() => {
+      showAlert('Could Not Open', 'This report could not be opened.');
+    });
+  };
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -77,7 +90,7 @@ function ReportsMedia({ navigation }) {
           </View>
         ) : (
           reports.map(r => (
-            <TouchableOpacity key={r.id} style={styles.reportCard} activeOpacity={0.7}>
+            <TouchableOpacity key={r.id} style={styles.reportCard} activeOpacity={0.7} onPress={() => handleViewReport(r)}>
               <View style={styles.reportHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.reportTitle} numberOfLines={1}>{r.service || r.title}</Text>
@@ -92,7 +105,7 @@ function ReportsMedia({ navigation }) {
               <View style={styles.reportFooter}>
                 <Icon name="calendar-today" size={14} color={colors.textSecondary} />
                 <Text style={styles.reportDate}>{formatReportDate(r.date)}</Text>
-                <TouchableOpacity style={styles.viewBtn}>
+                <TouchableOpacity style={styles.viewBtn} onPress={() => handleViewReport(r)}>
                   <Text style={styles.viewBtnText}>View Report</Text>
                   <Icon name="chevron-right" size={16} color={colors.primary} />
                 </TouchableOpacity>
@@ -121,6 +134,7 @@ function ReportsMedia({ navigation }) {
           </View>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

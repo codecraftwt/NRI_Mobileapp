@@ -110,7 +110,12 @@ function OnboardingPlan({ route, navigation }) {
 
   const handleChoose = (plan) => {
     setDetailPlan(null);
-    navigation.navigate('OnboardingAddons', { profile, plan: { id: plan.id, name: plan.name, price: plan.price } });
+    // Verified live via GET /plans: each plan carries a
+    // slug: 'auto-renewal-discount' feature with a value like "5%"/"8%" —
+    // varies per plan tier, so it's threaded through to the payment step
+    // instead of a hardcoded percentage.
+    const autoRenewalDiscount = plan.features?.find(f => f.slug === 'auto-renewal-discount')?.value || null;
+    navigation.navigate('OnboardingAddons', { profile, plan: { id: plan.id, name: plan.name, price: plan.price, autoRenewalDiscount } });
   };
 
   const handleContactSales = () => {

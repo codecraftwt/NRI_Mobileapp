@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -39,8 +39,18 @@ const NO_PROPERTY = 'Not applicable';
 const PRIORITY_OPTIONS = ['Standard', 'Express', 'Emergency'];
 const PRIORITY_TO_URGENCY = { Standard: 'standard', Express: 'express', Emergency: 'emergency' };
 
-function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
+function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect, onClose }) {
   const [open, setOpen] = useState(false);
+
+  // Opening/closing this Modal makes Android relayout the screen behind it
+  // (the app runs with windowSoftInputMode="adjustResize"), which resets the
+  // outer ScrollView's scroll offset to the top — jarring when picking
+  // State (or any field) mid-scroll. `onClose` lets the parent restore the
+  // scroll position it had before this picker opened.
+  const close = () => {
+    setOpen(false);
+    onClose?.();
+  };
 
   return (
     <View style={styles.fieldWrap}>
@@ -68,8 +78,8 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
         )}
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={close}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>{label}</Text>
             <FlatList
@@ -80,7 +90,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                   style={styles.modalOption}
                   onPress={() => {
                     onSelect(item);
-                    setOpen(false);
+                    close();
                   }}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
@@ -92,6 +102,48 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
         </TouchableOpacity>
       </Modal>
     </View>
+  );
+}
+
+// Bottom sheet for the Submit Request result flow (Payment Required, Request
+// Submitted, Payment Successful/Failed, etc.) — styled like Profile.js's
+// "Update Profile Photo" sheet (slide up, rounded top corners, handle bar)
+// rather than a plain native Alert.
+function SubmitResultSheet({ visible, title, message, buttons, onRequestClose, onButtonPress }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onRequestClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onRequestClose}>
+        <TouchableOpacity activeOpacity={1} style={styles.resultSheet} onPress={() => {}}>
+          <View style={styles.resultSheetHandle} />
+          {!!title && <Text style={styles.resultSheetTitle}>{title}</Text>}
+          {!!message && <Text style={styles.resultSheetMessage}>{message}</Text>}
+          <View style={styles.resultSheetButtons}>
+            {(buttons || []).map((btn, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.resultSheetBtn,
+                  btn.style === 'cancel' && styles.resultSheetBtnCancel,
+                  btn.style === 'destructive' && styles.resultSheetBtnDestructive,
+                ]}
+                activeOpacity={0.75}
+                onPress={() => onButtonPress(btn)}
+              >
+                <Text
+                  style={[
+                    styles.resultSheetBtnText,
+                    btn.style === 'cancel' && styles.resultSheetBtnTextCancel,
+                    btn.style === 'destructive' && styles.resultSheetBtnTextDestructive,
+                  ]}
+                >
+                  {btn.text}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -112,6 +164,24 @@ function CreateTicket({ navigation }) {
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+
+  const scrollRef = useRef(null);
+  const scrollYRef = useRef(0);
+  const restoreScroll = () => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: scrollYRef.current, animated: false });
+    });
+  };
+
+  const [resultSheet, setResultSheet] = useState(null);
+  const showResult = (title, message, buttons) => {
+    setResultSheet({ title, message, buttons: buttons && buttons.length ? buttons : [{ text: 'OK' }] });
+  };
+  const closeResultSheet = () => setResultSheet(null);
+  const handleResultButtonPress = (btn) => {
+    closeResultSheet();
+    btn.onPress?.();
+  };
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   // The districts endpoint is what actually returns city-level data for this
@@ -347,6 +417,15 @@ function CreateTicket({ navigation }) {
     setFiles(prev => prev.filter(f => f.uri !== uri));
   };
 
+  // The ticket is already created server-side by the time any of these
+  // outcomes fire (submitTicket() below does a single atomic POST that
+  // creates it regardless of payment status) — declining/failing payment
+  // never deletes it, it just stays unpaid. Landing on its detail page
+  // (instead of just goBack()) is what actually proves that to the user;
+  // goBack() alone dumps them back on whatever screen opened this form with
+  // no visible confirmation, which reads as "the request wasn't added."
+  const goToTicket = (ticketId) => navigation.replace('TicketDetail', { ticketId });
+
   const handleGatewayPayment = async (ticketId, gateway) => {
     try {
       const result = await payForTicket({ ticketId, gateway }).unwrap();
@@ -364,16 +443,16 @@ function CreateTicket({ navigation }) {
           razorpayPaymentId: rzpResult.razorpayPaymentId,
           razorpaySignature: rzpResult.razorpaySignature,
         }).unwrap();
-        Alert.alert('Payment Successful', 'Your service request has been paid and confirmed.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+        showResult('Payment Successful', 'Your service request has been paid and confirmed.', [
+          { text: 'View Request', onPress: () => goToTicket(ticketId) },
         ]);
       } else if (result.checkoutUrl) {
         openStripeCheckout(result.checkoutUrl);
-        Alert.alert(
+        showResult(
           'Complete Payment',
           'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
           [
-            { text: 'Pay Later', style: 'cancel', onPress: () => navigation.goBack() },
+            { text: 'Pay Later', style: 'cancel', onPress: () => goToTicket(ticketId) },
             {
               text: "I've Paid",
               onPress: () => {
@@ -381,27 +460,31 @@ function CreateTicket({ navigation }) {
                 verifyPayment({ paymentId: result.paymentId, sessionId })
                   .unwrap()
                   .then(() => {
-                    Alert.alert('Payment Successful', 'Your service request has been paid and confirmed.', [
-                      { text: 'OK', onPress: () => navigation.goBack() },
+                    showResult('Payment Successful', 'Your service request has been paid and confirmed.', [
+                      { text: 'View Request', onPress: () => goToTicket(ticketId) },
                     ]);
                   })
                   .catch((error) => {
-                    Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+                    showResult(
+                      'Verification Failed',
+                      error?.message || 'Could not verify this payment yet. Please try again in a moment.',
+                      [{ text: 'View Request', onPress: () => goToTicket(ticketId) }]
+                    );
                   });
               },
             },
           ]
         );
       } else {
-        Alert.alert('Payment Confirmed', result.message || 'Your service request has been paid.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+        showResult('Payment Confirmed', result.message || 'Your service request has been paid.', [
+          { text: 'View Request', onPress: () => goToTicket(ticketId) },
         ]);
       }
     } catch (error) {
-      Alert.alert(
+      showResult(
         'Payment Failed',
         error?.message || 'Could not complete payment. Your request has been saved — you can pay from My Tickets.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        [{ text: 'View Request', onPress: () => goToTicket(ticketId) }]
       );
     }
   };
@@ -427,29 +510,35 @@ function CreateTicket({ navigation }) {
       }).unwrap();
 
       if (result.paymentRequired) {
-        Alert.alert(
+        showResult(
           'Payment Required',
           `Request ${result.ticket.ticketNumber} needs a payment of ₹${result.amountDue.toLocaleString('en-IN')} to proceed. Choose how you'd like to pay.`,
           [
-            { text: 'Pay Later', style: 'cancel', onPress: () => navigation.goBack() },
+            { text: 'Pay Later', style: 'cancel', onPress: () => goToTicket(result.ticket.id) },
             { text: 'Pay with Razorpay', onPress: () => handleGatewayPayment(result.ticket.id, 'razorpay') },
             { text: 'Pay with Stripe', onPress: () => handleGatewayPayment(result.ticket.id, 'stripe') },
           ]
         );
       } else {
-        Alert.alert('Request Submitted', `Your request ${result.ticket.ticketNumber} has been submitted.`, [
-          { text: 'OK', onPress: () => navigation.goBack() },
+        showResult('Request Submitted', `Your request ${result.ticket.ticketNumber} has been submitted.`, [
+          { text: 'View Request', onPress: () => goToTicket(result.ticket.id) },
         ]);
       }
     } catch (error) {
-      Alert.alert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
+      showResult('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
     }
   };
 
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Submit a Service Request" showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
+        scrollEventThrottle={16}
+      >
         {membership && usage && (
           <View style={styles.usageBanner}>
             <Icon name="info-outline" size={16} color="#3298D4" />
@@ -470,6 +559,7 @@ function CreateTicket({ navigation }) {
             options={categoryNames}
             loading={loadingCategories}
             onSelect={handleSelectCategory}
+            onClose={restoreScroll}
           />
           {categoriesFailed && (
             <TouchableOpacity onPress={retryCategories}>
@@ -483,6 +573,7 @@ function CreateTicket({ navigation }) {
             placeholder="Select priority..."
             options={priorityOptions}
             onSelect={setPriority}
+            onClose={restoreScroll}
           />
           {selectedService && !selectedService.allowsEmergency && (
             <Text style={styles.hint}>Emergency priority isn't available for this service.</Text>
@@ -580,6 +671,7 @@ function CreateTicket({ navigation }) {
             placeholder="Select family member..."
             options={[NO_FAMILY_MEMBER, ...familyMembers.map(m => m.name)]}
             onSelect={setFamilyMember}
+            onClose={restoreScroll}
           />
           <SelectField
             label="Property (optional)"
@@ -587,6 +679,7 @@ function CreateTicket({ navigation }) {
             placeholder="Select property..."
             options={[NO_PROPERTY, ...properties.map(p => p.nickname)]}
             onSelect={setProperty}
+            onClose={restoreScroll}
           />
           <SelectField
             label="State"
@@ -600,6 +693,7 @@ function CreateTicket({ navigation }) {
               setTaluka('');
             }}
             loading={loadingStates}
+            onClose={restoreScroll}
           />
           {statesFailed && (
             <TouchableOpacity onPress={retryStates}>
@@ -608,6 +702,7 @@ function CreateTicket({ navigation }) {
           )}
           <SelectField
             label="City / District"
+            required
             value={city}
             placeholder="Select city..."
             options={cityNames}
@@ -617,6 +712,7 @@ function CreateTicket({ navigation }) {
               setCity(v);
               setTaluka('');
             }}
+            onClose={restoreScroll}
           />
           {citiesFailed && (
             <TouchableOpacity onPress={retryCities}>
@@ -631,6 +727,7 @@ function CreateTicket({ navigation }) {
             disabled={!city}
             loading={loadingTalukas}
             onSelect={setTaluka}
+            onClose={restoreScroll}
           />
           {talukasFailed && (
             <TouchableOpacity onPress={retryTalukas}>
@@ -851,6 +948,15 @@ function CreateTicket({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <SubmitResultSheet
+        visible={!!resultSheet}
+        title={resultSheet?.title}
+        message={resultSheet?.message}
+        buttons={resultSheet?.buttons}
+        onRequestClose={closeResultSheet}
+        onButtonPress={handleResultButtonPress}
+      />
     </View>
   );
 }
@@ -1043,6 +1149,25 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   modalOptionText: { ...typography.jobTitle, color: colors.textPrimary },
+
+  resultSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  resultSheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
+  resultSheetTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center', marginBottom: 8 },
+  resultSheetMessage: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  resultSheetButtons: { gap: 10 },
+  resultSheetBtn: { borderRadius: 24, paddingVertical: 14, alignItems: 'center', backgroundColor: colors.accent },
+  resultSheetBtnCancel: { backgroundColor: colors.surfaceSecondary },
+  resultSheetBtnDestructive: { backgroundColor: colors.error },
+  resultSheetBtnText: { ...typography.labelLarge, color: colors.onAccent },
+  resultSheetBtnTextCancel: { color: colors.textPrimary },
+  resultSheetBtnTextDestructive: { color: '#FFFFFF' },
 });
 
 export default CreateTicket;

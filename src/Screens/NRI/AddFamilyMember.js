@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   Modal,
   FlatList,
   Platform,
@@ -16,6 +15,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { addFamilyMember, updateFamilyMember } from '../../Redux/slices/familySlice';
@@ -100,6 +100,7 @@ function AddFamilyMember({ navigation, route }) {
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [healthNotes, setHealthNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
@@ -137,7 +138,7 @@ function AddFamilyMember({ navigation, route }) {
 
   const handleSubmit = () => {
     if (!name || !relation) {
-      Alert.alert('Required', 'Name and Relationship are required.');
+      showAlert('Required', 'Name and Relationship are required.');
       return;
     }
 
@@ -160,11 +161,12 @@ function AddFamilyMember({ navigation, route }) {
     dispatch(action)
       .unwrap()
       .then(() => {
-        Alert.alert(isEditing ? 'Updated' : 'Added', `${name} has been ${isEditing ? 'updated' : 'added as a family member'}.`);
-        navigation.goBack();
+        showAlert(isEditing ? 'Updated' : 'Added', `${name} has been ${isEditing ? 'updated' : 'added as a family member'}.`, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
       })
       .catch((error) => {
-        Alert.alert('Failed', error?.message || `Could not ${isEditing ? 'update' : 'add'} this family member.`);
+        showAlert('Failed', error?.message || `Could not ${isEditing ? 'update' : 'add'} this family member.`);
       });
   };
 
@@ -322,6 +324,7 @@ function AddFamilyMember({ navigation, route }) {
           </>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
