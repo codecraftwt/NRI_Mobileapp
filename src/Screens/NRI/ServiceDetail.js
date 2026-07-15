@@ -1,123 +1,340 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Header from '../../Components/Header';
+import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
+import { typography } from '../../theme';
 
 function ServiceDetail({ route, navigation }) {
-  const { category } = route.params || { category: { name: 'Parent & Elder Care', icon: 'favorite', color: '#FF6B6B' } };
+  const { category } = route.params;
+  const [activeTab, setActiveTab] = useState('base'); // 'base' or 'addons'
+  const [selectedAddonIds, setSelectedAddonIds] = useState([]);
+  const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState([]);
 
-  const sampleServices = [
-    { name: 'Extra Home Visit', customerPrice: '₹699', vendorCost: '₹400', turnaround: 'Same / Next day' },
-    { name: 'Doctor Appointment Booking', customerPrice: '₹299', vendorCost: '₹150', turnaround: '24 hrs' },
-    { name: 'Doctor Visit Escort', customerPrice: '₹999', vendorCost: '₹600', turnaround: 'Scheduled' },
-    { name: 'Medicine Purchase & Delivery', customerPrice: '₹199 + cost', vendorCost: '₹100 + cost', turnaround: 'Same day' },
-    { name: 'Nursing (Full Day 12 hrs)', customerPrice: '₹1,999', vendorCost: '₹1,200', turnaround: '24 hrs notice' },
-    { name: 'Physiotherapy Home Visit', customerPrice: '₹799', vendorCost: '₹500', turnaround: '48 hrs notice' },
-    { name: 'Blood Test Collection', customerPrice: '₹499 + lab', vendorCost: '₹250 + cost', turnaround: 'Same day' },
-    { name: 'Grocery Shopping & Delivery', customerPrice: '₹299 + cost', vendorCost: '₹150 + cost', turnaround: 'Same day' },
-  ];
+  // Fetch services
+  const { services: baseServices, loading: loadingBase } = useServicesByCategory(category.name, '', { type: 'base' });
+  const { services: addonServices, loading: loadingAddons } = useServicesByCategory(category.name, '', { type: 'addon' });
 
-  const [selectedService, setSelectedService] = useState(null);
+  const toggleAddon = (id) => {
+    setSelectedAddonIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
-  const getUrgencyColor = (urgency) => {
-    switch (urgency) {
-      case 'Standard': return { bg: '#E5F1FF', text: '#007AFF' };
-      case 'Express': return { bg: '#FFF3E0', text: '#FF9800' };
-      case 'Emergency': return { bg: '#FFEBEE', text: '#EF4444' };
-      default: return { bg: '#F3F4F6', text: '#666' };
-    }
+  const handleBook = () => {
+    navigation.navigate('CreateTicket', {
+      initialCategory: category.name,
+      initialAddons: selectedAddonIds,
+      initialBaseServiceIds: selectedBaseServiceIds,
+    });
   };
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title={category.name} showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.categoryHeader}>
-          <View style={[styles.catIcon, { backgroundColor: category.color + '20' }]}>
-            <Icon name={category.icon} size={36} color={category.color} />
-          </View>
-          <Text style={styles.catTitle}>{category.name}</Text>
-          <Text style={styles.catDesc}>Select a service below to book. Each service has standard pricing with optional express delivery.</Text>
-        </View>
-
-        <View style={styles.urgencyRow}>
-          {['Standard', 'Express', 'Emergency'].map(u => {
-            const colors = getUrgencyColor(u);
-            return (
-              <TouchableOpacity key={u} style={[styles.urgencyChip, { backgroundColor: colors.bg }]}>
-                <Text style={[styles.urgencyText, { color: colors.text }]}>{u}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {sampleServices.map((svc, idx) => {
-          const isSelected = selectedService === idx;
-          return (
-            <TouchableOpacity
-              key={idx}
-              style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-              onPress={() => setSelectedService(isSelected ? null : idx)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.serviceHeader}>
-                <Text style={styles.serviceName}>{svc.name}</Text>
-                {isSelected && <Icon name="check-circle" size={20} color="#007AFF" />}
-              </View>
-              <View style={styles.servicePriceRow}>
-                <Text style={styles.servicePrice}>{svc.customerPrice}</Text>
-                <Text style={styles.serviceTurnaround}>{svc.turnaround}</Text>
-              </View>
-              {isSelected && (
-                <View style={styles.serviceExpanded}>
-                  <View style={styles.serviceMetaRow}>
-                    <Text style={styles.metaLabel}>Platform Price</Text>
-                    <Text style={styles.metaValue}>{svc.customerPrice}</Text>
-                  </View>
-                  <View style={styles.serviceMetaRow}>
-                    <Text style={styles.metaLabel}>Turnaround</Text>
-                    <Text style={styles.metaValue}>{svc.turnaround}</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.bookBtn}
-                    onPress={() => navigation.navigate('BookingSummary', { service: svc, category: category.name })}
-                  >
-                    <Text style={styles.bookBtnText}>Book Now</Text>
-                    <Icon name="arrow-forward" size={16} color="white" />
-                  </TouchableOpacity>
-                </View>
-              )}
+      {/* Header / Hero Section */}
+      <View style={styles.heroSection}>
+        <View style={[styles.heroTopRow, { zIndex: 10 }]}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <Icon name="arrow-back" size={22} color={category.color} />
             </TouchableOpacity>
-          );
-        })}
+            <Text style={styles.headerTitle} numberOfLines={1}>{category.name}</Text>
+          </View>
+          <View style={[styles.headerIconBox, { backgroundColor: category.color + '15' }]}>
+            <Icon name={category.icon} size={20} color={category.color} />
+          </View>
+        </View>
+
+        <View style={styles.heroContent}>
+          <Text style={styles.heroDesc}>{category.desc}</Text>
+
+          <TouchableOpacity 
+            style={[styles.bookBtn, (selectedBaseServiceIds || []).length === 0 && styles.bookBtnDisabled]} 
+            onPress={handleBook}
+            disabled={(selectedBaseServiceIds || []).length === 0}
+          >
+            <Text style={styles.bookBtnText}>Book This Service</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <View style={styles.tabsWrapper}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'base' && styles.activeTab]}
+            onPress={() => setActiveTab('base')}
+          >
+            <Text style={[styles.tabText, activeTab === 'base' && styles.activeTabText]}>Base (Included)</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'addons' && styles.activeTab]}
+            onPress={() => setActiveTab('addons')}
+          >
+            <Text style={[styles.tabText, activeTab === 'addons' && styles.activeTabText]}>Add-On Services</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* List */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {activeTab === 'addons' ? (
+          loadingAddons ? (
+            <ActivityIndicator size="large" color="#5B21B6" style={{ marginTop: 40 }} />
+          ) : addonServices.length === 0 ? (
+            <Text style={styles.emptyText}>No add-on services available.</Text>
+          ) : (
+            addonServices.map(s => {
+              const isSelected = selectedAddonIds.includes(s.id);
+              return (
+                <View key={s.id} style={styles.serviceCard}>
+                  <View style={styles.serviceCardLeft}>
+                    <Text style={styles.serviceCardTitle}>{s.name}</Text>
+                    <Text style={styles.serviceCardSub}>{s.pricing?.turnaroundLabel || 'Standard turnaround'}</Text>
+                  </View>
+                  <View style={styles.serviceCardRight}>
+                    <Text style={styles.serviceCardPrice}>{s.pricing?.displayPrice}</Text>
+                    <TouchableOpacity 
+                      style={[styles.addBtn, isSelected && styles.addedBtn]}
+                      onPress={() => toggleAddon(s.id)}
+                    >
+                      <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
+                        {isSelected ? '✓ Added' : '+ Add'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })
+          )
+        ) : (
+          loadingBase ? (
+            <ActivityIndicator size="large" color="#5B21B6" style={{ marginTop: 40 }} />
+          ) : baseServices.length === 0 ? (
+            <Text style={styles.emptyText}>No base services available.</Text>
+          ) : (
+            baseServices.map(s => {
+              const safeIds = selectedBaseServiceIds || [];
+              const isSelected = safeIds.includes(s.id);
+              return (
+                <TouchableOpacity 
+                  key={s.id} 
+                  style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+                  onPress={() => setSelectedBaseServiceIds(prev => (prev || []).includes(s.id) ? (prev || []).filter(x => x !== s.id) : [...(prev || []), s.id])}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.serviceCardLeft}>
+                    <Text style={styles.serviceCardTitle}>{s.name}</Text>
+                    <Text style={styles.serviceCardSub}>{s.pricing?.turnaroundLabel || 'Standard turnaround'}</Text>
+                  </View>
+                  <View style={styles.serviceCardRight}>
+                    <View style={styles.includedPill}>
+                      <Text style={styles.includedPillText}>Included</Text>
+                    </View>
+                    <View style={[styles.addBtn, isSelected && styles.addedBtn, { marginTop: 8 }]}>
+                      <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
+                        {isSelected ? '✓ Selected' : 'Select'}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 10 },
-  categoryHeader: { alignItems: 'center', padding: 20, backgroundColor: 'white', borderRadius: 16, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
-  catIcon: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  catTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', textAlign: 'center' },
-  catDesc: { fontSize: 12, color: '#666', textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  urgencyRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginBottom: 8 },
-  urgencyChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16 },
-  urgencyText: { fontSize: 12, fontWeight: 'bold' },
-  serviceCard: { backgroundColor: 'white', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  serviceCardSelected: { borderWidth: 2, borderColor: '#007AFF' },
-  serviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  serviceName: { fontSize: 14, fontWeight: 'bold', color: '#333', flex: 1 },
-  servicePriceRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  servicePrice: { fontSize: 16, fontWeight: 'bold', color: '#007AFF' },
-  serviceTurnaround: { fontSize: 12, color: '#666' },
-  serviceExpanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  serviceMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  metaLabel: { fontSize: 13, color: '#666' },
-  metaValue: { fontSize: 13, color: '#333', fontWeight: '600' },
-  bookBtn: { flexDirection: 'row', backgroundColor: '#007AFF', height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 8 },
-  bookBtnText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
+  container: {
+    flex: 1,
+    backgroundColor: '#FDFBF7', // Matches the cream background
+  },
+  heroSection: {
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+    paddingRight: 16,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1E293B',
+  },
+  headerIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroContent: {
+    marginTop: 4,
+  },
+  heroDesc: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  bookBtn: {
+    backgroundColor: '#5B21B6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  bookBtnDisabled: {
+    backgroundColor: '#CBD5E1', // slate-300
+  },
+  bookBtnText: {
+    fontSize: 16,
+    fontFamily: typography.h4.fontFamily,
+    color: '#FFFFFF',
+  },
+  tabsContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  tabsWrapper: {
+    flexDirection: 'row',
+    backgroundColor: '#F3EFE9', // Light beige
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: typography.labelLarge.fontFamily,
+    color: '#94A3B8',
+  },
+  activeTabText: {
+    color: '#5B21B6',
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 100,
+    paddingTop: 10,
+    gap: 12,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#94A3B8',
+    marginTop: 40,
+    fontSize: 14,
+  },
+  serviceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  serviceCardSelected: {
+    borderColor: '#A855F7',
+    backgroundColor: '#FAF5FF',
+  },
+  serviceCardLeft: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  serviceCardTitle: {
+    fontSize: 16,
+    fontFamily: typography.h4.fontFamily,
+    color: '#1E293B',
+    marginBottom: 4,
+  },
+  serviceCardSub: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  serviceCardRight: {
+    alignItems: 'flex-end',
+  },
+  serviceCardPrice: {
+    fontSize: 16,
+    fontFamily: typography.h4.fontFamily,
+    color: '#5B21B6',
+    marginBottom: 8,
+  },
+  addBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  addedBtn: {
+    backgroundColor: '#F6FFED',
+    borderColor: '#F6FFED',
+  },
+  addBtnText: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#6D28D9',
+  },
+  addedBtnText: {
+    color: '#059669',
+  },
+  includedPill: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  includedPillText: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#059669',
+  }
 });
 
 export default ServiceDetail;

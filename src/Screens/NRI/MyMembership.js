@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useMembership } from '../../Hooks/useMembership';
+import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -59,6 +60,8 @@ function MyMembership({ navigation }) {
     retryHistory,
   } = useMembership();
 
+  const { packages: addonPackages, loading: addonsLoading } = useMyAddonPackages();
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
@@ -79,12 +82,10 @@ function MyMembership({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Dynamic Geometric Background Layering matching Auth screens */}
-      <View style={styles.bgShape1} />
-      <View style={styles.bgShape2} />
-      <View style={styles.bgShape3} />
-
-      <Header navigation={navigation} title="My Membership" showBack />
+      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>My Membership</Text>
+      </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -114,38 +115,43 @@ function MyMembership({ navigation }) {
         ) : membership ? (
           <TouchableOpacity
             style={styles.activePlanCard}
-            activeOpacity={0.8}
+            activeOpacity={0.9}
             onPress={() => navigation.navigate('MembershipFeatures', { features: membership.features, planName: membership.planName })}
           >
-            <View style={styles.heroTopRow}>
-              <View style={styles.heroLeftCol}>
-                <Text style={styles.activePlanLabel}>Active Plan</Text>
-                <Text style={styles.activePlanName}>{membership.planName || '—'}</Text>
-                {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>}
-              </View>
-              <View style={styles.heroPriceCol}>
-                {membership.price != null && <Text style={styles.priceValue}>₹{Number(membership.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>}
-                {!!membership.paymentStatus && (
-                  <View style={styles.paymentBadge}>
-                    <Text style={styles.paymentText}>{membership.paymentStatus}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {membership.features.length > 0 && (
-              <>
-                <View style={styles.heroDivider} />
-                <View style={styles.viewBenefitsRow}>
-                  <Text style={styles.viewBenefitsText}>View all {membership.features.length} benefits</Text>
-                  <Icon name="chevron-right" size={20} color="white" />
+            {/* Pseudo-gradient splash matching Dashboard */}
+            <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '65%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
+            
+            <View style={{ zIndex: 1 }}>
+              <View style={styles.heroTopRow}>
+                <View style={styles.heroLeftCol}>
+                  <Text style={styles.activePlanLabel}>YOUR PLAN</Text>
+                  <Text style={styles.activePlanName}>{membership.planName || '—'}</Text>
+                  {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>}
                 </View>
-              </>
-            )}
+                <View style={styles.heroPriceCol}>
+                  {membership.price != null && <Text style={styles.priceValue}>₹{Number(membership.price).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</Text>}
+                  {!!membership.paymentStatus && (
+                    <View style={styles.paymentBadge}>
+                      <Text style={styles.paymentText}>{membership.paymentStatus}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {membership.features.length > 0 && (
+                <>
+                  <View style={styles.heroDivider} />
+                  <View style={styles.viewBenefitsRow}>
+                    <Text style={styles.viewBenefitsText}>View all {membership.features.length} benefits</Text>
+                    <Icon name="arrow-forward" size={20} color="white" />
+                  </View>
+                </>
+              )}
+            </View>
           </TouchableOpacity>
         ) : null}
 
-        <View style={styles.historyCard}>
+        <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Membership History</Text>
           {historyLoading && (
             <View style={styles.loadingBox}>
@@ -192,18 +198,53 @@ function MyMembership({ navigation }) {
             })
           )}
         </View>
+
+        {/* Add-on Packages Inline Section */}
+        <View style={[styles.sectionContainer, { marginTop: 16 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Add-on Packages</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Add-on Packages')}>
+              <Text style={styles.viewAllText}>View all →</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {addonsLoading ? (
+            <ActivityIndicator size="small" color="#F97316" style={{ alignSelf: 'flex-start', marginTop: 8 }} />
+          ) : addonPackages && addonPackages.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 4 }}>
+              {addonPackages.slice(0, 3).map(pkg => (
+                <View key={pkg.id} style={styles.miniAddonCard}>
+                  <View style={styles.miniAddonHeader}>
+                    <Icon name="stars" size={18} color="#F59E0B" />
+                    <Text style={styles.miniAddonName}>{pkg.name}</Text>
+                  </View>
+                  <Text style={styles.miniAddonPrice}>₹{pkg.priceMonthly?.toLocaleString('en-IN')}<Text style={styles.miniAddonInterval}> / mo</Text></Text>
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
+        </View>
+
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
-  // Dynamic Background Layers matching Auth screen
-  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: colors.primaryLight + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
-  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: colors.accent + '08', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
-  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: colors.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: '#20304C', // Dark blue status bar & header
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 24 },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadingText: { ...typography.body, color: colors.textSecondary },
@@ -211,44 +252,87 @@ const styles = StyleSheet.create({
   retryText: { ...typography.labelMedium, color: colors.error },
   emptyText: { ...typography.body, color: colors.textPlaceholder },
 
-  noPlanCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 24, alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  noPlanTitle: { ...typography.h4, color: colors.textPrimary },
-  noPlanText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
-  choosePlanBtn: { backgroundColor: colors.primary, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12, marginTop: 8 },
-  choosePlanBtnText: { color: colors.onPrimary, ...typography.labelLarge },
+  noPlanCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 32, alignItems: 'center', gap: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  noPlanTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#1A1A1A' },
+  noPlanText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  choosePlanBtn: { backgroundColor: '#D94625', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12, marginTop: 12 },
+  choosePlanBtnText: { color: '#FFFFFF', fontFamily: typography.labelMedium.fontFamily, fontSize: 14, fontWeight: '600' },
 
   // Active Plan Hero Card
-  activePlanCard: { backgroundColor: colors.primaryDark, borderRadius: 20, padding: 20, shadowColor: colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
+  activePlanCard: { backgroundColor: '#202945', borderRadius: 24, padding: 24, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLeftCol: { flex: 1, paddingRight: 12 },
-  activePlanLabel: { ...typography.small, color: 'rgba(255,255,255,0.7)' },
-  activePlanName: { ...typography.h2, color: colors.onPrimary, marginTop: 2 },
+  activePlanLabel: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#D1D5DB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  activePlanName: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
   heroPriceCol: { alignItems: 'flex-end' },
-  priceValue: { ...typography.h3, color: colors.onPrimary },
-  paymentBadge: { backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6 },
-  paymentText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.primaryDark },
-  validUntil: { ...typography.body, color: 'rgba(255,255,255,0.85)', marginTop: 4 },
-  heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginTop: 16, marginBottom: 14 },
+  priceValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
+  paymentBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6 },
+  paymentText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', fontWeight: '600' },
+  validUntil: { fontSize: 13, color: '#E5E7EB', marginTop: 4 },
+  heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 24, marginBottom: 16 },
   viewBenefitsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  viewBenefitsText: { ...typography.labelLarge, color: colors.onPrimary },
+  viewBenefitsText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', fontWeight: '600' },
 
   // History Card
-  historyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  sectionTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 12 },
-  historyRow: { paddingVertical: 14 },
-  historyRowBorder: { borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
+  sectionContainer: { marginTop: 8 },
+  sectionTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#1A1A1A', marginBottom: 16 },
+  historyRow: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, marginBottom: 12, shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  historyRowBorder: {}, // Unused now since cards are separated
   historyTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyPlan: { ...typography.labelLarge, color: colors.textPrimary },
-  historyAmount: { ...typography.labelMedium, color: colors.textPrimary },
-  historyDates: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
-  historyBadgeRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
-  statusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
+  historyPlan: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  historyAmount: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '600' },
+  historyDates: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  historyBadgeRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
+  statusText: { fontSize: 10, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize', fontWeight: '600' },
 
-  // Action Buttons
-  actionRow: { flexDirection: 'row', gap: 12 },
-  upgradeBtn: { flex: 1, flexDirection: 'row', backgroundColor: colors.surface, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.primary },
-  upgradeBtnText: { color: colors.primary, ...typography.labelLarge },
+  // Addon Packages Inline Styles
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#D94625',
+    fontWeight: '600',
+  },
+  miniAddonCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    width: 220,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  miniAddonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  miniAddonName: {
+    fontSize: 15,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#0F172A',
+  },
+  miniAddonPrice: {
+    fontSize: 20,
+    fontFamily: typography.h2.fontFamily,
+    color: '#0F172A',
+  },
+  miniAddonInterval: {
+    fontSize: 13,
+    color: '#64748B',
+    fontFamily: typography.regular?.fontFamily || typography.body?.fontFamily,
+  },
 });
 
 export default MyMembership;

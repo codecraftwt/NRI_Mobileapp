@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
@@ -21,7 +21,7 @@ import OnboardingWelcome from '../Screens/NRI/Auth/OnboardingWelcome';
 // Import Core Dashboard Screens
 import Dashboard from '../Screens/NRI/Dashboard';
 import MyAccount from '../Screens/NRI/MyAccount';
-import MyTickets from '../Screens/NRI/MyTickets';
+import Services from '../Screens/NRI/Services';
 import MyMembership from '../Screens/NRI/MyMembership';
 import MembershipCheckout from '../Screens/NRI/MembershipCheckout';
 import MembershipFeatures from '../Screens/NRI/MembershipFeatures';
@@ -56,6 +56,9 @@ import AddFamilyMember from '../Screens/NRI/AddFamilyMember';
 // Import Property Screens
 import AddProperty from '../Screens/NRI/AddProperty';
 import UploadDocument from '../Screens/NRI/UploadDocument';
+
+// Import Requests Screen
+import Requests from '../Screens/NRI/Requests';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -95,24 +98,25 @@ function DashboardStack() {
   );
 }
 
-// Stack for My Tickets
-function MyTicketsStack() {
+// Stack for Services Tab
+function MainServicesStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MyTicketsMain" component={MyTickets} />
+      <Stack.Screen name="ServicesMain" component={Services} />
+      <Stack.Screen name="ServiceDetail" component={ServiceDetail} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }
 
-// Stack for Family
-function FamilyStack() {
+// Stack for Requests
+function RequestsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="FamilyMain" component={Family} />
-      <Stack.Screen name="AddFamilyMember" component={AddFamilyMember} />
-      <Stack.Screen name="Customer" component={Customer} />
+      <Stack.Screen name="RequestsMain" component={Requests} />
+      <Stack.Screen name="CreateTicket" component={CreateTicket} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -124,20 +128,36 @@ function MyMembershipStack() {
       <Stack.Screen name="MyMembershipMain" component={MyMembership} />
       <Stack.Screen name="MembershipFeatures" component={MembershipFeatures} />
       <Stack.Screen name="MembershipCheckout" component={MembershipCheckout} />
+      <Stack.Screen name="Add-on Packages" component={AddonPackages} />
     </Stack.Navigator>
   );
 }
+
+import ProfileSettings from '../Screens/NRI/ProfileSettings';
 
 // Stack for Profile
 function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={Profile} />
+      <Stack.Screen name="ProfileSettings" component={ProfileSettings} />
       <Stack.Screen name="ProfilePersonal" component={ProfilePersonal} />
       <Stack.Screen name="ProfileAddress" component={ProfileAddress} />
       <Stack.Screen name="ProfileNri" component={ProfileNri} />
       <Stack.Screen name="ProfilePassword" component={ProfilePassword} />
+      <Stack.Screen name="FamilyMain" component={Family} />
+      <Stack.Screen name="AddFamilyMember" component={AddFamilyMember} />
+      <Stack.Screen name="Customer" component={Customer} />
     </Stack.Navigator>
+  );
+}
+
+function CustomTabLabel({ label, focused, color }) {
+  return (
+    <View style={{ alignItems: 'center', paddingBottom: 4 }}>
+      <Text style={[styles.tabLabel, { color, paddingBottom: 0 }]}>{label}</Text>
+      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: focused ? color : 'transparent', marginTop: 2 }} />
+    </View>
   );
 }
 
@@ -148,9 +168,8 @@ function MainTabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: '#A64416', // Chocolate color
         tabBarInactiveTintColor: '#94A3B8',
-        tabBarLabelStyle: styles.tabLabel,
       }}
     >
       <Tab.Screen
@@ -166,39 +185,38 @@ function MainTabNavigator() {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'DashboardMain';
           return {
             tabBarIcon: ({ color, size }) => (
-              <Icon name="dashboard" size={size} color={color} />
+              <Icon name="home" size={size} color={color} />
             ),
+            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Home" focused={focused} color={color} />,
             tabBarStyle: focusedRouteName === 'DashboardMain' ? styles.tabBar : { display: 'none' },
           };
         }}
       />
       <Tab.Screen
-        name="My Tickets"
-        component={MyTicketsStack}
+        name="Services"
+        component={MainServicesStack}
         options={({ route }) => {
-          // Same rule as the Dashboard tab: tab bar shows only on this
-          // stack's own landing screen, hidden on CreateTicket/TicketDetail.
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyTicketsMain';
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'ServicesMain';
           return {
             tabBarIcon: ({ color, size }) => (
-              <Icon name="assignment" size={size} color={color} />
+              <Icon name="grid-view" size={size} color={color} />
             ),
-            tabBarStyle: focusedRouteName === 'MyTicketsMain' ? styles.tabBar : { display: 'none' },
+            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Services" focused={focused} color={color} />,
+            tabBarStyle: focusedRouteName === 'ServicesMain' ? styles.tabBar : { display: 'none' },
           };
         }}
       />
       <Tab.Screen
-        name="Family"
-        component={FamilyStack}
+        name="Requests"
+        component={RequestsStack}
         options={({ route }) => {
-          // Same rule as the Dashboard/My Tickets tabs: tab bar shows only
-          // on this stack's own landing screen, hidden on AddFamilyMember.
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'FamilyMain';
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'RequestsMain';
           return {
             tabBarIcon: ({ color, size }) => (
-              <Icon name="people" size={size} color={color} />
+              <Icon name="assignment" size={size} color={color} />
             ),
-            tabBarStyle: focusedRouteName === 'FamilyMain' ? styles.tabBar : { display: 'none' },
+            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Requests" focused={focused} color={color} />,
+            tabBarStyle: focusedRouteName === 'RequestsMain' ? styles.tabBar : { display: 'none' },
           };
         }}
       />
@@ -209,8 +227,9 @@ function MainTabNavigator() {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyMembershipMain';
           return {
             tabBarIcon: ({ color, size }) => (
-              <Icon name="card-membership" size={size} color={color} />
+              <Icon name="shield" size={size} color={color} />
             ),
+            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Plans" focused={focused} color={color} />,
             tabBarStyle: focusedRouteName === 'MyMembershipMain' ? styles.tabBar : { display: 'none' },
           };
         }}
@@ -222,8 +241,9 @@ function MainTabNavigator() {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'ProfileMain';
           return {
             tabBarIcon: ({ color, size }) => (
-              <Icon name="person" size={size} color={color} />
+              <Icon name="person-outline" size={size} color={color} />
             ),
+            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Profile" focused={focused} color={color} />,
             tabBarStyle: focusedRouteName === 'ProfileMain' ? styles.tabBar : { display: 'none' },
           };
         }}

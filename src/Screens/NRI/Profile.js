@@ -9,10 +9,13 @@ import { typography } from '../../theme/typography';
 import { updateProfile, logoutUser } from '../../Redux/slices/userSlice';
 
 const MENU_ITEMS = [
-  { key: 'personal', label: 'Personal Info', icon: 'person-outline', route: 'ProfilePersonal' },
-  { key: 'address', label: 'Address', icon: 'place', route: 'ProfileAddress' },
-  { key: 'nri', label: 'NRI & Membership', icon: 'card-membership', route: 'ProfileNri' },
-  { key: 'password', label: 'Password', icon: 'lock-outline', route: 'ProfilePassword' },
+  { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
+  { key: 'family', label: 'Family', subtitle: 'Manage your family members', icon: 'people-outline', route: 'FamilyMain' },
+  { key: 'props', label: 'My Properties', subtitle: 'Manage your registered properties', icon: 'business', route: 'Properties' },
+  { key: 'vault', label: 'Document Vault', subtitle: 'Securely store important documents', icon: 'folder-shared', route: 'Document Vault' },
+  { key: 'billing', label: 'Billing & Invoices', subtitle: 'View invoices and manage payments', icon: 'receipt-long', route: 'Billing & Payments' },
+  { key: 'reports', label: 'Reports', subtitle: 'Check annual and health reports', icon: 'bar-chart', route: 'Reports & Media' },
+  { key: 'wallet', label: 'Wallet', subtitle: 'Wallet balance and coupons', icon: 'account-balance-wallet', route: 'Wallet & Coupons' },
 ];
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -125,16 +128,17 @@ function Profile({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Dynamic Geometric Background Layering matching Auth screens */}
-      <View style={styles.bgShape1} />
-      <View style={styles.bgShape2} />
-      <View style={styles.bgShape3} />
+      {/* Top Blue Header */}
+      <View style={styles.topBlueBg}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <Text style={styles.screenTitle}>My Profile</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('ProfileSettings')} style={{ padding: 8 }}>
+            <Icon name="settings" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
 
-      <Header navigation={navigation} title="My Profile" />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={{ flex: 1, gap: 16 }}>
-          <View style={styles.profileCard}>
-            <View style={styles.avatarContainer}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               {user?.avatarUri ? (
                 <Image source={{ uri: user.avatarUri }} style={styles.avatarImage} />
@@ -143,17 +147,35 @@ function Profile({ navigation }) {
               )}
             </View>
             <TouchableOpacity style={styles.editAvatarBtn} onPress={handleUploadPhoto} activeOpacity={0.8}>
-              <Icon name="photo-camera" size={14} color={colors.onPrimary} />
+              <Icon name="photo-camera" size={12} color="#1E3A8A" />
             </TouchableOpacity>
           </View>
+
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>{name || 'Customer'}</Text>
-            <Text style={styles.profileEmail}>{user?.email}</Text>
-            <View style={styles.roleBadge}>
-              <View style={styles.roleDot} />
-              <Text style={styles.roleBadgeText}>{user?.role || 'Customer'}</Text>
-            </View>
+            <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
+            <Text style={styles.profilePhone}>{user?.phone || '+1-647-555-0192 (Canada)'}</Text>
           </View>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Referral Code Card */}
+        <View style={styles.referralCard}>
+          <View style={styles.referralHeader}>
+            <Text style={styles.referralTitle}>Referral Code</Text>
+            <Text style={styles.referralEarned}>₹2,500 earned</Text>
+          </View>
+          
+          <View style={styles.referralCodeBox}>
+            <Text style={styles.referralCodeText}>REF-ARJUN-047</Text>
+            <TouchableOpacity>
+              <Text style={styles.copyText}>Copy</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={styles.referralFooter}>Share & earn ₹2,500 per referral (Premium plan)</Text>
         </View>
 
         <View style={styles.menuCard}>
@@ -161,23 +183,31 @@ function Profile({ navigation }) {
             <TouchableOpacity
               key={item.key}
               style={[styles.menuItem, index === MENU_ITEMS.length - 1 && styles.menuItemLast]}
-              onPress={() => navigation.navigate(item.route)}
+              onPress={() => {
+                const exploreRoutes = ['Properties', 'Document Vault', 'Billing & Payments', 'Reports & Media', 'Wallet & Coupons'];
+                if (exploreRoutes.includes(item.route)) {
+                  navigation.navigate('Dashboard', { screen: item.route });
+                } else {
+                  navigation.navigate(item.route);
+                }
+              }}
             >
               <View style={styles.menuItemLeft}>
                 <View style={styles.menuIconBox}>
-                  <Icon name={item.icon} size={20} color={colors.accent} />
+                  <Icon name={item.icon} size={20} color="#1E3A8A" />
                 </View>
-                <Text style={styles.menuLabel}>{item.label}</Text>
+                <View>
+                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  {!!item.subtitle && <Text style={styles.menuSubtitle}>{item.subtitle}</Text>}
+                </View>
               </View>
-              <Icon name="chevron-right" size={24} color={colors.textPlaceholder} />
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
           ))}
-          </View>
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
-          <Icon name="logout" size={20} color={colors.error} />
-          <Text style={styles.logoutBtnText}>Logout from App</Text>
+          <Text style={styles.logoutBtnText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -208,32 +238,116 @@ function Profile({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
-  // Dynamic Background Layers matching Auth screen
-  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: colors.primaryLight + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
-  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: colors.accent + '08', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
-  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: colors.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
-  scrollContent: { flexGrow: 1, padding: 16, paddingBottom: 40, gap: 16 },
-  profileCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  container: { flex: 1, backgroundColor: '#20304C' }, // Base is dark blue for top, ScrollView is white/cream
+  
+  topBlueBg: {
+    backgroundColor: '#20304C',
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  screenTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 24,
+  },
   avatarContainer: { position: 'relative' },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: '#F59E0B', // Yellow-orange from screenshot
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
   avatarImage: { width: '100%', height: '100%' },
-  avatarText: { ...typography.h2, color: colors.onPrimary },
-  editAvatarBtn: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accent, borderWidth: 2, borderColor: colors.surface, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 3 },
-  profileInfo: { flex: 1, alignItems: 'flex-start' },
-  profileName: { ...typography.h3, color: colors.textPrimary },
-  profileEmail: { ...typography.body, color: colors.textSecondary },
-  roleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surfaceSecondary, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8, alignSelf: 'flex-start' },
-  roleDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warning },
-  roleBadgeText: { ...typography.labelMedium, color: colors.textPrimary },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.errorBackground, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16, justifyContent: 'center' },
-  logoutBtnText: { ...typography.labelLarge, color: colors.error },
-  menuCard: { backgroundColor: colors.surface, borderRadius: 16, paddingVertical: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
+  avatarText: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  editAvatarBtn: { 
+    position: 'absolute', bottom: -4, right: -4, 
+    width: 24, height: 24, borderRadius: 12, 
+    backgroundColor: '#FFFFFF', 
+    justifyContent: 'center', alignItems: 'center', 
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 
+  },
+  profileInfo: { flex: 1 },
+  profileName: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginBottom: 2 },
+  profileEmail: { fontSize: 13, color: '#93C5FD', marginBottom: 2 }, // Light blue text
+  profilePhone: { fontSize: 13, color: '#93C5FD' },
+
+  scrollContent: { 
+    backgroundColor: '#FDFBF7', 
+    paddingTop: 24, 
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    minHeight: H * 0.7,
+  },
+
+  referralCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  referralHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  referralTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  referralEarned: { fontSize: 14, fontWeight: '500', color: '#D94625' },
+  referralCodeBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  referralCodeText: { fontSize: 16, fontWeight: '600', color: '#1E293B', letterSpacing: 2 },
+  copyText: { fontSize: 14, fontWeight: '600', color: '#D94625' },
+  referralFooter: { fontSize: 13, color: '#64748B' },
+
+  menuCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 8,
+    marginBottom: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   menuItemLast: { borderBottomWidth: 0 },
-  menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  menuIconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent + '15', justifyContent: 'center', alignItems: 'center' },
-  menuLabel: { ...typography.labelLarge, color: colors.textPrimary },
+  menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  menuIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
+  menuLabel: { fontSize: 16, fontWeight: '600', color: '#0F172A', marginBottom: 2 },
+  menuSubtitle: { fontSize: 13, color: '#64748B' },
+
+  logoutBtn: { 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F97316',
+    backgroundColor: '#FFFFFF',
+  },
+  logoutBtnText: { fontSize: 16, fontWeight: '700', color: '#F97316' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, paddingTop: 12 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
@@ -30,12 +30,17 @@ function MembershipFeatures({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title={`${planName || 'Plan'} Features`} showBack />
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back" size={24} color="#0F172A" />
+        </TouchableOpacity>
+        <Text style={styles.topTitle}>{planName || 'Plan'} Features</Text>
+      </View>
       
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.headerBox}>
           <Text style={styles.headerTitle}>
-            What's included in <Text style={{ color: colors.primary }}>{planName || 'Plan'}</Text>?
+            What's included in <Text style={{ color: '#A64416' }}>{planName || 'Plan'}</Text>?
           </Text>
           <Text style={styles.headerSubtitle}>Here is everything you get with your active membership plan.</Text>
         </View>
@@ -46,7 +51,7 @@ function MembershipFeatures({ navigation, route }) {
             return (
               <View key={feature.id ?? idx} style={styles.featureCard}>
                 <View style={styles.iconBox}>
-                  <Icon name={iconName} size={22} color={colors.primary} />
+                  <Icon name={iconName} size={22} color="#F97316" />
                 </View>
                 <View style={styles.featureTextCol}>
                   <Text style={styles.featureName}>{feature.name}</Text>
@@ -62,21 +67,50 @@ function MembershipFeatures({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 12,
+    backgroundColor: '#FDFBF7',
+    gap: 16,
+  },
+  topTitle: {
+    fontSize: 20,
+    fontFamily: typography.h2.fontFamily,
+    color: '#0F172A',
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  scrollContent: { padding: 24, paddingBottom: 40 },
   
   headerBox: {
     marginBottom: 28,
-    paddingHorizontal: 4,
   },
   headerTitle: {
-    ...typography.h2,
-    color: colors.textPrimary,
+    fontSize: 28,
+    fontFamily: typography.h2.fontFamily,
+    color: '#0F172A',
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
+    fontSize: 15,
+    fontFamily: typography.body.fontFamily || typography.regular?.fontFamily,
+    color: '#64748B',
     lineHeight: 22,
   },
 
@@ -86,39 +120,37 @@ const styles = StyleSheet.create({
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   iconBox: {
     width: 52,
     height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.surfaceMuted,
+    borderRadius: 16,
+    backgroundColor: '#FFF7ED',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   featureTextCol: {
     flex: 1,
   },
   featureName: {
-    ...typography.labelMedium,
-    color: colors.textSecondary,
+    fontSize: 14,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#64748B',
     marginBottom: 4,
   },
   featureValue: {
-    ...typography.labelLarge,
-    color: colors.textPrimary,
+    fontSize: 16,
+    fontFamily: typography.labelLarge.fontFamily || typography.h4.fontFamily,
+    color: '#0F172A',
   },
 });
 

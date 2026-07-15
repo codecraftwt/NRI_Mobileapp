@@ -5,17 +5,17 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
 import { useReports } from '../../Hooks/useReports';
-import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 function getStatusColor(statusLabel) {
-  switch (statusLabel) {
-    case 'New': return { bg: colors.badgeBackground, text: colors.primary };
-    case 'Assigned': return { bg: colors.warningBackground, text: colors.warning };
-    case 'In Progress': return { bg: colors.successBackground, text: colors.success };
-    case 'Completed': return { bg: colors.primaryLight + '30', text: colors.primaryDark };
-    case 'Cancelled': return { bg: colors.errorBackground, text: colors.error };
-    default: return { bg: colors.surfaceSecondary, text: colors.textSecondary };
+  switch (statusLabel?.toUpperCase()) {
+    case 'NEW': return { bg: '#E0F2FE', text: '#0284C7' };
+    case 'ASSIGNED': return { bg: '#FEF9C3', text: '#CA8A04' };
+    case 'IN PROGRESS': 
+    case 'IN_PROGRESS': return { bg: '#DCFCE7', text: '#16A34A' };
+    case 'COMPLETED': return { bg: '#E0F2FE', text: '#0284C7' };
+    case 'CANCELLED': return { bg: '#FEE2E2', text: '#DC2626' };
+    default: return { bg: '#F1F5F9', text: '#475569' };
   }
 }
 
@@ -40,14 +40,6 @@ function isOverdue(dateStr) {
 function TicketDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
   const { detail: ticket, loading, failed, retry, rate, rateLoading } = useTicketDetail(ticketId);
-
-  // Visit reports are their own resource (GET /customer/reports), not
-  // embedded in the ticket detail payload — the ticket detail endpoint never
-  // returns a `report` object, only a `has_report` boolean on the list item.
-  // Each report carries a `ticket_id`, so match it client-side. The reports
-  // endpoint only supports a `page` param (no ticket_id filter), so a report
-  // sitting past page 1 won't be found here — acceptable for now since
-  // reports are far less frequent than tickets.
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
   const report = reports.find(r => r.ticketId === ticket?.id) || null;
 
@@ -76,16 +68,9 @@ function TicketDetail({ route, navigation }) {
 
   const handleViewAttachment = (url) => {
     if (!url) return;
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Could Not Open', 'This attachment could not be opened.');
-    });
+    Linking.openURL(url).catch(() => Alert.alert('Could Not Open', 'This attachment could not be opened.'));
   };
 
-  // `retry` is a fresh function reference every render (not memoized by the
-  // hook) — keeping it out of the deps array avoids an infinite refetch loop
-  // (retry() causes a re-render, which would recreate the callback, which
-  // would re-trigger the effect). Only re-fire on an actual focus event or a
-  // genuine ticketId change.
   useFocusEffect(
     useCallback(() => {
       if (ticketId) retry();
@@ -97,9 +82,15 @@ function TicketDetail({ route, navigation }) {
   if (loading && !ticket) {
     return (
       <View style={styles.container}>
-        <Header navigation={navigation} title="Request" showBack />
+        <View style={styles.headerContainer}>
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
+          <View style={{ width: 44 }} />
+        </View>
         <View style={styles.emptyState}>
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator size="small" color="#D94625" />
           <Text style={styles.emptyText}>Loading request...</Text>
         </View>
       </View>
@@ -109,7 +100,13 @@ function TicketDetail({ route, navigation }) {
   if (failed) {
     return (
       <View style={styles.container}>
-        <Header navigation={navigation} title="Request" showBack />
+        <View style={styles.headerContainer}>
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
+          <View style={{ width: 44 }} />
+        </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Couldn't load this request.</Text>
           <TouchableOpacity style={styles.backLink} onPress={retry}>
@@ -123,11 +120,17 @@ function TicketDetail({ route, navigation }) {
   if (!ticket) {
     return (
       <View style={styles.container}>
-        <Header navigation={navigation} title="Request" showBack />
+        <View style={styles.headerContainer}>
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
+          <View style={{ width: 44 }} />
+        </View>
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Request not found.</Text>
           <TouchableOpacity style={styles.backLink} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={16} color={colors.primary} />
+            <Icon name="arrow-back" size={16} color="#3B82F6" />
             <Text style={styles.backLinkText}>Back to My Requests</Text>
           </TouchableOpacity>
         </View>
@@ -137,24 +140,26 @@ function TicketDetail({ route, navigation }) {
 
   const statusStyle = getStatusColor(ticket.statusLabel);
   const overdue = isOverdue(ticket.slaDeadline);
-  const locationLine = ticket.location
-    ? [ticket.location.taluka, ticket.location.city, ticket.location.state].filter(Boolean).join(', ')
-    : '';
-  const timeline = ticket.timeline.length
-    ? ticket.timeline
-    : [{ to: ticket.status, at: ticket.createdAt, note: 'Ticket created' }];
+  const locationLine = ticket.location ? [ticket.location.taluka, ticket.location.city, ticket.location.state].filter(Boolean).join(', ') : '';
+  const timeline = ticket.timeline.length ? ticket.timeline : [{ to: ticket.status, at: ticket.createdAt, note: 'Ticket created' }];
   const addonsTotal = ticket.addons.reduce((sum, a) => sum + Number(a.customerPrice || 0), 0);
   const baseAmount = Math.max(0, Number(ticket.pricing?.customerPrice || 0) - addonsTotal);
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title={ticket.ticketNumber} showBack />
+      <View style={styles.headerContainer}>
+        <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{ticket.ticketNumber}</Text>
+        <View style={{ width: 44 }} />
+      </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
-        <View style={styles.section}>
+        <View style={styles.card}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
@@ -220,7 +225,7 @@ function TicketDetail({ route, navigation }) {
         </View>
 
         {!!ticket.pricing && (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <Text style={styles.sectionTitle}>Charges Breakdown</Text>
             <View style={styles.chargesList}>
               <View style={styles.chargeRow}>
@@ -253,34 +258,36 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        <View style={styles.section}>
+        <View style={styles.card}>
           <Text style={styles.sectionTitle}>Request Timeline</Text>
-          {timeline.map((event, idx) => {
-            const eventStatusStyle = getStatusColor(event.to === 'new' ? 'New' : event.to === 'assigned' ? 'Assigned' : event.to === 'in_progress' ? 'In Progress' : event.to === 'completed' ? 'Completed' : event.to === 'cancelled' ? 'Cancelled' : event.to);
-            const isLast = idx === timeline.length - 1;
-            return (
-              <View key={idx} style={styles.timelineRow}>
-                <View style={styles.timelineDotCol}>
-                  <View style={[styles.timelineDot, isLast && styles.timelineDotActive]} />
-                  {!isLast && <View style={styles.timelineLine} />}
-                </View>
-                <View style={styles.timelineContent}>
-                  <View style={[styles.badge, styles.timelineBadge, { backgroundColor: eventStatusStyle.bg }]}>
-                    <Text style={[styles.badgeText, { color: eventStatusStyle.text }]}>{event.to || 'Update'}</Text>
+          <View style={styles.timelineWrapper}>
+            {timeline.map((event, idx) => {
+              const eventStatusStyle = getStatusColor(event.to);
+              const isLast = idx === timeline.length - 1;
+              return (
+                <View key={idx} style={styles.timelineRow}>
+                  <View style={styles.timelineDotCol}>
+                    <View style={[styles.timelineDot, isLast && styles.timelineDotActive]} />
+                    {!isLast && <View style={styles.timelineLine} />}
                   </View>
-                  <Text style={styles.timelineDate}>{formatDateTime(event.at)}</Text>
-                  {!!event.note && <Text style={styles.timelineDesc}>{event.note}</Text>}
+                  <View style={styles.timelineContent}>
+                    <View style={[styles.badge, styles.timelineBadge, { backgroundColor: eventStatusStyle.bg }]}>
+                      <Text style={[styles.badgeText, { color: eventStatusStyle.text }]}>{event.to?.toUpperCase() || 'UPDATE'}</Text>
+                    </View>
+                    <Text style={styles.timelineDate}>{formatDateTime(event.at)}</Text>
+                    {!!event.note && <Text style={styles.timelineDesc}>{event.note}</Text>}
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
 
         {(ticket.status === 'completed' || !!report || reportsFailed) && (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <View style={styles.reportHeaderRow}>
               <View style={styles.reportTitleWrap}>
-                <Icon name="description" size={18} color={colors.success} />
+                <Icon name="description" size={20} color="#10B981" />
                 <Text style={styles.sectionTitle}>Service Report</Text>
               </View>
               {!!report?.status && (
@@ -291,8 +298,8 @@ function TicketDetail({ route, navigation }) {
             </View>
             {reportsFailed ? (
               <TouchableOpacity style={styles.backLink} onPress={retryReports}>
-                <Icon name="refresh" size={16} color={colors.error} />
-                <Text style={[styles.backLinkText, { color: colors.error }]}>Couldn't load the report. Tap to retry.</Text>
+                <Icon name="refresh" size={16} color="#DC2626" />
+                <Text style={[styles.backLinkText, { color: '#DC2626' }]}>Couldn't load the report. Tap to retry.</Text>
               </TouchableOpacity>
             ) : report ? (
               <>
@@ -306,7 +313,7 @@ function TicketDetail({ route, navigation }) {
                   <View style={styles.attachmentRow}>
                     {report.media.map((m, idx) => (
                       <TouchableOpacity key={m.url ?? idx} style={styles.attachmentPill} onPress={() => handleViewAttachment(m.url)}>
-                        <Icon name="attach-file" size={14} color={colors.primary} />
+                        <Icon name="attach-file" size={14} color="#3B82F6" />
                         <Text style={styles.attachmentPillText}>{report.media.length > 1 ? `View Attachment ${idx + 1}` : 'View Attachment'}</Text>
                       </TouchableOpacity>
                     ))}
@@ -315,7 +322,7 @@ function TicketDetail({ route, navigation }) {
               </>
             ) : reportsLoading ? (
               <View style={styles.reportLoadingRow}>
-                <ActivityIndicator size="small" color={colors.primary} />
+                <ActivityIndicator size="small" color="#D94625" />
                 <Text style={styles.subValue}>Checking for your service report...</Text>
               </View>
             ) : (
@@ -325,9 +332,9 @@ function TicketDetail({ route, navigation }) {
         )}
 
         {ticket.status === 'completed' && (
-          <View style={styles.section}>
+          <View style={styles.card}>
             <View style={styles.reportTitleWrap}>
-              <Icon name="star" size={18} color="#F59E0B" />
+              <Icon name="star" size={20} color="#F59E0B" />
               <Text style={styles.sectionTitle}>Rate this Service</Text>
             </View>
 
@@ -354,14 +361,14 @@ function TicketDetail({ route, navigation }) {
                 <TextInput
                   style={styles.feedbackInput}
                   placeholder="Any feedback? (optional)"
-                  placeholderTextColor={colors.textSecondary}
+                  placeholderTextColor="#94A3B8"
                   multiline
                   numberOfLines={3}
                   value={feedbackNote}
                   onChangeText={setFeedbackNote}
                 />
                 <TouchableOpacity style={[styles.submitRatingBtn, rateLoading && styles.submitRatingBtnDisabled]} onPress={handleSubmitRating} disabled={rateLoading}>
-                  {rateLoading ? <ActivityIndicator size="small" color={colors.surface} /> : <Text style={styles.submitRatingBtnText}>Submit Rating</Text>}
+                  {rateLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitRatingBtnText}>Submit Rating</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -373,111 +380,130 @@ function TicketDetail({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 16 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  headerContainer: {
+    backgroundColor: '#FDFBF7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerTitle: {
+    ...typography.sectionTitle,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1E293B',
+    flex: 1,
+    textAlign: 'center',
+  },
+  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 16, gap: 16 },
   
-  section: { 
-    backgroundColor: colors.surface,
+  card: { 
+    backgroundColor: '#FFFFFF',
     padding: 20, 
-    borderRadius: 16,
+    borderRadius: 20,
     gap: 16,
-    marginBottom: 16,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    borderWidth: 1, 
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 3,
   },
   
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   badgeRow: { flexDirection: 'row', gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  badgeNeutral: { backgroundColor: colors.surfaceSecondary },
+  badgeNeutral: { backgroundColor: '#F1F5F9' },
   badgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase' },
-  badgeTextNeutral: { color: colors.textSecondary },
+  badgeTextNeutral: { color: '#64748B' },
   
   submittedWrap: { alignItems: 'flex-end' },
-  hint: { ...typography.tiny, color: colors.textSecondary },
-  submittedDate: { ...typography.small, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily, marginTop: 2 },
+  hint: { ...typography.tiny, color: '#94A3B8' },
+  submittedDate: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 2 },
   
-  ticketId: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
+  ticketId: { ...typography.h2, color: '#0F172A' },
   
   infoGrid: { gap: 16, marginTop: 8 },
   infoBlock: { gap: 4 },
-  label: { ...typography.small, color: colors.textSecondary, fontFamily: typography.labelMedium.fontFamily },
-  value: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: colors.textPrimary },
-  subValue: { ...typography.small, color: colors.textSecondary },
+  label: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
+  value: { ...typography.h4, color: '#0F172A' },
+  subValue: { ...typography.small, color: '#64748B' },
   
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  overdueText: { color: colors.error },
+  overdueText: { color: '#DC2626' },
   overdueBadge: { backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  overdueBadgeText: { ...typography.tiny, color: colors.error, fontFamily: typography.labelMedium.fontFamily },
+  overdueBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
   
-  sectionTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: colors.textPrimary, marginBottom: 8 },
+  sectionTitle: { ...typography.sectionTitle, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 4 },
   
   chargesList: { gap: 0 },
-  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary, borderStyle: 'dashed' },
-  chargeLabel: { ...typography.small, color: colors.textSecondary, flex: 1, paddingRight: 8 },
-  chargeValue: { fontSize: 14, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
-  discountValue: { color: colors.success },
+  chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', borderStyle: 'dashed' },
+  chargeLabel: { ...typography.small, color: '#64748B', flex: 1, paddingRight: 8 },
+  chargeValue: { ...typography.body, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  discountValue: { color: '#10B981' },
   
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: colors.surfaceSecondary },
-  totalLabel: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: colors.textPrimary },
-  totalValue: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: colors.textPrimary },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: '#F1F5F9' },
+  totalLabel: { ...typography.h4, color: '#0F172A' },
+  totalValue: { ...typography.appTitle, color: '#0F172A' },
   
-  timelineRow: { flexDirection: 'row', gap: 16 },
-  timelineDotCol: { alignItems: 'center', width: 16 },
-  timelineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.border, marginTop: 4 },
-  timelineDotActive: { backgroundColor: colors.accent }, 
-  timelineLine: { flex: 1, width: 2, backgroundColor: colors.surfaceSecondary, marginTop: 4, marginBottom: -4 },
-  timelineContent: { flex: 1, paddingBottom: 24, gap: 4 },
+  timelineWrapper: { marginTop: 8, paddingLeft: 8 },
+  timelineRow: { flexDirection: 'row', gap: 20 },
+  timelineDotCol: { alignItems: 'center', width: 12 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E2E8F0', marginTop: 8 },
+  timelineDotActive: { backgroundColor: '#D94625', width: 12, height: 12, borderRadius: 6, marginTop: 7 }, 
+  timelineLine: { flex: 1, width: 2, backgroundColor: '#F1F5F9', marginTop: 4, marginBottom: -4 },
+  timelineContent: { flex: 1, paddingBottom: 28, gap: 6 },
   timelineBadge: { alignSelf: 'flex-start' },
-  timelineDate: { ...typography.small, color: colors.textSecondary },
-  timelineDesc: { ...typography.body, color: colors.textPrimary },
-  
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 20,
-    paddingHorizontal: 24,
-  },
-  backBtnText: { ...typography.labelLarge, color: colors.surface },
+  timelineDate: { ...typography.small, color: '#94A3B8' },
+  timelineDesc: { ...typography.body, color: '#334155' },
   
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyText: { ...typography.body, color: colors.textSecondary },
+  emptyText: { ...typography.body, color: '#64748B' },
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backLinkText: { ...typography.labelMedium, color: colors.primary },
+  backLinkText: { ...typography.labelMedium, color: '#3B82F6' },
 
   reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reportTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  reportStatusBadge: { backgroundColor: colors.successBackground, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  reportStatusText: { ...typography.tiny, color: colors.success, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
-  reportNote: { fontSize: 15, color: colors.textPrimary },
+  reportTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  reportStatusBadge: { backgroundColor: '#D1FAE5', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  reportStatusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#059669', textTransform: 'capitalize' },
+  reportNote: { ...typography.body, color: '#0F172A' },
   reportLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.badgeBackground, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  attachmentPillText: { fontSize: 13, color: colors.primary, fontFamily: typography.labelMedium.fontFamily, textDecorationLine: 'underline' },
+  attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
+  attachmentPillText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#3B82F6', textDecorationLine: 'underline' },
 
-  starRow: { flexDirection: 'row', gap: 8 },
+  starRow: { flexDirection: 'row', gap: 8, marginVertical: 4 },
   feedbackInput: {
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.textPrimary,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    ...typography.body,
+    color: '#0F172A',
     textAlignVertical: 'top',
-    minHeight: 70,
+    minHeight: 80,
+    backgroundColor: '#F8FAFC'
   },
-  submitRatingBtn: { backgroundColor: '#FF7C1A', borderRadius: 25, paddingVertical: 14, alignItems: 'center' },
+  submitRatingBtn: { backgroundColor: '#D94625', borderRadius: 24, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   submitRatingBtnDisabled: { opacity: 0.7 },
-  submitRatingBtnText: { color: colors.surface, fontSize: 15, fontFamily: typography.labelLarge.fontFamily },
+  submitRatingBtnText: { ...typography.labelLarge, color: '#FFFFFF' },
 });
 
 export default TicketDetail;

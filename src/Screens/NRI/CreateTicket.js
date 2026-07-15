@@ -95,10 +95,10 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
   );
 }
 
-function CreateTicket({ navigation }) {
-  const [serviceCategory, setServiceCategory] = useState('');
-  const [selectedBaseServiceId, setSelectedBaseServiceId] = useState(null);
-  const [selectedAddonIds, setSelectedAddonIds] = useState([]);
+function CreateTicket({ route, navigation }) {
+  const [serviceCategory, setServiceCategory] = useState(route.params?.initialCategory || '');
+  const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState(route.params?.initialBaseServiceIds || []);
+  const [selectedAddonIds, setSelectedAddonIds] = useState(route.params?.initialAddons || []);
   const [priority, setPriority] = useState('Standard');
   const [familyMember, setFamilyMember] = useState(NO_FAMILY_MEMBER);
   const [property, setProperty] = useState(NO_PROPERTY);
@@ -162,7 +162,8 @@ function CreateTicket({ navigation }) {
   const talukaId = taluka ? talukas.find(t => t.name === taluka)?.id : null;
   const familyMemberId = familyMember !== NO_FAMILY_MEMBER ? familyMembers.find(m => m.name === familyMember)?.id : null;
   const propertyId = property !== NO_PROPERTY ? properties.find(p => p.nickname === property)?.id : null;
-  const selectedService = baseServices.find(s => s.id === selectedBaseServiceId) || null;
+  const primaryBaseServiceId = selectedBaseServiceIds[0] || null;
+  const selectedService = baseServices.find(s => s.id === primaryBaseServiceId) || null;
 
   // The backend's usage endpoint always returns null for requests_limit/
   // visits_limit — the actual per-plan entitlement lives on the active
@@ -176,12 +177,7 @@ function CreateTicket({ navigation }) {
   // (per the backend: "Standard ... request — included in your membership.
   // Add specific services as needed.") — it isn't meant to be a manual pick,
   // so default to the first one as soon as the category's list loads. The
-  // user can still tap a different card when a category offers more than one.
-  useEffect(() => {
-    if (!selectedBaseServiceId && baseServices.length > 0) {
-      setSelectedBaseServiceId(baseServices[0].id);
-    }
-  }, [baseServices, selectedBaseServiceId]);
+
 
   // Reset an Emergency selection that's no longer valid for the chosen service.
   useEffect(() => {
@@ -195,22 +191,23 @@ function CreateTicket({ navigation }) {
     : PRIORITY_OPTIONS;
 
   const addonIdsKey = selectedAddonIds.join(',');
+  const baseServiceIdsKey = selectedBaseServiceIds.join(',');
 
   // Re-quote from the server any time the booking selection changes —
   // pricing (plan overage, express surcharge, coupon discount) is computed
   // server-side, not re-derived here.
   useEffect(() => {
-    if (!selectedBaseServiceId || !stateId) return;
+    if (selectedBaseServiceIds.length === 0 || !stateId) return;
     fetchQuote({
-      serviceId: selectedBaseServiceId,
-      extraServices: [],
+      serviceId: selectedBaseServiceIds[0],
+      extraServices: selectedBaseServiceIds.slice(1),
       addons: selectedAddonIds,
       stateId,
       urgency: PRIORITY_TO_URGENCY[priority],
       couponCode: appliedCoupon?.code,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBaseServiceId, addonIdsKey, stateId, priority, appliedCoupon?.code]);
+  }, [baseServiceIdsKey, addonIdsKey, stateId, priority, appliedCoupon?.code]);
 
   // The server quote needs a state (the API 422s without state_id), which
   // sits further down the form than the add-on checkboxes. So the panel
@@ -220,18 +217,19 @@ function CreateTicket({ navigation }) {
   // takes over as soon as it's available.
   const selectedAddonServices = addonServices.filter(s => selectedAddonIds.includes(s.id));
   const localAddonsSubtotal = selectedAddonServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
-  const localBasePrice = selectedService?.pricing?.customerPrice || 0;
+  const selectedBaseServicesList = baseServices.filter(s => selectedBaseServiceIds.includes(s.id));
+  const localBasePrice = selectedBaseServicesList.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
   const localTotal = localBasePrice + localAddonsSubtotal;
 
   const formattedDate = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const isValid = serviceCategory && selectedBaseServiceId && state && city && fullAddress.trim().length > 0;
+  const isValid = serviceCategory && selectedBaseServiceIds.length > 0 && state && city && fullAddress.trim().length > 0;
 
   const handleSelectCategory = (v) => {
     setServiceCategory(v);
-    setSelectedBaseServiceId(null);
+    setSelectedBaseServiceIds([]);
     setSelectedAddonIds([]);
     setCouponCode('');
     clearCoupon();
@@ -410,8 +408,8 @@ function CreateTicket({ navigation }) {
     if (!isValid) return;
     try {
       const result = await submitTicket({
-        serviceId: selectedBaseServiceId,
-        extraServices: [],
+        serviceId: selectedBaseServiceIds[0],
+        extraServices: selectedBaseServiceIds.slice(1),
         addons: selectedAddonIds,
         couponCode: appliedCoupon?.code,
         familyMemberId,
@@ -448,11 +446,17 @@ function CreateTicket({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} title="Submit a Service Request" showBack />
+      <View style={styles.headerContainer}>
+        <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>Submit a Service Request</Text>
+        <View style={{ width: 44 }} />
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {membership && usage && (
           <View style={styles.usageBanner}>
-            <Icon name="info-outline" size={16} color="#3298D4" />
+            <Icon name="info-outline" size={16} color="#6D28D9" style={{ marginTop: 2 }} />
             <Text style={styles.usageBannerText}>
               You have used <Text style={styles.bold}>{usage.requestsUsed ?? 0}{serviceRequestsLimit != null ? ` of ${serviceRequestsLimit}` : ''}</Text> service requests included in your {membership.planName} plan this month.
               {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
@@ -470,6 +474,7 @@ function CreateTicket({ navigation }) {
             options={categoryNames}
             loading={loadingCategories}
             onSelect={handleSelectCategory}
+            disabled={!!route.params?.initialCategory}
           />
           {categoriesFailed && (
             <TouchableOpacity onPress={retryCategories}>
@@ -498,29 +503,26 @@ function CreateTicket({ navigation }) {
                 <Text style={styles.hint}>Loading services…</Text>
               </View>
             ) : (
-              <View style={{ gap: 8 }}>
-                {baseServices.map(s => {
+              <View style={{ gap: 12 }}>
+                {baseServices.filter(s => selectedBaseServiceIds.includes(s.id)).map(s => {
                   const included = !s.pricing || s.pricing.customerPrice === 0;
-                  const isSelected = selectedBaseServiceId === s.id;
                   return (
-                    <TouchableOpacity
+                    <View
                       key={s.id}
-                      style={[styles.serviceRow, isSelected && styles.serviceRowSelected]}
-                      onPress={() => setSelectedBaseServiceId(s.id)}
-                      activeOpacity={0.7}
+                      style={[styles.baseServiceCard, styles.baseServiceCardSelected]}
                     >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.serviceName}>{s.name}</Text>
-                        {!!s.pricing?.turnaroundLabel && <Text style={styles.serviceSub}>{s.pricing.turnaroundLabel}</Text>}
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text style={styles.baseServiceName}>{s.name}</Text>
+                        {!!s.pricing?.turnaroundLabel && <Text style={styles.baseServiceSub}>{s.pricing.turnaroundLabel}</Text>}
                       </View>
                       {included ? (
                         <View style={styles.includedPill}>
                           <Text style={styles.includedPillText}>Included</Text>
                         </View>
                       ) : (
-                        <Text style={styles.servicePrice}>{s.pricing.displayPrice}</Text>
+                        <Text style={styles.baseServicePrice}>{s.pricing.displayPrice}</Text>
                       )}
-                    </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
@@ -532,33 +534,31 @@ function CreateTicket({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {serviceCategory && (
+          {serviceCategory && selectedAddonIds.length > 0 && (
             <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Optional Add-ons</Text>
+              <Text style={styles.label}>Selected Add-ons</Text>
               {loadingAddonServices ? (
                 <View style={styles.inlineLoading}>
                   <ActivityIndicator size="small" color="#3298D4" />
                   <Text style={styles.hint}>Loading add-ons…</Text>
                 </View>
-              ) : addonServices.length === 0 ? (
-                <Text style={styles.hint}>No add-ons available for this category.</Text>
               ) : (
-                <View style={{ gap: 8 }}>
-                  {addonServices.map(s => {
-                    const isChecked = selectedAddonIds.includes(s.id);
+                <View style={{ gap: 12 }}>
+                  {addonServices.filter(s => selectedAddonIds.includes(s.id)).map(s => {
                     return (
-                      <TouchableOpacity
+                      <View
                         key={s.id}
-                        style={[styles.addonRow, isChecked && styles.addonRowSelected]}
-                        onPress={() => toggleAddon(s.id)}
-                        activeOpacity={0.7}
+                        style={[styles.addonCard, styles.addonCardSelected]}
                       >
-                        <View style={[styles.addonCheckbox, isChecked && styles.addonCheckboxChecked]}>
-                          {isChecked && <Icon name="check" size={13} color="white" />}
+                        <View style={[styles.addonCheckboxSquare, styles.addonCheckboxSquareChecked]}>
+                          <Icon name="check" size={14} color="white" />
                         </View>
-                        <Text style={styles.addonName} numberOfLines={2}>{s.name}</Text>
-                        <Text style={styles.servicePrice}>{s.pricing?.displayPrice}</Text>
-                      </TouchableOpacity>
+                        <View style={{ flex: 1, paddingRight: 12 }}>
+                          <Text style={styles.addonCardName}>{s.name}</Text>
+                          {!!s.pricing?.turnaroundLabel && <Text style={styles.addonCardSub}>{s.pricing.turnaroundLabel}</Text>}
+                        </View>
+                        <Text style={styles.addonCardPrice}>{s.pricing?.displayPrice}</Text>
+                      </View>
                     );
                   })}
                 </View>
@@ -715,7 +715,7 @@ function CreateTicket({ navigation }) {
 
         <View style={styles.estimateCard}>
           <Text style={styles.sectionTitle}>Estimated Charges</Text>
-          {!selectedBaseServiceId ? (
+          {selectedBaseServiceIds.length === 0 ? (
             <Text style={styles.hint}>Choose a service to see pricing.</Text>
           ) : quote && stateId ? (
             <>
@@ -749,12 +749,12 @@ function CreateTicket({ navigation }) {
             </View>
           ) : selectedAddonServices.length > 0 || localBasePrice > 0 ? (
             <>
-              {localBasePrice > 0 && (
-                <View style={[styles.priceRow, styles.priceRowDashed]}>
-                  <Text style={styles.priceLabel} numberOfLines={1}>+ {selectedService.name}</Text>
-                  <Text style={styles.priceValue}>₹{localBasePrice.toLocaleString('en-IN')}</Text>
+              {selectedBaseServicesList.map(s => (
+                <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
+                  <Text style={styles.priceLabel} numberOfLines={1}>+ {s.name}</Text>
+                  <Text style={styles.priceValue}>₹{(s.pricing?.customerPrice || 0).toLocaleString('en-IN')}</Text>
                 </View>
-              )}
+              ))}
               {selectedAddonServices.map(s => (
                 <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
                   <Text style={styles.priceLabel} numberOfLines={1}>+ {s.name}</Text>
@@ -773,7 +773,7 @@ function CreateTicket({ navigation }) {
             <Text style={styles.hint}>Choose add-ons to see pricing.</Text>
           )}
 
-          {!!selectedBaseServiceId && (
+          {selectedBaseServiceIds.length > 0 && (
             <>
               <Text style={styles.couponLabel}>Have an add-on coupon?</Text>
               <View style={styles.couponRow}>
@@ -856,42 +856,77 @@ function CreateTicket({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 12 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  headerContainer: {
+    backgroundColor: '#FDFBF7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 16,
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1E293B',
+    flex: 1,
+    textAlign: 'center',
+  },
+  scrollContent: { paddingBottom: 60, paddingHorizontal: 20, paddingTop: 12 },
   usageBanner: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: '#E5F1FF',
-    borderRadius: 12,
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F3E8FF',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
   },
-  usageBannerText: { flex: 1, ...typography.small, color: '#3298D4', lineHeight: 20 },
-  bold: { fontFamily: typography.labelMedium.fontFamily },
-  sectionTitle: { ...typography.sectionTitle, color: colors.textPrimary, marginTop: 8, marginBottom: 12 },
+  usageBannerText: { flex: 1, fontSize: 13, color: '#6D28D9', lineHeight: 20 },
+  bold: { fontWeight: '700' },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 16, letterSpacing: -0.3 },
   card: { 
-    backgroundColor: colors.surface, 
-    padding: 20, 
-    borderRadius: 16, 
-    gap: 16, 
-    marginBottom: 24,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    backgroundColor: '#FFFFFF', 
+    padding: 24, 
+    borderRadius: 24, 
+    gap: 20, 
+    marginBottom: 28,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   estimateCard: { 
-    backgroundColor: colors.surface, 
-    padding: 20, 
-    borderRadius: 16, 
-    gap: 12,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    backgroundColor: '#FFFFFF', 
+    padding: 24, 
+    borderRadius: 24, 
+    gap: 16,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   priceRowDashed: { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, borderStyle: 'dashed' },
@@ -901,72 +936,74 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: colors.surfaceSecondary },
   totalLabel: { ...typography.h4, color: colors.textPrimary },
   totalValue: { ...typography.appTitle, color: colors.textPrimary },
-  fieldWrap: { gap: 6 },
-  label: { ...typography.labelMedium, color: colors.textPrimary },
-  required: { color: colors.error },
-  hint: { ...typography.small, color: colors.textPlaceholder },
+  fieldWrap: { gap: 8 },
+  label: { fontSize: 13, fontWeight: '600', color: '#475569', textTransform: 'uppercase', letterSpacing: 0.5 },
+  required: { color: '#EF4444' },
+  hint: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
   inlineLoading: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 16,
+    backgroundColor: '#F8FAFC',
   },
-  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary },
-  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  placeholderText: { color: colors.textPlaceholder },
-  retryText: { ...typography.small, color: colors.error, fontFamily: typography.labelMedium.fontFamily },
+  selectBoxDisabled: { backgroundColor: '#F1F5F9', borderColor: '#F1F5F9' },
+  selectText: { fontSize: 15, color: '#0F172A', flex: 1, fontWeight: '500' },
+  placeholderText: { color: '#94A3B8', fontWeight: '400' },
+  retryText: { fontSize: 13, color: '#EF4444', fontWeight: '600', marginTop: 4 },
   textArea: {
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    ...typography.body,
-    color: colors.textPrimary,
-    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 16,
+    fontSize: 15,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
     textAlignVertical: 'top',
-    minHeight: 100,
+    minHeight: 120,
   },
 
-  serviceRow: {
+  baseServiceCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
   },
-  serviceRowSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceHighlight },
-  serviceName: { ...typography.labelMedium, color: colors.textPrimary },
-  serviceSub: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
-  servicePrice: { ...typography.labelMedium, color: colors.textPrimary },
-  includedPill: { backgroundColor: colors.successBackground, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  includedPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.success },
+  baseServiceCardSelected: { borderColor: '#A855F7', backgroundColor: '#FAF5FF' },
+  baseServiceName: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
+  baseServiceSub: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  baseServicePrice: { fontSize: 15, fontWeight: '600', color: '#5B21B6' },
+  includedPill: { backgroundColor: '#D1FAE5', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  includedPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#059669' },
 
-  addonRow: {
+  addonCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#FFFFFF',
   },
-  addonRowSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceHighlight },
-  addonCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  addonCheckboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
-  addonName: { flex: 1, ...typography.body, color: colors.textPrimary, fontFamily: typography.labelMedium.fontFamily },
+  addonCardSelected: { borderColor: '#A855F7', backgroundColor: '#FAF5FF' },
+  addonCheckboxSquare: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+  addonCheckboxSquareChecked: { backgroundColor: '#5B21B6', borderColor: '#5B21B6' },
+  addonCardName: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  addonCardSub: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  addonCardPrice: { fontSize: 15, fontWeight: '600', color: '#5B21B6' },
 
   couponLabel: { ...typography.labelMedium, color: colors.textPrimary, marginTop: 12 },
   couponRow: { flexDirection: 'row', gap: 12 },
@@ -1007,23 +1044,29 @@ const styles = StyleSheet.create({
   },
   filePillText: { flex: 1, ...typography.body, color: colors.textPrimary },
   submitBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: 24,
-    paddingVertical: 16,
+    backgroundColor: '#5B21B6',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 20,
+    shadowColor: '#5B21B6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  submitBtnDisabled: { backgroundColor: '#FCD3B3' },
-  submitBtnText: { color: '#fff', ...typography.labelLarge },
+  submitBtnDisabled: { backgroundColor: '#CBD5E1', shadowOpacity: 0, elevation: 0 },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn: {
     borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 24,
-    paddingVertical: 16,
+    borderColor: '#E9D5FF',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 12,
   },
-  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
+  cancelBtnText: { color: '#6D28D9', fontSize: 16, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#fff',
