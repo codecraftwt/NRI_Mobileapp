@@ -105,6 +105,11 @@ const propertiesSlice = createSlice({
       .addCase(fetchPropertyDetail.pending, (state) => {
         state.detailStatus = 'loading';
         state.detailError = null;
+        // Same fix as familySlice's fetchFamilyMemberDetail.pending: clear
+        // the shared `detail` slot so AddProperty's populate-on-load effect
+        // can't grab stale data left over from a previous edit session
+        // before this fetch resolves.
+        state.detail = null;
       })
       .addCase(fetchPropertyDetail.fulfilled, (state, action) => {
         state.detailStatus = 'succeeded';

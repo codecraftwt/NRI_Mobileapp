@@ -1,8 +1,10 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
+import React, { useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import RMWidget from '../../Components/RMWidget';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useDashboard } from '../../Hooks/useDashboard';
 import { lightColors as colors, typography, spacing, radius } from '../../theme';
 
@@ -10,6 +12,28 @@ const { width: W, height: H } = Dimensions.get('window');
 
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
+  const { showAlert, alertProps } = useAppAlert();
+
+  // Dashboard is the app's home/root tab — intercept the hardware back
+  // button here (and only here, via useFocusEffect) so it asks for
+  // confirmation instead of silently exiting the app. Only fires on
+  // Android; iOS never emits `hardwareBackPress`.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit the application?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      // RN 0.72+ removed BackHandler.removeEventListener — addEventListener
+      // now returns a subscription object with its own .remove() instead.
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const stats = data?.stats || { activeTickets: 0, completedTickets: 0, walletBalance: 0 };
   const membership = data?.membership;
@@ -185,6 +209,7 @@ function Dashboard({ navigation }) {
         </View>
 
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

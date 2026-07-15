@@ -73,6 +73,13 @@ const familySlice = createSlice({
       .addCase(fetchFamilyMemberDetail.pending, (state) => {
         state.detailStatus = 'loading';
         state.detailError = null;
+        // `detail` is a single shared slot — if it's left holding the
+        // previous fetch's data while a new one is in flight, AddFamilyMember's
+        // populate-on-load effect (guarded by a one-shot `hasPopulated` flag)
+        // grabs this stale value before the fresh fetch resolves, then never
+        // re-applies the corrected data once it arrives. Clearing it here
+        // means the effect waits for the real result instead.
+        state.detail = null;
       })
       .addCase(fetchFamilyMemberDetail.fulfilled, (state, action) => {
         state.detailStatus = 'succeeded';

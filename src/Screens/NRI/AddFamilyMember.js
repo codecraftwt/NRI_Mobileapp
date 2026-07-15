@@ -100,6 +100,15 @@ function AddFamilyMember({ navigation, route }) {
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [healthNotes, setHealthNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  // `detail` lives in a single shared Redux slot. On a second "Edit" of the
+  // same member, the slot still holds the *previous* session's data on this
+  // component's very first render — before this mount's own fetch has even
+  // dispatched. Checking `detail && detail.id === memberId` alone can't tell
+  // stale leftovers apart from a fresh result, so population would grab the
+  // stale value immediately and (via `hasPopulated`) never re-apply the real
+  // one once it arrives. Requiring an observed loading cycle first guarantees
+  // `detail` reflects this mount's own fetch before we trust it.
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
   const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
@@ -115,7 +124,11 @@ function AddFamilyMember({ navigation, route }) {
   }, [memberId]);
 
   useEffect(() => {
-    if (!hasPopulated && detail && detail.id === memberId) {
+    if (loadingDetail) setHasFetchedOnce(true);
+  }, [loadingDetail]);
+
+  useEffect(() => {
+    if (!hasPopulated && hasFetchedOnce && !loadingDetail && detail && detail.id === memberId) {
       setName(detail.name || '');
       setRelation(RELATIONSHIP_FROM_API[detail.relationship] || '');
       setPhone(detail.phone || '');
@@ -127,7 +140,7 @@ function AddFamilyMember({ navigation, route }) {
       setHealthNotes(detail.healthNotes || '');
       setHasPopulated(true);
     }
-  }, [detail, memberId, hasPopulated]);
+  }, [detail, memberId, hasPopulated, hasFetchedOnce, loadingDetail]);
 
   const stateId = stateVal ? states.find(s => s.name === stateVal)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;

@@ -249,6 +249,15 @@ function AddProperty({ navigation, route }) {
   const [utilities, setUtilities] = useState([]);
   const [notes, setNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  // `detail` lives in a single shared Redux slot. On a second "Edit" of the
+  // same property, the slot still holds the *previous* session's data on
+  // this component's very first render — before this mount's own fetch has
+  // even dispatched. Checking `detail && detail.id === propertyId` alone
+  // can't tell stale leftovers apart from a fresh result, so population
+  // would grab the stale value immediately and (via `hasPopulated`) never
+  // re-apply the real one once it arrives. Requiring an observed loading
+  // cycle first guarantees `detail` reflects this mount's own fetch.
+  const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
   const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
@@ -265,7 +274,11 @@ function AddProperty({ navigation, route }) {
   }, [propertyId]);
 
   useEffect(() => {
-    if (!hasPopulated && detail && detail.id === propertyId) {
+    if (loadingDetail) setHasFetchedOnce(true);
+  }, [loadingDetail]);
+
+  useEffect(() => {
+    if (!hasPopulated && hasFetchedOnce && !loadingDetail && detail && detail.id === propertyId) {
       setName(detail.nickname || '');
       setType(PROPERTY_TYPE_FROM_API[detail.type] || '');
       setAddress(detail.address || '');
@@ -280,7 +293,7 @@ function AddProperty({ navigation, route }) {
       setNotes(detail.notes || '');
       setHasPopulated(true);
     }
-  }, [detail, propertyId, hasPopulated]);
+  }, [detail, propertyId, hasPopulated, hasFetchedOnce, loadingDetail]);
 
   const stateId = stateVal ? states.find(s => s.name === stateVal)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;
