@@ -13,11 +13,9 @@ import { useReferrals } from '../../Hooks/useReferrals';
 const MENU_ITEMS = [
   { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
   { key: 'family', label: 'Family', subtitle: 'Manage your family members', icon: 'people-outline', route: 'FamilyMain' },
-  { key: 'props', label: 'My Properties', subtitle: 'Manage your registered properties', icon: 'business', route: 'Properties' },
-  { key: 'vault', label: 'Document Vault', subtitle: 'Securely store important documents', icon: 'folder-shared', route: 'Document Vault' },
-  { key: 'billing', label: 'Billing & Invoices', subtitle: 'View invoices and manage payments', icon: 'receipt-long', route: 'Billing & Payments' },
-  { key: 'reports', label: 'Reports', subtitle: 'Check annual and health reports', icon: 'bar-chart', route: 'Reports & Media' },
-  { key: 'wallet', label: 'Wallet', subtitle: 'Wallet balance and coupons', icon: 'account-balance-wallet', route: 'Wallet & Coupons' },
+  { key: 'personal', label: 'Personal Info', subtitle: 'View and edit details', icon: 'person-outline', route: 'ProfilePersonal' },
+  { key: 'address', label: 'Address', subtitle: 'Update your address', icon: 'place', route: 'ProfileAddress' },
+  { key: 'password', label: 'Password', subtitle: 'Update your password', icon: 'lock-outline', route: 'ProfilePassword' },
 ];
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -136,9 +134,9 @@ function Profile({ navigation }) {
       <View style={styles.topBlueBg}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <Text style={styles.screenTitle}>My Profile</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('ProfileSettings')} style={{ padding: 8 }}>
+          {/* <TouchableOpacity onPress={() => navigation.navigate('ProfileSettings')} style={{ padding: 8 }}>
             <Icon name="settings" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         <View style={styles.profileHeader}>

@@ -86,14 +86,14 @@ function Properties({ navigation }) {
               </View>
               <View style={styles.cardActions}>
                 <TouchableOpacity
-                  style={styles.actionIconBtn}
+                  style={styles.actionBtn}
                   onPress={() => navigation.navigate('AddProperty', { propertyId: p.id })}
                   activeOpacity={0.7}
                 >
                   <Icon name="edit" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
+                  style={[styles.actionBtn, styles.actionBtnDanger]}
                   onPress={() => handleDelete(p)}
                   activeOpacity={0.7}
                 >
@@ -199,15 +199,15 @@ const styles = StyleSheet.create({
   propertyType: { ...typography.small, color: '#64748B', marginTop: 2 },
 
   cardActions: { flexDirection: 'row', gap: spacing.sm },
-   actionIconBtn: {
+   actionBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primaryLight + '20',
+    backgroundColor: colors.surfaceHighlight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionIconBtnDanger: {
+  actionBtnDanger: {
     backgroundColor: '#FEE2E2',
   },
 

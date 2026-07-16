@@ -13,8 +13,15 @@ function getStatusPill(statusLabel) {
     case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C', label: 'In Progress' };
     case 'Assigned': return { bg: '#DBEAFE', text: '#1D4ED8', label: 'Assigned' };
     case 'Cancelled': return { bg: '#FEE2E2', text: '#B91C1C', label: 'Cancelled' };
-    default: return { bg: '#F3F4F6', text: '#4B5563', label: 'Requested' };
+    case 'Overdue': return { bg: '#FEE2E2', text: '#DC2626', label: 'Overdue' };
+    default: return { bg: '#F3F4F6', text: '#4B5563', label: statusLabel || 'Requested' };
   }
+}
+
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return !isNaN(d.getTime()) && d.getTime() < Date.now();
 }
 
 function HorizontalProgressBar({ statusLabel }) {
@@ -119,8 +126,13 @@ function Requests({ navigation }) {
         )}
 
         {filteredTickets.map((ticket) => {
-          const statusPill = getStatusPill(ticket.statusLabel);
-          
+          // Verified live via GET /customer/tickets/5: a "New" ticket can
+          // already have a past sla_deadline, so overdue applies from
+          // creation, not just once work starts — exclude only the terminal
+          // statuses where a missed SLA is no longer relevant.
+          const overdue = isOverdue(ticket.slaDeadline) && !['Completed', 'Cancelled'].includes(ticket.statusLabel);
+          const statusPill = getStatusPill(overdue ? 'Overdue' : ticket.statusLabel);
+
           return (
             <TouchableOpacity
               key={ticket.id}
@@ -183,8 +195,6 @@ function Requests({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '700', color: '#0F172A', letterSpacing: -0.5 },
   header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   tabsContainer: { paddingTop: 20, paddingBottom: 12 },

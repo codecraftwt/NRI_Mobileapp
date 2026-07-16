@@ -1,4 +1,5 @@
 import apiClient, { normalizeApiError } from './client';
+import { getTicketDetail } from './ticketApi';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -28,6 +29,7 @@ function mapRecentTicket(raw) {
     vendor: raw.vendor?.name || raw.vendor_name || null,
     status: raw.status,
     date: raw.created_at || raw.date || null,
+    slaDeadline: raw.sla_deadline || null,
   };
 }
 
@@ -79,7 +81,27 @@ function mapDashboard(raw) {
 export async function getDashboard() {
   try {
     const response = await apiClient.get('/customer/dashboard');
-    return mapDashboard(response.data?.data || response.data);
+    const data = mapDashboard(response.data?.data || response.data);
+
+    // Same gap as the main ticket list (see getTickets() in ticketApi.js):
+    // the summary here never includes `sla_deadline`, so an overdue request
+    // can't be flagged without it. Verified live via GET /customer/tickets/5
+    // that a "New" ticket can already have a past sla_deadline, so overdue
+    // applies from creation — only completed/cancelled tickets are excluded.
+    const ticketsNeedingSla = data.recentTickets.filter(
+      t => !['completed', 'cancelled'].includes(t.status?.toLowerCase().replace('_', ' ')) && t.slaDeadline == null
+    );
+    if (ticketsNeedingSla.length > 0) {
+      const results = await Promise.allSettled(ticketsNeedingSla.map(t => getTicketDetail(t.id)));
+      const slaById = new Map();
+      ticketsNeedingSla.forEach((t, i) => {
+        const result = results[i];
+        if (result.status === 'fulfilled' && result.value?.slaDeadline) slaById.set(t.id, result.value.slaDeadline);
+      });
+      data.recentTickets = data.recentTickets.map(t => (slaById.has(t.id) ? { ...t, slaDeadline: slaById.get(t.id) } : t));
+    }
+
+    return data;
   } catch (error) {
     throw normalizeApiError(error);
   }

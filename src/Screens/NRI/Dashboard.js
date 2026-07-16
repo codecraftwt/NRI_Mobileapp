@@ -40,10 +40,17 @@ function Dashboard({ navigation }) {
     switch (status?.toLowerCase()) {
       case 'new': return { bg: '#EFF6FF', text: '#3B82F6' };
       case 'assigned': return { bg: '#EFF6FF', text: '#3B82F6' };
-      case 'in progress': return { bg: '#FEF2F2', text: '#DC2626' }; 
+      case 'in progress': return { bg: '#FEF2F2', text: '#DC2626' };
       case 'completed': return { bg: '#D1FAE5', text: '#059669' };
+      case 'overdue': return { bg: '#FEE2E2', text: '#DC2626' };
       default: return { bg: '#F1F5F9', text: '#64748B' };
     }
+  };
+
+  const isOverdue = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    return !isNaN(d.getTime()) && d.getTime() < Date.now();
   };
 
   const quickActions = [
@@ -173,7 +180,14 @@ function Dashboard({ navigation }) {
           {recentTickets.length > 0 ? (
             <View style={styles.cardBlock}>
               {recentTickets.slice(0, 3).map((ticket, index) => {
-                const statusStyle = getStatusColor(ticket.status);
+                // Verified live via GET /customer/tickets/5: a "New" ticket
+                // can already have a past sla_deadline, so overdue applies
+                // from creation, not just once work starts — exclude only
+                // the terminal statuses where a missed SLA no longer matters.
+                const normalizedStatus = ticket.status?.toLowerCase().replace('_', ' ');
+                const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled'].includes(normalizedStatus);
+                const displayStatus = overdue ? 'Overdue' : ticket.status;
+                const statusStyle = getStatusColor(displayStatus);
                 return (
                   <TouchableOpacity 
                     key={ticket.id} 
@@ -196,7 +210,7 @@ function Dashboard({ navigation }) {
                     </View>
                     <View style={styles.ticketStatusWrap}>
                        <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
-                         <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{ticket.status}</Text>
+                         <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{displayStatus}</Text>
                        </View>
                     </View>
                   </TouchableOpacity>
@@ -375,7 +389,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 20,

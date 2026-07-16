@@ -215,24 +215,40 @@ export async function getTickets({ page } = {}) {
     const tickets = list.map(mapTicket);
 
     // Verified live: the list endpoint never returns a `vendor` field at all
-    // (tried with `?with=vendor` / `?include=vendor` too — no effect), only
-    // the detail payload does. Backfill it with a per-ticket detail fetch —
-    // but only for tickets that could actually have one: a vendor can't be
-    // assigned before status leaves 'new' (per the backend's own status
-    // workflow), so skipping those avoids firing a wasted detail request
-    // (and its ngrok round trip) for every single 'new' ticket on every list
-    // load/refresh — this was the main source of MyTickets' slow loading.
-    const ticketsNeedingVendor = tickets.filter(t => t.status !== 'new' && !t.vendorName);
-    const detailResults = await Promise.allSettled(ticketsNeedingVendor.map(t => getTicketDetail(t.id)));
-    const vendorById = new Map();
-    ticketsNeedingVendor.forEach((t, i) => {
+    // (tried with `?with=vendor` / `?include=vendor` too — no effect), and
+    // never returns `sla_deadline` either — both only come back on the
+    // detail payload. Backfill both with a per-ticket detail fetch, but only
+    // for tickets that could actually need one: a vendor can't be assigned
+    // before status leaves 'new' (per the backend's own status workflow), so
+    // that half is skipped for 'new' tickets to avoid a wasted detail
+    // request (and its ngrok round trip) on every list load/refresh — this
+    // was the main source of MyTickets' slow loading. SLA deadlines, though,
+    // apply from the moment a ticket is created — verified live via GET
+    // /customer/tickets/5, which came back with status "New" and an
+    // already-passed sla_deadline — so that half is NOT skipped for 'new',
+    // only for tickets that are already done (no further overdue risk once
+    // completed/cancelled).
+    const needsVendor = (t) => t.status !== 'new' && !t.vendorName;
+    const needsSla = (t) => !['completed', 'cancelled'].includes(t.status) && t.slaDeadline == null;
+    const ticketsNeedingDetail = tickets.filter(t => needsVendor(t) || needsSla(t));
+    const detailResults = await Promise.allSettled(ticketsNeedingDetail.map(t => getTicketDetail(t.id)));
+    const detailById = new Map();
+    ticketsNeedingDetail.forEach((t, i) => {
       const result = detailResults[i];
-      if (result.status === 'fulfilled' && result.value?.vendorName) vendorById.set(t.id, result.value.vendorName);
+      if (result.status === 'fulfilled' && result.value) detailById.set(t.id, result.value);
     });
-    const ticketsWithVendor = tickets.map(t => (vendorById.has(t.id) ? { ...t, vendorName: vendorById.get(t.id) } : t));
+    const ticketsEnriched = tickets.map(t => {
+      const detail = detailById.get(t.id);
+      if (!detail) return t;
+      return {
+        ...t,
+        vendorName: detail.vendorName || t.vendorName,
+        slaDeadline: detail.slaDeadline ?? t.slaDeadline,
+      };
+    });
 
     return {
-      tickets: ticketsWithVendor,
+      tickets: ticketsEnriched,
       meta: {
         currentPage: response.data?.meta?.current_page ?? 1,
         lastPage: response.data?.meta?.last_page ?? 1,

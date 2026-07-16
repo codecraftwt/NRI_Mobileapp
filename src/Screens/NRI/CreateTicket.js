@@ -110,6 +110,8 @@ function CreateTicket({ route, navigation }) {
   const [notes, setNotes] = useState('');
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [pendingDate, setPendingDate] = useState(null);
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
@@ -345,6 +347,35 @@ function CreateTicket({ route, navigation }) {
 
   const handleRemoveFile = (uri) => {
     setFiles(prev => prev.filter(f => f.uri !== uri));
+  };
+
+  // Android's native picker has no combined "datetime" mode — a single
+  // `mode="datetime"` component crashes there ("Cannot read property
+  // 'dismiss' of undefined") because it tries to chain two native pickers
+  // internally without properly wiring up dismissal. iOS's spinner display
+  // does support "datetime" in one step, so only Android needs the
+  // date-then-time flow.
+  const handleDateChange = (event, selected) => {
+    setShowDatePicker(false);
+    if (event.type === 'dismissed' || !selected) return;
+    if (Platform.OS === 'android') {
+      setPendingDate(selected);
+      setShowTimePicker(true);
+    } else {
+      setPreferredDate(selected);
+    }
+  };
+
+  const handleTimeChange = (event, selected) => {
+    setShowTimePicker(false);
+    if (event.type === 'dismissed' || !selected || !pendingDate) {
+      setPendingDate(null);
+      return;
+    }
+    const combined = new Date(pendingDate);
+    combined.setHours(selected.getHours(), selected.getMinutes());
+    setPreferredDate(combined);
+    setPendingDate(null);
   };
 
   const handleGatewayPayment = async (ticketId, gateway) => {
@@ -665,12 +696,17 @@ function CreateTicket({ route, navigation }) {
             {showDatePicker && (
               <DateTimePicker
                 value={preferredDate || new Date()}
-                mode="datetime"
+                mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selected) => {
-                  setShowDatePicker(false);
-                  if (selected) setPreferredDate(selected);
-                }}
+                onChange={handleDateChange}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={pendingDate || preferredDate || new Date()}
+                mode="time"
+                display="default"
+                onChange={handleTimeChange}
               />
             )}
           </View>
