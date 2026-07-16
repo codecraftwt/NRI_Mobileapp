@@ -19,6 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useStates } from '../../Hooks/useStates';
@@ -112,6 +113,7 @@ function CreateTicket({ route, navigation }) {
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   // The districts endpoint is what actually returns city-level data for this
@@ -435,7 +437,7 @@ function CreateTicket({ route, navigation }) {
           ]
         );
       } else {
-        Alert.alert('Request Submitted', `Your request ${result.ticket.ticketNumber} has been submitted.`, [
+        showAlert('Request Submitted', `Your request ${result.ticket.ticketNumber} has been submitted.`, [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
       }
@@ -851,6 +853,7 @@ function CreateTicket({ route, navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateAddress } from '../../Redux/slices/userSlice';
@@ -68,6 +69,7 @@ export default function ProfileAddress({ navigation }) {
   const [postalCode, setPostalCode] = useState(user?.address?.postalCode || '');
   const [addressLine1, setAddressLine1] = useState(user?.address?.addressLine1 || '');
   const [addressLine2, setAddressLine2] = useState(user?.address?.addressLine2 || '');
+  const { showAlert, alertProps } = useAppAlert();
 
   const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
@@ -77,12 +79,12 @@ export default function ProfileAddress({ navigation }) {
 
   const handleSaveAddress = () => {
     dispatch(updateAddress({ country, state, district, city, postalCode, addressLine1, addressLine2 }));
-    Alert.alert('Address Saved', 'Your address has been updated successfully.');
+    showAlert('Address Saved', 'Your address has been updated successfully.');
   };
 
   const handleLookupPincode = () => {
     if (!postalCode || postalCode.trim().length < 4) {
-      Alert.alert('Enter Postal Code', 'Please enter a valid postal code to look up.');
+      showAlert('Enter Postal Code', 'Please enter a valid postal code to look up.');
       return;
     }
     lookupPostalCode(postalCode.trim())
@@ -90,7 +92,7 @@ export default function ProfileAddress({ navigation }) {
       .then((result) => {
         const match = result?.results?.[0];
         if (!match) {
-          Alert.alert('Not Found', 'No address found for that postal code.');
+          showAlert('Not Found', 'No address found for that postal code.');
           return;
         }
         if (match.stateName) setStateVal(match.stateName);
@@ -98,7 +100,7 @@ export default function ProfileAddress({ navigation }) {
         if (match.cityName) setCity(match.cityName);
       })
       .catch((error) => {
-        Alert.alert('Lookup Failed', error?.message || 'Could not look up that postal code. Please try again.');
+        showAlert('Lookup Failed', error?.message || 'Could not look up that postal code. Please try again.');
       });
   };
 
@@ -180,6 +182,7 @@ export default function ProfileAddress({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -200,8 +203,8 @@ const styles = StyleSheet.create({
   selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
   placeholderText: { color: colors.textPlaceholder },
   retryText: { ...typography.labelMedium, color: colors.error, marginTop: 8, marginBottom: 4 },
-  saveBtn: { backgroundColor: colors.primary, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
-  saveBtnText: { color: colors.onPrimary, ...typography.labelLarge },
+  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%', paddingBottom: 32, paddingTop: 12 },
   modalHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },

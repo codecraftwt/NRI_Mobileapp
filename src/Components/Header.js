@@ -11,11 +11,11 @@ function Header({ navigation, title, showBack, isTabRoot }) {
   if (isDashboard) {
     return (
       <View style={styles.mainContainer}>
-        <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
+        <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent={false} />
 
         <View style={styles.profileContainer}>
           <View style={styles.avatarMain}>
-            <Icon name="person" size={24} color={colors.primary} />
+            <Icon name="person" size={24} color={'#20304C'} />
           </View>
           <View>
             <Text style={styles.greetingMain}>Welcome back,</Text>
@@ -34,7 +34,7 @@ function Header({ navigation, title, showBack, isTabRoot }) {
   // Standard Header for inner screens or Tab Roots
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={colors.primary} barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent={false} />
       {showBack ? (
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
@@ -53,12 +53,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.primary,
+    backgroundColor: '#20304C',
     paddingHorizontal: spacing.lg,
     paddingTop: 56, // Clear the status bar
     paddingBottom: spacing.md,
     borderBottomWidth: 0,
-    shadowColor: colors.primary,
+    shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -79,12 +79,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.primary, // Merges perfectly with status bar
+    backgroundColor: '#20304C', // Merges perfectly with status bar
     paddingHorizontal: spacing.lg,
     paddingTop: 56, // Clear the status bar
     paddingBottom: spacing.md,
     borderBottomWidth: 0,
-    shadowColor: colors.primary,
+    shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.accent, 
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: '#20304C',
   }
 });
 

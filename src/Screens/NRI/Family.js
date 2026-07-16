@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
@@ -35,6 +36,7 @@ function relationLabel(relationship) {
 function Family({ navigation }) {
   const dispatch = useDispatch();
   const { members, loading, failed, retry } = useFamilyMembers();
+  const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -56,7 +58,7 @@ function Family({ navigation }) {
   );
 
   const handleDelete = (member) => {
-    Alert.alert(
+    showAlert(
       'Delete Member',
       `Are you sure you want to remove ${member.name}?`,
       [
@@ -66,7 +68,7 @@ function Family({ navigation }) {
           style: 'destructive',
           onPress: () => {
             dispatch(removeFamilyMember(member.id)).unwrap().catch((error) => {
-              Alert.alert('Failed', error?.message || 'Could not remove this family member.');
+              showAlert('Failed', error?.message || 'Could not remove this family member.');
             });
           },
         },
@@ -81,7 +83,7 @@ function Family({ navigation }) {
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
 
-      <Header navigation={navigation} title="My Family" />
+      <Header navigation={navigation} title="My Family" showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -162,6 +164,7 @@ function Family({ navigation }) {
           <Text style={styles.addCardText}>Add Family Member</Text>
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

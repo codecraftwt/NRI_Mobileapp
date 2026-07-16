@@ -7,6 +7,7 @@ import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, logoutUser } from '../../Redux/slices/userSlice';
+import { useReferrals } from '../../Hooks/useReferrals';
 
 const MENU_ITEMS = [
   { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
@@ -24,6 +25,7 @@ function Profile({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const { referralCode } = useReferrals();
 
   const name = user?.name || '';
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -169,7 +171,7 @@ function Profile({ navigation }) {
           </View>
           
           <View style={styles.referralCodeBox}>
-            <Text style={styles.referralCodeText}>REF-ARJUN-047</Text>
+            <Text style={styles.referralCodeText}>{referralCode || '—'}</Text>
             <TouchableOpacity>
               <Text style={styles.copyText}>Copy</Text>
             </TouchableOpacity>

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   Modal,
   FlatList,
   Platform,
@@ -17,6 +16,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { uploadDocument } from '../../Redux/slices/documentsSlice';
@@ -86,6 +86,7 @@ function UploadDocument({ navigation }) {
   const [shareWithRM, setShareWithRM] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const formattedExpiry = expiryDate
     ? expiryDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -101,13 +102,13 @@ function UploadDocument({ navigation }) {
         copyTo: 'cachesDirectory',
       });
       if (res.size && res.size > 10 * 1024 * 1024) {
-        Alert.alert('File too large', 'Please choose a file under 10 MB.');
+        showAlert('File too large', 'Please choose a file under 10 MB.');
         return;
       }
       setFile({ name: res.name, uri: res.fileCopyUri || res.uri, type: res.type, size: res.size });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
+      showAlert('Error', 'Could not select the file. Please try again.');
     }
   };
 
@@ -128,7 +129,7 @@ function UploadDocument({ navigation }) {
       })
       .catch((error) => {
         setSubmitting(false);
-        Alert.alert('Upload Failed', error?.message || 'Could not upload this document.');
+        showAlert('Upload Failed', error?.message || 'Could not upload this document.');
       });
   };
 
@@ -231,6 +232,7 @@ function UploadDocument({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

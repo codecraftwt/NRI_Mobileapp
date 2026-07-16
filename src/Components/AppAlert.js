@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
 // Drop-in styled replacement for the OS's default `Alert.alert(title, message,
@@ -91,17 +90,17 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
-    shadowColor: colors.shadow,
+    shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 8,
   },
-  title: { ...typography.h4, color: colors.textPrimary, textAlign: 'center' },
-  message: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  title: { ...typography.h4, color: '#0F172A', textAlign: 'center' },
+  message: { ...typography.body, color: '#64748B', textAlign: 'center', marginTop: 8, lineHeight: 20 },
   buttonGroup: { flexDirection: 'row', gap: 10, marginTop: 20 },
   buttonGroupStacked: { flexDirection: 'column' },
   button: {
@@ -110,14 +109,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.accent,
+    backgroundColor: '#D94625',
   },
   buttonInline: {},
   buttonStacked: { flex: undefined, width: '100%' },
-  buttonCancel: { backgroundColor: colors.surfaceSecondary },
-  buttonDestructive: { backgroundColor: colors.error },
-  buttonText: { ...typography.labelLarge, color: colors.onAccent },
-  buttonTextCancel: { color: colors.textPrimary },
+  buttonCancel: { backgroundColor: '#F1F5F9' },
+  buttonDestructive: { backgroundColor: '#EF4444' },
+  buttonText: { ...typography.labelLarge, color: '#FFFFFF' },
+  buttonTextCancel: { color: '#0F172A' },
   buttonTextDestructive: { color: '#FFFFFF' },
 });
 

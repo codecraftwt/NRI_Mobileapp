@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Modal, FlatList } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, saveUserProfile } from '../../Redux/slices/userSlice';
@@ -58,12 +59,13 @@ export default function ProfilePersonal({ navigation }) {
   const [emergencyPhone, setEmergencyPhone] = useState(user?.emergencyContactPhone || '');
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const formattedDob = dob ? dob.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-') : '';
 
   const handleSavePersonal = async () => {
     if (!name.trim()) {
-      Alert.alert('Full Name is required');
+      showAlert('Required', 'Full Name is required.');
       return;
     }
     setSavingPersonal(true);
@@ -78,9 +80,9 @@ export default function ProfilePersonal({ navigation }) {
         emergencyContactName: emergencyName,
         emergencyContactPhone: emergencyPhone,
       }));
-      Alert.alert('Profile Updated', 'Your profile has been saved successfully.');
+      showAlert('Profile Updated', 'Your profile has been saved successfully.');
     } catch (error) {
-      Alert.alert('Could Not Save Profile', error?.message || 'Please try again.');
+      showAlert('Could Not Save Profile', error?.message || 'Please try again.');
     } finally {
       setSavingPersonal(false);
     }
@@ -126,10 +128,11 @@ export default function ProfilePersonal({ navigation }) {
           <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholderTextColor={colors.textPlaceholder} />
 
           <TouchableOpacity style={[styles.saveBtn, savingPersonal && styles.saveBtnDisabled]} onPress={handleSavePersonal} disabled={savingPersonal}>
-            {savingPersonal ? <ActivityIndicator size="small" color={colors.onPrimary} /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
+            {savingPersonal ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -146,9 +149,9 @@ const styles = StyleSheet.create({
   selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, height: 50 },
   selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
   placeholderText: { color: colors.textPlaceholder },
-  saveBtn: { backgroundColor: colors.primary, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { color: colors.onPrimary, ...typography.labelLarge },
+  saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%', paddingBottom: 32, paddingTop: 12 },
   modalHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },

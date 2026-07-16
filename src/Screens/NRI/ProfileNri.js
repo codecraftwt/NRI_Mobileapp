@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, RefreshControl } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { saveUserProfile } from '../../Redux/slices/userSlice';
@@ -148,6 +149,7 @@ export default function ProfileNri({ navigation }) {
   const [nriLanguage, setNriLanguage] = useState(LANGUAGE_LABEL_BY_CODE[user?.language] || 'English');
   const [nriTimezone, setNriTimezone] = useState(user?.timezone || TIMEZONE_BY_COUNTRY[user?.countryOfResidence] || '');
   const [savingNri, setSavingNri] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const handleSaveNri = async () => {
     const stateId = nriHomeState ? states.find(s => s.name === nriHomeState)?.id : undefined;
@@ -160,9 +162,9 @@ export default function ProfileNri({ navigation }) {
         timezone: nriTimezone,
         stateId,
       })).unwrap();
-      Alert.alert('Saved', 'Your NRI details have been updated successfully.');
+      showAlert('Saved', 'Your NRI details have been updated successfully.');
     } catch (error) {
-      Alert.alert('Could Not Save', error?.message || 'Please try again.');
+      showAlert('Could Not Save', error?.message || 'Please try again.');
     } finally {
       setSavingNri(false);
     }
@@ -251,7 +253,7 @@ export default function ProfileNri({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Actions</Text>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('Family')}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('FamilyMain')}>
             <Icon name="people" size={18} color={colors.primary} />
             <Text style={[styles.actionBtnText, { color: colors.primary }]}>Manage Family ({familyMembers.length})</Text>
           </TouchableOpacity>
@@ -264,7 +266,7 @@ export default function ProfileNri({ navigation }) {
         <View style={styles.card}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.cardTitle}>Family Members ({familyMembers.length})</Text>
-            <TouchableOpacity style={styles.addLinkBtn} onPress={() => navigation.navigate('Family', { screen: 'AddFamilyMember' })}>
+            <TouchableOpacity style={styles.addLinkBtn} onPress={() => navigation.navigate('AddFamilyMember')}>
               <Icon name="add" size={16} color={colors.primary} />
               <Text style={styles.addLinkText}>Add</Text>
             </TouchableOpacity>
@@ -331,6 +333,7 @@ export default function ProfileNri({ navigation }) {
           )}
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -347,7 +350,7 @@ const styles = StyleSheet.create({
   selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
   placeholderText: { color: colors.textPlaceholder },
   retryText: { ...typography.labelMedium, color: colors.error, marginTop: 8, marginBottom: 4 },
-  saveBtn: { backgroundColor: colors.primary, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { color: colors.onPrimary, ...typography.labelLarge },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

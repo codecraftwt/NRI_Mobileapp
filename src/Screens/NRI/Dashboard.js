@@ -192,30 +192,7 @@ function Dashboard({ navigation }) {
             </View>
           )}
         </View>
-
-        {/* Popular Services Grid */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Popular Services</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Services')}>
-              <Text style={styles.viewAllText}>All 17 →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.actionGrid}>
-            {popularServicesList.map(action => (
-              <TouchableOpacity
-                key={action.id}
-                style={[styles.popularSquare, { backgroundColor: action.color + '12' }]} // 12 is hex alpha for ~7% opacity
-                onPress={() => navigation.navigate('CreateTicket', { initialCategory: action.category })}
-                activeOpacity={0.7}
-              >
-                <Icon name={action.icon} size={26} color={action.color} style={{ marginBottom: 6 }} />
-                <Text style={[styles.popularLabel, { color: action.color }]} numberOfLines={1}>{action.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
+        
         {/* Membership Plan Card */}
         <View style={[styles.sectionContainer, { marginTop: spacing.md }]}>
           <View style={styles.planCard}>

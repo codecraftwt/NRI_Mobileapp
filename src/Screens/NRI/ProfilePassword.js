@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { changeUserPassword } from '../../Redux/slices/userSlice';
@@ -15,6 +16,7 @@ export default function ProfilePassword({ navigation }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState({});
+  const { showAlert, alertProps } = useAppAlert();
 
   const clearPasswordError = (field) => {
     if (passwordErrors[field]) setPasswordErrors(prev => ({ ...prev, [field]: undefined }));
@@ -47,7 +49,7 @@ export default function ProfilePassword({ navigation }) {
     }))
       .unwrap()
       .then(() => {
-        Alert.alert('Password Changed', 'Your password has been updated successfully. Other signed-in devices have been logged out.');
+        showAlert('Password Changed', 'Your password has been updated successfully. Other signed-in devices have been logged out.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -56,7 +58,7 @@ export default function ProfilePassword({ navigation }) {
         if (error?.errors) {
           setPasswordErrors(error.errors);
         }
-        Alert.alert('Change Password Failed', error?.message || 'Please check your current password and try again.');
+        showAlert('Change Password Failed', error?.message || 'Please check your current password and try again.');
       });
   };
 
@@ -97,10 +99,11 @@ export default function ProfilePassword({ navigation }) {
           {!!passwordErrorFor('password_confirmation') && <Text style={styles.errorText}>{passwordErrorFor('password_confirmation')}</Text>}
 
           <TouchableOpacity style={[styles.saveBtn, changingPassword && styles.saveBtnDisabled]} onPress={handleChangePassword} disabled={changingPassword}>
-            {changingPassword ? <ActivityIndicator size="small" color={colors.onPrimary} /> : <Text style={styles.saveBtnText}>Change Password</Text>}
+            {changingPassword ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Change Password</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -114,7 +117,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, height: 50, ...typography.body, color: colors.textPrimary },
   inputError: { borderColor: colors.error, backgroundColor: colors.errorBackground || '#FEF2F2' },
   errorText: { ...typography.labelMedium, color: colors.error, marginTop: 6 },
-  saveBtn: { backgroundColor: colors.primary, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { color: colors.onPrimary, ...typography.labelLarge },
+  saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
 });

@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   Modal,
   FlatList,
   Platform,
@@ -18,8 +17,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
-import { lightColors as colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { typography, spacing, radius } from '../../theme';
 import { addProperty, updateProperty } from '../../Redux/slices/propertiesSlice';
 import { usePropertyDetail } from '../../Hooks/usePropertyDetail';
 import { useStates } from '../../Hooks/useStates';
@@ -53,7 +52,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
       >
         {loading ? (
           <>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color="#D94625" />
             <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
           </>
         ) : (
@@ -61,7 +60,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
             <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>
               {value || placeholder}
             </Text>
-            <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
+            <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
           </>
         )}
       </TouchableOpacity>
@@ -83,7 +82,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                   }}
                 >
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
+                  {item === value && <Icon name="check" size={18} color="#D94625" />}
                 </TouchableOpacity>
               )}
             />
@@ -103,7 +102,7 @@ function SectionHeader({ title, action }) {
   );
 }
 
-async function requestFilePermission() {
+async function requestFilePermission(showAlert) {
   if (Platform.OS !== 'android') return true;
   const permission = Platform.Version >= 33
     ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
@@ -121,13 +120,13 @@ async function requestFilePermission() {
   if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
 
   if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-    Alert.alert(
+    showAlert(
       'Permission Required',
       'Photo & document access is blocked. Please enable it from app settings to attach files.',
       [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
     );
   } else {
-    Alert.alert('Permission Denied', 'Photo & document access is required to attach files.');
+    showAlert('Permission Denied', 'Photo & document access is required to attach files.');
   }
   return false;
 }
@@ -136,9 +135,10 @@ function AttachmentsCard({ propertyId }) {
   const [label, setLabel] = useState('');
   const { detail, uploadingAttachment, uploadAttachment, removeAttachment } = usePropertyDetail();
   const attachments = detail?.id === propertyId ? detail.attachments : [];
+  const { showAlert, alertProps } = useAppAlert();
 
   const pickAndUpload = async (kind) => {
-    const allowed = await requestFilePermission();
+    const allowed = await requestFilePermission(showAlert);
     if (!allowed) return;
     try {
       const [result] = await pick({
@@ -148,7 +148,7 @@ function AttachmentsCard({ propertyId }) {
       });
       if (!result) return;
       if (result.size && result.size > 10 * 1024 * 1024) {
-        Alert.alert('File Too Large', 'Attachments must be 10 MB or smaller.');
+        showAlert('File Too Large', 'Attachments must be 10 MB or smaller.');
         return;
       }
       const file = {
@@ -160,23 +160,23 @@ function AttachmentsCard({ propertyId }) {
         .unwrap()
         .then(() => setLabel(''))
         .catch((error) => {
-          Alert.alert('Upload Failed', error?.message || 'Could not upload this file.');
+          showAlert('Upload Failed', error?.message || 'Could not upload this file.');
         });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
+      showAlert('Error', 'Could not select the file. Please try again.');
     }
   };
 
   const handleRemove = (attachmentId) => {
-    Alert.alert('Remove Attachment', 'Are you sure you want to remove this attachment?', [
+    showAlert('Remove Attachment', 'Are you sure you want to remove this attachment?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
         style: 'destructive',
         onPress: () => {
           removeAttachment(propertyId, attachmentId).unwrap().catch((error) => {
-            Alert.alert('Failed', error?.message || 'Could not remove this attachment.');
+            showAlert('Failed', error?.message || 'Could not remove this attachment.');
           });
         },
       },
@@ -193,10 +193,10 @@ function AttachmentsCard({ propertyId }) {
         <View style={{ gap: 8 }}>
           {attachments.map(a => (
             <View key={a.id} style={styles.attachmentRow}>
-              <Icon name={a.type === 'photo' ? 'image' : 'description'} size={18} color={colors.primaryDark} />
+              <Icon name={a.type === 'photo' ? 'image' : 'description'} size={18} color="#1E3A8A" />
               <Text style={styles.attachmentLabel} numberOfLines={1}>{a.label || (a.type === 'photo' ? 'Photo' : 'Document')}</Text>
               <TouchableOpacity onPress={() => handleRemove(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Icon name="delete-outline" size={18} color={colors.error} />
+                        <Icon name="delete-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
             </View>
           ))}
@@ -210,20 +210,21 @@ function AttachmentsCard({ propertyId }) {
           value={label}
           onChangeText={setLabel}
           placeholder="e.g. Front view, Tax receipt"
-          placeholderTextColor={colors.textPlaceholder}
+          placeholderTextColor="#94A3B8"
         />
       </View>
 
       <View style={styles.row}>
         <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => pickAndUpload('photo')} disabled={uploadingAttachment}>
-          {uploadingAttachment ? <ActivityIndicator size="small" color={colors.primary} /> : <Icon name="add-a-photo" size={16} color={colors.primary} />}
+          {uploadingAttachment ? <ActivityIndicator size="small" color="#D94625" /> : <Icon name="add-a-photo" size={16} color="#D94625" />}
           <Text style={styles.attachBtnText}>Add Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => pickAndUpload('document')} disabled={uploadingAttachment}>
-          {uploadingAttachment ? <ActivityIndicator size="small" color={colors.primary} /> : <Icon name="note-add" size={16} color={colors.primary} />}
+          {uploadingAttachment ? <ActivityIndicator size="small" color="#D94625" /> : <Icon name="note-add" size={16} color="#D94625" />}
           <Text style={styles.attachBtnText}>Add Document</Text>
         </TouchableOpacity>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -247,6 +248,7 @@ function AddProperty({ navigation, route }) {
   const [utilities, setUtilities] = useState([]);
   const [notes, setNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
@@ -289,7 +291,7 @@ function AddProperty({ navigation, route }) {
 
   const handleLookupPincode = () => {
     if (!pincode || pincode.trim().length < 4) {
-      Alert.alert('Enter Pincode', 'Please enter a valid pincode to look up.');
+      showAlert('Enter Pincode', 'Please enter a valid pincode to look up.');
       return;
     }
     lookupPostalCode(pincode.trim())
@@ -297,20 +299,20 @@ function AddProperty({ navigation, route }) {
       .then((result) => {
         const match = result?.results?.[0];
         if (!match) {
-          Alert.alert('Not Found', 'No address found for that pincode.');
+          showAlert('Not Found', 'No address found for that pincode.');
           return;
         }
         if (match.stateName) setStateVal(match.stateName);
         if (match.cityName) setCity(match.cityName);
       })
       .catch((error) => {
-        Alert.alert('Lookup Failed', error?.message || 'Could not look up that pincode. Please try again.');
+        showAlert('Lookup Failed', error?.message || 'Could not look up that pincode. Please try again.');
       });
   };
 
   const handleSubmit = () => {
     if (!name || !address || !type) {
-      Alert.alert('Required', 'Nickname, Property Type and Address are required.');
+      showAlert('Required', 'Nickname, Property Type and Address are required.');
       return;
     }
 
@@ -340,11 +342,12 @@ function AddProperty({ navigation, route }) {
     dispatch(action)
       .unwrap()
       .then(() => {
-        Alert.alert(isEdit ? 'Updated' : 'Added', `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`);
-        navigation.goBack();
+        showAlert(isEdit ? 'Updated' : 'Added', `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
       })
       .catch((error) => {
-        Alert.alert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
+        showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
       });
   };
 
@@ -354,7 +357,7 @@ function AddProperty({ navigation, route }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {isEdit && loadingDetail && !hasPopulated ? (
           <View style={styles.detailLoadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color="#D94625" />
             <Text style={styles.detailLoadingText}>Loading property details…</Text>
           </View>
         ) : isEdit && detailFailed && !hasPopulated ? (
@@ -445,7 +448,7 @@ function AddProperty({ navigation, route }) {
                   />
                   <TouchableOpacity style={styles.lookupBtn} onPress={handleLookupPincode} disabled={loadingPostalLookup}>
                     {loadingPostalLookup ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
+                      <ActivityIndicator size="small" color="#D94625" />
                     ) : (
                       <Text style={styles.lookupBtnText}>Find</Text>
                     )}
@@ -511,7 +514,7 @@ function AddProperty({ navigation, route }) {
                 title="Utility Accounts"
                 action={
                   <TouchableOpacity style={styles.addUtilityBtn} onPress={addUtilityRow} activeOpacity={0.8}>
-                    <Icon name="add" size={16} color={colors.primary} />
+                    <Icon name="add" size={16} color="#D94625" />
                     <Text style={styles.addUtilityBtnText}>Add</Text>
                   </TouchableOpacity>
                 }
@@ -542,7 +545,7 @@ function AddProperty({ navigation, route }) {
                         onPress={() => removeUtilityRow(u.id)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Icon name="delete-outline" size={18} color={colors.error} />
+                <Icon name="delete-outline" size={18} color="#DC2626" />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -571,10 +574,10 @@ function AddProperty({ navigation, route }) {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
                 {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Icon name={isEdit ? 'save' : 'check'} size={18} color="#fff" />
+                    <Icon name={isEdit ? 'save' : 'check'} size={18} color="#FFFFFF" />
                     <Text style={styles.submitBtnText}>{isEdit ? 'Update Property' : 'Add Property'}</Text>
                   </>
                 )}
@@ -583,28 +586,29 @@ function AddProperty({ navigation, route }) {
           </>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  scrollContent: { padding: 20, paddingBottom: spacing.xxl, gap: spacing.md },
 
-  detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
-  detailLoadingText: { ...typography.body, color: colors.textSecondary },
-  retryBox: { alignItems: 'center', paddingVertical: 40 },
+  detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.xxl },
+  detailLoadingText: { ...typography.body, color: '#64748B' },
+  retryBox: { alignItems: 'center', paddingVertical: spacing.xxl },
 
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 20,
-    gap: 16,
-    shadowColor: colors.shadow,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: spacing.md,
+    gap: spacing.md,
+    shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.05,
     shadowRadius: 12,
-    elevation: 3,
+    elevation: 2,
   },
 
   sectionHeaderRow: {
@@ -613,75 +617,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceSecondary,
+    borderBottomColor: '#F1F5F9',
   },
-  sectionHeaderText: { ...typography.h4, color: colors.textPrimary },
+  sectionHeaderText: { fontSize: 18, fontFamily: typography.labelMedium.fontFamily, color: '#1A1A1A' },
 
   row: { flexDirection: 'row', gap: 12 },
   rowItem: { flex: 1 },
 
   fieldWrap: { gap: 6 },
-  inputLabel: { ...typography.labelMedium, color: colors.textPrimary },
-  required: { color: colors.error },
+  inputLabel: { ...typography.labelMedium, color: '#334155' },
+  required: { color: '#DC2626' },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
     height: 52,
-    color: colors.textPrimary,
+    color: '#0F172A',
     ...typography.body,
   },
   multiline: { height: 100, textAlignVertical: 'top', paddingVertical: 14 },
   pincodeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   pincodeInput: { flex: 1 },
-  lookupBtn: { height: 52, minWidth: 70, borderRadius: 12, borderWidth: 1.5, borderColor: colors.primary, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  lookupBtnText: { color: colors.primary, ...typography.labelMedium },
+  lookupBtn: { height: 52, minWidth: 70, borderRadius: 14, borderWidth: 1.5, borderColor: '#D94625', justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.md, backgroundColor: '#FBEAE5' },
+  lookupBtnText: { color: '#D94625', ...typography.labelMedium },
 
   selectBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: spacing.md,
     height: 52,
   },
-  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary },
-  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  placeholderText: { color: colors.textPlaceholder },
-  retryText: { ...typography.labelMedium, color: colors.error },
+  selectBoxDisabled: { backgroundColor: '#F1F5F9' },
+  selectText: { ...typography.body, color: '#0F172A', flex: 1 },
+  placeholderText: { color: '#94A3B8' },
+  retryText: { ...typography.labelMedium, color: '#DC2626' },
 
-  hint: { ...typography.small, color: colors.textSecondary },
+  hint: { ...typography.small, color: '#64748B' },
 
   addUtilityBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
     borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 10,
+    borderColor: '#D94625',
+    borderRadius: radius.search,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FBEAE5',
   },
-  addUtilityBtnText: { color: colors.primary, ...typography.labelMedium },
+  addUtilityBtnText: { color: '#D94625', ...typography.labelMedium },
 
   utilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   utilityLabelInput: { flex: 1.2 },
   utilityValueInput: { flex: 1 },
   removeUtilityBtn: {
     borderWidth: 1.5,
-    borderColor: colors.error,
-    borderRadius: 12,
+    borderColor: '#FCA5A5',
+    borderRadius: 14,
     height: 52,
     width: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FEF2F2',
   },
 
   attachmentRow: {
@@ -690,68 +694,74 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: colors.surfaceSecondary,
+    borderTopColor: '#F1F5F9',
   },
-  attachmentLabel: { flex: 1, ...typography.body, color: colors.textPrimary },
+  attachmentLabel: { flex: 1, ...typography.body, color: '#0F172A' },
   attachBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: spacing.sm,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: '#D94625',
+    backgroundColor: '#FBEAE5',
   },
-  attachBtnText: { color: colors.primary, ...typography.labelMedium },
+  attachBtnText: { color: '#D94625', ...typography.labelMedium },
 
-  actions: { flexDirection: 'row', gap: 16, paddingTop: 8 },
+  actions: { flexDirection: 'row', gap: spacing.md, paddingTop: spacing.sm },
   cancelBtn: {
     flex: 1,
     height: 52,
-    borderRadius: 24,
+    borderRadius: radius['2xl'],
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
   },
-  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
+  cancelBtnText: { color: '#64748B', ...typography.labelLarge },
   submitBtn: {
     flex: 1.5,
     height: 52,
-    borderRadius: 24,
-    backgroundColor: colors.accent,
+    borderRadius: radius['2xl'],
+    backgroundColor: '#D94625',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: colors.onAccent, ...typography.labelLarge },
+  submitBtnText: { color: '#FFFFFF', ...typography.labelLarge },
 
   // ---- dropdown modal ----
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(42,43,44,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: radius['2xl'],
+    borderTopRightRadius: radius['2xl'],
     maxHeight: '60%',
-    paddingBottom: 24,
+    paddingBottom: spacing.lg,
     paddingTop: 12,
   },
-  modalHandle: { width: 48, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 12 },
-  modalTitle: { ...typography.h4, color: colors.textPrimary, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
+  modalHandle: { width: 48, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: typography.labelMedium.fontFamily, color: '#1A1A1A', paddingHorizontal: spacing.md + 4, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: spacing.md + 4,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceSecondary,
+    borderBottomColor: '#F1F5F9',
   },
-  modalOptionText: { ...typography.body, color: colors.textPrimary },
+  modalOptionText: { ...typography.body, color: '#0F172A' },
 });
 
 export default AddProperty;

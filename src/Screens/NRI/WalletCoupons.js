@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
@@ -44,24 +45,25 @@ function WalletCoupons({ navigation }) {
 
   const [amount, setAmount] = useState('');
   const [bankDetails, setBankDetails] = useState('');
+  const { showAlert, alertProps } = useAppAlert();
 
   const handleCashout = async () => {
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid cash-out amount.');
+      showAlert('Invalid amount', 'Please enter a valid cash-out amount.');
       return;
     }
     if (!bankDetails.trim()) {
-      Alert.alert('Bank details required', 'Please enter your bank account details.');
+      showAlert('Bank details required', 'Please enter your bank account details.');
       return;
     }
     try {
       await requestCashout(numericAmount, bankDetails.trim()).unwrap();
-      Alert.alert('Request submitted', 'Your cash-out request has been submitted.');
+      showAlert('Request submitted', 'Your cash-out request has been submitted.');
       setAmount('');
       setBankDetails('');
     } catch (error) {
-      Alert.alert('Cash-out failed', error?.message || 'Something went wrong. Please try again.');
+      showAlert('Cash-out failed', error?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -197,6 +199,7 @@ function WalletCoupons({ navigation }) {
           )}
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -204,7 +207,7 @@ function WalletCoupons({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
-  
+
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 16, padding: 16, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
   statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
