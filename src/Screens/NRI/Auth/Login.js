@@ -67,10 +67,11 @@ function Login({ navigation }) {
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.headerSection}>
           {/* Enhanced Concentric Logo Design */}
           <View style={styles.logoCenterWrap}>
@@ -87,8 +88,6 @@ function Login({ navigation }) {
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Enter your credentials to access your dashboard and manage your properties.</Text>
         </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         <Text style={styles.inputLabel}>Email Address</Text>
         <View style={[styles.inputWrap, errorFor('login') && styles.inputWrapError]}>
@@ -197,8 +196,7 @@ const styles = StyleSheet.create({
   },
 
   headerSection: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 80,
+    paddingTop: 60,
     alignItems: 'center',
     zIndex: 2,
   },

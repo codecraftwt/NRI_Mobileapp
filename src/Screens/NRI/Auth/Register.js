@@ -89,29 +89,28 @@ function Register({ navigation }) {
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <View style={styles.headerSection}>
-          {/* Enhanced Concentric Logo Design */}
-          <View style={styles.logoCenterWrap}>
-            <View style={styles.logoOuterRing}>
-              <View style={styles.logoInnerRing}>
-                <View style={[styles.iconContainer, { backgroundColor: C.surface }]}>
-                  <Icon name="public" size={32} color={C.primary} />
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.headerSection}>
+            {/* Enhanced Concentric Logo Design */}
+            <View style={styles.logoCenterWrap}>
+              <View style={styles.logoOuterRing}>
+                <View style={styles.logoInnerRing}>
+                  <View style={[styles.iconContainer, { backgroundColor: C.surface }]}>
+                    <Icon name="public" size={32} color={C.primary} />
+                  </View>
                 </View>
               </View>
+              <Text style={styles.brandText}>NRI <Text style={{ color: C.primary }}>Circle</Text></Text>
             </View>
-            <Text style={styles.brandText}>NRI <Text style={{ color: C.primary }}>Circle</Text></Text>
+
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join NRI Circle to start managing everything back home with ease.</Text>
           </View>
 
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join NRI Circle to start managing everything back home with ease.</Text>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          
           <Text style={styles.inputLabel}>Full Name</Text>
           <View style={[styles.inputWrap, errorFor('name') && styles.inputWrapError]}>
             <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
@@ -275,8 +274,7 @@ const styles = StyleSheet.create({
   },
 
   headerSection: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: 80,
+    paddingTop: 60,
     alignItems: 'center',
     zIndex: 2,
   },
