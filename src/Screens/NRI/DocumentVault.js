@@ -164,10 +164,12 @@ function DocumentVault({ navigation }) {
 
         <TouchableOpacity
           style={styles.uploadBtn}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
           onPress={() => navigation.navigate('UploadDocument')}
         >
-          <Icon name="add" size={24} color={colors.onAccent} />
+          <View style={styles.uploadIconWrap}>
+            <Icon name="add" size={20} color={colors.primary} />
+          </View>
           <Text style={styles.uploadBtnText}>Upload Document</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -265,15 +267,26 @@ const styles = StyleSheet.create({
 
   uploadBtn: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.accent,
-    borderRadius: 24,
+    backgroundColor: colors.primaryLight + '10',
+    borderRadius: 16,
     paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
     marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: colors.primaryLight,
+    borderStyle: 'dashed',
   },
-  uploadBtnText: { color: colors.onAccent, ...typography.labelLarge },
+  uploadIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight + '30',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadBtnText: { ...typography.labelMedium, color: colors.primary },
 });
 
 export default DocumentVault;

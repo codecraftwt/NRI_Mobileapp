@@ -41,7 +41,7 @@ function TicketDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
   const { detail: ticket, loading, failed, retry, rate, rateLoading } = useTicketDetail(ticketId);
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
-  const report = reports.find(r => r.ticketId === ticket?.id) || null;
+  const report = (ticket && reports.find(r => r.ticketNumber === ticket.ticketNumber)) || ticket?.report || null;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -258,7 +258,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        <View style={styles.card}>
+        {/* <View style={styles.card}>
           <Text style={styles.sectionTitle}>Request Timeline</Text>
           <View style={styles.timelineWrapper}>
             {timeline.map((event, idx) => {
@@ -281,7 +281,7 @@ function TicketDetail({ route, navigation }) {
               );
             })}
           </View>
-        </View>
+        </View> */}
 
         {(ticket.status === 'completed' || !!report || reportsFailed) && (
           <View style={styles.card}>
@@ -297,12 +297,12 @@ function TicketDetail({ route, navigation }) {
               )}
             </View>
             {reportsFailed ? (
-              <TouchableOpacity style={styles.backLink} onPress={retryReports}>
+              <TouchableOpacity style={[styles.backLink, styles.reportBody]} onPress={retryReports}>
                 <Icon name="refresh" size={16} color="#DC2626" />
                 <Text style={[styles.backLinkText, { color: '#DC2626' }]}>Couldn't load the report. Tap to retry.</Text>
               </TouchableOpacity>
             ) : report ? (
-              <>
+              <View style={styles.reportBody}>
                 {!!report.title && <Text style={styles.reportNote}>{report.title}</Text>}
                 {!!(report.vendor || report.date) && (
                   <Text style={styles.subValue}>
@@ -313,20 +313,20 @@ function TicketDetail({ route, navigation }) {
                   <View style={styles.attachmentRow}>
                     {report.media.map((m, idx) => (
                       <TouchableOpacity key={m.url ?? idx} style={styles.attachmentPill} onPress={() => handleViewAttachment(m.url)}>
-                        <Icon name="attach-file" size={14} color="#3B82F6" />
+                        <Icon name="attach-file" size={16} color="#0D9488" />
                         <Text style={styles.attachmentPillText}>{report.media.length > 1 ? `View Attachment ${idx + 1}` : 'View Attachment'}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
-              </>
+              </View>
             ) : reportsLoading ? (
-              <View style={styles.reportLoadingRow}>
+              <View style={[styles.reportLoadingRow, styles.reportBody]}>
                 <ActivityIndicator size="small" color="#D94625" />
                 <Text style={styles.subValue}>Checking for your service report...</Text>
               </View>
             ) : (
-              <Text style={styles.subValue}>Your service report hasn't been shared yet.</Text>
+              <Text style={[styles.subValue, styles.reportBody]}>Your service report hasn't been shared yet.</Text>
             )}
           </View>
         )}
@@ -478,15 +478,16 @@ const styles = StyleSheet.create({
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backLinkText: { ...typography.labelMedium, color: '#3B82F6' },
 
-  reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reportTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  reportHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  reportTitleWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reportStatusBadge: { backgroundColor: '#D1FAE5', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   reportStatusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#059669', textTransform: 'capitalize' },
+  reportBody: { paddingTop: 16, gap: 8 },
   reportNote: { ...typography.body, color: '#0F172A' },
   reportLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  attachmentPillText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#3B82F6', textDecorationLine: 'underline' },
+  attachmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  attachmentPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF2FF', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10, alignSelf: 'flex-start' },
+  attachmentPillText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB', textDecorationLine: 'underline' },
 
   starRow: { flexDirection: 'row', gap: 8, marginVertical: 4 },
   feedbackInput: {

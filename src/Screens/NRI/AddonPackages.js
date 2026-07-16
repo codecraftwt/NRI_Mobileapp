@@ -14,13 +14,7 @@ const GATEWAYS = [
   { key: 'stripe', label: 'Stripe', desc: 'International cards — pay month-by-month', icon: 'credit-card' },
 ];
 
-function statusStyle(status) {
-  switch (status) {
-    case 'active': return { bg: '#D1FAE5', text: '#059669' };
-    case 'pending': return { bg: '#FFEDD5', text: '#C2410C' };
-    default: return { bg: '#F3F4F6', text: '#4B5563' };
-  }
-}
+const ACTIVE_STATUS_STYLE = { bg: '#D1FAE5', text: '#059669' };
 
 function AddonPackages({ navigation }) {
   const { packages, loading, failed, retry, subscribe, cancelSubscription, verifyPayment, refetch } = useMyAddonPackages();
@@ -108,7 +102,7 @@ function AddonPackages({ navigation }) {
         showAlert('Subscribed', result.message || `You've subscribed to ${pkg.name}.`);
       }
     } catch (error) {
-      showAlert('Subscription Failed', error?.message || 'Could not complete the subscription. Please try again.');
+      showAlert('Subscription Failed');
     } finally {
       setProcessingId(null);
     }
@@ -157,6 +151,13 @@ function AddonPackages({ navigation }) {
 
         {packages.map(pkg => {
           const subscription = pkg.mySubscription;
+          // Only a successfully-paid, active subscription is eligible for
+          // cancellation — a subscription record can already exist in a
+          // 'pending'/'failed' state right after `subscribe()` creates it
+          // server-side but before the payment actually completes (e.g. the
+          // user exits the checkout without finishing), so gate on status
+          // rather than mere presence.
+          const isActive = subscription?.status === 'active';
           const isProcessing = processingId === pkg.id;
           return (
             <View key={pkg.id} style={styles.pkgCard}>
@@ -171,15 +172,15 @@ function AddonPackages({ navigation }) {
                 </View>
               </View>
               
-              {!!subscription && (
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle(subscription.status).bg, alignSelf: 'flex-start', marginTop: 4, marginBottom: 4 }]}>
-                  <Text style={[styles.statusBadgeText, { color: statusStyle(subscription.status).text }]}>{subscription.status}</Text>
+              {isActive && (
+                <View style={[styles.statusBadge, { backgroundColor: ACTIVE_STATUS_STYLE.bg, alignSelf: 'flex-start', marginTop: 4, marginBottom: 4 }]}>
+                  <Text style={[styles.statusBadgeText, { color: ACTIVE_STATUS_STYLE.text }]}>{subscription.status}</Text>
                 </View>
               )}
               
               {!!pkg.description && <Text style={styles.pkgDesc}>{pkg.description}</Text>}
 
-              {subscription ? (
+              {isActive ? (
                 <View style={styles.pkgActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => handleCancel(pkg)}>
                     <Text style={styles.cancelBtnText}>Cancel Auto-Renewal</Text>
@@ -234,7 +235,7 @@ function AddonPackages({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
   introText: { ...typography.body, color: '#64748B', marginBottom: 8 },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadingText: { ...typography.body, color: '#64748B' },
@@ -242,28 +243,28 @@ const styles = StyleSheet.create({
   retryText: { ...typography.labelMedium, color: '#EF4444' },
   pkgCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 16,
+    padding: 12,
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    borderLeftWidth: 5,
+    borderLeftWidth: 4,
     borderLeftColor: '#D94625',
   },
-  pkgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  pkgTitleWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flex: 1, paddingTop: 2 },
-  pkgName: { ...typography.h4, color: '#0F172A', flex: 1, lineHeight: 22 },
+  pkgHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  pkgTitleWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flex: 1, paddingTop: 1 },
+  pkgName: { ...typography.labelLarge, color: '#0F172A', flex: 1, lineHeight: 19 },
   pkgPriceWrap: { alignItems: 'flex-end' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
-  pkgPrice: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  pkgPrice: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   pkgPriceUnit: { ...typography.tiny, color: '#64748B', marginTop: -2 },
-  pkgDesc: { ...typography.body, color: '#64748B', lineHeight: 20, marginTop: 12 },
-  pkgActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  pkgDesc: { ...typography.small, color: '#64748B', lineHeight: 17, marginTop: 8 },
+  pkgActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   methodSelect: {
     flex: 1,
     flexDirection: 'row',
@@ -271,32 +272,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 52,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
     backgroundColor: '#F8FAFC',
   },
-  methodSelectText: { ...typography.body, color: '#0F172A', flexShrink: 1 },
+  methodSelectText: { ...typography.small, color: '#0F172A', flexShrink: 1 },
   subBtn: {
     backgroundColor: '#D94625',
-    borderRadius: 24,
-    paddingHorizontal: 24,
+    borderRadius: 22,
+    paddingHorizontal: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    height: 52,
-    minWidth: 110,
+    height: 44,
+    minWidth: 96,
   },
-  subBtnText: { ...typography.labelMedium, color: '#FFFFFF' },
+  subBtnText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   cancelBtn: {
     flex: 1,
     borderWidth: 1.5,
     borderColor: '#EF4444',
-    borderRadius: 24,
-    height: 52,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cancelBtnText: { ...typography.labelMedium, color: '#EF4444' },
+  cancelBtnText: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
 
   // ---- Payment Method sheet ----
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },

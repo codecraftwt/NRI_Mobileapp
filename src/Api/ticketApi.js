@@ -1,4 +1,5 @@
 import apiClient, { normalizeApiError } from './client';
+import { mapReport } from './reportApi';
 
 function mapCoupon(raw) {
   return {
@@ -124,6 +125,7 @@ function mapTicket(raw) {
     totalAmount: raw.pricing?.total_amount ?? raw.total_amount,
     isPaid: raw.pricing?.is_paid ?? raw.is_paid,
     hasReport: !!raw.has_report,
+    report: raw.report ? mapReport(raw.report) : null,
     vendorName: raw.vendor?.name || null,
     createdAt: raw.created_at,
     familyMember: raw.family_member ? { id: raw.family_member.id, name: raw.family_member.name } : null,

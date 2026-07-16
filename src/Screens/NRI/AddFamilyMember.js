@@ -104,30 +104,37 @@ function AddFamilyMember({ navigation, route }) {
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
-  const { detail, loading: loadingDetail, failed: detailFailed, fetchDetail } = useFamilyMemberDetail();
+  const { loading: loadingDetail, failed: detailFailed, fetchDetail } = useFamilyMemberDetail();
   const submitting = useSelector(state => state.family.mutationStatus === 'loading');
 
-  useEffect(() => {
-    if (isEditing) {
-      fetchDetail(memberId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memberId]);
+  // Populate directly from this fetch's own resolved result, not from the
+  // Redux-cached `detail` — on remount (e.g. re-opening edit after just
+  // saving a change), the store can still hold the previous fetch's stale
+  // object for the same member id until this fetch resolves, which used to
+  // get read and "locked in" via the `hasPopulated` guard before the fresh
+  // data ever arrived.
+  const populateForm = (data) => {
+    setName(data.name || '');
+    setRelation(RELATIONSHIP_FROM_API[data.relationship] || '');
+    setPhone(data.phone || '');
+    setEmergencyContact(data.emergencyContact || '');
+    setStateVal(data.stateName || '');
+    setCity(data.cityName || '');
+    setAddress(data.address || '');
+    setDob(data.dateOfBirth ? new Date(data.dateOfBirth) : null);
+    setHealthNotes(data.healthNotes || '');
+    setHasPopulated(true);
+  };
 
   useEffect(() => {
-    if (!hasPopulated && detail && detail.id === memberId) {
-      setName(detail.name || '');
-      setRelation(RELATIONSHIP_FROM_API[detail.relationship] || '');
-      setPhone(detail.phone || '');
-      setEmergencyContact(detail.emergencyContact || '');
-      setStateVal(detail.stateName || '');
-      setCity(detail.cityName || '');
-      setAddress(detail.address || '');
-      setDob(detail.dateOfBirth ? new Date(detail.dateOfBirth) : null);
-      setHealthNotes(detail.healthNotes || '');
-      setHasPopulated(true);
-    }
-  }, [detail, memberId, hasPopulated]);
+    if (!isEditing) return;
+    let cancelled = false;
+    fetchDetail(memberId).unwrap().then((data) => {
+      if (!cancelled) populateForm(data);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberId]);
 
   const stateId = stateVal ? states.find(s => s.name === stateVal)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;
@@ -180,7 +187,7 @@ function AddFamilyMember({ navigation, route }) {
             <Text style={styles.detailLoadingText}>Loading member details…</Text>
           </View>
         ) : isEditing && detailFailed && !hasPopulated ? (
-          <TouchableOpacity style={styles.retryBox} onPress={() => fetchDetail(memberId)}>
+          <TouchableOpacity style={styles.retryBox} onPress={() => fetchDetail(memberId).unwrap().then(populateForm).catch(() => {})}>
             <Text style={styles.retryText}>Couldn't load member details. Tap to retry.</Text>
           </TouchableOpacity>
         ) : (
@@ -312,10 +319,10 @@ function AddFamilyMember({ navigation, route }) {
               </TouchableOpacity>
               <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
                 {submitting ? (
-                  <ActivityIndicator size="small" color={colors.onAccent} />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Icon name="check" size={18} color={colors.onAccent} />
+                    <Icon name="check" size={18} color="#FFFFFF" />
                     <Text style={styles.submitBtnText}>{isEditing ? 'Update Member' : 'Add Member'}</Text>
                   </>
                 )}
@@ -398,14 +405,14 @@ const styles = StyleSheet.create({
     flex: 1.5,
     height: 52,
     borderRadius: 26,
-    backgroundColor: colors.accent,
+    backgroundColor: '#D94625',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: colors.onAccent, ...typography.labelLarge },
+  submitBtnText: { color: '#FFFFFF', ...typography.labelLarge },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {

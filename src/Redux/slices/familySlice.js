@@ -102,6 +102,7 @@ const familySlice = createSlice({
         state.mutationStatus = 'succeeded';
         const index = state.members.findIndex(m => m.id === action.payload.id);
         if (index !== -1) state.members[index] = action.payload;
+        if (state.detail?.id === action.payload.id) state.detail = action.payload;
       })
       .addCase(updateFamilyMember.rejected, (state, action) => {
         state.mutationStatus = 'failed';

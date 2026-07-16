@@ -1,12 +1,16 @@
 import apiClient, { normalizeApiError } from './client';
 
-function mapReport(raw) {
+export function mapReport(raw) {
   return {
     id: raw.id,
-    title: raw.title || raw.name || 'Report',
-    service: raw.service?.name || raw.service_name || raw.ticket?.service?.name || null,
+    // Verified live against GET /customer/reports: the report's body comes
+    // back as `report_text`, and `service`/`vendor` are plain strings, not
+    // nested objects — the `?.name`/`_name` fallbacks below cover the shapes
+    // seen elsewhere (e.g. the report embedded in ticket detail).
+    title: raw.report_text || raw.title || raw.name || 'Report',
+    service: typeof raw.service === 'string' ? raw.service : (raw.service?.name || raw.service_name || raw.ticket?.service?.name || null),
     type: raw.type || raw.category || null,
-    vendor: raw.vendor?.name || raw.vendor_name || null,
+    vendor: typeof raw.vendor === 'string' ? raw.vendor : (raw.vendor?.name || raw.vendor_name || null),
     status: raw.status || null,
     // `sent_at` is when the RM dispatched the reviewed report to the
     // customer (POST /rm/reports/{report}/send) — the date the customer
@@ -15,6 +19,7 @@ function mapReport(raw) {
     mediaCount: (raw.media || raw.media_urls || []).length,
     media: (raw.media || raw.media_urls || []).map(m => (typeof m === 'string' ? { url: m } : { url: m.url, type: m.type })),
     ticketId: raw.ticket_id || null,
+    ticketNumber: raw.ticket_number || null,
   };
 }
 

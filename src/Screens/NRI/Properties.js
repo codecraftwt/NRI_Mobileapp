@@ -133,7 +133,9 @@ function Properties({ navigation }) {
         ))}
 
         <TouchableOpacity style={styles.addCard} onPress={() => navigation.navigate('AddProperty')} activeOpacity={0.8}>
-          <Icon name="add" size={24} color="#FFFFFF" />
+          <View style={styles.addIconWrap}>
+            <Icon name="add" size={20} color="#3298D4" />
+          </View>
           <Text style={styles.addCardText}>Add Property</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -216,20 +218,26 @@ const styles = StyleSheet.create({
 
   addCard: {
     flexDirection: 'row',
-    backgroundColor: '#D94625',
-    borderRadius: radius.full,
+    backgroundColor: '#3298D410',
+    borderRadius: 16,
     padding: spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.sm,
     marginTop: spacing.sm,
-    shadowColor: '#D94625',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: '#3298D4',
+    borderStyle: 'dashed',
   },
-  addCardText: { color: '#FFFFFF', ...typography.labelLarge },
+  addIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#3298D430',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addCardText: { color: '#3298D4', ...typography.labelMedium },
 });
 
 export default Properties;

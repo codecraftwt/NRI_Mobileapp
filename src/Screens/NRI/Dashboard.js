@@ -1,8 +1,10 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
+import React, { useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector } from 'react-redux';
 import RMWidget from '../../Components/RMWidget';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useDashboard } from '../../Hooks/useDashboard';
 import { lightColors as colors, typography, spacing, radius } from '../../theme';
 
@@ -11,9 +13,28 @@ const { width: W, height: H } = Dimensions.get('window');
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
   const user = useSelector(s => s.user.user);
+  const { showAlert, alertProps } = useAppAlert();
 
   const membership = data?.membership;
   const recentTickets = data?.recentTickets || [];
+
+  // Dashboard is the app's home screen (root of the bottom-tab navigator) —
+  // hardware back here has nowhere left to go, so it falls through to the
+  // OS default of closing the app outright. Intercept it only while this
+  // screen is focused so every other screen keeps its normal back behavior.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showAlert])
+  );
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -234,6 +255,7 @@ function Dashboard({ navigation }) {
 
         </ScrollView>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
