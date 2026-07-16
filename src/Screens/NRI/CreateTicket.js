@@ -450,7 +450,7 @@ function CreateTicket({ route, navigation }) {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
+          <Icon name="arrow-back-ios" size={18} color="#D94625" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Submit a Service Request</Text>
         <View style={{ width: 44 }} />
@@ -458,7 +458,7 @@ function CreateTicket({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {membership && usage && (
           <View style={styles.usageBanner}>
-            <Icon name="info-outline" size={16} color="#6D28D9" style={{ marginTop: 2 }} />
+            <Icon name="info-outline" size={16} color="#D94625" style={{ marginTop: 2 }} />
             <Text style={styles.usageBannerText}>
               You have used <Text style={styles.bold}>{usage.requestsUsed ?? 0}{serviceRequestsLimit != null ? ` of ${serviceRequestsLimit}` : ''}</Text> service requests included in your {membership.planName} plan this month.
               {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
@@ -610,6 +610,7 @@ function CreateTicket({ route, navigation }) {
           )}
           <SelectField
             label="City / District"
+            required
             value={city}
             placeholder="Select city..."
             options={cityNames}
@@ -792,9 +793,9 @@ function CreateTicket({ route, navigation }) {
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                <Icon name="local-offer" size={14} color="#7C3AED" />
+                <Icon name="local-offer" size={14} color="#D94625" />
                 <Text style={styles.viewCouponsLink}>View available coupons</Text>
-                <Icon name="expand-more" size={16} color="#7C3AED" />
+                <Icon name="expand-more" size={16} color="#D94625" />
               </TouchableOpacity>
             </>
           )}
@@ -894,14 +895,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#F3E8FF',
+    backgroundColor: '#D9462510',
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E9D5FF',
+    borderColor: '#D9462530',
   },
-  usageBannerText: { flex: 1, fontSize: 13, color: '#6D28D9', lineHeight: 20 },
+  usageBannerText: { flex: 1, fontSize: 13, color: '#D94625', lineHeight: 20 },
   bold: { fontWeight: '700' },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 16, letterSpacing: -0.3 },
   card: { 
@@ -983,10 +984,10 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     backgroundColor: '#FFFFFF',
   },
-  baseServiceCardSelected: { borderColor: '#A855F7', backgroundColor: '#FAF5FF' },
+  baseServiceCardSelected: { borderColor: '#D94625', backgroundColor: '#D9462510' },
   baseServiceName: { fontSize: 16, fontWeight: '600', color: '#0F172A' },
   baseServiceSub: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  baseServicePrice: { fontSize: 15, fontWeight: '600', color: '#5B21B6' },
+  baseServicePrice: { fontSize: 15, fontWeight: '600', color: '#D94625' },
   includedPill: { backgroundColor: '#D1FAE5', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   includedPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#059669' },
 
@@ -1001,12 +1002,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     backgroundColor: '#FFFFFF',
   },
-  addonCardSelected: { borderColor: '#A855F7', backgroundColor: '#FAF5FF' },
+  addonCardSelected: { borderColor: '#D94625', backgroundColor: '#D9462510' },
   addonCheckboxSquare: { width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  addonCheckboxSquareChecked: { backgroundColor: '#5B21B6', borderColor: '#5B21B6' },
+  addonCheckboxSquareChecked: { backgroundColor: '#D94625', borderColor: '#D94625' },
   addonCardName: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   addonCardSub: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  addonCardPrice: { fontSize: 15, fontWeight: '600', color: '#5B21B6' },
+  addonCardPrice: { fontSize: 15, fontWeight: '600', color: '#D94625' },
 
   couponLabel: { ...typography.labelMedium, color: colors.textPrimary, marginTop: 12 },
   couponRow: { flexDirection: 'row', gap: 12 },
@@ -1047,12 +1048,12 @@ const styles = StyleSheet.create({
   },
   filePillText: { flex: 1, ...typography.body, color: colors.textPrimary },
   submitBtn: {
-    backgroundColor: '#5B21B6',
+    backgroundColor: '#D94625',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 20,
-    shadowColor: '#5B21B6',
+    shadowColor: '#D94625',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1062,14 +1063,14 @@ const styles = StyleSheet.create({
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   cancelBtn: {
     borderWidth: 1.5,
-    borderColor: '#E9D5FF',
+    borderColor: '#D9462540',
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 12,
   },
-  cancelBtnText: { color: '#6D28D9', fontSize: 16, fontWeight: '700' },
+  cancelBtnText: { color: '#D94625', fontSize: 16, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#fff',

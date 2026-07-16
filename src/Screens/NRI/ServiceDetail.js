@@ -77,7 +77,7 @@ function ServiceDetail({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {activeTab === 'addons' ? (
           loadingAddons ? (
-            <ActivityIndicator size="large" color="#5B21B6" style={{ marginTop: 40 }} />
+            <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
           ) : addonServices.length === 0 ? (
             <Text style={styles.emptyText}>No add-on services available.</Text>
           ) : (
@@ -106,7 +106,7 @@ function ServiceDetail({ route, navigation }) {
           )
         ) : (
           loadingBase ? (
-            <ActivityIndicator size="large" color="#5B21B6" style={{ marginTop: 40 }} />
+            <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
           ) : baseServices.length === 0 ? (
             <Text style={styles.emptyText}>No base services available.</Text>
           ) : (
@@ -114,10 +114,10 @@ function ServiceDetail({ route, navigation }) {
               const safeIds = selectedBaseServiceIds || [];
               const isSelected = safeIds.includes(s.id);
               return (
-                <TouchableOpacity 
-                  key={s.id} 
+                <TouchableOpacity
+                  key={s.id}
                   style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-                  onPress={() => setSelectedBaseServiceIds(prev => (prev || []).includes(s.id) ? (prev || []).filter(x => x !== s.id) : [...(prev || []), s.id])}
+                  onPress={() => setSelectedBaseServiceIds(prev => ((prev || []).includes(s.id) ? [] : [s.id]))}
                   activeOpacity={0.7}
                 >
                   <View style={styles.serviceCardLeft}>
@@ -127,11 +127,6 @@ function ServiceDetail({ route, navigation }) {
                   <View style={styles.serviceCardRight}>
                     <View style={styles.includedPill}>
                       <Text style={styles.includedPillText}>Included</Text>
-                    </View>
-                    <View style={[styles.addBtn, isSelected && styles.addedBtn, { marginTop: 8 }]}>
-                      <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
-                        {isSelected ? '✓ Selected' : 'Select'}
-                      </Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -202,7 +197,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   bookBtn: {
-    backgroundColor: '#5B21B6',
+    backgroundColor: '#D94625',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -246,7 +241,7 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   activeTabText: {
-    color: '#5B21B6',
+    color: '#D94625',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -276,8 +271,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   serviceCardSelected: {
-    borderColor: '#A855F7',
-    backgroundColor: '#FAF5FF',
+    borderColor: '#D94625',
   },
   serviceCardLeft: {
     flex: 1,
@@ -299,13 +293,13 @@ const styles = StyleSheet.create({
   serviceCardPrice: {
     fontSize: 16,
     fontFamily: typography.h4.fontFamily,
-    color: '#5B21B6',
+    color: '#D94625',
     marginBottom: 8,
   },
   addBtn: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E9D5FF',
+    borderColor: '#D9462540',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -319,7 +313,7 @@ const styles = StyleSheet.create({
   addBtnText: {
     fontSize: 12,
     fontFamily: typography.labelMedium.fontFamily,
-    color: '#6D28D9',
+    color: '#D94625',
   },
   addedBtnText: {
     color: '#059669',

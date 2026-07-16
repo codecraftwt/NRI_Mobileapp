@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600' },
 
   planRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  planRowSelected: { borderColor: '#007AFF', backgroundColor: '#F0F7FF' },
+  planRowSelected: { borderColor: '#D94625', backgroundColor: '#F0F7FF' },
   planName: { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#111827' },
   planPopular: { fontSize: 11, color: '#F59E0B', fontWeight: '700', marginTop: 2 },
   planPrice: { fontSize: 13.5, fontWeight: '700', color: '#111827' },

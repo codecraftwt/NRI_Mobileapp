@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { lightColors as colors } from '../../theme/colors';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, spacing, radius } from '../../theme';
 import { removeProperty } from '../../Redux/slices/propertiesSlice';
@@ -89,7 +90,7 @@ function Properties({ navigation }) {
                   onPress={() => navigation.navigate('AddProperty', { propertyId: p.id })}
                   activeOpacity={0.7}
                 >
-                  <Icon name="edit" size={18} color="#D94625" />
+                  <Icon name="edit" size={18} color={colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
@@ -198,11 +199,11 @@ const styles = StyleSheet.create({
   propertyType: { ...typography.small, color: '#64748B', marginTop: 2 },
 
   cardActions: { flexDirection: 'row', gap: spacing.sm },
-  actionIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    backgroundColor: '#F1F5F9',
+   actionIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primaryLight + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },

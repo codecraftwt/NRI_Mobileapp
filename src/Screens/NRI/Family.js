@@ -78,10 +78,6 @@ function Family({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Dynamic Geometric Background Layering matching Auth screens */}
-      <View style={styles.bgShape1} />
-      <View style={styles.bgShape2} />
-      <View style={styles.bgShape3} />
 
       <Header navigation={navigation} title="My Family" showBack />
       <ScrollView
@@ -237,7 +233,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionIconBtnDanger: {
-    backgroundColor: colors.errorBackground,
+   backgroundColor: '#FEE2E2'
   },
 
   cardBody: { gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
