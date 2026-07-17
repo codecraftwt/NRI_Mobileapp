@@ -1,8 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Dimensions, Animated, StatusBar, Image, SafeAreaView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { lightColors as C } from '../../../theme/colors';
+import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
+
+const C = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
 
 const { width: W, height: H } = Dimensions.get('window');
 

@@ -481,7 +481,7 @@ function CreateTicket({ route, navigation }) {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={18} color="#D94625" style={{ marginLeft: 6 }} />
+          <Icon name="arrow-back-ios" size={18} color="#20304C" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Submit a Service Request</Text>
         <View style={{ width: 44 }} />
@@ -898,12 +898,12 @@ function CreateTicket({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   headerContainer: {
-    backgroundColor: '#FDFBF7',
+    backgroundColor: '#20304C',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: 40,
     paddingBottom: 16,
   },
   headerBackBtn: {
@@ -915,14 +915,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
     fontFamily: typography.h2.fontFamily,
-    color: '#1E293B',
+    color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
   },

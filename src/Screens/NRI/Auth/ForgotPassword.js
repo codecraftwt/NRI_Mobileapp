@@ -3,9 +3,14 @@ import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Activi
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { forgotPassword } from '../../../Redux/slices/userSlice';
-import { lightColors as C } from '../../../theme/colors';
+import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
 
+const C = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
 const { width: W, height: H } = Dimensions.get('window');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,7 +54,6 @@ function ForgotPassword({ navigation }) {
       {/* Dynamic Geometric Background Layering */}
       <View style={styles.bgShape1} />
       <View style={styles.bgShape2} />
-      <View style={styles.bgShape3} />
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
@@ -174,16 +178,6 @@ const styles = StyleSheet.create({
     height: H * 0.5,
     backgroundColor: C.accent + '15',
     borderRadius: 60,
-    transform: [{ rotate: '-35deg' }]
-  },
-  bgShape3: {
-    position: 'absolute',
-    top: '40%',
-    left: -W * 0.2,
-    width: W * 1.5,
-    height: H * 0.03,
-    backgroundColor: C.primary + '10',
-    borderRadius: 10,
     transform: [{ rotate: '-35deg' }]
   },
 

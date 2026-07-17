@@ -17,7 +17,11 @@ import { spacing, radius } from '../../../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
-const C = lightColors;
+const C = {
+  ...lightColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
 
 function LoadingBar({ color, trackColor }) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -59,7 +63,6 @@ export default function Splash({ navigation }) {
   // Background Parallax shapes
   const slide1 = useRef(new Animated.Value(-40)).current;
   const slide2 = useRef(new Animated.Value(40)).current;
-  const slide3 = useRef(new Animated.Value(-20)).current;
 
   useEffect(() => {
     // Parallax background animations
@@ -74,13 +77,6 @@ export default function Splash({ navigation }) {
       Animated.sequence([
         Animated.timing(slide2, { toValue: -40, duration: 5500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         Animated.timing(slide2, { toValue: 40, duration: 5500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(slide3, { toValue: 20, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(slide3, { toValue: -20, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     ).start();
 
@@ -127,7 +123,6 @@ export default function Splash({ navigation }) {
       {/* Modern diagonal geometric background layers */}
       <Animated.View style={[styles.bgShape1, { transform: [{ rotate: '-35deg' }, { translateX: slide1 }] }]} />
       <Animated.View style={[styles.bgShape2, { transform: [{ rotate: '-35deg' }, { translateX: slide2 }] }]} />
-      <Animated.View style={[styles.bgShape3, { transform: [{ rotate: '-35deg' }, { translateX: slide3 }] }]} />
 
       <View style={styles.center}>
         <Animated.View style={{ opacity: iconOpacity, transform: [{ scale: iconScale }], alignItems: 'center', marginBottom: spacing.xl }}>
@@ -207,15 +202,6 @@ const styles = StyleSheet.create({
     height: H * 0.6,
     backgroundColor: C.accent + '15',
     borderRadius: 60,
-  },
-  bgShape3: {
-    position: 'absolute',
-    top: '30%',
-    left: -W * 0.5,
-    width: W * 2,
-    height: H * 0.05,
-    backgroundColor: C.primary + '08',
-    borderRadius: 10,
   },
 
   center: {
