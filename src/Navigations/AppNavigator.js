@@ -60,6 +60,9 @@ import UploadDocument from '../Screens/NRI/UploadDocument';
 // Import Requests Screen
 import Requests from '../Screens/NRI/Requests';
 
+// Import Vendor Screens
+import VendorNavigator from './Vendor/VendorNavigator';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -274,6 +277,9 @@ export default function AppNavigator() {
 
       {/* Authenticated Application */}
       <Stack.Screen name="AppHome" component={MainTabNavigator} />
+
+      {/* Vendor Flow — reached from the same Login screen based on account role */}
+      <Stack.Screen name="VendorHome" component={VendorNavigator} />
     </Stack.Navigator>
   );
 }

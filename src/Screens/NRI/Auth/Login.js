@@ -31,6 +31,13 @@ function Login({ navigation }) {
   };
 
   const handleSignIn = () => {
+    // TEMPORARY: vendor UI preview shortcut, no backend role routing yet.
+    // Remove once real vendor accounts/role-based routing are wired up.
+    if (email.trim().toLowerCase() === 'vendor@test.com' && password === 'vendor123') {
+      navigation.replace('VendorHome');
+      return;
+    }
+
     const errors = {};
     if (!email.trim()) errors.login = 'Email is required.';
     if (!password) errors.password = 'Password is required.';
