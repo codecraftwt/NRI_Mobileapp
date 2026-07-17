@@ -19,10 +19,10 @@ function RMWidget({ rm }) {
       
       <View style={styles.actions}>
         <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${rm.phone || '+910000000000'}`)}>
-          <Icon name="phone" size={20} color="#FFFFFF" />
+          <Icon name="phone" size={16} color="#FFFFFF" />
         </TouchableOpacity>
         <TouchableOpacity style={styles.waBtn} onPress={() => Linking.openURL(`whatsapp://send?phone=${rm.phone || '+910000000000'}`)}>
-          <Icon name="chat" size={20} color="#FFFFFF" />
+          <Icon name="chat" size={16} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -45,6 +45,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 12,
+    marginRight: 12,
   },
   avatar: { 
     width: 48, 
@@ -80,17 +81,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   callBtn: { 
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   waBtn: { 
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#22C55E',
     justifyContent: 'center',
     alignItems: 'center',

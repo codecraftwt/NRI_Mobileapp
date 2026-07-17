@@ -159,21 +159,16 @@ function ReportsMedia({ navigation }) {
             {!!viewingReport && (
               <>
                 <View style={styles.modalHeaderRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modalTitle} numberOfLines={2}>{viewingReport.service || viewingReport.title}</Text>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={styles.modalTitle}>{viewingReport.service || viewingReport.title}</Text>
                     {!!(viewingReport.vendor || viewingReport.date) && (
                       <Text style={styles.modalSubtitle}>
                         {[viewingReport.vendor, formatReportDate(viewingReport.date)].filter(Boolean).join(' · ')}
                       </Text>
                     )}
                   </View>
-                  {!!viewingReport.status && (
-                    <View style={[styles.reportStatus, { backgroundColor: viewingReport.status === 'New' ? colors.primary + '1A' : colors.surfaceSecondary }]}>
-                      <Text style={[styles.reportStatusText, { color: viewingReport.status === 'New' ? colors.primary : colors.textSecondary }]}>{viewingReport.status}</Text>
-                    </View>
-                  )}
                   <TouchableOpacity onPress={() => setViewingReport(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.modalCloseBtn}>
-                    <Icon name="close" size={20} color={colors.textSecondary} />
+                    <Icon name="close" size={20} color="#64748B" />
                   </TouchableOpacity>
                 </View>
 
@@ -189,24 +184,28 @@ function ReportsMedia({ navigation }) {
                       const isDownloading = downloadingKey === key;
                       return (
                         <View key={key} style={styles.attachmentItem}>
-                          <Icon name="picture-as-pdf" size={20} color={colors.accent} />
+                          <View style={styles.attachmentIconBox}>
+                            <Icon name="picture-as-pdf" size={22} color="#A64416" />
+                          </View>
                           <Text style={styles.attachmentItemText} numberOfLines={1}>
                             {viewingReport.media.length > 1 ? `Attachment ${idx + 1}` : 'Attachment'}
                           </Text>
-                          <TouchableOpacity style={styles.attachmentActionBtn} onPress={() => handleViewAttachment(m.url)}>
-                            <Icon name="visibility" size={18} color={colors.primary} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.attachmentActionBtn}
-                            onPress={() => handleDownload(viewingReport, m, idx)}
-                            disabled={isDownloading}
-                          >
-                            {isDownloading ? (
-                              <ActivityIndicator size="small" color={colors.primary} />
-                            ) : (
-                              <Icon name="file-download" size={18} color={colors.primary} />
-                            )}
-                          </TouchableOpacity>
+                          <View style={styles.attachmentActions}>
+                            <TouchableOpacity style={styles.attachmentActionBtn} onPress={() => handleViewAttachment(m.url)}>
+                              <Icon name="visibility" size={18} color="#FFFFFF" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={styles.attachmentActionBtn}
+                              onPress={() => handleDownload(viewingReport, m, idx)}
+                              disabled={isDownloading}
+                            >
+                              {isDownloading ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                              ) : (
+                                <Icon name="file-download" size={18} color="#FFFFFF" />
+                              )}
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       );
                     })}
@@ -226,50 +225,76 @@ function ReportsMedia({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 },
-  pageTitle: { ...typography.h3, color: colors.textPrimary },
-  countText: { ...typography.labelMedium, color: colors.textSecondary, marginTop: 4 },
-  summaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10 },
-  summaryBtnText: { ...typography.labelLarge, color: colors.onAccent },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+  countText: { fontSize: 13, fontWeight: '600', color: '#64748B', marginTop: 4 },
+  summaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#A64416', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
+  summaryBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { ...typography.body, color: colors.textSecondary },
+  loadingText: { fontSize: 14, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { ...typography.labelMedium, color: colors.error },
-  emptyCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, paddingVertical: 48, paddingHorizontal: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  emptyIconBox: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceMuted, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  emptyTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 8 },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
-  reportCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  reportHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  reportTitle: { ...typography.h4, color: colors.textPrimary },
-  reportVendor: { ...typography.labelMedium, color: colors.textSecondary, marginTop: 4 },
-  reportStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  reportStatusText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily },
-  reportFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary, paddingTop: 16 },
-  reportDate: { ...typography.labelMedium, color: colors.textSecondary, flex: 1 },
+  retryText: { fontSize: 13, color: '#EF4444' },
+  emptyCard: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 24, 
+    borderWidth: 1, 
+    borderColor: '#E0E7FF', 
+    paddingVertical: 48, 
+    paddingHorizontal: 24, 
+    alignItems: 'center', 
+    shadowColor: '#1E3A8A', 
+    shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.08, 
+    shadowRadius: 24, 
+    elevation: 4 
+  },
+  emptyIconBox: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
+  emptyText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  reportCard: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 24, 
+    borderWidth: 1, 
+    borderColor: '#E0E7FF', 
+    padding: 24, 
+    shadowColor: '#1E3A8A', 
+    shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.08, 
+    shadowRadius: 24, 
+    elevation: 4 
+  },
+  reportHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 20 },
+  reportTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A', marginBottom: 4 },
+  reportVendor: { fontSize: 13, fontWeight: '600', color: '#475569' },
+  reportStatus: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  reportStatusText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  reportFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 16 },
+  reportDate: { fontSize: 13, fontWeight: '600', color: '#64748B', flex: 1 },
   viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  viewBtnText: { ...typography.labelLarge, color: colors.primary },
+  viewBtnText: { fontSize: 14, fontWeight: '700', color: '#1E3A8A' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, paddingVertical: 12 },
-  pagerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  pagerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
   pagerBtnDisabled: { opacity: 0.5 },
-  pagerText: { ...typography.labelLarge, color: colors.textPrimary },
+  pagerText: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingHorizontal: 24, paddingBottom: 32, paddingTop: 12 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
-  modalHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
-  modalTitle: { ...typography.h4, color: colors.textPrimary },
-  modalSubtitle: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
-  modalCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center' },
-  modalReportText: { ...typography.body, color: colors.textPrimary, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
-  modalAttachmentsList: { marginTop: 16, gap: 10 },
-  modalAttachmentsLabel: { ...typography.labelMedium, color: colors.textSecondary },
-  modalEmptyText: { ...typography.body, color: colors.textPlaceholder, marginTop: 16 },
-  attachmentItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surfaceMuted, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  attachmentItemText: { flex: 1, ...typography.body, color: colors.textPrimary },
-  attachmentActionBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '85%', paddingHorizontal: 24, paddingBottom: 48, paddingTop: 16 },
+  modalHandle: { width: 48, height: 6, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 24 },
+  modalHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A', marginBottom: 8, lineHeight: 28 },
+  modalSubtitle: { fontSize: 14, fontWeight: '600', color: '#64748B' },
+  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
+  modalReportText: { fontSize: 15, color: '#475569', marginTop: 8, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', lineHeight: 24 },
+  modalAttachmentsList: { marginTop: 24, gap: 16 },
+  modalAttachmentsLabel: { fontSize: 13, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
+  modalEmptyText: { fontSize: 14, color: '#94A3B8', marginTop: 24, fontStyle: 'italic', textAlign: 'center' },
+  attachmentItem: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, padding: 16, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
+  attachmentIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center' },
+  attachmentItemText: { flex: 1, fontSize: 15, fontWeight: '700', color: '#1E293B' },
+  attachmentActions: { flexDirection: 'row', gap: 8 },
+  attachmentActionBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1E3A8A', justifyContent: 'center', alignItems: 'center', shadowColor: '#1E3A8A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 4 },
 });
 
 export default ReportsMedia;

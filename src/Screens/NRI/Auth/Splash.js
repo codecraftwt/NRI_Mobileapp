@@ -76,7 +76,7 @@ export default function Splash({ navigation }) {
         Animated.timing(slide2, { toValue: 40, duration: 5500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     ).start();
-    
+
     Animated.loop(
       Animated.sequence([
         Animated.timing(slide3, { toValue: 20, duration: 4000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -131,9 +131,9 @@ export default function Splash({ navigation }) {
 
       <View style={styles.center}>
         <Animated.View style={{ opacity: iconOpacity, transform: [{ scale: iconScale }], alignItems: 'center', marginBottom: spacing.xl }}>
-            <View style={[styles.iconContainer, { backgroundColor: C.surface, shadowColor: C.primary }]}>
-                <Icon name="public" size={46} color={C.primary} />
-            </View>
+          <View style={[styles.iconContainer, { backgroundColor: C.surface, shadowColor: C.primary }]}>
+            <Icon name="public" size={46} color={C.primary} />
+          </View>
         </Animated.View>
 
         <Animated.View
@@ -170,7 +170,7 @@ export default function Splash({ navigation }) {
           Preparing your experience
         </Text>
       </Animated.View>
-      
+
       {/* Bottom stamp */}
       <Animated.View style={[styles.stamp, { opacity: footerOpacity }]}>
         <Text style={[styles.stampText, { color: C.textPlaceholder }]}>
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  
+
   // Diagonal shapes replacing the circles
   bgShape1: {
     position: 'absolute',

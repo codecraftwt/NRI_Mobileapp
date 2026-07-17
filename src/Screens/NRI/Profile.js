@@ -132,12 +132,13 @@ function Profile({ navigation }) {
     <View style={styles.container}>
       {/* Top Blue Header */}
       <View style={styles.topBlueBg}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        {/* <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <Text style={styles.screenTitle}>My Profile</Text>
-          {/* <TouchableOpacity onPress={() => navigation.navigate('ProfileSettings')} style={{ padding: 8 }}>
+          <TouchableOpacity onPress={() => navigation.navigate('ProfileSettings')} style={{ padding: 8 }}>
             <Icon name="settings" size={24} color="#FFFFFF" />
-          </TouchableOpacity> */}
-        </View>
+          </TouchableOpacity>
+        </View> */}
+
 
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
@@ -163,21 +164,31 @@ function Profile({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Referral Code Card */}
+        {/* Premium Referral Code Card */}
         <View style={styles.referralCard}>
+          <View style={styles.referralBgDeco} />
+          
           <View style={styles.referralHeader}>
-            <Text style={styles.referralTitle}>Referral Code</Text>
-            <Text style={styles.referralEarned}>₹2,500 earned</Text>
+            <View style={styles.referralHeaderLeft}>
+              <View style={styles.giftIconWrap}>
+                <Icon name="redeem" size={20} color="#F59E0B" />
+              </View>
+              <Text style={styles.referralTitle}>Refer & Earn</Text>
+            </View>
+            <View style={styles.earnedBadge}>
+              <Text style={styles.earnedText}>₹2,500 earned</Text>
+            </View>
           </View>
           
+          <Text style={styles.referralFooter}>Share your code & earn ₹2,500 for every Premium plan referral.</Text>
+
           <View style={styles.referralCodeBox}>
-            <Text style={styles.referralCodeText}>{referralCode || '—'}</Text>
-            <TouchableOpacity>
-              <Text style={styles.copyText}>Copy</Text>
+            <Text style={styles.referralCodeText}>{referralCode || 'WY71RSH2'}</Text>
+            <TouchableOpacity style={styles.copyBtn} activeOpacity={0.7}>
+              <Icon name="content-copy" size={16} color="#FFFFFF" />
+              <Text style={styles.copyBtnText}>Copy</Text>
             </TouchableOpacity>
           </View>
-          
-          <Text style={styles.referralFooter}>Share & earn ₹2,500 per referral (Premium plan)</Text>
         </View>
 
         <View style={styles.menuCard}>
@@ -218,19 +229,23 @@ function Profile({ navigation }) {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Update Profile Photo</Text>
-            <TouchableOpacity style={styles.modalOption} onPress={handleTakePhoto}>
+            <TouchableOpacity style={[styles.modalOption, { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }]} onPress={handleTakePhoto}>
               <View style={styles.modalOptionLeft}>
-                <Icon name="photo-camera" size={22} color={colors.primary} />
-                <Text style={styles.modalOptionText}>Take Photo</Text>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-camera" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Take Photo</Text>
               </View>
-              <Icon name="chevron-right" size={20} color={colors.textPlaceholder} />
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalOption} onPress={handleChooseFromGallery}>
               <View style={styles.modalOptionLeft}>
-                <Icon name="photo-library" size={22} color={colors.primary} />
-                <Text style={styles.modalOptionText}>Choose from Gallery</Text>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-library" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Choose from Gallery</Text>
               </View>
-              <Icon name="chevron-right" size={20} color={colors.textPlaceholder} />
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -294,33 +309,106 @@ const styles = StyleSheet.create({
 
   referralCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    position: 'relative',
+    overflow: 'hidden',
   },
-  referralHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  referralTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  referralEarned: { fontSize: 14, fontWeight: '500', color: '#D94625' },
+  referralBgDeco: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#EEF2FF',
+  },
+  referralHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 16,
+    zIndex: 1,
+  },
+  referralHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  giftIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  referralTitle: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: '#0F172A' 
+  },
+  earnedBadge: { 
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  earnedText: { 
+    fontSize: 13, 
+    fontWeight: '800', 
+    color: '#16A34A' 
+  },
+  referralFooter: { 
+    fontSize: 14, 
+    color: '#475569', 
+    marginBottom: 20,
+    lineHeight: 22,
+    paddingRight: 20,
+    zIndex: 1,
+  },
   referralCodeBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 12,
+    borderRadius: 16,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
+    zIndex: 1,
   },
-  referralCodeText: { fontSize: 16, fontWeight: '600', color: '#1E293B', letterSpacing: 2 },
-  copyText: { fontSize: 14, fontWeight: '600', color: '#D94625' },
-  referralFooter: { fontSize: 13, color: '#64748B' },
+  referralCodeText: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: '#0F172A', 
+    letterSpacing: 4 
+  },
+  copyBtn: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1E3A8A', 
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  copyBtnText: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#FFFFFF' 
+  },
 
   menuCard: {
     backgroundColor: '#FFFFFF',
@@ -355,8 +443,8 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, paddingTop: 12 },
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
   modalTitle: { ...typography.h3, color: '#1E293B', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', marginBottom: 8 },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16 },
-  modalOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  modalOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   modalOptionText: { ...typography.body, color: '#1E293B' },
 });
 

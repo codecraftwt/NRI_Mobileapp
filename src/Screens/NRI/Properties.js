@@ -90,7 +90,7 @@ function Properties({ navigation }) {
                   onPress={() => navigation.navigate('AddProperty', { propertyId: p.id })}
                   activeOpacity={0.7}
                 >
-                  <Icon name="edit" size={18} color={colors.primary} />
+                  <Icon name="edit" size={18} color="#1E3A8A" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.actionBtnDanger]}
@@ -135,7 +135,7 @@ function Properties({ navigation }) {
 
         <TouchableOpacity style={styles.addCard} onPress={() => navigation.navigate('AddProperty')} activeOpacity={0.8}>
           <View style={styles.addIconWrap}>
-            <Icon name="add" size={20} color="#3298D4" />
+            <Icon name="add" size={22} color="#1E3A8A" />
           </View>
           <Text style={styles.addCardText}>Add Property</Text>
         </TouchableOpacity>
@@ -146,9 +146,8 @@ function Properties({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDFBF7' },
-
-  scrollContent: { padding: 20, paddingBottom: spacing.xxl, gap: spacing.md, zIndex: 2 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 16, zIndex: 2 },
 
   backToCustomerBtn: {
     flexDirection: 'row',
@@ -158,29 +157,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: radius.sm,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 9,
   },
-  backToCustomerText: { ...typography.small, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily },
+  backToCustomerText: { fontSize: 13, color: '#0F172A', fontWeight: '600' },
 
-  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingVertical: spacing.md },
-  loadingText: { ...typography.body, color: '#64748B' },
+  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 20 },
+  loadingText: { fontSize: 15, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { ...typography.labelMedium, color: '#DC2626' },
+  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
 
   propertyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: spacing.md,
-    gap: spacing.md,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    padding: 20,
+    gap: 16,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E0E7FF',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -190,55 +189,55 @@ const styles = StyleSheet.create({
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     flex: 1,
   },
-  propertyIcon: { width: 48, height: 48, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
+  propertyIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   propertyInfo: { flex: 1 },
-  propertyName: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  propertyType: { ...typography.small, color: '#64748B', marginTop: 2 },
+  propertyName: { fontSize: 17, fontWeight: '700', color: '#0F172A' },
+  propertyType: { fontSize: 14, color: '#64748B', marginTop: 4 },
 
-  cardActions: { flexDirection: 'row', gap: spacing.sm },
-   actionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceHighlight,
+  cardActions: { flexDirection: 'row', gap: 10 },
+  actionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionBtnDanger: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
   },
 
-  cardBody: { gap: spacing.sm, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  propertyAddress: { ...typography.body, color: '#64748B', flexShrink: 1 },
-  tenantText: { ...typography.body, color: '#F97316', fontFamily: typography.labelMedium.fontFamily },
-  utilityText: { ...typography.body, color: '#64748B', flexShrink: 1 },
+  cardBody: { gap: 12, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  propertyAddress: { fontSize: 14, color: '#475569', flexShrink: 1, lineHeight: 20 },
+  tenantText: { fontSize: 14, color: '#F97316', fontWeight: '600' },
+  utilityText: { fontSize: 14, color: '#475569', flexShrink: 1 },
 
   addCard: {
     flexDirection: 'row',
-    backgroundColor: '#3298D410',
-    borderRadius: 16,
-    padding: spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
+    gap: 10,
+    marginTop: 8,
     borderWidth: 1.5,
-    borderColor: '#3298D4',
+    borderColor: '#1E3A8A',
     borderStyle: 'dashed',
   },
   addIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3298D430',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addCardText: { color: '#3298D4', ...typography.labelMedium },
+  addCardText: { color: '#1E3A8A', fontSize: 15, fontWeight: '700' },
 });
 
 export default Properties;

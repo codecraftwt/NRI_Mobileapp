@@ -94,7 +94,7 @@ function DocumentVault({ navigation }) {
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color="#1E3A8A" />
             <Text style={styles.loadingText}>Loading documents…</Text>
           </View>
         )}
@@ -106,7 +106,7 @@ function DocumentVault({ navigation }) {
 
         {documents.length === 0 && !loading ? (
           <View style={styles.emptyState}>
-            <Icon name="folder-open" size={64} color={colors.textPlaceholder} />
+            <Icon name="folder-open" size={64} color="#94A3B8" />
             <Text style={styles.emptyText}>No documents yet</Text>
             <Text style={styles.emptySubText}>Upload your first document to get started.</Text>
           </View>
@@ -114,7 +114,7 @@ function DocumentVault({ navigation }) {
           documents.map(doc => (
             <View key={doc.id} style={styles.docCard}>
               <View style={styles.docIconWrap}>
-                <Icon name="description" size={24} color={colors.accent} />
+                <Icon name="description" size={24} color="#A64416" />
               </View>
               
               <View style={styles.docInfo}>
@@ -135,7 +135,7 @@ function DocumentVault({ navigation }) {
                     <Icon
                       name={doc.sharedWithRm ? 'check-circle' : 'lock'}
                       size={12}
-                      color={doc.sharedWithRm ? colors.success : colors.textSecondary}
+                      color={doc.sharedWithRm ? '#16A34A' : '#64748B'}
                     />
                     <Text style={[styles.compactPillText, doc.sharedWithRm && styles.compactPillTextActive]}>
                       {doc.sharedWithRm ? 'Shared with RM' : 'Private'}
@@ -147,15 +147,15 @@ function DocumentVault({ navigation }) {
               <View style={styles.actionCol}>
                 {downloadingId === doc.id ? (
                   <View style={styles.actionBtn}>
-                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ActivityIndicator size="small" color="#1E3A8A" />
                   </View>
                 ) : (
                   <TouchableOpacity style={styles.actionBtn} onPress={() => handleDownload(doc)}>
-                    <Icon name="file-download" size={18} color={colors.primary} />
+                    <Icon name="file-download" size={18} color="#1E3A8A" />
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(doc)}>
-                  <Icon name="delete-outline" size={18} color={colors.error} />
+                  <Icon name="delete-outline" size={18} color="#DC2626" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -168,7 +168,7 @@ function DocumentVault({ navigation }) {
           onPress={() => navigation.navigate('UploadDocument')}
         >
           <View style={styles.uploadIconWrap}>
-            <Icon name="add" size={20} color={colors.primary} />
+            <Icon name="add" size={22} color="#1E3A8A" />
           </View>
           <Text style={styles.uploadBtnText}>Upload Document</Text>
         </TouchableOpacity>
@@ -179,36 +179,38 @@ function DocumentVault({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
 
-  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { ...typography.body, color: colors.textSecondary },
+  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 20 },
+  loadingText: { fontSize: 15, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { ...typography.labelMedium, color: colors.error },
+  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
 
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { ...typography.h3, color: colors.textSecondary },
-  emptySubText: { ...typography.body, color: colors.textPlaceholder },
+  emptyText: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
+  emptySubText: { fontSize: 15, color: '#94A3B8' },
 
   docCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
     elevation: 3,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
   },
   docIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: colors.amberBackground,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFF7ED',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -216,77 +218,77 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 6,
   },
-  docName: { ...typography.h4, fontSize: 15, color: colors.textPrimary },
+  docName: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   docSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     flexWrap: 'wrap',
   },
-  docType: { ...typography.small, color: colors.textSecondary },
-  bullet: { ...typography.small, color: colors.textPlaceholder },
-  docExpiry: { ...typography.small, color: colors.textSecondary },
-  expiredBadge: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.error, backgroundColor: '#FEE2E2', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
-  expiringSoonBadge: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.warning, backgroundColor: colors.warningBackground, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
+  docType: { fontSize: 13, color: '#64748B' },
+  bullet: { fontSize: 13, color: '#94A3B8' },
+  docExpiry: { fontSize: 13, color: '#64748B' },
+  expiredBadge: { fontSize: 11, fontWeight: '700', color: '#DC2626', backgroundColor: '#FEF2F2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  expiringSoonBadge: { fontSize: 11, fontWeight: '700', color: '#D97706', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   
   compactPillWrap: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: 6,
   },
   compactPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
   },
-  compactPillActive: { borderColor: colors.success, backgroundColor: colors.successBackground },
-  compactPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.textSecondary },
-  compactPillTextActive: { color: colors.success },
+  compactPillActive: { borderColor: '#16A34A', backgroundColor: '#DCFCE7' },
+  compactPillText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
+  compactPillTextActive: { color: '#16A34A' },
 
   actionCol: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   actionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceHighlight,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionBtnDanger: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
   },
 
   uploadBtn: {
     flexDirection: 'row',
-    backgroundColor: colors.primaryLight + '10',
-    borderRadius: 16,
-    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     marginTop: 8,
     borderWidth: 1.5,
-    borderColor: colors.primaryLight,
+    borderColor: '#1E3A8A',
     borderStyle: 'dashed',
   },
   uploadIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight + '30',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  uploadBtnText: { ...typography.labelMedium, color: colors.primary },
+  uploadBtnText: { fontSize: 15, fontWeight: '700', color: '#1E3A8A' },
 });
 
 export default DocumentVault;
