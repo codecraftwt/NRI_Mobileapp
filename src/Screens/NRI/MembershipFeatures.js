@@ -71,16 +71,16 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 56,
-    paddingBottom: 12,
-    backgroundColor: '#FDFBF7',
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 16,
+    backgroundColor: '#20304C',
     gap: 16,
   },
   topTitle: {
     fontSize: 20,
     fontFamily: typography.h2.fontFamily,
-    color: '#0F172A',
+    color: '#FFFFFF',
   },
   backBtn: {
     width: 44,

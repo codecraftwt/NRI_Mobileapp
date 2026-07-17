@@ -35,7 +35,7 @@ function ServiceDetail({ route, navigation }) {
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
               <Icon name="arrow-back" size={22} color={category.color} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle} numberOfLines={1}>{category.name}</Text>
+            <Text style={styles.headerTitle}>{category.name}</Text>
           </View>
           <View style={[styles.headerIconBox, { backgroundColor: category.color + '15' }]}>
             <Icon name={category.icon} size={20} color={category.color} />
@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: typography.h2.fontFamily,
     color: '#1E293B',
+    flex: 1,
   },
   headerIconBox: {
     width: 44,

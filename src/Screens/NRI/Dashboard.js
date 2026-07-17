@@ -80,17 +80,17 @@ function Dashboard({ navigation }) {
 
   const getServiceIconColor = (serviceName) => {
     const name = serviceName?.toLowerCase() || '';
-    if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#D1FAE5'; 
-    if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#FFEDD5'; 
-    if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#E0F2FE'; 
+    if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#D1FAE5';
+    if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#FFEDD5';
+    if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#E0F2FE';
     return '#F1F5F9';
   };
-  
+
   const getServiceIconColorText = (serviceName) => {
     const name = serviceName?.toLowerCase() || '';
-    if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#059669'; 
-    if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#F97316'; 
-    if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#3B82F6'; 
+    if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#059669';
+    if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#F97316';
+    if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#3B82F6';
     return '#64748B';
   };
 
@@ -108,29 +108,29 @@ function Dashboard({ navigation }) {
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>
-           <View>
-             <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} 👋</Text>
-           </View>
-           <TouchableOpacity style={styles.bellBtn}>
-             <Icon name="notifications-none" size={26} color="#FFFFFF" />
-             <View style={styles.badgeDot} />
-           </TouchableOpacity>
+          <View>
+            <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} 👋</Text>
+          </View>
+          <TouchableOpacity style={styles.bellBtn}>
+            <Icon name="notifications-none" size={26} color="#FFFFFF" />
+            <View style={styles.badgeDot} />
+          </TouchableOpacity>
         </View>
-  
+
         {/* RM Card inside the header */}
         <View style={styles.rmCardWrapper}>
-           <RMWidget rm={data?.rm} />
+          <RMWidget rm={data?.rm} />
         </View>
       </View>
 
       {/* Fixed Cream Body */}
       <View style={styles.creamBody}>
-        <ScrollView 
+        <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={styles.scrollContainer} 
+          contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          
+
           {loading && !data && (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="small" color="#1E3A8A" />
@@ -146,17 +146,17 @@ function Dashboard({ navigation }) {
 
           {/* Quick Actions Unified Card */}
           <View style={styles.quickActionsCard}>
-             {quickActions.map(action => (
-               <TouchableOpacity key={action.id} style={styles.quickActionItem} onPress={() => {
-                   if(action.id === 'new') navigation.navigate('Services');
-                   if(action.id === 'track') navigation.navigate('Requests');
-               }}>
-                  <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
-                    <Icon name={action.icon} size={24} color={action.color} />
-                  </View>
-                  <Text style={styles.qaLabel}>{action.name}</Text>
-               </TouchableOpacity>
-             ))}
+            {quickActions.map(action => (
+              <TouchableOpacity key={action.id} style={styles.quickActionItem} onPress={() => {
+                if (action.id === 'new') navigation.navigate('Services');
+                if (action.id === 'track') navigation.navigate('Requests');
+              }}>
+                <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
+                  <Icon name={action.icon} size={24} color={action.color} />
+                </View>
+                <Text style={styles.qaLabel}>{action.name}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {!!membership?.renewalAlert && (
@@ -168,104 +168,104 @@ function Dashboard({ navigation }) {
             </View>
           )}
 
-        {/* Active Requests List */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Requests</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Requests')}>
-              <Text style={styles.viewAllText}>View all →</Text>
-            </TouchableOpacity>
-          </View>
-
-          {recentTickets.length > 0 ? (
-            <View style={styles.cardBlock}>
-              {recentTickets.slice(0, 3).map((ticket, index) => {
-                // Verified live via GET /customer/tickets/5: a "New" ticket
-                // can already have a past sla_deadline, so overdue applies
-                // from creation, not just once work starts — exclude only
-                // the terminal statuses where a missed SLA no longer matters.
-                const normalizedStatus = ticket.status?.toLowerCase().replace('_', ' ');
-                const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled'].includes(normalizedStatus);
-                const displayStatus = overdue ? 'Overdue' : ticket.status;
-                const statusStyle = getStatusColor(displayStatus);
-                return (
-                  <TouchableOpacity 
-                    key={ticket.id} 
-                    style={[styles.ticketItem, index < recentTickets.length - 1 && styles.borderBottom]}
-                    onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
-                    activeOpacity={0.6}
-                  >
-                    <View style={styles.ticketIconBgWrapper}>
-                       <View style={[styles.ticketIconBg, { backgroundColor: getServiceIconColor(ticket.service) }]}>
-                         <Icon name={getServiceIconName(ticket.service)} size={22} color={getServiceIconColorText(ticket.service)} />
-                       </View>
-                    </View>
-                    <View style={styles.ticketDetails}>
-                      <Text style={styles.ticketName} numberOfLines={1}>{ticket.service}</Text>
-                      <Text style={styles.ticketSub} numberOfLines={1}>{ticket.address || 'Location Pending'}</Text>
-                      <View style={styles.ticketTimeRow}>
-                        <Icon name="schedule" size={14} color="#94A3B8" /> 
-                        <Text style={styles.ticketTimeText} numberOfLines={1}>{ticket.preferredDate || 'Recently'}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.ticketStatusWrap}>
-                       <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
-                         <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{displayStatus}</Text>
-                       </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <View style={[styles.emptyIconCircle, { backgroundColor: colors.primaryLight + '15' }]}>
-                <Icon name="receipt" size={32} color={colors.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>No active requests</Text>
-              <Text style={styles.emptySub}>Book your first service with us today.</Text>
-            </View>
-          )}
-        </View>
-        
-        {/* Membership Plan Card */}
-        <View style={[styles.sectionContainer, { marginTop: spacing.md }]}>
-          <View style={styles.planCard}>
-            {/* Pseudo-gradient splash */}
-            <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '65%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
-            
-            <View style={{ flex: 1, zIndex: 1 }}>
-              <Text style={styles.planSubtitle}>YOUR PLAN</Text>
-              <Text style={styles.planTitle}>{membership?.planName || 'Premium'} • Renews Dec 2025</Text>
-              <Text style={styles.planDesc}>25 requests/month • 4 care visits</Text>
-            </View>
-            <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>
-              <Text style={styles.upgradeBtnText}>Upgrade</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Explore Grid */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Explore</Text>
-          </View>
-          <View style={styles.actionGrid}>
-            {exploreActions.map(action => (
-              <TouchableOpacity
-                key={action.id}
-                style={styles.actionSquare}
-                onPress={() => navigation.navigate(action.screen)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.actionIconBg, { backgroundColor: action.color + '10' }]}>
-                  <Icon name={action.icon} size={28} color={action.color} />
-                </View>
-                <Text style={styles.actionLabel} numberOfLines={2}>{action.name}</Text>
+          {/* Active Requests List */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active Requests</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Requests')}>
+                <Text style={styles.viewAllText}>View all →</Text>
               </TouchableOpacity>
-            ))}
+            </View>
+
+            {recentTickets.length > 0 ? (
+              <View style={styles.cardBlock}>
+                {recentTickets.slice(0, 3).map((ticket, index) => {
+                  // Verified live via GET /customer/tickets/5: a "New" ticket
+                  // can already have a past sla_deadline, so overdue applies
+                  // from creation, not just once work starts — exclude only
+                  // the terminal statuses where a missed SLA no longer matters.
+                  const normalizedStatus = ticket.status?.toLowerCase().replace('_', ' ');
+                  const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled'].includes(normalizedStatus);
+                  const displayStatus = overdue ? 'Overdue' : ticket.status;
+                  const statusStyle = getStatusColor(displayStatus);
+                  return (
+                    <TouchableOpacity
+                      key={ticket.id}
+                      style={[styles.ticketItem, index < recentTickets.length - 1 && styles.borderBottom]}
+                      onPress={() => navigation.navigate('TicketDetail', { ticketId: ticket.id })}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.ticketIconBgWrapper}>
+                        <View style={[styles.ticketIconBg, { backgroundColor: getServiceIconColor(ticket.service) }]}>
+                          <Icon name={getServiceIconName(ticket.service)} size={22} color={getServiceIconColorText(ticket.service)} />
+                        </View>
+                      </View>
+                      <View style={styles.ticketDetails}>
+                        <Text style={styles.ticketName} numberOfLines={1}>{ticket.service}</Text>
+                        <Text style={styles.ticketSub} numberOfLines={1}>{ticket.address || 'Location Pending'}</Text>
+                        <View style={styles.ticketTimeRow}>
+                          <Icon name="schedule" size={14} color="#94A3B8" />
+                          <Text style={styles.ticketTimeText} numberOfLines={1}>{ticket.preferredDate || 'Recently'}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.ticketStatusWrap}>
+                        <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
+                          <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{displayStatus}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: colors.primaryLight + '15' }]}>
+                  <Icon name="receipt" size={32} color={colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>No active requests</Text>
+                <Text style={styles.emptySub}>Book your first service with us today.</Text>
+              </View>
+            )}
           </View>
-        </View>
+
+          {/* Membership Plan Card */}
+          <View style={[styles.sectionContainer, { marginTop: spacing.md }]}>
+            <View style={styles.planCard}>
+              {/* Pseudo-gradient splash */}
+              <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '57%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
+
+              <View style={{ flex: 1, zIndex: 1 }}>
+                <Text style={styles.planSubtitle}>YOUR PLAN</Text>
+                <Text style={styles.planTitle}>{membership?.planName || 'Premium'} • Renews Dec 2025</Text>
+                <Text style={styles.planDesc}>25 requests/month • 4 care visits</Text>
+              </View>
+              <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>
+                <Text style={styles.upgradeBtnText}>Upgrade</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Explore Grid */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Explore</Text>
+            </View>
+            <View style={styles.actionGrid}>
+              {exploreActions.map(action => (
+                <TouchableOpacity
+                  key={action.id}
+                  style={styles.actionSquare}
+                  onPress={() => navigation.navigate(action.screen)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: action.color + '10' }]}>
+                    <Icon name={action.icon} size={28} color={action.color} />
+                  </View>
+                  <Text style={styles.actionLabel} numberOfLines={2}>{action.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
         </ScrollView>
       </View>
@@ -279,12 +279,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#20304C', // Matches blueHeader for seamless corners
   },
-  
+
   blueHeader: {
     paddingTop: 48,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: '#20304C', 
+    backgroundColor: '#20304C',
     zIndex: 10,
     elevation: 0,
   },
@@ -306,11 +306,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
     marginBottom: 4,
+    textTransform: 'capitalize',
   },
   premiumText: {
     ...typography.small,
     fontFamily: typography.labelMedium.fontFamily,
-    color: '#F59E0B', 
+    color: '#F59E0B',
   },
   bellBtn: {
     width: 44,
@@ -338,7 +339,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
   },
-  
+
   rmCardWrapper: {
     marginTop: 16,
   },
@@ -348,7 +349,7 @@ const styles = StyleSheet.create({
     paddingTop: 24, // Standard top padding since RM card no longer overlaps
     paddingBottom: 100,
   },
-  
+
   quickActionsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -503,7 +504,7 @@ const styles = StyleSheet.create({
     color: '#334155',
     textAlign: 'center',
   },
-  
+
   popularSquare: {
     width: '30%',
     borderRadius: 16,
@@ -557,12 +558,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  
+
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
   loadingText: { ...typography.body, color: '#64748B' },
   retryBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 40 },
   retryText: { ...typography.labelMedium, color: colors.error },
-  
+
   alertBanner: {
     flexDirection: 'row',
     alignItems: 'center',

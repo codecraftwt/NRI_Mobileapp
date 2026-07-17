@@ -10,14 +10,13 @@ import {
   FlatList,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { lightColors as colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
 import { addFamilyMember, updateFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMemberDetail } from '../../Hooks/useFamilyMemberDetail';
 import { useStates } from '../../Hooks/useStates';
@@ -43,7 +42,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
       >
         {loading ? (
           <>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color="#1E3A8A" />
             <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
           </>
         ) : (
@@ -51,7 +50,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
             <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>
               {value || placeholder}
             </Text>
-            <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
+            <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
           </>
         )}
       </TouchableOpacity>
@@ -72,8 +71,8 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
                     setOpen(false);
                   }}
                 >
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
+                  <Text style={[styles.modalOptionText, item === value && { color: '#1E3A8A', fontWeight: '700' }]}>{item}</Text>
+                  {item === value && <Icon name="check" size={20} color="#1E3A8A" />}
                 </TouchableOpacity>
               )}
             />
@@ -107,12 +106,6 @@ function AddFamilyMember({ navigation, route }) {
   const { loading: loadingDetail, failed: detailFailed, fetchDetail } = useFamilyMemberDetail();
   const submitting = useSelector(state => state.family.mutationStatus === 'loading');
 
-  // Populate directly from this fetch's own resolved result, not from the
-  // Redux-cached `detail` — on remount (e.g. re-opening edit after just
-  // saving a change), the store can still hold the previous fetch's stale
-  // object for the same member id until this fetch resolves, which used to
-  // get read and "locked in" via the `hasPopulated` guard before the fresh
-  // data ever arrived.
   const populateForm = (data) => {
     setName(data.name || '');
     setRelation(RELATIONSHIP_FROM_API[data.relationship] || '');
@@ -180,10 +173,19 @@ function AddFamilyMember({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title={isEditing ? 'Edit Member' : 'Add Family Member'} showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {isEditing && loadingDetail && !hasPopulated ? (
           <View style={styles.detailLoadingBox}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color="#1E3A8A" />
             <Text style={styles.detailLoadingText}>Loading member details…</Text>
           </View>
         ) : isEditing && detailFailed && !hasPopulated ? (
@@ -200,7 +202,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={name}
                   onChangeText={setName}
                   placeholder="e.g. Sushila Patel"
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                 />
               </View>
 
@@ -221,7 +223,7 @@ function AddFamilyMember({ navigation, route }) {
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   placeholder="e.g. +91 98765 43210"
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                 />
               </View>
 
@@ -233,7 +235,7 @@ function AddFamilyMember({ navigation, route }) {
                   onChangeText={setEmergencyContact}
                   keyboardType="phone-pad"
                   placeholder="e.g. +91 98765 43211"
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                 />
               </View>
 
@@ -273,7 +275,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={address}
                   onChangeText={setAddress}
                   placeholder="Complete address"
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                   multiline
                 />
               </View>
@@ -284,7 +286,7 @@ function AddFamilyMember({ navigation, route }) {
                   <Text style={[styles.selectText, !formattedDob && styles.placeholderText]}>
                     {formattedDob || 'dd-mm-yyyy'}
                   </Text>
-                  <Icon name="event" size={20} color={colors.textSecondary} />
+                  <Icon name="event" size={20} color="#64748B" />
                 </TouchableOpacity>
                 {showDobPicker && (
                   <DateTimePicker
@@ -307,7 +309,7 @@ function AddFamilyMember({ navigation, route }) {
                   value={healthNotes}
                   onChangeText={setHealthNotes}
                   placeholder="e.g. Diabetes, needs medicine reminders"
-                  placeholderTextColor={colors.textPlaceholder}
+                  placeholderTextColor="#94A3B8"
                   multiline
                 />
               </View>
@@ -331,44 +333,45 @@ function AddFamilyMember({ navigation, route }) {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
       <AppAlert {...alertProps} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
 
-  detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },
-  detailLoadingText: { ...typography.body, color: colors.textSecondary },
+  detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 40 },
+  detailLoadingText: { fontSize: 15, color: '#64748B' },
 
   card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
     gap: 16,
-    shadowColor: '#000',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
   },
 
   fieldWrap: { gap: 8 },
-  inputLabel: { ...typography.labelMedium, color: colors.textPrimary },
-  required: { color: colors.error },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
+  required: { color: '#DC2626' },
   input: {
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
     paddingHorizontal: 16,
     height: 52,
-    color: colors.textPrimary,
-    ...typography.body,
+    color: '#0F172A',
+    fontSize: 15,
   },
   multiline: { height: 96, textAlignVertical: 'top', paddingVertical: 14 },
 
@@ -376,55 +379,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
     paddingHorizontal: 16,
     height: 52,
   },
-  selectBoxDisabled: { backgroundColor: colors.surfaceSecondary, opacity: 0.6 },
-  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  placeholderText: { color: colors.textPlaceholder },
-  retryText: { ...typography.labelMedium, color: colors.error },
+  selectBoxDisabled: { backgroundColor: '#F1F5F9', opacity: 0.6 },
+  selectText: { fontSize: 15, color: '#0F172A', flex: 1 },
+  placeholderText: { color: '#94A3B8' },
+  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
   retryBox: { alignItems: 'center', paddingVertical: 40 },
 
   actions: { flexDirection: 'row', gap: 12, marginTop: 12 },
   cancelBtn: {
     flex: 1,
     height: 52,
-    borderRadius: 26,
+    borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: '#1E3A8A',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
   },
-  cancelBtnText: { color: colors.primary, ...typography.labelLarge },
+  cancelBtnText: { color: '#1E3A8A', fontSize: 15, fontWeight: '700' },
   submitBtn: {
     flex: 1.5,
     height: 52,
-    borderRadius: 26,
-    backgroundColor: '#D94625',
+    borderRadius: 16,
+    backgroundColor: '#A64416',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: '#FFFFFF', ...typography.labelLarge },
+  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '60%',
     paddingBottom: 24,
     paddingTop: 12,
   },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { ...typography.h4, color: colors.textPrimary, paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -432,9 +435,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceSecondary,
+    borderBottomColor: '#F1F5F9',
   },
-  modalOptionText: { ...typography.body, color: colors.textPrimary },
+  modalOptionText: { fontSize: 15, color: '#0F172A' },
 });
 
 export default AddFamilyMember;
+

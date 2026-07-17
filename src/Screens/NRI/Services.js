@@ -104,7 +104,7 @@ function Services({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingTop: 50,
+    paddingTop: 40,
     paddingBottom: 20,
     paddingHorizontal: 20,
     backgroundColor: '#20304C', // Dark blue status bar & header
@@ -128,13 +128,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 52,
     marginBottom: 24,
-    shadowColor: '#64748B',
+    shadowColor: '#A64416',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.2,
     shadowRadius: 12,
-    elevation: 2,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#A64416',
     gap: 12,
   },
   searchInput: {

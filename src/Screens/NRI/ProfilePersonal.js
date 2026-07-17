@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Modal, FlatList, KeyboardAvoidingView } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -22,7 +22,7 @@ function SelectField({ label, value, placeholder, options, onSelect }) {
         activeOpacity={0.7}
       >
         <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>{value || placeholder}</Text>
-        <Icon name="keyboard-arrow-down" size={20} color={colors.textSecondary} />
+        <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
@@ -35,7 +35,7 @@ function SelectField({ label, value, placeholder, options, onSelect }) {
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); setOpen(false); }}>
                   <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
+                  {item === value && <Icon name="check" size={18} color="#1E3A8A" />}
                 </TouchableOpacity>
               )}
             />
@@ -91,18 +91,27 @@ export default function ProfilePersonal({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Personal Info" showBack={true} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.sectionCard}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.sectionCard}>
           <Text style={styles.inputLabel}>Full Name<Text style={styles.required}> *</Text></Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={colors.textPlaceholder} />
+          <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Phone</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.textPlaceholder} />
+          <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Date of Birth</Text>
           <TouchableOpacity style={styles.selectBox} onPress={() => setShowDobPicker(true)} activeOpacity={0.7}>
             <Text style={[styles.selectText, !formattedDob && styles.placeholderText]}>{formattedDob || 'dd-mm-yyyy'}</Text>
-            <Icon name="event" size={20} color={colors.textSecondary} />
+            <Icon name="event" size={20} color="#64748B" />
           </TouchableOpacity>
           {showDobPicker && (
             <DateTimePicker
@@ -119,43 +128,49 @@ export default function ProfilePersonal({ navigation }) {
           <SelectField label="Gender" value={gender} placeholder="Select Gender" options={GENDERS} onSelect={setGender} />
 
           <Text style={styles.inputLabel}>Bio</Text>
-          <TextInput style={[styles.input, styles.multiline]} value={bio} onChangeText={setBio} multiline placeholderTextColor={colors.textPlaceholder} />
+          <TextInput style={[styles.input, styles.multiline]} value={bio} onChangeText={setBio} multiline placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Emergency Contact Name</Text>
-          <TextInput style={styles.input} value={emergencyName} onChangeText={setEmergencyName} placeholderTextColor={colors.textPlaceholder} />
+          <TextInput style={styles.input} value={emergencyName} onChangeText={setEmergencyName} placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Emergency Contact Phone</Text>
-          <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholderTextColor={colors.textPlaceholder} />
+          <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
 
           <TouchableOpacity style={[styles.saveBtn, savingPersonal && styles.saveBtnDisabled]} onPress={handleSavePersonal} disabled={savingPersonal}>
             {savingPersonal ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
       <AppAlert {...alertProps} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
-  sectionCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  inputLabel: { ...typography.labelMedium, color: colors.textSecondary, marginBottom: 8, marginTop: 12 },
-  required: { color: colors.error },
-  input: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, height: 50, ...typography.body, color: colors.textPrimary },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 20 },
+  sectionCard: { 
+    backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, gap: 4, 
+    shadowColor: '#1E3A8A', shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.08, shadowRadius: 24, elevation: 4, 
+    borderWidth: 1, borderColor: '#E0E7FF' 
+  },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8, marginTop: 12 },
+  required: { color: '#DC2626' },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52, fontSize: 16, color: '#0F172A' },
   multiline: { height: 100, textAlignVertical: 'top', paddingVertical: 12 },
   fieldWrap: { gap: 0 },
-  selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, height: 50 },
-  selectText: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  placeholderText: { color: colors.textPlaceholder },
-  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52 },
+  selectText: { fontSize: 16, color: '#0F172A', flex: 1 },
+  placeholderText: { color: '#94A3B8' },
+  saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%', paddingBottom: 32, paddingTop: 12 },
-  modalHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { ...typography.h4, color: colors.textPrimary, paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary },
-  modalOptionText: { ...typography.body, color: colors.textPrimary },
+  saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%', paddingBottom: 32, paddingTop: 12 },
+  modalHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalOptionText: { fontSize: 16, color: '#1E293B' },
 });

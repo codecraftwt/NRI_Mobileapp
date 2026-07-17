@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 3 
   },
   profileInfo: { flex: 1 },
-  profileName: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginBottom: 2 },
+  profileName: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginBottom: 2, textTransform: 'capitalize' },
   profileEmail: { fontSize: 13, color: '#93C5FD', marginBottom: 2 }, // Light blue text
   profilePhone: { fontSize: 13, color: '#93C5FD' },
 
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   referralCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 18,
     marginBottom: 24,
     shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 8 },
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    marginBottom: 16,
+    marginBottom: 12,
     zIndex: 1,
   },
   referralHeaderLeft: {
@@ -370,8 +370,8 @@ const styles = StyleSheet.create({
   referralFooter: { 
     fontSize: 14, 
     color: '#475569', 
-    marginBottom: 20,
-    lineHeight: 22,
+    marginBottom: 14,
+    lineHeight: 20,
     paddingRight: 20,
     zIndex: 1,
   },
@@ -434,10 +434,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F97316',
+    borderColor: '#A64416',
     backgroundColor: '#FFFFFF',
   },
-  logoutBtnText: { fontSize: 16, fontWeight: '700', color: '#F97316' },
+  logoutBtnText: { fontSize: 16, fontWeight: '700', color: '#A64416' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, paddingTop: 12 },

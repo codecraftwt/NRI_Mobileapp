@@ -382,12 +382,12 @@ function TicketDetail({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   headerContainer: {
-    backgroundColor: '#FDFBF7',
+    backgroundColor: '#20304C',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingHorizontal: 24,
+    paddingTop: 40,
     paddingBottom: 16,
   },
   headerBackBtn: {
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.sectionTitle,
     fontFamily: typography.h2.fontFamily,
-    color: '#1E293B',
+    color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
   },

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -65,15 +65,24 @@ export default function ProfilePassword({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Change Password" showBack={true} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.sectionCard}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.sectionCard}>
           <Text style={styles.inputLabel}>Current Password<Text style={styles.required}> *</Text></Text>
           <TextInput
             style={[styles.input, passwordErrorFor('current_password') && styles.inputError]}
             value={currentPassword}
             onChangeText={(v) => { setCurrentPassword(v); clearPasswordError('current_password'); }}
             secureTextEntry
-            placeholderTextColor={colors.textPlaceholder}
+            placeholderTextColor="#94A3B8"
           />
           {!!passwordErrorFor('current_password') && <Text style={styles.errorText}>{passwordErrorFor('current_password')}</Text>}
 
@@ -84,7 +93,7 @@ export default function ProfilePassword({ navigation }) {
             onChangeText={(v) => { setNewPassword(v); clearPasswordError('password'); }}
             secureTextEntry
             placeholder="Minimum 8 characters"
-            placeholderTextColor={colors.textPlaceholder}
+            placeholderTextColor="#94A3B8"
           />
           {!!passwordErrorFor('password') && <Text style={styles.errorText}>{passwordErrorFor('password')}</Text>}
 
@@ -94,7 +103,7 @@ export default function ProfilePassword({ navigation }) {
             value={confirmPassword}
             onChangeText={(v) => { setConfirmPassword(v); clearPasswordError('password_confirmation'); }}
             secureTextEntry
-            placeholderTextColor={colors.textPlaceholder}
+            placeholderTextColor="#94A3B8"
           />
           {!!passwordErrorFor('password_confirmation') && <Text style={styles.errorText}>{passwordErrorFor('password_confirmation')}</Text>}
 
@@ -103,21 +112,27 @@ export default function ProfilePassword({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
       <AppAlert {...alertProps} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
-  sectionCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  inputLabel: { ...typography.labelMedium, color: colors.textSecondary, marginBottom: 8, marginTop: 12 },
-  required: { color: colors.error },
-  input: { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, height: 50, ...typography.body, color: colors.textPrimary },
-  inputError: { borderColor: colors.error, backgroundColor: colors.errorBackground || '#FEF2F2' },
-  errorText: { ...typography.labelMedium, color: colors.error, marginTop: 6 },
-  saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 20 },
+  sectionCard: { 
+    backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, gap: 4, 
+    shadowColor: '#1E3A8A', shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.08, shadowRadius: 24, elevation: 4, 
+    borderWidth: 1, borderColor: '#E0E7FF' 
+  },
+  inputLabel: { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8, marginTop: 12 },
+  required: { color: '#DC2626' },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52, fontSize: 16, color: '#0F172A' },
+  inputError: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  errorText: { fontSize: 13, color: '#DC2626', marginTop: 6 },
+  saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
+  saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

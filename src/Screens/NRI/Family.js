@@ -1,18 +1,14 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { lightColors as colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 
-const { width: W, height: H } = Dimensions.get('window');
-
-const AVATAR_COLORS = [colors.success, colors.primary, colors.warning, colors.error, '#8B5CF6', '#06B6D4'];
+const AVATAR_COLORS = ['#16A34A', '#1E3A8A', '#D97706', '#DC2626', '#8B5CF6', '#06B6D4'];
 function avatarColorFor(name) {
   const idx = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[idx];
@@ -78,17 +74,16 @@ function Family({ navigation }) {
 
   return (
     <View style={styles.container}>
-
       <Header navigation={navigation} title="My Family" showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
       >
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color={colors.primary} />
+            <ActivityIndicator size="small" color="#1E3A8A" />
             <Text style={styles.loadingText}>Loading family members…</Text>
           </View>
         )}
@@ -98,66 +93,64 @@ function Family({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {members.map(m => (
-          <View key={m.id} style={styles.memberCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderLeft}>
-                <View style={[styles.memberAvatar, { backgroundColor: avatarColorFor(m.name) }]}>
-                  <Text style={styles.memberAvatarText}>{initialsFor(m.name)}</Text>
-                </View>
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName} numberOfLines={1}>{m.name}</Text>
-                  <View style={styles.relationPill}>
-                    <Text style={styles.relationPillText}>{relationLabel(m.relationship)}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={styles.actionIconBtn}
-                  onPress={() => navigation.navigate('AddFamilyMember', { memberId: m.id })}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="edit" size={18} color={colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionIconBtn, styles.actionIconBtnDanger]}
-                  onPress={() => handleDelete(m)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="delete" size={18} color={colors.error} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.cardBody}>
-              {!!(m.phone || m.cityName || m.stateName) && (
-                <View style={styles.metaRow}>
-                  <Icon name="call" size={14} color={colors.textSecondary} />
-                  <Text style={styles.memberMeta} numberOfLines={1}>
-                    {[m.phone, [m.cityName, m.stateName].filter(Boolean).join(', ')].filter(Boolean).join('  ·  ')}
-                  </Text>
-                </View>
-              )}
-              {!!m.healthNotes && (
-                <View style={styles.metaRow}>
-                  <Icon name="favorite-border" size={14} color={colors.warning} />
-                  <Text style={styles.memberHealth} numberOfLines={2}>{m.healthNotes}</Text>
-                </View>
-              )}
-            </View>
+        {members.length === 0 && !loading ? (
+          <View style={styles.emptyState}>
+            <Icon name="group" size={64} color="#94A3B8" />
+            <Text style={styles.emptyText}>No family members yet</Text>
+            <Text style={styles.emptySubText}>Add your first family member to get started.</Text>
           </View>
-        ))}
+        ) : (
+          members.map(m => (
+            <View key={m.id} style={styles.memberCard}>
+              <View style={[styles.memberAvatar, { backgroundColor: avatarColorFor(m.name) }]}>
+                <Text style={styles.memberAvatarText}>{initialsFor(m.name)}</Text>
+              </View>
+              
+              <View style={styles.memberInfo}>
+                <Text style={styles.memberName} numberOfLines={1}>{m.name}</Text>
+                
+                <View style={styles.memberSubRow}>
+                  <Text style={styles.relationType}>{relationLabel(m.relationship)}</Text>
+                </View>
+
+                {!!(m.phone || m.cityName || m.stateName) && (
+                  <View style={styles.metaRow}>
+                    <Icon name="call" size={13} color="#64748B" />
+                    <Text style={styles.memberMeta} numberOfLines={1}>
+                      {[m.phone, [m.cityName, m.stateName].filter(Boolean).join(', ')].filter(Boolean).join(' • ')}
+                    </Text>
+                  </View>
+                )}
+                
+                {!!m.healthNotes && (
+                  <View style={styles.metaRow}>
+                    <Icon name="favorite-border" size={13} color="#D97706" />
+                    <Text style={styles.memberHealth} numberOfLines={2}>{m.healthNotes}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.actionCol}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('AddFamilyMember', { memberId: m.id })}>
+                  <Icon name="edit" size={18} color="#1E3A8A" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(m)}>
+                  <Icon name="delete-outline" size={18} color="#DC2626" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
+        )}
 
         <TouchableOpacity
-          style={styles.addCard}
-          onPress={() => navigation.navigate('AddFamilyMember')}
+          style={styles.addBtn}
           activeOpacity={0.8}
+          onPress={() => navigation.navigate('AddFamilyMember')}
         >
           <View style={styles.addIconWrap}>
-            <Icon name="person-add" size={20} color={colors.primary} />
+            <Icon name="person-add" size={22} color="#1E3A8A" />
           </View>
-          <Text style={styles.addCardText}>Add Family Member</Text>
+          <Text style={styles.addBtnText}>Add Family Member</Text>
         </TouchableOpacity>
       </ScrollView>
       <AppAlert {...alertProps} />
@@ -166,102 +159,97 @@ function Family({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDFBF7', position: 'relative', overflow: 'hidden' },
-  // Dynamic Background Layers matching Auth screen
-  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: colors.primaryLight + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
-  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: colors.accent + '08', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
-  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: colors.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
 
-  backToCustomerBtn: {
-    flexDirection: 'row',
-    alignSelf: 'flex-start',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  backToCustomerText: { ...typography.labelMedium, color: colors.textPrimary },
-
-  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  loadingText: { ...typography.body, color: colors.textSecondary },
+  loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 20 },
+  loadingText: { fontSize: 15, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { ...typography.labelMedium, color: colors.error },
+  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
+
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyText: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
+  emptySubText: { fontSize: 15, color: '#94A3B8' },
 
   memberCard: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    shadowColor: '#000',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardHeaderLeft: {
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    flex: 1,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
   },
-  memberAvatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-  memberAvatarText: { ...typography.h4, color: colors.surface },
-  memberInfo: { flex: 1, gap: 4 },
-  memberName: { ...typography.labelLarge, color: colors.textPrimary },
-  relationPill: { backgroundColor: colors.primaryLight + '20', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
-  relationPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: colors.primary },
-
-  cardActions: { flexDirection: 'row', gap: 8 },
-  actionIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight + '20',
+  memberAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionIconBtnDanger: {
-   backgroundColor: '#FEE2E2'
+  memberAvatarText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+  
+  memberInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  memberName: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  memberSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  relationType: { fontSize: 13, color: '#64748B' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  memberMeta: { fontSize: 13, color: '#64748B', flexShrink: 1 },
+  memberHealth: { fontSize: 13, color: '#D97706', flexShrink: 1 },
+
+  actionCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  actionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBtnDanger: {
+    backgroundColor: '#FEF2F2',
   },
 
-  cardBody: { gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  memberMeta: { ...typography.small, color: colors.textSecondary, flexShrink: 1 },
-  memberHealth: { ...typography.small, color: colors.warning, flexShrink: 1 },
-
-  addCard: {
+  addBtn: {
     flexDirection: 'row',
-    backgroundColor: colors.primaryLight + '10',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+    marginTop: 8,
     borderWidth: 1.5,
-    borderColor: colors.primaryLight,
+    borderColor: '#1E3A8A',
     borderStyle: 'dashed',
   },
   addIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight + '30',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addCardText: { ...typography.labelMedium, color: colors.primary },
+  addBtnText: { fontSize: 15, fontWeight: '700', color: '#1E3A8A' },
 });
 
 export default Family;
