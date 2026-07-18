@@ -104,8 +104,8 @@ function Services({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingTop: 40,
-    paddingBottom: 20,
+    paddingTop: 50,
+    paddingBottom: 15,
     paddingHorizontal: 20,
     backgroundColor: '#20304C', // Dark blue status bar & header
   },

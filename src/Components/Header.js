@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C',
     paddingHorizontal: spacing.lg,
-    paddingTop: 56, // Clear the status bar
+    paddingTop: 23, // Clear the status bar
     paddingBottom: spacing.md,
     borderBottomWidth: 0,
     shadowColor: '#20304C',

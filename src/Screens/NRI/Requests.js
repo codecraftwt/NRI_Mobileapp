@@ -195,7 +195,7 @@ function Requests({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: 40, paddingBottom: 16, backgroundColor: '#20304C' },
+  header: { paddingHorizontal: 24, paddingTop: 50, paddingBottom: 15, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   tabsContainer: { paddingTop: 20, paddingBottom: 12 },
   tabsScroll: { paddingHorizontal: 20, gap: 12 },
