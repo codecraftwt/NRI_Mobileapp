@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchServices } from '../Redux/slices/catalogSlice';
 
@@ -13,18 +13,21 @@ export function useServicesByCategory(categoryName, stateName, { type = 'base' }
   const services = useSelector(state => state.catalog[type].services);
   const status = useSelector(state => state.catalog[type].status);
   const error = useSelector(state => state.catalog[type].error);
-  const filterKey = useSelector(state => state.catalog[type].filterKey);
 
   const categoryId = categoryName ? categories.find(c => c.name === categoryName)?.id : null;
   const stateId = stateName ? states.find(s => s.name === stateName)?.id : null;
 
+  const lastFilterRef = useRef(null);
+
   useEffect(() => {
     if (!categoryId) return;
-    const filterObj = { categoryId, type, stateId: stateId || null };
-    if (JSON.stringify(filterObj) !== filterKey && status !== 'loading') {
-      dispatch(fetchServices(filterObj));
+    const currentFilter = { categoryId, type, stateId: stateId || null };
+    const currentKey = JSON.stringify(currentFilter);
+    if (currentKey !== lastFilterRef.current && status !== 'loading') {
+      lastFilterRef.current = currentKey;
+      dispatch(fetchServices(currentFilter));
     }
-  }, [categoryId, stateId, type, filterKey, status, dispatch]);
+  }, [categoryId, stateId, type, status, dispatch]);
 
   const currentFilter = categoryId ? { categoryId, type, stateId: stateId || null } : null;
 
@@ -34,6 +37,11 @@ export function useServicesByCategory(categoryName, stateName, { type = 'base' }
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    retry: () => currentFilter && dispatch(fetchServices(currentFilter)),
+    retry: () => {
+      if (currentFilter) {
+        lastFilterRef.current = JSON.stringify(currentFilter);
+        dispatch(fetchServices(currentFilter));
+      }
+    },
   };
 }

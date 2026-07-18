@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchTalukas } from '../Redux/slices/geoSlice';
 
@@ -11,18 +11,21 @@ export function useTalukas(districtName, cityName) {
   const talukas = useSelector(state => state.geo.talukas);
   const status = useSelector(state => state.geo.talukasStatus);
   const error = useSelector(state => state.geo.talukasError);
-  const filterKey = useSelector(state => state.geo.talukasFilterKey);
 
   const districtId = districtName ? districts.find(d => d.name === districtName)?.id : null;
   const cityId = cityName ? cities.find(c => c.name === cityName)?.id : null;
 
+  const lastFilterRef = useRef(null);
+
   useEffect(() => {
     if (!districtId && !cityId) return;
     const filterObj = cityId ? { cityId, districtId: null } : { districtId, cityId: null };
-    if (JSON.stringify(filterObj) !== filterKey && status !== 'loading') {
+    const currentKey = JSON.stringify(filterObj);
+    if (currentKey !== lastFilterRef.current && status !== 'loading') {
+      lastFilterRef.current = currentKey;
       dispatch(fetchTalukas(filterObj));
     }
-  }, [districtId, cityId, filterKey, status, dispatch]);
+  }, [districtId, cityId, status, dispatch]);
 
   const currentFilter = cityId
     ? { cityId, districtId: null }
@@ -36,6 +39,11 @@ export function useTalukas(districtName, cityName) {
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    retry: () => currentFilter && dispatch(fetchTalukas(currentFilter)),
+    retry: () => {
+      if (currentFilter) {
+        lastFilterRef.current = JSON.stringify(currentFilter);
+        dispatch(fetchTalukas(currentFilter));
+      }
+    },
   };
 }

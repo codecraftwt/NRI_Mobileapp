@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCities } from '../Redux/slices/geoSlice';
 
@@ -9,18 +9,21 @@ export function useCities(stateName, districtName) {
   const cities = useSelector(state => state.geo.cities);
   const status = useSelector(state => state.geo.citiesStatus);
   const error = useSelector(state => state.geo.citiesError);
-  const filterKey = useSelector(state => state.geo.citiesFilterKey);
 
   const stateId = stateName ? states.find(s => s.name === stateName)?.id : null;
   const districtId = districtName ? districts.find(d => d.name === districtName)?.id : null;
 
+  const lastFilterRef = useRef(null);
+
   useEffect(() => {
     if (!stateId && !districtId) return;
     const filterObj = districtId ? { stateId, districtId } : { stateId, districtId: null };
-    if (JSON.stringify(filterObj) !== filterKey && status !== 'loading') {
+    const currentKey = JSON.stringify(filterObj);
+    if (currentKey !== lastFilterRef.current && status !== 'loading') {
+      lastFilterRef.current = currentKey;
       dispatch(fetchCities(filterObj));
     }
-  }, [stateId, districtId, filterKey, status, dispatch]);
+  }, [stateId, districtId, status, dispatch]);
 
   const currentFilter = districtId
     ? { stateId, districtId }
@@ -34,6 +37,11 @@ export function useCities(stateName, districtName) {
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    retry: () => currentFilter && dispatch(fetchCities(currentFilter)),
+    retry: () => {
+      if (currentFilter) {
+        lastFilterRef.current = JSON.stringify(currentFilter);
+        dispatch(fetchCities(currentFilter));
+      }
+    },
   };
 }
