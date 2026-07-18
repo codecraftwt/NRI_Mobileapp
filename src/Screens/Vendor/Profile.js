@@ -7,6 +7,9 @@ const MENU_ITEMS = [
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit your details', icon: 'person-outline', route: 'ProfilePersonal' },
   { key: 'bank', label: 'Bank & Payout Details', subtitle: 'Manage payout account', icon: 'account-balance', route: 'BankDetails' },
   { key: 'documents', label: 'Documents / KYC', subtitle: 'Manage verification documents', icon: 'folder-shared', route: 'Documents' },
+  { key: 'availability', label: 'Availability', subtitle: 'Manage your job availability', icon: 'event-available', route: 'Availability' },
+  { key: 'services', label: 'Services Offered', subtitle: 'View your offered services', icon: 'miscellaneous-services', route: 'ServiceOffered' },
+  { key: 'coverage', label: 'Coverage Areas', subtitle: 'Manage your service areas', icon: 'map', route: 'CoverageAreas' },
 ];
 
 const { height: H } = Dimensions.get('window');

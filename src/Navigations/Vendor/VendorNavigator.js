@@ -17,6 +17,9 @@ import Documents from '../../Screens/Vendor/Documents';
 import ProfilePersonal from '../../Screens/Vendor/ProfilePersonal';
 import BankDetails from '../../Screens/Vendor/BankDetails';
 import SupportTicketDetail from '../../Screens/Vendor/SupportTicketDetail';
+import Availability from '../../Screens/Vendor/Availability';
+import ServiceOffered from '../../Screens/Vendor/ServiceOffered';
+import CoverageAreas from '../../Screens/Vendor/CoverageAreas';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,6 +67,9 @@ function ProfileStack() {
       <Stack.Screen name="ProfilePersonal" component={ProfilePersonal} />
       <Stack.Screen name="BankDetails" component={BankDetails} />
       <Stack.Screen name="Documents" component={Documents} />
+      <Stack.Screen name="Availability" component={Availability} />
+      <Stack.Screen name="ServiceOffered" component={ServiceOffered} />
+      <Stack.Screen name="CoverageAreas" component={CoverageAreas} />
     </Stack.Navigator>
   );
 }
