@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -9,6 +9,7 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, logoutUser } from '../../Redux/slices/userSlice';
 import { useReferrals } from '../../Hooks/useReferrals';
+import { useToast } from '../../context/ToastContext';
 
 const MENU_ITEMS = [
   { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
@@ -26,6 +27,11 @@ function Profile({ navigation }) {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const { referralCode } = useReferrals();
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
+
+  const handleCopyCode = () => {
+    showToast('Referral code copied successfully!', 'success');
+  };
 
   const name = user?.name || '';
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -184,7 +190,7 @@ function Profile({ navigation }) {
 
           <View style={styles.referralCodeBox}>
             <Text style={styles.referralCodeText}>{referralCode || 'WY71RSH2'}</Text>
-            <TouchableOpacity style={styles.copyBtn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.copyBtn} activeOpacity={0.7} onPress={handleCopyCode}>
               <Icon name="content-copy" size={16} color="#FFFFFF" />
               <Text style={styles.copyBtnText}>Copy</Text>
             </TouchableOpacity>

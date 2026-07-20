@@ -111,7 +111,7 @@ function Dashboard({ navigation }) {
           <View>
             <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} 👋</Text>
           </View>
-          <TouchableOpacity style={styles.bellBtn}>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
             <Icon name="notifications-none" size={26} color="#FFFFFF" />
             <View style={styles.badgeDot} />
           </TouchableOpacity>

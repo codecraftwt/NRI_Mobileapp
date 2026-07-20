@@ -7,6 +7,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import { useToast } from '../../context/ToastContext';
 
 const AVATAR_COLORS = ['#16A34A', '#1E3A8A', '#D97706', '#DC2626', '#8B5CF6', '#06B6D4'];
 function avatarColorFor(name) {
@@ -33,6 +34,7 @@ function Family({ navigation }) {
   const dispatch = useDispatch();
   const { members, loading, failed, retry } = useFamilyMembers();
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -63,9 +65,14 @@ function Family({ navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            dispatch(removeFamilyMember(member.id)).unwrap().catch((error) => {
-              showAlert('Failed', error?.message || 'Could not remove this family member.');
-            });
+            dispatch(removeFamilyMember(member.id))
+              .unwrap()
+              .then(() => {
+                showToast(`${member.name} removed successfully`);
+              })
+              .catch((error) => {
+                showAlert('Failed', error?.message || 'Could not remove this family member.');
+              });
           },
         },
       ]

@@ -9,6 +9,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, spacing, radius } from '../../theme';
 import { removeProperty } from '../../Redux/slices/propertiesSlice';
 import { useProperties } from '../../Hooks/useProperties';
+import { useToast } from '../../context/ToastContext';
 
 const TYPE_LABELS = { flat: 'Flat', house: 'House', farm: 'Farm / Agricultural Land', commercial: 'Commercial', plot: 'Plot' };
 
@@ -16,6 +17,7 @@ function Properties({ navigation }) {
   const dispatch = useDispatch();
   const { properties, loading, failed, retry } = useProperties();
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -43,9 +45,14 @@ function Properties({ navigation }) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            dispatch(removeProperty(property.id)).unwrap().catch((error) => {
-              showAlert('Failed', error?.message || 'Could not remove this property.');
-            });
+            dispatch(removeProperty(property.id))
+              .unwrap()
+              .then(() => {
+                showToast(`${property.nickname} removed successfully`);
+              })
+              .catch((error) => {
+                showAlert('Failed', error?.message || 'Could not remove this property.');
+              });
           },
         },
       ]

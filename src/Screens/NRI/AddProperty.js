@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Platform,
   PermissionsAndroid,
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -354,7 +354,14 @@ function AddProperty({ navigation, route }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title={isEdit ? 'Edit Property' : 'Add Property'} showBack />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={200}
+        extraHeight={200}
+      >
         {isEdit && loadingDetail && !hasPopulated ? (
           <View style={styles.detailLoadingBox}>
             <ActivityIndicator size="small" color="#D94625" />
@@ -585,7 +592,7 @@ function AddProperty({ navigation, route }) {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <AppAlert {...alertProps} />
     </View>
   );

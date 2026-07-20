@@ -44,6 +44,7 @@ import ProfileAddress from '../Screens/NRI/ProfileAddress';
 import ProfileNri from '../Screens/NRI/ProfileNri';
 import ProfilePassword from '../Screens/NRI/ProfilePassword';
 import Customer from '../Screens/NRI/Customer';
+import Notifications from '../Screens/NRI/Notifications';
 
 // Import Service Booking Sub-Screens
 import ServicesCatalog from '../Screens/NRI/ServicesCatalog';
@@ -101,6 +102,7 @@ function DashboardStack() {
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="Customer" component={Customer} />
+      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   );
 }
@@ -266,7 +268,7 @@ function MainTabNavigator() {
       tabBarPosition="bottom"
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
-        swipeEnabled: true,
+        swipeEnabled: false,
       }}
     >
       <Tab.Screen

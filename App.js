@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/Redux/store';
+import { ToastProvider } from './src/context/ToastContext';
 import AppNavigator from './src/Navigations/AppNavigator';
 
 function App() {
@@ -11,9 +12,11 @@ function App() {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <SafeAreaProvider>
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
+          <ToastProvider>
+            <NavigationContainer>
+              <AppNavigator />
+            </NavigationContainer>
+          </ToastProvider>
         </SafeAreaProvider>
       </PersistGate>
     </Provider>

@@ -7,7 +7,7 @@ import { spacing } from '../theme/spacing';
 
 function Header({ navigation, title, showBack, isTabRoot }) {
   const isDashboard = !showBack && !isTabRoot && !title;
-  
+
   if (isDashboard) {
     return (
       <View style={styles.mainContainer}>
@@ -22,7 +22,7 @@ function Header({ navigation, title, showBack, isTabRoot }) {
             <Text style={styles.brandTextMain} numberOfLines={1}>NRI Circle Member</Text>
           </View>
         </View>
-        
+
         <TouchableOpacity style={styles.iconBtnMain}>
           <Icon name="notifications-none" size={24} color="#FFFFFF" />
           <View style={styles.badgeMain} />
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C',
     paddingHorizontal: spacing.lg,
-    paddingTop: 23, // Clear the status bar
+    paddingTop: Platform.OS === 'android' ? 50 : 54, // Same as Services.js
     paddingBottom: spacing.md,
     borderBottomWidth: 0,
     shadowColor: '#20304C',
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
-  iconBtn: { 
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: { flex: 1, ...typography.h4, color: '#FFFFFF', textAlign: 'center' },
-  
+
   // Clean Modern Colored Header
   mainContainer: {
     flexDirection: 'row',
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)', 
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.accent, 
+    backgroundColor: colors.accent,
     borderWidth: 1,
     borderColor: '#20304C',
   }
