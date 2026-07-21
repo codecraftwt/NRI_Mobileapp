@@ -241,18 +241,18 @@ function BillingPayments({ navigation }) {
                   <View style={[styles.statIconBox, styles.statIconBoxRed]}>
                     <Icon name="error-outline" size={18} color={colors.error} />
                   </View>
-                  <Text style={styles.statLabel}>Outstanding</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Outstanding</Text>
                 </View>
-                <Text style={styles.statValue}>₹{overview.outstandingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>₹{overview.outstandingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.statCard}>
                 <View style={styles.statHeaderRow}>
                   <View style={[styles.statIconBox, styles.statIconBoxGreen]}>
                     <Icon name="receipt-long" size={18} color={colors.success} />
                   </View>
-                  <Text style={styles.statLabel}>Total Invoices</Text>
+                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Total Invoices</Text>
                 </View>
-                <Text style={styles.statValue}>{allItems.length}</Text>
+                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{allItems.length}</Text>
               </View>
             </View>
 
@@ -391,17 +391,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F1F5F9' },
   scrollContent: { padding: 20, paddingBottom: 40, gap: 20 },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 20 },
-  loadingText: { fontSize: 15, color: '#64748B' },
+  loadingText: { fontSize: 15, fontFamily: typography.body.fontFamily, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 16 },
-  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
-  emptyText: { fontSize: 15, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 10 },
+  retryText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
+  emptyText: { fontSize: 15, fontFamily: typography.body.fontFamily, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 10 },
   
   statsRow: { flexDirection: 'row', gap: 14 },
   statCard: { 
     flex: 1, 
     backgroundColor: '#FFFFFF', 
     borderRadius: 24, 
-    padding: 20, 
+    padding: 16, 
     borderWidth: 1, 
     borderColor: '#E0E7FF', 
     shadowColor: '#1E3A8A', 
@@ -410,14 +410,14 @@ const styles = StyleSheet.create({
     shadowRadius: 16, 
     elevation: 3 
   },
-  statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   statIconBox: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   statIconBoxRed: { backgroundColor: '#FEF2F2' },
   statIconBoxGreen: { backgroundColor: '#DCFCE7' },
-  statLabel: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  statValue: { fontSize: 24, fontWeight: '800', color: '#0F172A' },
+  statLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', flex: 1 },
+  statValue: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  sectionTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
   autoRenewCard: { 
     backgroundColor: '#FFFFFF', 
@@ -433,19 +433,19 @@ const styles = StyleSheet.create({
   },
   autoRenewHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  autoRenewName: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
-  autoRenewType: { fontSize: 13, fontWeight: '500', color: '#64748B' },
-  autoRenewMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  autoRenewName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  autoRenewType: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
+  autoRenewMeta: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 4 },
   stopRenewBtn: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  stopRenewBtnText: { fontSize: 12, fontWeight: '700', color: '#EF4444' },
+  stopRenewBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
 
   invoicesContainer: { marginTop: 4 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },
   pageSizeBox: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#FFFFFF' },
-  pageSizeText: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
+  pageSizeText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   listTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   countBadge: { backgroundColor: '#EEF2FF', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#1E3A8A' },
+  countBadgeText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#1E3A8A' },
 
   invoiceCard: { 
     backgroundColor: '#FFFFFF', 
@@ -462,37 +462,37 @@ const styles = StyleSheet.create({
   },
   invoiceTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   invoiceIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
-  invoiceDesc: { fontSize: 15, fontWeight: '600', color: '#0F172A', flex: 1, lineHeight: 22 },
+  invoiceDesc: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flex: 1, lineHeight: 22 },
   
   invoiceMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  invoiceDate: { fontSize: 14, color: '#64748B' },
-  invoiceAmount: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  invoiceDate: { fontSize: 14, fontFamily: typography.body.fontFamily, color: '#64748B' },
+  invoiceAmount: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
   invoiceFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   
   invoiceStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   invoiceStatusDue: { backgroundColor: '#FFFBEB' },
   invoiceStatusPaid: { backgroundColor: '#DCFCE7' },
-  invoiceStatusText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  invoiceStatusText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase', letterSpacing: 0.5 },
   invoiceStatusTextDue: { color: '#B45309' },
   invoiceStatusTextPaid: { color: '#16A34A' },
   
   receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#1E3A8A', minWidth: 90, justifyContent: 'center' },
-  receiptBtnText: { fontSize: 13, fontWeight: '700', color: '#1E3A8A' },
+  receiptBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#1E3A8A' },
   payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#D94625', minWidth: 90, justifyContent: 'center' },
-  payNowBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  payNowBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
 
   pagerFooter: { marginTop: 8, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0', gap: 16 },
-  pagerSummary: { fontSize: 13, color: '#64748B', textAlign: 'center' },
+  pagerSummary: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', textAlign: 'center' },
   pagerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24 },
   pagerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   pagerBtnDisabled: { opacity: 0.4 },
-  pagerText: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
+  pagerText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '50%', paddingBottom: 40, paddingTop: 16 },
   modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalOptionText: { fontSize: 16, color: '#1E293B', fontWeight: '500' },
+  modalOptionText: { fontSize: 16, fontFamily: typography.body.fontFamily, color: '#1E293B' },
 });
 
 export default BillingPayments;

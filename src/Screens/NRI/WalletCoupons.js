@@ -81,12 +81,12 @@ function WalletCoupons({ navigation }) {
               <View style={[styles.statIconBox, { backgroundColor: colors.successBackground }]}>
                 <Icon name="account-balance-wallet" size={18} color={colors.success} />
               </View>
-              <Text style={styles.statLabel}>Credit Balance</Text>
+              <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Credit Balance</Text>
             </View>
             {loading ? (
               <ActivityIndicator size="small" color={colors.success} style={{ marginTop: 4 }} />
             ) : (
-              <Text style={styles.statValue}>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
             )}
           </View>
           <View style={styles.statCard}>
@@ -94,20 +94,20 @@ function WalletCoupons({ navigation }) {
               <View style={[styles.statIconBox, { backgroundColor: colors.primaryLight + '30' }]}>
                 <Icon name="confirmation-number" size={18} color={colors.primary} />
               </View>
-              <Text style={styles.statLabel}>Coupons Available</Text>
+              <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Coupons Available</Text>
             </View>
-            <Text style={styles.statValue}>{wallet.coupons.length}</Text>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{wallet.coupons.length}</Text>
           </View>
         </View>
 
         <View style={styles.ctaCard}>
-          <View style={[styles.statIconBox, { backgroundColor: colors.warningBackground, width: 44, height: 44, borderRadius: 12 }]}>
-            <Icon name="card-giftcard" size={24} color={colors.warning} />
+          <View style={styles.ctaIconWrap}>
+            <Icon name="card-giftcard" size={28} color="#F59E0B" />
           </View>
-          <View style={{ flex: 1, paddingLeft: 4 }}>
+          <View style={{ flex: 1, paddingLeft: 8 }}>
             <Text style={styles.ctaText}>Want more credits?</Text>
-            <TouchableOpacity style={styles.referBtn} onPress={() => navigation.navigate('Refer & Earn')}>
-              <Icon name="share" size={16} color={colors.primary} />
+            <TouchableOpacity style={styles.referBtn} onPress={() => navigation.navigate('Refer & Earn')} activeOpacity={0.8}>
+              <Icon name="share" size={16} color="#FFFFFF" />
               <Text style={styles.referBtnText}>Refer & Earn</Text>
             </TouchableOpacity>
           </View>
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: '#FFFFFF', 
     borderRadius: 24, 
-    padding: 20, 
+    padding: 16, 
     borderWidth: 1, 
     borderColor: '#E0E7FF', 
     shadowColor: '#1E3A8A', 
@@ -222,28 +222,27 @@ const styles = StyleSheet.create({
     shadowRadius: 16, 
     elevation: 3 
   },
-  statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   statIconBox: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  statLabel: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  statValue: { fontSize: 24, fontWeight: '800', color: '#0F172A' },
+  statLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', flex: 1 },
+  statValue: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
   ctaCard: { 
     flexDirection: 'row', 
-    backgroundColor: '#FFFFFF', 
+    backgroundColor: '#1E3A8A', 
     borderRadius: 24, 
-    padding: 20, 
+    padding: 24, 
     alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: '#E0E7FF', 
     shadowColor: '#1E3A8A', 
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.05, 
-    shadowRadius: 16, 
-    elevation: 3 
+    shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.2, 
+    shadowRadius: 20, 
+    elevation: 6 
   },
-  ctaText: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 8 },
-  referBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#1E3A8A', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
-  referBtnText: { fontSize: 13, fontWeight: '700', color: '#1E3A8A' },
+  ctaIconWrap: { width: 60, height: 60, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  ctaText: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', marginBottom: 12 },
+  referBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#D94625', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 10, shadowColor: '#D94625', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  referBtnText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   
   sectionCard: { 
     backgroundColor: '#FFFFFF', 
@@ -257,34 +256,34 @@ const styles = StyleSheet.create({
     shadowRadius: 24, 
     elevation: 4 
   },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  sectionTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
   eliteBadge: { backgroundColor: '#0F172A', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 'auto' },
-  eliteBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 0.5 },
+  eliteBadgeText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: 0.5 },
   
-  cashOutText: { fontSize: 14, color: '#475569', lineHeight: 22, marginTop: 8 },
-  cashOutHelp: { fontSize: 13, fontWeight: '500', color: '#64748B', marginBottom: 16 },
-  cashOutPending: { fontSize: 14, fontWeight: '600', color: '#D97706' },
-  bold: { fontWeight: '700', color: '#0F172A' },
+  cashOutText: { fontSize: 14, fontFamily: typography.body.fontFamily, color: '#475569', lineHeight: 22, marginTop: 8 },
+  cashOutHelp: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', marginBottom: 16 },
+  cashOutPending: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#D97706' },
+  bold: { fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 56, color: '#0F172A', fontSize: 15, marginBottom: 16 },
+  input: { fontFamily: typography.body.fontFamily, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 56, color: '#0F172A', fontSize: 15, marginBottom: 16 },
   cashOutBtn: { backgroundColor: '#1E3A8A', borderRadius: 16, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
-  cashOutBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  cashOutBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   
   couponRow: { paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8 },
   couponTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   couponCodeBadge: { backgroundColor: '#EEF2FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  couponCodeText: { fontSize: 13, fontWeight: '700', color: '#1E3A8A', letterSpacing: 1 },
-  couponDiscount: { fontSize: 18, fontWeight: '800', color: '#16A34A' },
-  couponDesc: { fontSize: 14, color: '#64748B', marginTop: 10 },
+  couponCodeText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#1E3A8A', letterSpacing: 1 },
+  couponDiscount: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#16A34A' },
+  couponDesc: { fontSize: 14, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 10 },
   
-  emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 24, fontStyle: 'italic' },
+  emptyText: { fontSize: 14, fontFamily: typography.body.fontFamily, color: '#94A3B8', textAlign: 'center', paddingVertical: 24, fontStyle: 'italic' },
   
   txnRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8 },
   txnIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  txnDesc: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  txnDate: { fontSize: 13, color: '#64748B', marginTop: 4 },
-  txnAmount: { fontSize: 17, fontWeight: '800' },
+  txnDesc: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#1E293B' },
+  txnDate: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 4 },
+  txnAmount: { fontSize: 17, fontFamily: typography.h2.fontFamily },
 });
 
 export default WalletCoupons;

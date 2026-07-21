@@ -1,14 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Linking, Share } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
+import { useToast } from '../../context/ToastContext';
 
 function ReferEarn({ navigation }) {
   const { referralCode, shareLink, totals, referred, rewards, leaderboard, loading, retry } = useReferrals();
   const { cashout, retry: retryWallet } = useWalletAccount();
+  const { showToast } = useToast();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -30,11 +32,23 @@ function ReferEarn({ navigation }) {
 
   const handleCopy = () => {
     // TODO: use a clipboard library to copy `referralCode`
-    Alert.alert('Copied', `Referral code ${referralCode} copied to clipboard.`);
+    showToast('Referral code copied successfully!', 'success');
   };
 
-  const handleShare = () => {
-    Alert.alert('Share on WhatsApp', `Share your code ${referralCode} with friends and family!\n${shareLink || ''}`);
+  const handleShare = async () => {
+    const message = `Join NRI Circle using my referral code *${referralCode}* and get exclusive benefits!\n\n${shareLink || ''}`;
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+    
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        await Share.share({ message });
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Could not open sharing dialog.');
+    }
   };
 
   return (
