@@ -11,11 +11,13 @@ import {
   PermissionsAndroid,
   Linking,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, spacing, radius } from '../../theme';
@@ -131,11 +133,78 @@ async function requestFilePermission(showAlert) {
   return false;
 }
 
+async function requestCameraPermission(showAlert) {
+  if (Platform.OS !== 'android') return true;
+  const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+  if (already) return true;
+
+  const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+    title: 'Allow Camera Access',
+    message: 'NRI Circle needs access to your camera to take a photo of the property.',
+    buttonPositive: 'Allow',
+    buttonNegative: 'Deny',
+  });
+
+  if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+  if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+    showAlert(
+      'Permission Required',
+      'Camera access is blocked. Please enable it from app settings to take a photo.',
+      [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
+    );
+  } else {
+    showAlert('Permission Denied', 'Camera access is required to take a photo.');
+  }
+  return false;
+}
+
 function AttachmentsCard({ propertyId }) {
   const [label, setLabel] = useState('');
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const { detail, uploadingAttachment, uploadAttachment, removeAttachment } = usePropertyDetail();
   const attachments = detail?.id === propertyId ? detail.attachments : [];
   const { showAlert, alertProps } = useAppAlert();
+
+  const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
+    const allowed = await requestCameraPermission(showAlert);
+    if (!allowed) return;
+    launchCamera({ mediaType: 'photo', quality: 0.8 }, response => {
+      if (response.didCancel || response.errorCode) return;
+      const uri = response.assets?.[0]?.uri;
+      const name = response.assets?.[0]?.fileName || `photo_${Date.now()}.jpg`;
+      const type = response.assets?.[0]?.type || 'image/jpeg';
+      if (uri) {
+        uploadAttachment(propertyId, 'photo', label.trim(), { uri, name, type })
+          .unwrap()
+          .then(() => setLabel(''))
+          .catch((error) => {
+            showAlert('Upload Failed', error?.message || 'Could not upload this photo.');
+          });
+      }
+    });
+  };
+
+  const handleChooseFromGallery = async () => {
+    setShowPhotoModal(false);
+    const allowed = await requestFilePermission(showAlert);
+    if (!allowed) return;
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
+      if (response.didCancel || response.errorCode) return;
+      const uri = response.assets?.[0]?.uri;
+      const name = response.assets?.[0]?.fileName || `photo_${Date.now()}.jpg`;
+      const type = response.assets?.[0]?.type || 'image/jpeg';
+      if (uri) {
+        uploadAttachment(propertyId, 'photo', label.trim(), { uri, name, type })
+          .unwrap()
+          .then(() => setLabel(''))
+          .catch((error) => {
+            showAlert('Upload Failed', error?.message || 'Could not upload this photo.');
+          });
+      }
+    });
+  };
 
   const pickAndUpload = async (kind) => {
     const allowed = await requestFilePermission(showAlert);
@@ -215,7 +284,7 @@ function AttachmentsCard({ propertyId }) {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => pickAndUpload('photo')} disabled={uploadingAttachment}>
+        <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => setShowPhotoModal(true)} disabled={uploadingAttachment}>
           {uploadingAttachment ? <ActivityIndicator size="small" color="#D94625" /> : <Icon name="add-a-photo" size={16} color="#D94625" />}
           <Text style={styles.attachBtnText}>Add Photo</Text>
         </TouchableOpacity>
@@ -225,6 +294,35 @@ function AttachmentsCard({ propertyId }) {
         </TouchableOpacity>
       </View>
       <AppAlert {...alertProps} />
+
+      <Modal visible={showPhotoModal} transparent animationType="fade" onRequestClose={() => setShowPhotoModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPhotoModal(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Add Photo</Text>
+            
+            <TouchableOpacity style={[styles.modalOption, { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }]} onPress={handleTakePhoto}>
+              <View style={styles.modalOptionLeft}>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-camera" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Take Photo</Text>
+              </View>
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.modalOption} onPress={handleChooseFromGallery}>
+              <View style={styles.modalOptionLeft}>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-library" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Choose from Gallery</Text>
+              </View>
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -599,6 +697,9 @@ function AddProperty({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  modalOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  menuIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
+  menuLabel: { fontSize: 14, color: '#0F172A', fontWeight: '500' },
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { padding: 20, paddingBottom: spacing.xxl, gap: spacing.md },
 

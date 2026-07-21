@@ -9,6 +9,17 @@ import { useAddonPackages } from '../../Hooks/useAddonPackages';
 import { useMembershipCheckout } from '../../Hooks/useMembershipCheckout';
 import { useMembership } from '../../Hooks/useMembership';
 import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
+import { lightColors as baseColors, typography, spacing, radius } from '../../theme';
+import { Dimensions } from 'react-native';
+
+const { width: W, height: H } = Dimensions.get('window');
+
+const C = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
+const colors = C;
 
 function MembershipCheckout({ navigation, route }) {
   const { mode = 'new', planId: initialPlanId } = route.params || {};
@@ -34,6 +45,32 @@ function MembershipCheckout({ navigation, route }) {
   const [walletBalance, setWalletBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info', btnText: 'Got it' });
+
+  const showAlert = (title, message, type = 'info', options = {}) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      message,
+      type,
+      btnText: options.btnText || 'Got it',
+      onConfirm: options.onConfirm || null,
+      secondaryBtnText: options.secondaryBtnText || null,
+      onCancel: options.onCancel || null,
+    });
+  };
+
+  const handleAlertConfirm = () => {
+    const callback = customAlert.onConfirm;
+    setCustomAlert(prev => ({ ...prev, visible: false }));
+    if (callback) callback();
+  };
+
+  const handleAlertCancel = () => {
+    const callback = customAlert.onCancel;
+    setCustomAlert(prev => ({ ...prev, visible: false }));
+    if (callback) callback();
+  };
 
   useEffect(() => {
     if (!selectedPlanId && regularPlans.length > 0) {
@@ -71,10 +108,10 @@ function MembershipCheckout({ navigation, route }) {
     validateCoupon({ planId: selectedPlanId, code: planCouponCode.trim() })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`, 'success');
       })
       .catch((error) => {
-        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
       });
   };
 
@@ -91,16 +128,16 @@ function MembershipCheckout({ navigation, route }) {
     validateCoupon({ planId: selectedPlanId, code: coupon.code })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`, 'success');
       })
       .catch((error) => {
-        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
       });
   };
 
   const handleSubmit = async () => {
     if (!selectedPlanId) {
-      Alert.alert('Select a Plan', 'Please choose a membership plan to continue.');
+      showAlert('Select a Plan', 'Please choose a membership plan to continue.', 'error');
       return;
     }
     setSubmitting(true);
@@ -131,46 +168,48 @@ function MembershipCheckout({ navigation, route }) {
           razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
         }).unwrap();
         refetchMembership();
-        Alert.alert('Membership Activated', 'Your membership payment was verified successfully.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+          btnText: 'OK',
+          onConfirm: () => navigation.goBack(),
+        });
       } else if (result.checkoutUrl) {
         // Stripe — open the hosted checkout page; there's no in-app return
         // callback, so the user confirms completion manually.
         openStripeCheckout(result.checkoutUrl);
-        Alert.alert(
+        showAlert(
           'Complete Payment',
           'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: "I've Paid",
-              onPress: () => {
-                const sessionId = extractStripeSessionId(result.checkoutUrl);
-                verifyPayment({ paymentId: result.paymentId, sessionId })
-                  .unwrap()
-                  .then(() => {
-                    refetchMembership();
-                    Alert.alert('Membership Activated', 'Your membership payment was verified successfully.', [
-                      { text: 'OK', onPress: () => navigation.goBack() },
-                    ]);
-                  })
-                  .catch((error) => {
-                    Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+          'info',
+          {
+            btnText: "I've Paid",
+            secondaryBtnText: 'Cancel',
+            onConfirm: () => {
+              const sessionId = extractStripeSessionId(result.checkoutUrl);
+              verifyPayment({ paymentId: result.paymentId, sessionId })
+                .unwrap()
+                .then(() => {
+                  refetchMembership();
+                  showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+                    btnText: 'OK',
+                    onConfirm: () => navigation.goBack(),
                   });
-              },
-            },
-          ]
+                })
+                .catch((error) => {
+                  showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.', 'error');
+                });
+            }
+          }
         );
       } else {
         // Wallet credits covered the full amount — already activated.
         refetchMembership();
-        Alert.alert('Membership Activated', result.message || 'Your wallet balance covered the full amount — your membership is now active.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        showAlert('Membership Activated', result.message || 'Your wallet balance covered the full amount — your membership is now active.', 'success', {
+          btnText: 'OK',
+          onConfirm: () => navigation.goBack(),
+        });
       }
     } catch (error) {
-      Alert.alert('Checkout Failed', error?.message || 'Could not complete checkout. Please try again.');
+      showAlert('Checkout Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -180,13 +219,16 @@ function MembershipCheckout({ navigation, route }) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.bgShape1} />
+      <View style={styles.bgShape2} />
+      <View style={styles.bgShape3} />
       <Header navigation={navigation} title={title} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Select Plan</Text>
           {plansLoading ? (
             <View style={styles.inlineLoading}>
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={C.primary} />
               <Text style={styles.hint}>Loading plans…</Text>
             </View>
           ) : (
@@ -202,6 +244,7 @@ function MembershipCheckout({ navigation, route }) {
                     {plan.isPopular && <Text style={styles.planPopular}>Most popular</Text>}
                   </View>
                   <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}/yr</Text>
+                  <View style={[styles.radio, selectedPlanId === plan.id && styles.radioActive]} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -217,7 +260,7 @@ function MembershipCheckout({ navigation, route }) {
           <Text style={styles.cardTitle}>Optional Add-on Packages</Text>
           {packagesLoading ? (
             <View style={styles.inlineLoading}>
-              <ActivityIndicator size="small" color="#007AFF" />
+              <ActivityIndicator size="small" color={C.primary} />
               <Text style={styles.hint}>Loading add-ons…</Text>
             </View>
           ) : (
@@ -226,10 +269,10 @@ function MembershipCheckout({ navigation, route }) {
                 const checked = selectedAddonIds.includes(pkg.id);
                 return (
                   <TouchableOpacity key={pkg.id} style={[styles.addonRow, checked && styles.planRowSelected]} onPress={() => toggleAddon(pkg.id)}>
-                    <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-                      {checked && <Icon name="check" size={13} color="white" />}
+                    <View style={[styles.addonCheckbox, checked && styles.addonCheckboxChecked]}>
+                      {checked && <Icon name="check" size={14} color="white" />}
                     </View>
-                    <Text style={styles.planName} numberOfLines={1}>{pkg.name}</Text>
+                    <Text style={styles.addonName} numberOfLines={1}>{pkg.name}</Text>
                     <Text style={styles.planPrice}>₹{pkg.priceMonthly.toLocaleString('en-IN')}/mo</Text>
                   </TouchableOpacity>
                 );
@@ -270,13 +313,13 @@ function MembershipCheckout({ navigation, route }) {
           <View style={styles.couponRow}>
             <TextInput style={styles.couponInput} placeholder="E.G. WELCOME20" placeholderTextColor="#9CA3AF" autoCapitalize="characters" value={planCouponCode} onChangeText={setPlanCouponCode} />
             <TouchableOpacity style={styles.applyBtn} onPress={handleApplyPlanCoupon} disabled={couponLoading}>
-              {couponLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.applyBtnText}>Apply</Text>}
+              {couponLoading ? <ActivityIndicator size="small" color={C.primary} /> : <Text style={styles.applyBtnText}>Apply</Text>}
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-            <Icon name="local-offer" size={14} color="#7C3AED" />
+            <Icon name="local-offer" size={14} color={C.accent} />
             <Text style={styles.viewCouponsLink}>View available coupons</Text>
-            <Icon name="expand-more" size={16} color="#7C3AED" />
+            <Icon name="expand-more" size={16} color={C.accent} />
           </TouchableOpacity>
 
           {selectedAddons.length > 0 && (
@@ -291,12 +334,12 @@ function MembershipCheckout({ navigation, route }) {
           <Text style={styles.cardTitle}>Payment Details</Text>
 
           <TouchableOpacity style={[styles.gatewayRow, gateway === 'razorpay' && styles.planRowSelected]} onPress={() => setGateway('razorpay')}>
-            <Icon name="smartphone" size={20} color={gateway === 'razorpay' ? '#007AFF' : '#64748B'} />
+            <Icon name="smartphone" size={20} color={gateway === 'razorpay' ? C.primary : '#64748B'} />
             <Text style={styles.planName}>UPI / Card (Razorpay)</Text>
             <View style={[styles.radio, gateway === 'razorpay' && styles.radioActive]} />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.gatewayRow, gateway === 'stripe' && styles.planRowSelected]} onPress={() => setGateway('stripe')}>
-            <Icon name="credit-card" size={20} color={gateway === 'stripe' ? '#007AFF' : '#64748B'} />
+            <Icon name="credit-card" size={20} color={gateway === 'stripe' ? C.primary : '#64748B'} />
             <Text style={styles.planName}>Card (Stripe)</Text>
             <View style={[styles.radio, gateway === 'stripe' && styles.radioActive]} />
           </TouchableOpacity>
@@ -318,7 +361,7 @@ function MembershipCheckout({ navigation, route }) {
           </View>
 
           {(submitting || checkoutLoading || verifyLoading) ? (
-            <ActivityIndicator size="large" color="#FF7C1A" style={styles.payLoading} />
+            <ActivityIndicator size="large" color={C.accent} style={styles.payLoading} />
           ) : (
             <TouchableOpacity style={styles.payBtn} onPress={handleSubmit} disabled={!selectedPlanId}>
               <Icon name="lock" size={16} color="white" />
@@ -334,7 +377,7 @@ function MembershipCheckout({ navigation, route }) {
             <Text style={styles.modalTitle}>Available Coupons</Text>
             {couponsLoading ? (
               <View style={styles.modalLoadingBox}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={C.primary} />
                 <Text style={styles.hint}>Loading coupons…</Text>
               </View>
             ) : (
@@ -354,7 +397,7 @@ function MembershipCheckout({ navigation, route }) {
                       {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
                       {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
                     </View>
-                    {item.eligible && <Icon name="chevron-right" size={20} color="#007AFF" />}
+                    {item.eligible && <Icon name="chevron-right" size={20} color={C.primary} />}
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={<Text style={styles.modalEmptyText}>No coupons available right now.</Text>}
@@ -363,67 +406,113 @@ function MembershipCheckout({ navigation, route }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <Modal visible={customAlert.visible} transparent animationType="fade" onRequestClose={handleAlertCancel}>
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <View style={[
+              styles.alertIconWrap, 
+              customAlert.type === 'error' ? styles.alertIconError : 
+              customAlert.type === 'success' ? styles.alertIconSuccess : styles.alertIconInfo
+            ]}>
+              <Icon name={customAlert.type === 'error' ? "error-outline" : customAlert.type === 'success' ? "check-circle-outline" : "info-outline"} size={36} color={customAlert.type === 'error' ? '#EF4444' : customAlert.type === 'success' ? '#10B981' : C.primary} />
+            </View>
+            <Text style={styles.alertTitle}>{customAlert.title}</Text>
+            <Text style={styles.alertMessage}>{customAlert.message}</Text>
+            
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              {customAlert.secondaryBtnText && (
+                <TouchableOpacity style={[styles.alertBtn, styles.alertBtnSecondary]} onPress={handleAlertCancel}>
+                  <Text style={[styles.alertBtnText, styles.alertBtnTextSecondary]}>{customAlert.secondaryBtnText}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={[styles.alertBtn, { flex: 1 }]} onPress={handleAlertConfirm}>
+                <Text style={styles.alertBtnText}>{customAlert.btnText}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F3F4F6' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
-  card: { backgroundColor: 'white', borderRadius: 14, padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2 },
-  cardTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 4 },
-  hint: { fontSize: 11.5, color: '#9CA3AF' },
+  container: { flex: 1, backgroundColor: '#F8FAFC', position: 'relative', overflow: 'hidden' },
+  bgShape1: { position: 'absolute', top: -H * 0.1, right: -W * 0.2, width: W * 1.2, height: H * 0.4, backgroundColor: C.primary + '08', borderRadius: 100, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.1, left: -W * 0.3, width: W * 1.2, height: H * 0.3, backgroundColor: C.accent + '08', borderRadius: 80, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '40%', left: -W * 0.1, width: W, height: H * 0.05, backgroundColor: C.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+
+  scrollContent: { padding: 16, paddingBottom: 40, gap: 16 },
+  card: { backgroundColor: 'white', borderRadius: 20, padding: 20, gap: 12, shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
+  cardTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 6 },
+  hint: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8' },
   inlineLoading: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  retryText: { fontSize: 12, color: '#EF4444', fontWeight: '600' },
+  retryText: { fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: '#EF4444' },
 
-  planRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  planRowSelected: { borderColor: '#D94625', backgroundColor: '#F0F7FF' },
-  planName: { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#111827' },
-  planPopular: { fontSize: 11, color: '#F59E0B', fontWeight: '700', marginTop: 2 },
-  planPrice: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#FFFFFF' },
+  planRowSelected: { borderColor: C.primary, backgroundColor: C.primary + '0A' },
+  planName: { flex: 1, fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  planPopular: { fontSize: 11, fontFamily: 'Montserrat-SemiBold', color: C.accent, marginTop: 4 },
+  planPrice: { fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
 
-  addonRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  checkboxChecked: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+  addonRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#F1F5F9', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14, backgroundColor: '#FFFFFF' },
+  addonName: { flex: 1, fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: '#334155' },
+  addonCheckbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
+  addonCheckboxChecked: { backgroundColor: C.primary, borderColor: C.primary },
 
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  rowLabel: { fontSize: 13, color: '#64748B', flex: 1, marginRight: 8 },
-  rowValue: { fontSize: 13, color: '#1E293B', fontWeight: '600' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  rowLabel: { fontSize: 13.5, fontFamily: 'Poppins-Regular', color: '#64748B', flex: 1, marginRight: 8 },
+  rowValue: { fontSize: 13.5, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
   discountText: { color: '#10B981' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 4 },
-  totalLabel: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  totalValue: { fontSize: 16, fontWeight: 'bold', color: '#007AFF' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 6 },
+  totalLabel: { fontSize: 15, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
+  totalValue: { fontSize: 18, fontFamily: 'Montserrat-Bold', color: C.primary },
 
-  couponLabel: { fontSize: 12, color: '#1E293B', fontWeight: '700', marginTop: 8 },
-  couponRow: { flexDirection: 'row', gap: 8 },
-  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, height: 42, color: '#1E293B', fontSize: 13 },
-  applyBtn: { borderWidth: 1, borderColor: '#007AFF', borderRadius: 8, paddingHorizontal: 16, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
-  applyBtnText: { color: '#007AFF', fontWeight: '700', fontSize: 13 },
-  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 4 },
-  viewCouponsLink: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  couponLabel: { fontSize: 12, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginTop: 10 },
+  couponRow: { flexDirection: 'row', gap: 10 },
+  couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, height: 48, color: '#1E293B', fontSize: 13, fontFamily: 'Poppins-Regular' },
+  applyBtn: { backgroundColor: C.primary, borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center', minWidth: 80, alignItems: 'center' },
+  applyBtnText: { color: 'white', fontFamily: 'Montserrat-Bold', fontSize: 13 },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 6 },
+  viewCouponsLink: { fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: C.accent },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '65%', paddingBottom: 24, paddingTop: 12 },
+  modalTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
   modalOptionTextWrap: { flex: 1 },
-  modalEmptyText: { fontSize: 12.5, color: '#94A3B8', padding: 16 },
-  couponCodeText: { fontSize: 13.5, fontWeight: '700', color: '#111827' },
+  modalEmptyText: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#94A3B8', padding: 24, textAlign: 'center' },
+  couponCodeText: { fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
   couponIneligibleText: { color: '#9CA3AF' },
-  couponDescText: { fontSize: 12, color: '#6B7280', marginTop: 2 },
-  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 2 },
+  couponDescText: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#64748B', marginTop: 4 },
+  couponReasonText: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#EF4444', marginTop: 4 },
 
-  gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#CBD5E1' },
-  radioActive: { borderColor: '#007AFF', backgroundColor: '#007AFF' },
+  gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16, backgroundColor: '#FFFFFF' },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: C.primary, backgroundColor: '#FFFFFF', borderWidth: 6 },
 
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12 },
-  switchRowDisabled: { opacity: 0.55 },
-  switchLabel: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F1F5F9' },
+  switchRowDisabled: { opacity: 0.6 },
+  switchLabel: { fontSize: 13.5, fontFamily: 'Montserrat-SemiBold', color: '#1E293B', marginBottom: 2 },
 
-  payBtn: { flexDirection: 'row', backgroundColor: '#FF7C1A', height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 4 },
-  payBtnText: { color: 'white', fontSize: 15, fontWeight: 'bold' },
-  payLoading: { marginTop: 12 },
+  payBtn: { flexDirection: 'row', backgroundColor: C.accent, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 12, shadowColor: C.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
+  payBtnText: { color: 'white', fontSize: 16, fontFamily: 'Montserrat-Bold' },
+  payLoading: { marginTop: 16 },
+
+  alertOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  alertBox: { backgroundColor: '#fff', borderRadius: 24, padding: 24, width: '100%', maxWidth: 340, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 },
+  alertIconWrap: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  alertIconSuccess: { backgroundColor: '#D1FAE5' },
+  alertIconError: { backgroundColor: '#FEE2E2' },
+  alertIconInfo: { backgroundColor: C.primary + '15' },
+  alertTitle: { fontSize: 18, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 8, textAlign: 'center' },
+  alertMessage: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  alertBtn: { backgroundColor: C.primary, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  alertBtnSecondary: { backgroundColor: '#F1F5F9', flex: 1 },
+  alertBtnText: { color: 'white', fontSize: 14, fontFamily: 'Montserrat-Bold' },
+  alertBtnTextSecondary: { color: '#64748B' },
 });
 
 export default MembershipCheckout;

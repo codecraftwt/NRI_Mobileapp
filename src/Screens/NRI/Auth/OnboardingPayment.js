@@ -11,7 +11,14 @@ import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
 import { openRazorpayCheckout } from '../../../Utils/paymentGateway';
-import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
+
+const C = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
+const colors = C;
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -38,6 +45,12 @@ function OnboardingPayment({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
+
+  const showAlert = (title, message, type = 'info') => {
+    setCustomAlert({ visible: true, title, message, type });
+  };
+  const hideAlert = () => setCustomAlert(prev => ({ ...prev, visible: false }));
 
   const basePrice = plan?.price || 0;
   const planDiscount = couponResult?.discount || 0;
@@ -50,10 +63,10 @@ function OnboardingPayment({ route, navigation }) {
     validateCoupon({ code: planCouponCode.trim() })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
       })
       .catch((error) => {
-        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
       });
   };
 
@@ -70,10 +83,10 @@ function OnboardingPayment({ route, navigation }) {
     validateCoupon({ code: coupon.code })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
       })
       .catch((error) => {
-        Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
       });
   };
 
@@ -81,7 +94,7 @@ function OnboardingPayment({ route, navigation }) {
 
   const handlePay = async () => {
     if (!plan) {
-      Alert.alert('No Plan Selected', 'Please go back and choose a membership plan.');
+      showAlert('No Plan Selected', 'Please go back and choose a membership plan.', 'error');
       return;
     }
     setSubmitting(true);
@@ -157,7 +170,7 @@ function OnboardingPayment({ route, navigation }) {
         finishUp();
       }
     } catch (error) {
-      Alert.alert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.');
+      showAlert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +191,7 @@ function OnboardingPayment({ route, navigation }) {
 
         {plansLoading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={C.primary} />
             <Text style={styles.loadingText}>Loading your plan…</Text>
           </View>
         ) : plansFailed || !plan ? (
@@ -189,12 +202,12 @@ function OnboardingPayment({ route, navigation }) {
           <>
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Icon name="receipt-long" size={16} color="#007AFF" />
+                <Icon name="receipt-long" size={16} color={C.primary} />
                 <Text style={styles.cardHeaderText}>Order Summary</Text>
               </View>
 
               <View style={styles.planChip}>
-                <Icon name="check-circle" size={14} color="#007AFF" />
+                <Icon name="check-circle" size={14} color={C.primary} />
                 <Text style={styles.planChipText}>{plan?.name} Plan</Text>
               </View>
 
@@ -227,25 +240,25 @@ function OnboardingPayment({ route, navigation }) {
               <View style={styles.couponRow}>
                 <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={setPlanCouponCode} />
                 <TouchableOpacity style={styles.applyBtn} onPress={handleApplyPlanCoupon} disabled={couponLoading}>
-                  {couponLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.applyBtnText}>Apply</Text>}
+                  {couponLoading ? <ActivityIndicator size="small" color={C.primary} /> : <Text style={styles.applyBtnText}>Apply</Text>}
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                <Icon name="local-offer" size={14} color="#7C3AED" />
+                <Icon name="local-offer" size={14} color={C.accent} />
                 <Text style={styles.viewCouponsLink}>View available offers</Text>
-                <Icon name="expand-more" size={16} color="#7C3AED" />
+                <Icon name="expand-more" size={16} color={C.accent} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
-                <Icon name="mark-email-read" size={16} color="#007AFF" />
+                <Icon name="mark-email-read" size={16} color={C.primary} />
                 <Text style={styles.cardHeaderText}>Payment Details</Text>
               </View>
               <Text style={styles.gatewayIntro}>Select your preferred international payment gateway below:</Text>
 
               <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'stripe' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('stripe')}>
-                <Icon name="credit-card" size={22} color={paymentMethod === 'stripe' ? '#007AFF' : '#64748B'} />
+                <Icon name="credit-card" size={22} color={paymentMethod === 'stripe' ? C.primary : '#64748B'} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.gatewayName}>Card (Stripe)</Text>
                   <Text style={styles.gatewayDesc}>Accepts major cards (Visa, Mastercard, Amex)</Text>
@@ -254,7 +267,7 @@ function OnboardingPayment({ route, navigation }) {
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'razorpay' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('razorpay')}>
-                <Icon name="smartphone" size={22} color={paymentMethod === 'razorpay' ? '#007AFF' : '#64748B'} />
+                <Icon name="smartphone" size={22} color={paymentMethod === 'razorpay' ? C.primary : '#64748B'} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.gatewayName}>UPI / Card (Razorpay)</Text>
                   <Text style={styles.gatewayDesc}>UPI, Indian Cards, Netbanking & Wallets</Text>
@@ -263,7 +276,7 @@ function OnboardingPayment({ route, navigation }) {
               </TouchableOpacity>
 
               {loading ? (
-                <ActivityIndicator size="large" color="#FF7C1A" style={styles.payLoading} />
+                <ActivityIndicator size="large" color={C.accent} style={styles.payLoading} />
               ) : (
                 <TouchableOpacity style={styles.payBtn} onPress={() => handlePay()}>
                   <Icon name="lock" size={16} color="white" />
@@ -296,7 +309,7 @@ function OnboardingPayment({ route, navigation }) {
             <Text style={styles.modalTitle}>Available Coupons</Text>
             {couponsLoading ? (
               <View style={styles.modalLoadingBox}>
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={C.primary} />
                 <Text style={styles.gatewayDesc}>Loading coupons…</Text>
               </View>
             ) : (
@@ -316,7 +329,7 @@ function OnboardingPayment({ route, navigation }) {
                       {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
                       {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
                     </View>
-                    {item.eligible && <Icon name="chevron-right" size={20} color="#007AFF" />}
+                    {item.eligible && <Icon name="chevron-right" size={20} color={C.primary} />}
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={<Text style={styles.modalEmptyText}>No coupons available right now.</Text>}
@@ -325,6 +338,21 @@ function OnboardingPayment({ route, navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <Modal visible={customAlert.visible} transparent animationType="fade" onRequestClose={hideAlert}>
+        <View style={styles.alertOverlay}>
+          <View style={styles.alertBox}>
+            <View style={[styles.alertIconWrap, customAlert.type === 'error' ? styles.alertIconError : styles.alertIconSuccess]}>
+              <Icon name={customAlert.type === 'error' ? "error-outline" : "check-circle-outline"} size={36} color={customAlert.type === 'error' ? '#EF4444' : '#10B981'} />
+            </View>
+            <Text style={styles.alertTitle}>{customAlert.title}</Text>
+            <Text style={styles.alertMessage}>{customAlert.message}</Text>
+            <TouchableOpacity style={styles.alertBtn} onPress={hideAlert}>
+              <Text style={styles.alertBtnText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -332,9 +360,9 @@ function OnboardingPayment({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
   // Dynamic Background Layers matching Auth screen
-  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
-  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
-  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] },
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: C.primary + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] },
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: C.accent + '10', borderRadius: 60, transform: [{ rotate: '-35deg' }] },
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: C.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
   scrollContent: { paddingHorizontal: spacing.lg, paddingBottom: 40, paddingTop: spacing.md, gap: 16 },
   eyebrow: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
   title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
@@ -346,7 +374,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: 'white', borderRadius: radius.xl, padding: spacing.xl, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.8)' },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   cardHeaderText: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
-  planChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.primaryLight + '20', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 16 },
+  planChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.primary + '15', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 16 },
   planChipText: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-Bold' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
   rowLabel: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#64748B', flex: 1, marginRight: 8 },
@@ -360,7 +388,7 @@ const styles = StyleSheet.create({
   applyBtn: { borderWidth: 1, borderColor: colors.primary, borderRadius: radius.lg, paddingHorizontal: 20, justifyContent: 'center', minWidth: 64, alignItems: 'center' },
   applyBtnText: { color: colors.primary, fontFamily: 'Montserrat-Bold', fontSize: 14 },
   viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 12 },
-  viewCouponsLink: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-SemiBold' },
+  viewCouponsLink: { fontSize: 13, color: colors.accent, fontFamily: 'Montserrat-SemiBold' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: '60%', paddingBottom: 24, paddingTop: 16 },
   modalTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
@@ -374,7 +402,7 @@ const styles = StyleSheet.create({
   couponReasonText: { fontSize: 12, fontFamily: 'Poppins-Regular', color: colors.error, marginTop: 4 },
   gatewayIntro: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#64748B', marginBottom: 16 },
   gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: radius.lg, padding: 16, marginBottom: 12 },
-  gatewayRowActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight + '10' },
+  gatewayRowActive: { borderColor: colors.primary, backgroundColor: colors.primary + '10' },
   gatewayName: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
   gatewayDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 4 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1' },
@@ -385,6 +413,15 @@ const styles = StyleSheet.create({
   trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 20 },
   trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   trustText: { fontSize: 11, fontFamily: 'Montserrat-SemiBold', color: '#64748B' },
+  alertOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  alertBox: { backgroundColor: '#fff', borderRadius: radius.xl, padding: 24, width: '100%', maxWidth: 340, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 },
+  alertIconWrap: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  alertIconSuccess: { backgroundColor: '#D1FAE5' },
+  alertIconError: { backgroundColor: '#FEE2E2' },
+  alertTitle: { fontSize: 18, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 8, textAlign: 'center' },
+  alertMessage: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  alertBtn: { backgroundColor: C.primary, width: '100%', height: 48, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
+  alertBtnText: { color: 'white', fontSize: 15, fontFamily: 'Montserrat-Bold' },
 });
 
 export default OnboardingPayment;

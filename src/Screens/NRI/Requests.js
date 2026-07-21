@@ -84,23 +84,25 @@ function Requests({ navigation }) {
         <Text style={styles.headerTitle}>My Requests</Text>
       </View>
 
-      <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
-          {TABS.map(tab => (
-            <TouchableOpacity 
-              key={tab} 
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
-              onPress={() => setActiveTab(tab)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+      {tickets.length > 0 && (
+        <View style={styles.tabsContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
+            {TABS.map(tab => (
+              <TouchableOpacity 
+                key={tab} 
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+        contentContainerStyle={[styles.scrollContent, tickets.length === 0 && { flexGrow: 1 }]} 
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
@@ -118,7 +120,7 @@ function Requests({ navigation }) {
         )}
 
         {!loading && !failed && filteredTickets.length === 0 && (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, tickets.length === 0 && { flex: 1, justifyContent: 'center' }]}>
             <Icon name="receipt" size={48} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>No Requests Found</Text>
             <Text style={styles.emptyText}>You do not have any requests here.</Text>

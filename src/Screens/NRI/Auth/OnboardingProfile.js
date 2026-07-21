@@ -10,24 +10,37 @@ import { useStates } from '../../../Hooks/useStates';
 import { useInternationalStates } from '../../../Hooks/useInternationalStates';
 import { useInternationalCities } from '../../../Hooks/useInternationalCities';
 import { saveUserProfile } from '../../../Redux/slices/userSlice';
-import { lightColors as colors, typography, spacing, radius } from '../../../theme';
+import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
+
+const C = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
+const colors = C;
 
 const { width: W, height: H } = Dimensions.get('window');
 
-function SelectField({ label, required, value, placeholder, options, onSelect, loading }) {
+function SelectField({ label, required, value, placeholder, options, onSelect, loading, searchable }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  
+  const displayOptions = searchable && query
+    ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.inputLabel}>{label}{required ? <Text style={styles.required}> *</Text> : null}</Text>
       <TouchableOpacity
         style={[styles.selectBox, loading && styles.selectBoxDisabled]}
-        onPress={() => setOpen(true)}
+        onPress={() => { setQuery(''); setOpen(true); }}
         activeOpacity={0.7}
         disabled={loading}
       >
         {loading ? (
           <>
-            <ActivityIndicator size="small" color="#007AFF" />
+            <ActivityIndicator size="small" color={C.primary} />
             <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
           </>
         ) : (
@@ -37,64 +50,114 @@ function SelectField({ label, required, value, placeholder, options, onSelect, l
           </>
         )}
       </TouchableOpacity>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{flex: 1}} activeOpacity={1} onPress={() => setOpen(false)} />
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{label}</Text>
+            {searchable && (
+              <View style={styles.searchWrap}>
+                <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={`Search...`}
+                  placeholderTextColor="#94A3B8"
+                  value={query}
+                  onChangeText={setQuery}
+                />
+              </View>
+            )}
             <FlatList
-              data={options}
+              data={displayOptions}
               keyExtractor={item => item}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); setOpen(false); }}>
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color="#007AFF" />}
+                  <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
+                  {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
                 </TouchableOpacity>
               )}
             />
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
 }
 
-// Free-text input backed by autocomplete suggestions from the international
-// geo APIs. Unlike SelectField, typed text that doesn't match any suggestion
-// is still kept — these endpoints aren't master data.
 function AutocompleteField({ label, required, value, onChangeText, placeholder, options, loading, hint }) {
-  const [focused, setFocused] = useState(false);
-  const suggestions = value
-    ? options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o.toLowerCase() !== value.toLowerCase())
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  
+  const suggestions = query
+    ? options.filter(o => o.toLowerCase().includes(query.toLowerCase()))
     : options;
-  const showDropdown = focused && !loading && suggestions.length > 0;
 
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.inputLabel}>{label}{required ? <Text style={styles.required}> *</Text> : null}</Text>
-      <View style={styles.autocompleteInputWrap}>
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          placeholderTextColor="#94A3B8"
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-        />
-        {loading && <ActivityIndicator size="small" color="#007AFF" style={styles.autocompleteSpinner} />}
-      </View>
-      {showDropdown && (
-        <View style={styles.autocompleteDropdown}>
-          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.autocompleteScroll}>
-            {suggestions.map(item => (
-              <TouchableOpacity key={item} style={styles.modalOption} onPress={() => { onChangeText(item); setFocused(false); }}>
-                <Text style={styles.modalOptionText}>{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+      <TouchableOpacity
+        style={[styles.selectBox, loading && styles.selectBoxDisabled]}
+        onPress={() => { setQuery(value || ''); setOpen(true); }}
+        activeOpacity={0.7}
+        disabled={loading}
+      >
+        {loading ? (
+          <>
+            <ActivityIndicator size="small" color={C.primary} />
+            <Text style={[styles.selectText, styles.placeholderText, { marginLeft: 8 }]}>Loading…</Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.selectText, !value && styles.placeholderText]} numberOfLines={1}>{value || placeholder}</Text>
+            <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+          </>
+        )}
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{flex: 1}} activeOpacity={1} onPress={() => setOpen(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{label}</Text>
+            
+            <View style={styles.searchWrap}>
+              <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Type or search...`}
+                placeholderTextColor="#94A3B8"
+                value={query}
+                onChangeText={setQuery}
+                autoFocus={true}
+              />
+            </View>
+
+            <FlatList
+              data={suggestions}
+              keyExtractor={item => item}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(item); setOpen(false); }}>
+                  <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
+                  {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
+                </TouchableOpacity>
+              )}
+              ListFooterComponent={
+                query && suggestions.every(s => s.toLowerCase() !== query.toLowerCase()) ? (
+                  <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(query); setOpen(false); }}>
+                    <Text style={[styles.modalOptionText, { color: C.primary, fontFamily: 'Poppins-Bold' }]}>Use "{query}"</Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+              ListEmptyComponent={
+                !query ? null : <Text style={styles.emptyText}>No matches found. You can use your typed text above.</Text>
+              }
+            />
+          </View>
         </View>
-      )}
+      </Modal>
       {hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
@@ -171,7 +234,7 @@ function OnboardingProfile({ navigation }) {
 
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
-            <Icon name="flight-takeoff" size={16} color="#007AFF" />
+            <Icon name="flight-takeoff" size={16} color={C.primary} />
             <Text style={styles.sectionHeader}>WHERE YOU LIVE NOW</Text>
           </View>
 
@@ -183,6 +246,7 @@ function OnboardingProfile({ navigation }) {
             options={countryNames}
             onSelect={handleCountrySelect}
             loading={loadingCountries}
+            searchable={true}
           />
           {countriesFailed && (
             <TouchableOpacity onPress={retryCountries}>
@@ -225,7 +289,7 @@ function OnboardingProfile({ navigation }) {
           <View style={styles.divider} />
 
           <View style={styles.sectionHeaderRow}>
-            <Icon name="home" size={16} color="#007AFF" />
+            <Icon name="home" size={16} color={C.primary} />
             <Text style={styles.sectionHeader}>YOUR ROOTS IN INDIA</Text>
           </View>
 
@@ -237,6 +301,7 @@ function OnboardingProfile({ navigation }) {
             options={stateNames}
             onSelect={setHomeState}
             loading={loadingStates}
+            searchable={true}
           />
           {statesFailed && (
             <TouchableOpacity onPress={retryStates}>
@@ -272,9 +337,9 @@ function OnboardingProfile({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF', position: 'relative', overflow: 'hidden' },
   // Dynamic Background Layers matching Auth screen
-  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: '#E0F2FE' + '60', borderRadius: 80, transform: [{ rotate: '-25deg' }] }, // colors.primaryLight
-  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: '#FFEDD5' + '60', borderRadius: 60, transform: [{ rotate: '-35deg' }] }, // colors.accent
-  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: '#0ea5e9' + '10', borderRadius: 20, transform: [{ rotate: '15deg' }] }, // colors.primary
+  bgShape1: { position: 'absolute', top: -H * 0.15, right: -W * 0.3, width: W * 1.5, height: H * 0.5, backgroundColor: C.primary + '10', borderRadius: 80, transform: [{ rotate: '-25deg' }] }, 
+  bgShape2: { position: 'absolute', bottom: -H * 0.2, left: -W * 0.4, width: W * 1.5, height: H * 0.4, backgroundColor: C.accent + '10', borderRadius: 60, transform: [{ rotate: '-35deg' }] }, 
+  bgShape3: { position: 'absolute', top: '35%', left: -W * 0.1, width: W * 1.2, height: H * 0.05, backgroundColor: C.primary + '05', borderRadius: 20, transform: [{ rotate: '15deg' }] },
   scrollContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 40 },
   eyebrow: { fontSize: 12, color: colors.primary, fontFamily: 'Montserrat-Bold', letterSpacing: 1, textAlign: 'center', marginTop: 8 },
   title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', marginTop: 8 },
@@ -294,19 +359,19 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', flex: 1 },
   placeholderText: { color: '#94A3B8' },
   retryText: { fontSize: 12, color: colors.error, fontWeight: '600', marginTop: 6 },
-  autocompleteInputWrap: { position: 'relative', justifyContent: 'center' },
-  autocompleteSpinner: { position: 'absolute', right: 16 },
-  autocompleteDropdown: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, marginTop: 6, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
-  autocompleteScroll: { maxHeight: 220 },
   ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
   ctaBtnDisabled: { opacity: 0.7 },
   ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', paddingBottom: 24, paddingTop: 10 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 10 },
-  modalTitle: { fontSize: 14.5, fontWeight: '800', color: '#1E293B', paddingHorizontal: 18, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
-  modalOptionText: { fontSize: 14.5, color: '#1E293B' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 24, paddingTop: 12, elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+  modalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1', alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', textAlign: 'center' },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  modalOptionText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#334155' },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', marginHorizontal: 20, marginVertical: 12, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', height: '100%' },
+  emptyText: { textAlign: 'center', fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 24, paddingHorizontal: 20 },
 });
 
 export default OnboardingProfile;

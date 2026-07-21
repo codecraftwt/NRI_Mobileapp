@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   
   receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#1E3A8A', minWidth: 90, justifyContent: 'center' },
   receiptBtnText: { fontSize: 13, fontWeight: '700', color: '#1E3A8A' },
-  payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#1E3A8A', minWidth: 90, justifyContent: 'center' },
+  payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#D94625', minWidth: 90, justifyContent: 'center' },
   payNowBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
 
   pagerFooter: { marginTop: 8, paddingTop: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0', gap: 16 },

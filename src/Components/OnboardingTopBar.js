@@ -3,7 +3,13 @@ import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { logoutUser } from '../Redux/slices/userSlice';
-import { lightColors as colors } from '../theme/colors';
+import { lightColors as baseColors } from '../theme/colors';
+
+const colors = {
+  ...baseColors,
+  primary: '#20304C', // Dark blue
+  accent: '#A64416',  // Chocolate
+};
 
 function OnboardingTopBar({ navigation, onBack }) {
   return (

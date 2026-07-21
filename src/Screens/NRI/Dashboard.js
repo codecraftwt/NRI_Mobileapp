@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
+import React, { useCallback, useRef, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler, Animated } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector } from 'react-redux';
@@ -14,6 +14,24 @@ function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
   const user = useSelector(s => s.user.user);
   const { showAlert, alertProps } = useAppAlert();
+  const waveAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(waveAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: -1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.delay(1000)
+      ])
+    ).start();
+  }, [waveAnim]);
+
+  const waveInterpolate = waveAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-15deg', '0deg', '15deg'],
+  });
 
   const membership = data?.membership;
   const recentTickets = data?.recentTickets || [];
@@ -108,8 +126,9 @@ function Dashboard({ navigation }) {
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} 👋</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} </Text>
+            <Animated.Text style={[styles.userName, { transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
           </View>
           <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
             <Icon name="notifications-none" size={26} color="#FFFFFF" />
@@ -236,7 +255,7 @@ function Dashboard({ navigation }) {
 
               <View style={{ flex: 1, zIndex: 1 }}>
                 <Text style={styles.planSubtitle}>YOUR PLAN</Text>
-                <Text style={styles.planTitle}>{membership?.planName || 'Premium'} • Renews Dec 2025</Text>
+                <Text style={styles.planTitle}>{membership?.planName || 'Premium'} • Renews{'\n'}Dec 2025</Text>
                 <Text style={styles.planDesc}>25 requests/month • 4 care visits</Text>
               </View>
               <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>

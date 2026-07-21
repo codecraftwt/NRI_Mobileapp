@@ -96,22 +96,39 @@ function VerifyEmail({ route, navigation }) {
             </Text>
           </View>
 
-          <Text style={styles.inputLabel}>Verification Code</Text>
-          <View style={[styles.inputWrap, !!error && styles.inputWrapError]}>
-            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
-              <Icon name="verified-user" size={20} color={C.primary} />
+          <View style={styles.otpWrapper}>
+            <View style={styles.otpContainer}>
+              {[0, 1, 2, 3].map((index) => {
+                const isActive = otp.length === index;
+                const isFilled = otp.length > index;
+                return (
+                  <View 
+                    key={index} 
+                    style={[
+                      styles.otpBox, 
+                      isActive && styles.otpBoxActive,
+                      isFilled && styles.otpBoxFilled,
+                      !!error && styles.otpBoxError
+                    ]}
+                  >
+                    <Text style={styles.otpText}>
+                      {otp[index] || ''}
+                    </Text>
+                  </View>
+                );
+              })}
+              <TextInput
+                style={styles.hiddenInput}
+                keyboardType="number-pad"
+                maxLength={4}
+                value={otp}
+                onChangeText={(v) => { setOtp(v.replace(/\D/g, '')); if (error) setError(''); }}
+                caretHidden={true}
+                autoFocus={true}
+              />
             </View>
-            <TextInput
-              style={styles.otpInput}
-              placeholder="----"
-              placeholderTextColor={C.textPlaceholder}
-              keyboardType="number-pad"
-              maxLength={4}
-              value={otp}
-              onChangeText={(v) => { setOtp(v.replace(/\D/g, '')); if (error) setError(''); }}
-            />
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
 
           <View style={styles.ctaWrapper}>
             <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, verifying && styles.ctaBtnDisabled]} onPress={handleVerify} disabled={verifying}>
@@ -197,57 +214,67 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 10,
   },
-  inputLabel: {
-    fontSize: 14,
-    fontFamily: 'Poppins-SemiBold',
-    color: '#334155',
-    marginBottom: 8,
-    marginTop: 16,
-    marginLeft: 4,
-  },
-  inputWrap: {
-    flexDirection: 'row',
+  otpWrapper: {
+    marginTop: 10,
     alignItems: 'center',
+    width: '100%',
+  },
+  otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 10,
+    position: 'relative',
+  },
+  otpBox: {
+    width: 65,
+    height: 75,
     backgroundColor: '#FFFFFF',
-    borderRadius: radius['2xl'],
-    paddingHorizontal: spacing.sm,
-    height: 64,
-    elevation: 8,
-    shadowColor: C.primaryLight,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 15,
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-  },
-  inputWrapError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
-    shadowColor: '#EF4444',
-  },
-  iconFloat: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 2,
+    shadowColor: '#94A3B8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  otpInput: {
-    flex: 1,
-    fontSize: 22,
+  otpBoxActive: {
+    borderWidth: 2,
+    borderColor: C.primary,
+    backgroundColor: '#FFFFFF',
+    elevation: 8,
+    shadowColor: C.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  otpBoxFilled: {
+    borderWidth: 1.5,
+    borderColor: C.primary,
+    backgroundColor: '#F8FAFC',
+  },
+  otpBoxError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  otpText: {
+    fontSize: 28,
     fontFamily: 'Montserrat-Bold',
     color: '#1E293B',
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: '100%',
     height: '100%',
-    textAlign: 'center',
-    letterSpacing: 12,
+    opacity: 0,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Poppins-Regular',
     color: '#EF4444',
-    marginTop: 8,
-    marginLeft: 8,
+    marginTop: 12,
   },
   ctaWrapper: {
     marginTop: 40,
