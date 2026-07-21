@@ -24,8 +24,23 @@ const { width: W, height: H } = Dimensions.get('window');
 
 const GST_RATE = 0.18;
 
+function toAmount(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 function formatUsd(amount) {
-  return `$${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${toAmount(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function convertPlanAmountToUsd(amount, plan) {
+  const usdPrice = toAmount(plan?.usdPrice);
+  const basePrice = toAmount(plan?.price);
+  const sourceAmount = toAmount(amount);
+
+  if (!sourceAmount) return 0;
+  if (usdPrice && basePrice) return (sourceAmount / basePrice) * usdPrice;
+  return sourceAmount;
 }
 
 function OnboardingPayment({ route, navigation }) {
@@ -45,12 +60,6 @@ function OnboardingPayment({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
-  const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
-
-  const showAlert = (title, message, type = 'info') => {
-    setCustomAlert({ visible: true, title, message, type });
-  };
-  const hideAlert = () => setCustomAlert(prev => ({ ...prev, visible: false }));
 
   const basePrice = plan?.price || 0;
   const planDiscount = couponResult?.discount || 0;
@@ -84,6 +93,8 @@ function OnboardingPayment({ route, navigation }) {
       .unwrap()
       .then((result) => {
         showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
+        const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
+        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`);
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');

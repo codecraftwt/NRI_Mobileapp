@@ -31,14 +31,16 @@ import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useMembership } from '../../Hooks/useMembership';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
+import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const NO_FAMILY_MEMBER = 'Myself / Not applicable';
 const NO_PROPERTY = 'Not applicable';
 const PRIORITY_OPTIONS = ['Standard', 'Express', 'Emergency'];
 const PRIORITY_TO_URGENCY = { Standard: 'standard', Express: 'express', Emergency: 'emergency' };
+// Matches the family member API's `relationship` enum (parent/sibling/spouse/child/other).
+const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
   const [open, setOpen] = useState(false);
@@ -101,12 +103,14 @@ function CreateTicket({ route, navigation }) {
   const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState(route.params?.initialBaseServiceIds || []);
   const [selectedAddonIds, setSelectedAddonIds] = useState(route.params?.initialAddons || []);
   const [priority, setPriority] = useState('Standard');
-  const [familyMember, setFamilyMember] = useState(NO_FAMILY_MEMBER);
+  const [fullName, setFullName] = useState('');
+  const [relation, setRelation] = useState('');
   const [property, setProperty] = useState(NO_PROPERTY);
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
   const [taluka, setTaluka] = useState('');
   const [fullAddress, setFullAddress] = useState('');
+  const [pincode, setPincode] = useState('');
   const [notes, setNotes] = useState('');
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -124,8 +128,9 @@ function CreateTicket({ route, navigation }) {
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(state);
   const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas(city, '');
   const { categoryNames, loading: loadingCategories, failed: categoriesFailed, retry: retryCategories } = useServiceCategories();
-  const { members: familyMembers } = useFamilyMembers();
+  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { properties } = useProperties();
+  const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
   const { membership, usage } = useMembership();
   const user = useSelector(s => s.user.user);
   const {
@@ -164,7 +169,6 @@ function CreateTicket({ route, navigation }) {
   const stateId = state ? states.find(s => s.name === state)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;
   const talukaId = taluka ? talukas.find(t => t.name === taluka)?.id : null;
-  const familyMemberId = familyMember !== NO_FAMILY_MEMBER ? familyMembers.find(m => m.name === familyMember)?.id : null;
   const propertyId = property !== NO_PROPERTY ? properties.find(p => p.nickname === property)?.id : null;
   const primaryBaseServiceId = selectedBaseServiceIds[0] || null;
   const selectedService = baseServices.find(s => s.id === primaryBaseServiceId) || null;
@@ -229,7 +233,31 @@ function CreateTicket({ route, navigation }) {
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const isValid = serviceCategory && selectedBaseServiceIds.length > 0 && state && city && fullAddress.trim().length > 0;
+  const isValid = serviceCategory && selectedBaseServiceIds.length > 0
+    && fullName.trim().length > 0 && relation && state
+    && fullAddress.trim().length > 0 && pincode.trim().length > 0;
+
+  const handlePincodeLookup = () => {
+    if (!pincode || pincode.trim().length < 4) {
+      showAlert('Enter PIN Code', 'Please enter a valid PIN code to look up.');
+      return;
+    }
+    lookupPincode(pincode.trim())
+      .unwrap()
+      .then((result) => {
+        const match = result?.results?.[0];
+        if (!match) {
+          showAlert('Not Found', 'No address found for that PIN code.');
+          return;
+        }
+        if (match.stateName) setState(match.stateName);
+        if (match.cityName) setCity(match.cityName);
+        if (match.talukaName) setTaluka(match.talukaName);
+      })
+      .catch((error) => {
+        showAlert('Lookup Failed', error?.message || 'Could not look up that PIN code. Please try again.');
+      });
+  };
 
   const handleSelectCategory = (v) => {
     setServiceCategory(v);
@@ -437,9 +465,28 @@ function CreateTicket({ route, navigation }) {
     }
   };
 
+  // The ticket API only accepts an existing family_member_id, not raw
+  // name/relation — reuse a matching saved member if one exists (avoids
+  // creating a duplicate on repeat submissions for the same person),
+  // otherwise create one on the fly from what was typed here.
+  const resolveFamilyMemberId = async () => {
+    const name = fullName.trim();
+    const relationship = relation.toLowerCase();
+    const existing = familyMembers.find(
+      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
+    );
+    if (existing) return existing.id;
+    const created = await createFamilyMember({ name, relationship }).unwrap();
+    return created.id;
+  };
+
   const handleSubmit = async () => {
     if (!isValid) return;
     try {
+      const familyMemberId = await resolveFamilyMemberId();
+      // No dedicated pincode field on the ticket API — fold it into the
+      // free-text address the way a written Indian address would include it.
+      const address = pincode.trim() ? `${fullAddress.trim()} - ${pincode.trim()}` : fullAddress.trim();
       const result = await submitTicket({
         serviceId: selectedBaseServiceIds[0],
         extraServices: selectedBaseServiceIds.slice(1),
@@ -450,7 +497,7 @@ function CreateTicket({ route, navigation }) {
         stateId,
         cityId,
         talukaId,
-        address: fullAddress,
+        address,
         urgency: PRIORITY_TO_URGENCY[priority],
         preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
         customerNotes: notes,
@@ -607,12 +654,23 @@ function CreateTicket({ route, navigation }) {
 
         <Text style={styles.sectionTitle}>Who / Where</Text>
         <View style={styles.card}>
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>Full Name<Text style={styles.required}> *</Text></Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Who is this request for?"
+              placeholderTextColor="#9CA3AF"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
           <SelectField
-            label="For Family Member (optional)"
-            value={familyMember}
-            placeholder="Select family member..."
-            options={[NO_FAMILY_MEMBER, ...familyMembers.map(m => m.name)]}
-            onSelect={setFamilyMember}
+            label="Relation"
+            required
+            value={relation}
+            placeholder="Select..."
+            options={RELATION_OPTIONS}
+            onSelect={setRelation}
           />
           <SelectField
             label="Property (optional)"
@@ -641,9 +699,8 @@ function CreateTicket({ route, navigation }) {
           )}
           <SelectField
             label="City / District"
-            required
             value={city}
-            placeholder="Select city..."
+            placeholder="Select state first..."
             options={cityNames}
             disabled={!state}
             loading={loadingCities}
@@ -660,7 +717,7 @@ function CreateTicket({ route, navigation }) {
           <SelectField
             label="Taluka"
             value={taluka}
-            placeholder="Select taluka..."
+            placeholder="Select city first..."
             options={talukaNames}
             disabled={!city}
             loading={loadingTalukas}
@@ -683,6 +740,28 @@ function CreateTicket({ route, navigation }) {
               value={fullAddress}
               onChangeText={setFullAddress}
             />
+          </View>
+
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>PIN Code<Text style={styles.required}> *</Text></Text>
+            <View style={styles.pincodeRow}>
+              <TextInput
+                style={[styles.input, styles.pincodeInput]}
+                value={pincode}
+                onChangeText={setPincode}
+                keyboardType="number-pad"
+                maxLength={6}
+                placeholder="e.g. 400001"
+                placeholderTextColor="#9CA3AF"
+              />
+              <TouchableOpacity style={styles.lookupBtn} onPress={handlePincodeLookup} disabled={loadingPincodeLookup}>
+                {loadingPincodeLookup ? (
+                  <ActivityIndicator size="small" color="#3298D4" />
+                ) : (
+                  <Text style={styles.lookupBtnText}>Find</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.fieldWrap}>
@@ -996,6 +1075,20 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 15, color: '#0F172A', flex: 1, fontWeight: '500' },
   placeholderText: { color: '#94A3B8', fontWeight: '400' },
   retryText: { fontSize: 13, color: '#EF4444', fontWeight: '600', marginTop: 4 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    fontSize: 15,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+  },
+  pincodeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  pincodeInput: { flex: 1 },
+  lookupBtn: { height: 52, minWidth: 70, borderRadius: 14, borderWidth: 1.5, borderColor: '#3298D4', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16, backgroundColor: '#EAF4FB' },
+  lookupBtnText: { color: '#3298D4', ...typography.labelMedium },
   textArea: {
     borderWidth: 1,
     borderColor: '#E2E8F0',

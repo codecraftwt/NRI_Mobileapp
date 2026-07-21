@@ -159,6 +159,16 @@ function TicketDetail({ route, navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
+        <TouchableOpacity
+          style={styles.supportChatBar}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber })}
+        >
+          <Icon name="chat-bubble-outline" size={18} color="#3B82F6" />
+          <Text style={styles.supportChatBarText}>Support Chat</Text>
+          <Icon name="chevron-right" size={20} color="#94A3B8" />
+        </TouchableOpacity>
+
         <View style={styles.card}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
@@ -451,6 +461,24 @@ const styles = StyleSheet.create({
   overdueBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
   
   sectionTitle: { ...typography.sectionTitle, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 4 },
+
+  supportChatBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  supportChatBarText: { flex: 1, fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   
   chargesList: { gap: 0 },
   chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', borderStyle: 'dashed' },

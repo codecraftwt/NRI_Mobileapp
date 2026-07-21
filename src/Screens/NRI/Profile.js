@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated, ActivityIndicator } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -7,7 +7,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-import { updateProfile, logoutUser } from '../../Redux/slices/userSlice';
+import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto } from '../../Redux/slices/userSlice';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useToast } from '../../context/ToastContext';
 
@@ -22,6 +22,8 @@ const { width: W, height: H } = Dimensions.get('window');
 
 function Profile({ navigation }) {
   const user = useSelector(state => state.user.user);
+  const uploadingPhoto = useSelector(state => state.user.uploadPhotoStatus === 'loading');
+  const removingPhoto = useSelector(state => state.user.removePhotoStatus === 'loading');
   const dispatch = useDispatch();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const { referralCode } = useReferrals();
@@ -90,14 +92,22 @@ function Profile({ navigation }) {
     return false;
   };
 
+  const uploadPhoto = (asset) => {
+    if (!asset?.uri) return;
+    dispatch(uploadUserProfilePhoto({ uri: asset.uri, name: asset.fileName, type: asset.type }))
+      .unwrap()
+      .catch((error) => {
+        Alert.alert('Upload Failed', error?.message || 'Could not update your profile photo. Please try again.');
+      });
+  };
+
   const handleTakePhoto = async () => {
     setShowPhotoModal(false);
     const allowed = await requestCameraPermission();
     if (!allowed) return;
     launchCamera({ mediaType: 'photo', quality: 0.8 }, response => {
       if (response.didCancel || response.errorCode) return;
-      const uri = response.assets?.[0]?.uri;
-      if (uri) dispatch(updateProfile({ avatarUri: uri }));
+      uploadPhoto(response.assets?.[0]);
     });
   };
 
@@ -107,9 +117,26 @@ function Profile({ navigation }) {
     if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
       if (response.didCancel || response.errorCode) return;
-      const uri = response.assets?.[0]?.uri;
-      if (uri) dispatch(updateProfile({ avatarUri: uri }));
+      uploadPhoto(response.assets?.[0]);
     });
+  };
+
+  const handleRemovePhoto = () => {
+    setShowPhotoModal(false);
+    showAlert('Remove Photo', 'Remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          dispatch(removeUserProfilePhoto())
+            .unwrap()
+            .catch((error) => {
+              Alert.alert('Could Not Remove Photo', error?.message || 'Please try again.');
+            });
+        },
+      },
+    ]);
   };
 
   const handleUploadPhoto = () => {
@@ -148,13 +175,15 @@ function Profile({ navigation }) {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              {user?.avatarUri ? (
+              {uploadingPhoto || removingPhoto ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : user?.avatarUri ? (
                 <Image source={{ uri: user.avatarUri }} style={styles.avatarImage} />
               ) : (
                 <Text style={styles.avatarText}>{initials}</Text>
               )}
             </View>
-            <TouchableOpacity style={styles.editAvatarBtn} onPress={handleUploadPhoto} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.editAvatarBtn} onPress={handleUploadPhoto} activeOpacity={0.8} disabled={uploadingPhoto || removingPhoto}>
               <Icon name="photo-camera" size={12} color="#1E3A8A" />
             </TouchableOpacity>
           </View>
@@ -243,7 +272,7 @@ function Profile({ navigation }) {
               </View>
               <Icon name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalOption} onPress={handleChooseFromGallery}>
+            <TouchableOpacity style={[styles.modalOption, user?.avatarUri && { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }]} onPress={handleChooseFromGallery}>
               <View style={styles.modalOptionLeft}>
                 <View style={styles.menuIconBox}>
                   <Icon name="photo-library" size={20} color="#1E3A8A" />
@@ -252,6 +281,16 @@ function Profile({ navigation }) {
               </View>
               <Icon name="chevron-right" size={24} color="#CBD5E1" />
             </TouchableOpacity>
+            {!!user?.avatarUri && (
+              <TouchableOpacity style={styles.modalOption} onPress={handleRemovePhoto}>
+                <View style={styles.modalOptionLeft}>
+                  <View style={styles.menuIconBox}>
+                    <Icon name="delete-outline" size={20} color="#DC2626" />
+                  </View>
+                  <Text style={[styles.menuLabel, { color: '#DC2626' }]}>Remove Photo</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>

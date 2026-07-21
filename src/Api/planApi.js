@@ -16,6 +16,7 @@ function mapPlan(raw) {
     slug: raw.slug,
     description: raw.description,
     price: raw.price,
+    usdPrice: raw.usd_price,
     currency: raw.currency || 'USD',
     isCustomPricing: raw.is_custom_pricing,
     durationDays: raw.duration_days,

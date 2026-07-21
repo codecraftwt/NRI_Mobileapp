@@ -97,6 +97,28 @@ export const saveUserProfile = createAsyncThunk(
 // Change password revokes the user's OTHER active tokens server-side but
 // leaves the current session's token valid, so no user/token state needs
 // updating here beyond tracking request status for the UI.
+export const uploadUserProfilePhoto = createAsyncThunk(
+  'user/uploadProfilePhoto',
+  async (file, { rejectWithValue }) => {
+    try {
+      return await authApi.uploadProfilePhoto(file);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const removeUserProfilePhoto = createAsyncThunk(
+  'user/removeProfilePhoto',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await authApi.removeProfilePhoto();
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const changeUserPassword = createAsyncThunk(
   'user/changePassword',
   async ({ currentPassword, password, passwordConfirmation }, { rejectWithValue }) => {
@@ -160,6 +182,10 @@ const initialState = {
   profileError: null,
   saveProfileStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   saveProfileError: null,
+  uploadPhotoStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  uploadPhotoError: null,
+  removePhotoStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  removePhotoError: null,
   changePasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   changePasswordError: null,
   forgotPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -306,6 +332,34 @@ const userSlice = createSlice({
       .addCase(saveUserProfile.rejected, (state, action) => {
         state.saveProfileStatus = 'failed';
         state.saveProfileError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(uploadUserProfilePhoto.pending, (state) => {
+        state.uploadPhotoStatus = 'loading';
+        state.uploadPhotoError = null;
+      })
+      .addCase(uploadUserProfilePhoto.fulfilled, (state, action) => {
+        state.uploadPhotoStatus = 'succeeded';
+        state.uploadPhotoError = null;
+        if (state.user && action.payload.photoUrl) {
+          state.user.avatarUri = action.payload.photoUrl;
+        }
+      })
+      .addCase(uploadUserProfilePhoto.rejected, (state, action) => {
+        state.uploadPhotoStatus = 'failed';
+        state.uploadPhotoError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(removeUserProfilePhoto.pending, (state) => {
+        state.removePhotoStatus = 'loading';
+        state.removePhotoError = null;
+      })
+      .addCase(removeUserProfilePhoto.fulfilled, (state) => {
+        state.removePhotoStatus = 'succeeded';
+        state.removePhotoError = null;
+        if (state.user) state.user.avatarUri = null;
+      })
+      .addCase(removeUserProfilePhoto.rejected, (state, action) => {
+        state.removePhotoStatus = 'failed';
+        state.removePhotoError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
       .addCase(changeUserPassword.pending, (state) => {
         state.changePasswordStatus = 'loading';

@@ -47,6 +47,7 @@ import Notifications from '../Screens/NRI/Notifications';
 import GeneralSupport from '../Screens/NRI/GeneralSupport';
 import NewSupportTicket from '../Screens/NRI/NewSupportTicket';
 import SupportTicketChat from '../Screens/NRI/SupportTicketChat';
+import RequestSupportChat from '../Screens/NRI/RequestSupportChat';
 
 // Import Service Booking Sub-Screens
 import ServicesCatalog from '../Screens/NRI/ServicesCatalog';
@@ -108,6 +109,7 @@ function DashboardStack() {
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
       <Stack.Screen name="NewSupportTicket" component={NewSupportTicket} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
+      <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
     </Stack.Navigator>
   );
 }
@@ -120,6 +122,8 @@ function MainServicesStack() {
       <Stack.Screen name="ServiceDetail" component={ServiceDetail} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
+      <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
     </Stack.Navigator>
   );
 }
@@ -131,6 +135,8 @@ function RequestsStack() {
       <Stack.Screen name="RequestsMain" component={Requests} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
+      <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
     </Stack.Navigator>
   );
 }

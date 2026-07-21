@@ -131,13 +131,18 @@ export async function checkoutMembership({ gateway, couponCode, autoRenew, useWa
       status: data.status,
       gateway: data.gateway,
       amount: data.amount,
-      order: data.order || null,
-      // NOTE: field name assumed pending backend confirmation — Stripe's
-      // native PaymentSheet needs this PaymentIntent client secret rather
-      // than the old checkout_url (hosted-page) flow.
-      clientSecret: data.client_secret || data.payment_intent_client_secret || null,
+      // Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
+      // gateway is 'stripe' | 'paypal' (Razorpay is NOT valid for this
+      // endpoint — it's a separate registration-gate checkout, not the
+      // general ticket/add-on checkout). Response is
+      // "data: { payment_id, status, checkout_url? | plan_id?, amount }":
+      // both gateways return `checkout_url` (hosted page, opened via
+      // openStripeCheckout in paymentGateway.js) for a one-time charge; only
+      // PayPal with auto_renew returns `plan_id` instead, for PayPal's native
+      // subscription SDK — not yet built client-side, so unused for now.
+      checkoutUrl: data.checkout_url || null,
+      planId: data.plan_id || null,
       message: response.data?.message,
-      raw: data, // TEMP: lets the caller inspect the true backend shape while we pin down the client-secret field name.
     };
   } catch (error) {
     throw normalizeApiError(error);

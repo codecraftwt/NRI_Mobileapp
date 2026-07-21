@@ -160,6 +160,41 @@ export async function updateProfile({ name, phone, nriCountry, nriCity, preferre
   }
 }
 
+// Response schema isn't in the backend's OpenAPI spec (description-only, no
+// `content`), so this stays tolerant of a few plausible shapes for where the
+// updated photo URL comes back — either nested under `user`/`customer` like
+// the rest of the auth payloads, or as a flat top-level field.
+function extractPhotoUrl(data) {
+  const apiUser = data?.user || data?.customer || data || {};
+  return apiUser.photo_url || apiUser.avatar_url || apiUser.photo || apiUser.avatar || null;
+}
+
+// Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
+// POST /auth/profile/photo, multipart field `photo` (binary, required).
+export async function uploadProfilePhoto(file) {
+  try {
+    const formData = new FormData();
+    formData.append('photo', { uri: file.uri, name: file.name || 'photo.jpg', type: file.type || 'image/jpeg' });
+    const response = await apiClient.post('/auth/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    const data = response.data?.data || response.data || {};
+    return { photoUrl: extractPhotoUrl(data), message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Verified live: DELETE /auth/profile/photo, no body.
+export async function removeProfilePhoto() {
+  try {
+    const response = await apiClient.delete('/auth/profile/photo');
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 export async function changePassword({ currentPassword, password, passwordConfirmation }) {
   try {
     await apiClient.post('/auth/change-password', {

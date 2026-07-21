@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchFamilyMembers } from '../Redux/slices/familySlice';
+import { fetchFamilyMembers, addFamilyMember } from '../Redux/slices/familySlice';
 
 export function useFamilyMembers() {
   const dispatch = useDispatch();
@@ -20,5 +20,6 @@ export function useFamilyMembers() {
     failed: status === 'failed',
     error,
     retry: () => dispatch(fetchFamilyMembers()),
+    create: (data) => dispatch(addFamilyMember(data)),
   };
 }
