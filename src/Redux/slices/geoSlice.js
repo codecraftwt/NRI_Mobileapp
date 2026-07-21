@@ -59,6 +59,32 @@ export const fetchTalukas = createAsyncThunk(
   }
 );
 
+// Autocomplete assist for the international state/province field — cached
+// per country rather than once per session, since the list depends on it.
+export const fetchInternationalStates = createAsyncThunk(
+  'geo/fetchInternationalStates',
+  async (country, { rejectWithValue }) => {
+    try {
+      return await geoApi.getInternationalStates(country);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+// Autocomplete assist for the international city field — cached per
+// country + state combination.
+export const fetchInternationalCities = createAsyncThunk(
+  'geo/fetchInternationalCities',
+  async ({ country, state }, { rejectWithValue }) => {
+    try {
+      return await geoApi.getInternationalCities({ country, state });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 // A one-off search rather than cached reference data — every call replaces
 // the previous lookup's result instead of being keyed/merged.
 export const fetchPostalCode = createAsyncThunk(
@@ -91,6 +117,14 @@ const initialState = {
   talukasStatus: 'idle',
   talukasError: null,
   talukasFilterKey: null,
+  internationalStates: [], // string[]
+  internationalStatesStatus: 'idle',
+  internationalStatesError: null,
+  internationalStatesCountry: null,
+  internationalCities: [], // string[]
+  internationalCitiesStatus: 'idle',
+  internationalCitiesError: null,
+  internationalCitiesFilterKey: null,
   postalCodeQuery: null,
   postalCodeResults: [], // [{ code, stateName, districtName, cityName, talukaName, ... }]
   postalCodeStatus: 'idle',
@@ -165,6 +199,32 @@ const geoSlice = createSlice({
       .addCase(fetchTalukas.rejected, (state, action) => {
         state.talukasStatus = 'failed';
         state.talukasError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(fetchInternationalStates.pending, (state, action) => {
+        state.internationalStatesStatus = 'loading';
+        state.internationalStatesError = null;
+        state.internationalStatesCountry = action.meta.arg;
+      })
+      .addCase(fetchInternationalStates.fulfilled, (state, action) => {
+        state.internationalStatesStatus = 'succeeded';
+        state.internationalStates = action.payload;
+      })
+      .addCase(fetchInternationalStates.rejected, (state, action) => {
+        state.internationalStatesStatus = 'failed';
+        state.internationalStatesError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(fetchInternationalCities.pending, (state, action) => {
+        state.internationalCitiesStatus = 'loading';
+        state.internationalCitiesError = null;
+        state.internationalCitiesFilterKey = JSON.stringify(action.meta.arg);
+      })
+      .addCase(fetchInternationalCities.fulfilled, (state, action) => {
+        state.internationalCitiesStatus = 'succeeded';
+        state.internationalCities = action.payload;
+      })
+      .addCase(fetchInternationalCities.rejected, (state, action) => {
+        state.internationalCitiesStatus = 'failed';
+        state.internationalCitiesError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
       .addCase(fetchPostalCode.pending, (state, action) => {
         state.postalCodeStatus = 'loading';

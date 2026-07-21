@@ -107,9 +107,9 @@ export async function getMembershipCoupons({ planId }) {
   }
 }
 
-export async function validateMembershipCoupon({ planId, code }) {
+export async function validateMembershipCoupon({ code }) {
   try {
-    const response = await apiClient.post('/customer/membership/validate-coupon', { plan_id: planId, code });
+    const response = await apiClient.post('/customer/membership/validate-coupon', { code });
     const data = response.data?.data || {};
     return { code: data.code, discount: data.discount, finalAmount: data.final_amount, message: response.data?.message };
   } catch (error) {
@@ -117,14 +117,11 @@ export async function validateMembershipCoupon({ planId, code }) {
   }
 }
 
-export async function checkoutMembership({ planId, gateway, addons, couponCode, addonCouponCode, autoRenew, useWallet }) {
+export async function checkoutMembership({ gateway, couponCode, autoRenew, useWallet }) {
   try {
     const response = await apiClient.post('/customer/membership/checkout', {
-      plan_id: planId,
       gateway,
-      addons: addons && addons.length > 0 ? addons : undefined,
       coupon_code: couponCode || undefined,
-      addon_coupon_code: addonCouponCode || undefined,
       auto_renew: !!autoRenew,
       use_wallet: !!useWallet,
     });
@@ -135,8 +132,12 @@ export async function checkoutMembership({ planId, gateway, addons, couponCode, 
       gateway: data.gateway,
       amount: data.amount,
       order: data.order || null,
-      checkoutUrl: data.checkout_url || null,
+      // NOTE: field name assumed pending backend confirmation — Stripe's
+      // native PaymentSheet needs this PaymentIntent client secret rather
+      // than the old checkout_url (hosted-page) flow.
+      clientSecret: data.client_secret || data.payment_intent_client_secret || null,
       message: response.data?.message,
+      raw: data, // TEMP: lets the caller inspect the true backend shape while we pin down the client-secret field name.
     };
   } catch (error) {
     throw normalizeApiError(error);

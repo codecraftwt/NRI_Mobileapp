@@ -34,7 +34,7 @@ function OnboardingWelcome({ route, navigation }) {
       <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <StepIndicator steps={ONBOARDING_STEPS} currentStep={5} />
+        <StepIndicator steps={ONBOARDING_STEPS} currentStep={3} />
 
         <View style={styles.card}>
           <View style={styles.checkCircle}>

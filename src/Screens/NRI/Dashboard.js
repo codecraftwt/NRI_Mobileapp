@@ -71,7 +71,6 @@ function Dashboard({ navigation }) {
 
   const exploreActions = [
     { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: '#3B82F6' },
-    { id: 'vault', name: 'Document Vault', icon: 'folder-shared', screen: 'Document Vault', color: '#F97316' },
     { id: 'billing', name: 'Billing', icon: 'receipt-long', screen: 'Billing & Payments', color: '#1E3A8A' },
     { id: 'addons', name: 'Packages', icon: 'auto-awesome-mosaic', screen: 'Add-on Packages', color: '#F59E0B' },
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
@@ -475,7 +474,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   actionSquare: {
     width: '30%',

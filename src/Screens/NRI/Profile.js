@@ -13,7 +13,6 @@ import { useToast } from '../../context/ToastContext';
 
 const MENU_ITEMS = [
   { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
-  { key: 'family', label: 'Family', subtitle: 'Manage your family members', icon: 'people-outline', route: 'FamilyMain' },
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit details', icon: 'person-outline', route: 'ProfilePersonal' },
   { key: 'address', label: 'Address', subtitle: 'Update your address', icon: 'place', route: 'ProfileAddress' },
   { key: 'password', label: 'Password', subtitle: 'Update your password', icon: 'lock-outline', route: 'ProfilePassword' },

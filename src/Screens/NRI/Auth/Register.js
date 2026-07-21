@@ -74,7 +74,7 @@ function Register({ navigation }) {
     }))
       .unwrap()
       .then(() => {
-        navigation.replace('OnboardingProfile');
+        navigation.replace('VerifyEmail', { email: email.trim() });
       })
       .catch((error) => {
         if (error?.errors) {

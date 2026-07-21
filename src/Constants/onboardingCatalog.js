@@ -1,4 +1,4 @@
-export const ONBOARDING_STEPS = ['Your Profile', 'Choose Plan', 'Add-ons', 'Payment', 'Get Started'];
+export const ONBOARDING_STEPS = ['Your Profile', 'Payment', 'Get Started'];
 
 // GET /plans returns one flat `features` array per plan (not split into
 // "usage" vs "support" groups) — these slugs classify each feature for

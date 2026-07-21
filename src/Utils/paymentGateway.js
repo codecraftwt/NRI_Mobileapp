@@ -68,6 +68,9 @@ export function extractStripeSessionId(checkoutUrl) {
   return match ? match[1] : null;
 }
 
+// Hosted-checkout-page flow — still used by the tickets/add-ons/billing
+// screens, which haven't moved to the native PaymentSheet flow. Only the
+// registration/membership screen uses PaymentSheet (see OnboardingPayment.js).
 export function openStripeCheckout(checkoutUrl) {
   return Linking.openURL(checkoutUrl);
 }

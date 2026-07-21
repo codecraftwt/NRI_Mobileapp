@@ -125,6 +125,28 @@ export const forgotPassword = createAsyncThunk(
   }
 );
 
+export const sendEmailOtp = createAsyncThunk(
+  'user/sendEmailOtp',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await authApi.sendEmailOtp();
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const verifyEmailOtp = createAsyncThunk(
+  'user/verifyEmailOtp',
+  async ({ otp }, { rejectWithValue }) => {
+    try {
+      return await authApi.verifyEmailOtp({ otp });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   user: null,
   isAuthenticated: false,
@@ -142,6 +164,10 @@ const initialState = {
   changePasswordError: null,
   forgotPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   forgotPasswordError: null,
+  otpSendStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  otpSendError: null,
+  otpVerifyStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  otpVerifyError: null,
 };
 
 const userSlice = createSlice({
@@ -304,6 +330,28 @@ const userSlice = createSlice({
       .addCase(forgotPassword.rejected, (state, action) => {
         state.forgotPasswordStatus = 'failed';
         state.forgotPasswordError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(sendEmailOtp.pending, (state) => {
+        state.otpSendStatus = 'loading';
+        state.otpSendError = null;
+      })
+      .addCase(sendEmailOtp.fulfilled, (state) => {
+        state.otpSendStatus = 'succeeded';
+      })
+      .addCase(sendEmailOtp.rejected, (state, action) => {
+        state.otpSendStatus = 'failed';
+        state.otpSendError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(verifyEmailOtp.pending, (state) => {
+        state.otpVerifyStatus = 'loading';
+        state.otpVerifyError = null;
+      })
+      .addCase(verifyEmailOtp.fulfilled, (state) => {
+        state.otpVerifyStatus = 'succeeded';
+      })
+      .addCase(verifyEmailOtp.rejected, (state, action) => {
+        state.otpVerifyStatus = 'failed';
+        state.otpVerifyError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       });
   },
 });

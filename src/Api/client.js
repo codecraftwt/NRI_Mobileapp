@@ -34,8 +34,10 @@ apiClient.interceptors.request.use(config => {
 });
 
 // Normalizes axios errors into a consistent shape the UI can rely on:
-// { status, message, errors } where `errors` is a Laravel-style
-// { field: string[] } validation map, or null when not a validation error.
+// { status, message, errors, retryAfter } where `errors` is a Laravel-style
+// { field: string[] } validation map (or null when not a validation error),
+// and `retryAfter` is the seconds to wait before retrying (only ever set on
+// a 429, e.g. the OTP resend throttle — null otherwise).
 export function normalizeApiError(error) {
   if (error?.response) {
     const { status, data } = error.response;
@@ -43,12 +45,13 @@ export function normalizeApiError(error) {
       status,
       message: data?.message || 'Something went wrong. Please try again.',
       errors: data?.errors || null,
+      retryAfter: data?.retry_after ?? null,
     };
   }
   if (error?.request) {
-    return { status: null, message: 'Network error. Please check your connection and try again.', errors: null };
+    return { status: null, message: 'Network error. Please check your connection and try again.', errors: null, retryAfter: null };
   }
-  return { status: null, message: error?.message || 'Something went wrong. Please try again.', errors: null };
+  return { status: null, message: error?.message || 'Something went wrong. Please try again.', errors: null, retryAfter: null };
 }
 
 export default apiClient;

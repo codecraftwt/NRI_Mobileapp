@@ -16,9 +16,8 @@ import Onboarding from '../Screens/NRI/Auth/Onboarding';
 import Login from '../Screens/NRI/Auth/Login';
 import ForgotPassword from '../Screens/NRI/Auth/ForgotPassword';
 import Register from '../Screens/NRI/Auth/Register';
+import VerifyEmail from '../Screens/NRI/Auth/VerifyEmail';
 import OnboardingProfile from '../Screens/NRI/Auth/OnboardingProfile';
-import OnboardingPlan from '../Screens/NRI/Auth/OnboardingPlan';
-import OnboardingAddons from '../Screens/NRI/Auth/OnboardingAddons';
 import OnboardingPayment from '../Screens/NRI/Auth/OnboardingPayment';
 import OnboardingWelcome from '../Screens/NRI/Auth/OnboardingWelcome';
 
@@ -347,11 +346,10 @@ export default function AppNavigator() {
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
       <Stack.Screen name="Register" component={Register} />
+      <Stack.Screen name="VerifyEmail" component={VerifyEmail} />
 
       {/* Registration / Onboarding Wizard */}
       <Stack.Screen name="OnboardingProfile" component={OnboardingProfile} />
-      <Stack.Screen name="OnboardingPlan" component={OnboardingPlan} />
-      <Stack.Screen name="OnboardingAddons" component={OnboardingAddons} />
       <Stack.Screen name="OnboardingPayment" component={OnboardingPayment} />
       <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcome} />
 

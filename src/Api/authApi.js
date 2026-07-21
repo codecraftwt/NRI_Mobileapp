@@ -179,3 +179,24 @@ export async function forgotPassword({ email }) {
     throw normalizeApiError(error);
   }
 }
+
+// Sends (or resends) the 4-digit email-verification OTP to the signed-in
+// user's own email — 429s with `retry_after` seconds if called again inside
+// the 60-second resend throttle window.
+export async function sendEmailOtp() {
+  try {
+    const response = await apiClient.post('/auth/otp/send');
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+export async function verifyEmailOtp({ otp }) {
+  try {
+    const response = await apiClient.post('/auth/otp/verify', { otp });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}

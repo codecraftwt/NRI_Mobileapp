@@ -7,6 +7,8 @@ import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
+import { useInternationalStates } from '../../../Hooks/useInternationalStates';
+import { useInternationalCities } from '../../../Hooks/useInternationalCities';
 import { saveUserProfile } from '../../../Redux/slices/userSlice';
 import { lightColors as colors, typography, spacing, radius } from '../../../theme';
 
@@ -57,33 +59,95 @@ function SelectField({ label, required, value, placeholder, options, onSelect, l
   );
 }
 
+// Free-text input backed by autocomplete suggestions from the international
+// geo APIs. Unlike SelectField, typed text that doesn't match any suggestion
+// is still kept — these endpoints aren't master data.
+function AutocompleteField({ label, required, value, onChangeText, placeholder, options, loading, hint }) {
+  const [focused, setFocused] = useState(false);
+  const suggestions = value
+    ? options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o.toLowerCase() !== value.toLowerCase())
+    : options;
+  const showDropdown = focused && !loading && suggestions.length > 0;
+
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.inputLabel}>{label}{required ? <Text style={styles.required}> *</Text> : null}</Text>
+      <View style={styles.autocompleteInputWrap}>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor="#94A3B8"
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+        />
+        {loading && <ActivityIndicator size="small" color="#007AFF" style={styles.autocompleteSpinner} />}
+      </View>
+      {showDropdown && (
+        <View style={styles.autocompleteDropdown}>
+          <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={styles.autocompleteScroll}>
+            {suggestions.map(item => (
+              <TouchableOpacity key={item} style={styles.modalOption} onPress={() => { onChangeText(item); setFocused(false); }}>
+                <Text style={styles.modalOptionText}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      {hint && <Text style={styles.hint}>{hint}</Text>}
+    </View>
+  );
+}
+
 function OnboardingProfile({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
   const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const [country, setCountry] = useState(user?.countryOfResidence || '');
+  const [stateProvince, setStateProvince] = useState(user?.stateProvince || '');
   const [city, setCity] = useState(user?.city || '');
   const [homeState, setHomeState] = useState(user?.homeState || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '');
   const [submitting, setSubmitting] = useState(false);
 
+  const {
+    stateNames: intlStateNames,
+    loading: loadingIntlStates,
+    failed: intlStatesFailed,
+    retry: retryIntlStates,
+  } = useInternationalStates(country);
+  const {
+    cityNames: intlCityNames,
+    loading: loadingIntlCities,
+    failed: intlCitiesFailed,
+    retry: retryIntlCities,
+  } = useInternationalCities(country, stateProvince);
+
+  const handleCountrySelect = (value) => {
+    setCountry(value);
+    setStateProvince('');
+    setCity('');
+  };
+
   const handleContinue = async () => {
-    if (!country || !homeState) {
-      Alert.alert('Missing Fields', 'Please select your Country of Residence and Home State in India.');
+    if (!country || !stateProvince || !city || !homeState || !phone) {
+      Alert.alert('Missing Fields', 'Please fill in all required fields before continuing.');
       return;
     }
     const stateId = states.find(s => s.name === homeState)?.id;
     setSubmitting(true);
     try {
       await dispatch(saveUserProfile({
-        phone: phone || undefined,
+        phone,
         nriCountry: country,
-        nriCity: city || undefined,
+        nriCity: city,
         stateId,
       })).unwrap();
-      navigation.navigate('OnboardingPlan', {
-        profile: { countryOfResidence: country, city, homeState, phone },
+      navigation.navigate('OnboardingPayment', {
+        profile: { countryOfResidence: country, stateProvince, city, homeState, phone, whatsapp },
       });
     } catch (error) {
       Alert.alert('Could Not Save Profile', error?.message || 'Please try again.');
@@ -117,7 +181,7 @@ function OnboardingProfile({ navigation }) {
             value={country}
             placeholder="Select Country"
             options={countryNames}
-            onSelect={setCountry}
+            onSelect={handleCountrySelect}
             loading={loadingCountries}
           />
           {countriesFailed && (
@@ -126,8 +190,37 @@ function OnboardingProfile({ navigation }) {
             </TouchableOpacity>
           )}
 
-          <Text style={styles.inputLabel}>City <Text style={styles.optional}>(optional)</Text></Text>
-          <TextInput style={styles.input} placeholder="e.g. New Jersey, Dubai, London" placeholderTextColor="#94A3B8" value={city} onChangeText={setCity} />
+          <AutocompleteField
+            label="State / Province"
+            required
+            value={stateProvince}
+            onChangeText={setStateProvince}
+            placeholder="e.g. New Jersey, Dubai, London"
+            options={intlStateNames}
+            loading={loadingIntlStates}
+            hint={!country ? 'Select a country above to see suggestions.' : undefined}
+          />
+          {intlStatesFailed && (
+            <TouchableOpacity onPress={retryIntlStates}>
+              <Text style={styles.retryText}>Couldn't load state suggestions. Tap to retry.</Text>
+            </TouchableOpacity>
+          )}
+
+          <AutocompleteField
+            label="City"
+            required
+            value={city}
+            onChangeText={setCity}
+            placeholder="e.g. Edison, Dubai, London"
+            options={intlCityNames}
+            loading={loadingIntlCities}
+            hint={!country ? 'Select a country above to see suggestions.' : undefined}
+          />
+          {intlCitiesFailed && (
+            <TouchableOpacity onPress={retryIntlCities}>
+              <Text style={styles.retryText}>Couldn't load city suggestions. Tap to retry.</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.divider} />
 
@@ -152,16 +245,20 @@ function OnboardingProfile({ navigation }) {
           )}
           <Text style={styles.hint}>We'll try to match you with a Relationship Manager from this state.</Text>
 
-          <Text style={styles.inputLabel}>Phone / WhatsApp <Text style={styles.optional}>(optional)</Text></Text>
+          <Text style={styles.inputLabel}>Phone Number<Text style={styles.required}> *</Text></Text>
           <TextInput style={styles.input} placeholder="+1 555 000 0000" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
           <Text style={styles.hint}>Include your country code so we can reach you abroad.</Text>
+
+          <Text style={styles.inputLabel}>WhatsApp Number <Text style={styles.optional}>(optional)</Text></Text>
+          <TextInput style={styles.input} placeholder="+1 555 000 0000" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={whatsapp} onChangeText={setWhatsapp} />
+          <Text style={styles.hint}>Only if it's different from your phone number above.</Text>
 
           <TouchableOpacity style={[styles.ctaBtn, submitting && styles.ctaBtnDisabled]} onPress={handleContinue} disabled={submitting}>
             {submitting ? (
               <ActivityIndicator size="small" color="white" />
             ) : (
               <>
-                <Text style={styles.ctaText}>Continue to Plans</Text>
+                <Text style={styles.ctaText}>Continue to Checkout</Text>
                 <Icon name="arrow-forward" size={18} color="white" />
               </>
             )}
@@ -197,6 +294,10 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', flex: 1 },
   placeholderText: { color: '#94A3B8' },
   retryText: { fontSize: 12, color: colors.error, fontWeight: '600', marginTop: 6 },
+  autocompleteInputWrap: { position: 'relative', justifyContent: 'center' },
+  autocompleteSpinner: { position: 'absolute', right: 16 },
+  autocompleteDropdown: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, marginTop: 6, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3 },
+  autocompleteScroll: { maxHeight: 220 },
   ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
   ctaBtnDisabled: { opacity: 0.7 },
   ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },

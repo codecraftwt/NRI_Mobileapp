@@ -131,3 +131,32 @@ export async function lookupPostalCode(code) {
     throw normalizeApiError(error);
   }
 }
+
+// Both international endpoints proxy a free third-party API and just return
+// flat name strings (not master data — free text is still accepted on save),
+// so the mapper only needs to normalize string vs. { name } shapes.
+function mapGeoName(raw) {
+  return typeof raw === 'string' ? raw : raw?.name;
+}
+
+export async function getInternationalStates(country) {
+  try {
+    const response = await apiClient.get('/geo/international-states', { params: { country } });
+    const list = response.data?.data?.states || response.data?.data || response.data || [];
+    return list.map(mapGeoName).filter(Boolean);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+export async function getInternationalCities({ country, state } = {}) {
+  try {
+    const params = { country };
+    if (state) params.state = state;
+    const response = await apiClient.get('/geo/international-cities', { params });
+    const list = response.data?.data?.cities || response.data?.data || response.data || [];
+    return list.map(mapGeoName).filter(Boolean);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
