@@ -75,6 +75,7 @@ function Dashboard({ navigation }) {
     { id: 'addons', name: 'Packages', icon: 'auto-awesome-mosaic', screen: 'Add-on Packages', color: '#F59E0B' },
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
+    { id: 'support', name: 'General Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#D94625' },
   ];
 
   const getServiceIconColor = (serviceName) => {

@@ -44,6 +44,9 @@ import ProfileNri from '../Screens/NRI/ProfileNri';
 import ProfilePassword from '../Screens/NRI/ProfilePassword';
 import Customer from '../Screens/NRI/Customer';
 import Notifications from '../Screens/NRI/Notifications';
+import GeneralSupport from '../Screens/NRI/GeneralSupport';
+import NewSupportTicket from '../Screens/NRI/NewSupportTicket';
+import SupportTicketChat from '../Screens/NRI/SupportTicketChat';
 
 // Import Service Booking Sub-Screens
 import ServicesCatalog from '../Screens/NRI/ServicesCatalog';
@@ -102,6 +105,9 @@ function DashboardStack() {
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="Customer" component={Customer} />
       <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="NewSupportTicket" component={NewSupportTicket} />
+      <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
     </Stack.Navigator>
   );
 }

@@ -22,6 +22,7 @@ import billingReducer from './slices/billingSlice';
 import myTicketsReducer from './slices/myTicketsSlice';
 import walletAccountReducer from './slices/walletAccountSlice';
 import referralReducer from './slices/referralSlice';
+import supportTicketsReducer from './slices/supportTicketsSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
@@ -74,6 +75,7 @@ const appReducer = combineReducers({
   myTickets: myTicketsReducer,
   walletAccount: walletAccountReducer,
   referral: referralReducer,
+  supportTickets: supportTicketsReducer,
 });
 
 const rootReducer = (state, action) => {
