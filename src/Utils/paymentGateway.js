@@ -68,6 +68,16 @@ export function extractStripeSessionId(checkoutUrl) {
   return match ? match[1] : null;
 }
 
+// Redirect-interception (in-app WebView) flow: once payment completes Stripe's
+// hosted page sends the browser to the backend success_url with
+// ?session_id=cs_... This reads ONLY that query param — deliberately NOT the
+// /pay/<id> in the checkout page's own URL — so a non-null result means the
+// payment actually finished and it's safe to call /payments/{id}/verify.
+export function extractStripeSessionIdFromRedirect(url) {
+  const match = url?.match(/[?&]session_id=([^&#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Hosted-checkout-page flow — still used by the tickets/add-ons/billing
 // screens, which haven't moved to the native PaymentSheet flow. Only the
 // registration/membership screen uses PaymentSheet (see OnboardingPayment.js).

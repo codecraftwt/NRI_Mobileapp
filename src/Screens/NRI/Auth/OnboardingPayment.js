@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { useStripe } from '@stripe/stripe-react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
+import StripeCheckoutModal from '../../../Components/StripeCheckoutModal';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
@@ -47,7 +47,6 @@ function OnboardingPayment({ route, navigation }) {
   const { profile } = route.params || {};
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
   const {
@@ -60,6 +59,8 @@ function OnboardingPayment({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  // { url, paymentId } while the Stripe hosted-checkout WebView is open.
+  const [stripeCheckout, setStripeCheckout] = useState(null);
   const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
 
   const showAlert = (title, message, type = 'info') => {
@@ -70,8 +71,12 @@ function OnboardingPayment({ route, navigation }) {
     setCustomAlert(prev => ({ ...prev, visible: false }));
   };
 
-  const basePrice = plan?.price || 0;
-  const planDiscount = couponResult?.discount || 0;
+  // The plan's `price` is INR; `usd_price` is the USD amount we actually
+  // charge/display (falls back to price if usd_price isn't set on a plan).
+  const basePrice = toAmount(plan?.usdPrice) || toAmount(plan?.price) || 0;
+  // Coupon discount comes back in the plan's base (INR) currency — convert it
+  // to USD so it lines up with the USD base price.
+  const planDiscount = convertPlanAmountToUsd(couponResult?.discount, plan);
   const taxableAmount = Math.max(0, basePrice - planDiscount);
   const gstAmount = Math.round(taxableAmount * GST_RATE * 100) / 100;
   const amountPayable = taxableAmount + gstAmount;
@@ -112,6 +117,32 @@ function OnboardingPayment({ route, navigation }) {
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
+  // Activates the membership locally and moves on to the welcome screen once a
+  // payment is confirmed (Razorpay verified, or Stripe session verified).
+  const finishUp = () => {
+    dispatch(updateProfile({
+      countryOfResidence: profile?.countryOfResidence,
+      stateProvince: profile?.stateProvince,
+      city: profile?.city,
+      homeState: profile?.homeState,
+      phone: profile?.phone,
+      whatsapp: profile?.whatsapp,
+    }));
+    dispatch(updateMembership(plan?.name));
+    dispatch(addInvoice({
+      id: `INV-2026-${Date.now().toString().slice(-4)}`,
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      description: `${plan?.name} Membership Plan (Annual)`,
+      amount: basePrice,
+      status: 'Paid',
+      cgst: 0,
+      sgst: 0,
+      igst: gstAmount,
+      total: amountPayable,
+    }));
+    navigation.replace('OnboardingWelcome', { plan });
+  };
+
   const handlePay = async () => {
     if (!plan) {
       showAlert('No Plan Selected', 'Please go back and choose a membership plan.', 'error');
@@ -126,31 +157,8 @@ function OnboardingPayment({ route, navigation }) {
         useWallet: false,
       }).unwrap();
 
-      const finishUp = () => {
-        dispatch(updateProfile({
-          countryOfResidence: profile?.countryOfResidence,
-          stateProvince: profile?.stateProvince,
-          city: profile?.city,
-          homeState: profile?.homeState,
-          phone: profile?.phone,
-          whatsapp: profile?.whatsapp,
-        }));
-        dispatch(updateMembership(plan?.name));
-        dispatch(addInvoice({
-          id: `INV-2026-${Date.now().toString().slice(-4)}`,
-          date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-          description: `${plan?.name} Membership Plan (Annual)`,
-          amount: basePrice,
-          status: 'Paid',
-          cgst: 0,
-          sgst: 0,
-          igst: gstAmount,
-          total: amountPayable,
-        }));
-        navigation.replace('OnboardingWelcome', { plan });
-      };
-
       if (result.order) {
+        // Razorpay — hand the order to the native checkout SDK.
         const rzpResult = await openRazorpayCheckout({
           order: result.order,
           name: 'NRI Circle',
@@ -165,28 +173,13 @@ function OnboardingPayment({ route, navigation }) {
           razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
         }).unwrap();
         finishUp();
-      } else if (result.clientSecret) {
-        const { error: initError } = await initPaymentSheet({
-          paymentIntentClientSecret: result.clientSecret,
-          merchantDisplayName: 'NRI Circle',
-          defaultBillingDetails: { name: user?.name, email: user?.email, phone: user?.phone },
-        });
-        if (initError) throw new Error(initError.message);
-
-        const { error: presentError } = await presentPaymentSheet();
-        if (presentError) {
-          // User closed the sheet without paying — not a failure, just bail quietly.
-          if (presentError.code === 'Canceled') return;
-          throw new Error(presentError.message);
-        }
-
-        await verifyPayment({ paymentId: result.paymentId }).unwrap();
-        finishUp();
-      } else if (paymentMethod === 'stripe') {
-        // Stripe was selected but checkout returned nothing PaymentSheet can use —
-        // surface the raw backend payload so we can see its true shape.
-        throw new Error(`No usable client secret. Raw response: ${JSON.stringify(result.raw)}`);
+      } else if (result.checkoutUrl) {
+        // Stripe — open the hosted checkout page in an in-app WebView. The
+        // payment is confirmed in handleStripeSuccess once Stripe redirects
+        // back to the success_url with a session_id (see StripeCheckoutModal).
+        setStripeCheckout({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
+        // Wallet credits / free plan covered the full amount — nothing to pay.
         finishUp();
       }
     } catch (error) {
@@ -194,6 +187,27 @@ function OnboardingPayment({ route, navigation }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Stripe hosted page redirected back with a session_id — confirm it with the
+  // backend, which is what actually activates the membership.
+  const handleStripeSuccess = async (sessionId) => {
+    const paymentId = stripeCheckout?.paymentId;
+    setStripeCheckout(null);
+    setSubmitting(true);
+    try {
+      await verifyPayment({ paymentId, sessionId }).unwrap();
+      finishUp();
+    } catch (error) {
+      showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStripeCancel = () => {
+    setStripeCheckout(null);
+    setSubmitting(false);
   };
 
   return (
@@ -373,6 +387,14 @@ function OnboardingPayment({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      <StripeCheckoutModal
+        visible={!!stripeCheckout}
+        checkoutUrl={stripeCheckout?.url}
+        onSuccess={handleStripeSuccess}
+        onCancel={handleStripeCancel}
+        title="Secure Payment"
+      />
     </View>
   );
 }
