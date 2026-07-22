@@ -8,7 +8,7 @@ import { usePlans } from '../../Hooks/usePlans';
 import { useAddonPackages } from '../../Hooks/useAddonPackages';
 import { useMembershipCheckout } from '../../Hooks/useMembershipCheckout';
 import { useMembership } from '../../Hooks/useMembership';
-import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
+import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { lightColors as baseColors, typography, spacing, radius } from '../../theme';
 import { Dimensions } from 'react-native';
 
@@ -44,9 +44,10 @@ function MembershipCheckout({ navigation, route }) {
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [addonCouponCode, setAddonCouponCode] = useState('');
-  const [gateway, setGateway] = useState('razorpay');
-  const [autoRenew, setAutoRenew] = useState(false);
+  const [gateway, setGateway] = useState('stripe');
   const [useWallet, setUseWallet] = useState(false);
+  // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
+  const [checkoutSession, setCheckoutSession] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
@@ -91,12 +92,6 @@ function MembershipCheckout({ navigation, route }) {
       .then(res => setWalletBalance(res.data?.data?.balance || 0))
       .catch(() => setWalletBalance(0));
   }, []);
-
-  // auto_renew is Razorpay-only and cannot combine with a coupon or wallet credits.
-  const autoRenewAllowed = gateway === 'razorpay' && !planCouponCode.trim() && !addonCouponCode.trim() && !useWallet;
-  useEffect(() => {
-    if (!autoRenewAllowed && autoRenew) setAutoRenew(false);
-  }, [autoRenewAllowed, autoRenew]);
 
   const selectedPlan = regularPlans.find(p => p.id === selectedPlanId) || null;
   const selectedAddons = packages.filter(p => selectedAddonIds.includes(p.id));
@@ -153,58 +148,15 @@ function MembershipCheckout({ navigation, route }) {
         addons: selectedAddonIds,
         couponCode: planCouponCode.trim() || undefined,
         addonCouponCode: addonCouponCode.trim() || undefined,
-        autoRenew,
+        autoRenew: false,
         useWallet,
       }).unwrap();
 
-      if (result.order) {
-        // Razorpay — hand the order to the native checkout SDK.
-        const rzpResult = await openRazorpayCheckout({
-          order: result.order,
-          name: 'NRI Circle',
-          description: `${selectedPlan?.name || 'Membership'} Plan`,
-          user,
-        });
-        await verifyPayment({
-          paymentId: result.paymentId,
-          razorpayOrderId: rzpResult.razorpayOrderId,
-          razorpayPaymentId: rzpResult.razorpayPaymentId,
-          razorpaySignature: rzpResult.razorpaySignature,
-          razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
-        }).unwrap();
-        refetchMembership();
-        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-          btnText: 'OK',
-          onConfirm: () => navigation.goBack(),
-        });
-      } else if (result.checkoutUrl) {
-        // Stripe — open the hosted checkout page; there's no in-app return
-        // callback, so the user confirms completion manually.
-        openStripeCheckout(result.checkoutUrl);
-        showAlert(
-          'Complete Payment',
-          'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
-          'info',
-          {
-            btnText: "I've Paid",
-            secondaryBtnText: 'Cancel',
-            onConfirm: () => {
-              const sessionId = extractStripeSessionId(result.checkoutUrl);
-              verifyPayment({ paymentId: result.paymentId, sessionId })
-                .unwrap()
-                .then(() => {
-                  refetchMembership();
-                  showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-                    btnText: 'OK',
-                    onConfirm: () => navigation.goBack(),
-                  });
-                })
-                .catch((error) => {
-                  showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.', 'error');
-                });
-            }
-          }
-        );
+      if (result.checkoutUrl) {
+        // Stripe / PayPal — open the hosted checkout page in an in-app WebView.
+        // Confirmed in handleCheckoutSuccess once it redirects back with a
+        // session_id (see StripeCheckoutModal).
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
         // Wallet credits covered the full amount — already activated.
         refetchMembership();
@@ -219,6 +171,28 @@ function MembershipCheckout({ navigation, route }) {
       setSubmitting(false);
     }
   };
+
+  // Hosted checkout (Stripe/PayPal) redirected back with a session_id — confirm
+  // it with the backend, which activates the membership.
+  const handleCheckoutSuccess = async (sessionId) => {
+    const paymentId = checkoutSession?.paymentId;
+    setCheckoutSession(null);
+    setSubmitting(true);
+    try {
+      await verifyPayment({ paymentId, sessionId }).unwrap();
+      refetchMembership();
+      showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+        btnText: 'OK',
+        onConfirm: () => navigation.goBack(),
+      });
+    } catch (error) {
+      showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckoutCancel = () => setCheckoutSession(null);
 
   const title = mode === 'renew' ? 'Renew Membership' : mode === 'upgrade' ? 'Upgrade Membership' : 'Choose a Plan';
 
@@ -338,24 +312,16 @@ function MembershipCheckout({ navigation, route }) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Payment Details</Text>
 
-          <TouchableOpacity style={[styles.gatewayRow, gateway === 'razorpay' && styles.planRowSelected]} onPress={() => setGateway('razorpay')}>
-            <Icon name="smartphone" size={20} color={gateway === 'razorpay' ? C.primary : '#64748B'} />
-            <Text style={styles.planName}>UPI / Card (Razorpay)</Text>
-            <View style={[styles.radio, gateway === 'razorpay' && styles.radioActive]} />
-          </TouchableOpacity>
           <TouchableOpacity style={[styles.gatewayRow, gateway === 'stripe' && styles.planRowSelected]} onPress={() => setGateway('stripe')}>
             <Icon name="credit-card" size={20} color={gateway === 'stripe' ? C.primary : '#64748B'} />
             <Text style={styles.planName}>Card (Stripe)</Text>
             <View style={[styles.radio, gateway === 'stripe' && styles.radioActive]} />
           </TouchableOpacity>
-
-          <View style={[styles.switchRow, !autoRenewAllowed && styles.switchRowDisabled]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.switchLabel}>Auto-renew my membership</Text>
-              <Text style={styles.hint}>Razorpay only — can't combine with a coupon or wallet credits.</Text>
-            </View>
-            <Switch value={autoRenew} onValueChange={setAutoRenew} disabled={!autoRenewAllowed} />
-          </View>
+          <TouchableOpacity style={[styles.gatewayRow, gateway === 'paypal' && styles.planRowSelected]} onPress={() => setGateway('paypal')}>
+            <Icon name="account-balance-wallet" size={20} color={gateway === 'paypal' ? C.primary : '#64748B'} />
+            <Text style={styles.planName}>PayPal</Text>
+            <View style={[styles.radio, gateway === 'paypal' && styles.radioActive]} />
+          </TouchableOpacity>
 
           <View style={[styles.switchRow, walletBalance <= 0 && styles.switchRowDisabled]}>
             <View style={{ flex: 1 }}>
@@ -438,6 +404,14 @@ function MembershipCheckout({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      <StripeCheckoutModal
+        visible={!!checkoutSession}
+        checkoutUrl={checkoutSession?.url}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        title="Secure Payment"
+      />
     </View>
   );
 }

@@ -10,7 +10,6 @@ import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
-import { openRazorpayCheckout } from '../../../Utils/paymentGateway';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 
 const C = {
@@ -59,8 +58,8 @@ function OnboardingPayment({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
-  // { url, paymentId } while the Stripe hosted-checkout WebView is open.
-  const [stripeCheckout, setStripeCheckout] = useState(null);
+  // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
+  const [checkoutSession, setCheckoutSession] = useState(null);
   const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
 
   const showAlert = (title, message, type = 'info') => {
@@ -117,8 +116,8 @@ function OnboardingPayment({ route, navigation }) {
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
-  // Activates the membership locally and moves on to the welcome screen once a
-  // payment is confirmed (Razorpay verified, or Stripe session verified).
+  // Activates the membership locally and moves on to the welcome screen once
+  // the gateway payment (Stripe or PayPal) is confirmed.
   const finishUp = () => {
     dispatch(updateProfile({
       countryOfResidence: profile?.countryOfResidence,
@@ -157,27 +156,12 @@ function OnboardingPayment({ route, navigation }) {
         useWallet: false,
       }).unwrap();
 
-      if (result.order) {
-        // Razorpay — hand the order to the native checkout SDK.
-        const rzpResult = await openRazorpayCheckout({
-          order: result.order,
-          name: 'NRI Circle',
-          description: `${plan?.name || 'Membership'} Plan`,
-          user,
-        });
-        await verifyPayment({
-          paymentId: result.paymentId,
-          razorpayOrderId: rzpResult.razorpayOrderId,
-          razorpayPaymentId: rzpResult.razorpayPaymentId,
-          razorpaySignature: rzpResult.razorpaySignature,
-          razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
-        }).unwrap();
-        finishUp();
-      } else if (result.checkoutUrl) {
-        // Stripe — open the hosted checkout page in an in-app WebView. The
-        // payment is confirmed in handleStripeSuccess once Stripe redirects
-        // back to the success_url with a session_id (see StripeCheckoutModal).
-        setStripeCheckout({ url: result.checkoutUrl, paymentId: result.paymentId });
+      if (result.checkoutUrl) {
+        // Stripe / PayPal — both return a hosted checkout_url. Open it in an
+        // in-app WebView; the payment is confirmed in handleCheckoutSuccess
+        // once the gateway redirects back to the success_url with a session_id
+        // (see StripeCheckoutModal).
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
         // Wallet credits / free plan covered the full amount — nothing to pay.
         finishUp();
@@ -189,11 +173,11 @@ function OnboardingPayment({ route, navigation }) {
     }
   };
 
-  // Stripe hosted page redirected back with a session_id — confirm it with the
-  // backend, which is what actually activates the membership.
-  const handleStripeSuccess = async (sessionId) => {
-    const paymentId = stripeCheckout?.paymentId;
-    setStripeCheckout(null);
+  // The hosted page (Stripe/PayPal) redirected back with a session_id — confirm
+  // it with the backend, which is what actually activates the membership.
+  const handleCheckoutSuccess = async (sessionId) => {
+    const paymentId = checkoutSession?.paymentId;
+    setCheckoutSession(null);
     setSubmitting(true);
     try {
       await verifyPayment({ paymentId, sessionId }).unwrap();
@@ -205,8 +189,8 @@ function OnboardingPayment({ route, navigation }) {
     }
   };
 
-  const handleStripeCancel = () => {
-    setStripeCheckout(null);
+  const handleCheckoutCancel = () => {
+    setCheckoutSession(null);
     setSubmitting(false);
   };
 
@@ -300,13 +284,13 @@ function OnboardingPayment({ route, navigation }) {
                 <View style={[styles.radio, paymentMethod === 'stripe' && styles.radioActive]} />
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'razorpay' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('razorpay')}>
-                <Icon name="smartphone" size={22} color={paymentMethod === 'razorpay' ? C.primary : '#64748B'} />
+              <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'paypal' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('paypal')}>
+                <Icon name="account-balance-wallet" size={22} color={paymentMethod === 'paypal' ? C.primary : '#64748B'} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.gatewayName}>UPI / Card (Razorpay)</Text>
-                  <Text style={styles.gatewayDesc}>UPI, Indian Cards, Netbanking & Wallets</Text>
+                  <Text style={styles.gatewayName}>PayPal</Text>
+                  <Text style={styles.gatewayDesc}>Pay with your PayPal account or card</Text>
                 </View>
-                <View style={[styles.radio, paymentMethod === 'razorpay' && styles.radioActive]} />
+                <View style={[styles.radio, paymentMethod === 'paypal' && styles.radioActive]} />
               </TouchableOpacity>
 
               {loading ? (
@@ -389,10 +373,10 @@ function OnboardingPayment({ route, navigation }) {
       </Modal>
 
       <StripeCheckoutModal
-        visible={!!stripeCheckout}
-        checkoutUrl={stripeCheckout?.url}
-        onSuccess={handleStripeSuccess}
-        onCancel={handleStripeCancel}
+        visible={!!checkoutSession}
+        checkoutUrl={checkoutSession?.url}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
         title="Secure Payment"
       />
     </View>

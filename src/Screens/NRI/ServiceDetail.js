@@ -15,15 +15,20 @@ const formatUsd = (pricing) => {
 function ServiceDetail({ route, navigation }) {
   const { category } = route.params;
   const [activeTab, setActiveTab] = useState('oneTime'); // 'oneTime' or 'recurring'
-  const [selectedIds, setSelectedIds] = useState([]);
+  // Each tab keeps its own selection — a service that exists in BOTH the
+  // one-time and recurring lists must not appear selected in the other tab.
+  const [oneTimeIds, setOneTimeIds] = useState([]);
+  const [recurringIds, setRecurringIds] = useState([]);
 
   // One-time (allows_single_use) and recurring (allows_recurring) services.
   const { oneTime, recurring, loading } = useServiceGroups(category.name, '');
 
   const services = activeTab === 'oneTime' ? oneTime : recurring;
+  const selectedIds = activeTab === 'oneTime' ? oneTimeIds : recurringIds;
 
   const toggleService = (id) => {
-    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+    const setIds = activeTab === 'oneTime' ? setOneTimeIds : setRecurringIds;
+    setIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
   const handleBook = () => {
@@ -31,14 +36,18 @@ function ServiceDetail({ route, navigation }) {
       navigation.navigate('CreateTicket', {
         initialCategory: category.name,
         requestType: 'recurring',
-        initialSubscriptionServiceIds: selectedIds,
+        initialSubscriptionServiceIds: recurringIds,
       });
       return;
     }
+    // Every service picked in the One-Time list is a full service, priced as
+    // the base service + extra_services — NOT as add-ons. Sending the extras
+    // as add-ons made the quote ignore them, so only the first service's rate
+    // showed under Estimated Charges.
     navigation.navigate('CreateTicket', {
       initialCategory: category.name,
-      initialBaseServiceIds: selectedIds.slice(0, 1),
-      initialAddons: selectedIds.slice(1),
+      initialBaseServiceIds: oneTimeIds,
+      initialAddons: [],
     });
   };
 

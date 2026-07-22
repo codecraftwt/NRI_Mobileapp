@@ -7,11 +7,11 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
-import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
+import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 
 const GATEWAYS = [
-  { key: 'razorpay', label: 'Razorpay', desc: 'UPI, Indian cards — supports auto-renew', icon: 'smartphone' },
-  { key: 'stripe', label: 'Stripe', desc: 'International cards — pay month-by-month', icon: 'credit-card' },
+  { key: 'stripe', label: 'Stripe', desc: 'International cards (Visa, Mastercard, Amex)', icon: 'credit-card' },
+  { key: 'paypal', label: 'PayPal', desc: 'Pay with your PayPal account or card', icon: 'account-balance-wallet' },
 ];
 
 const ACTIVE_STATUS_STYLE = { bg: '#D1FAE5', text: '#059669' };
@@ -26,6 +26,8 @@ function AddonPackages({ navigation }) {
   const [gateways, setGateways] = useState({});
   const [processingId, setProcessingId] = useState(null);
   const [gatewayPickerFor, setGatewayPickerFor] = useState(null);
+  // { url, paymentId, pkgName } while the hosted-checkout WebView is open.
+  const [checkoutSession, setCheckoutSession] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -61,46 +63,10 @@ function AddonPackages({ navigation }) {
     try {
       const result = await subscribe(pkg.id, gateway).unwrap();
 
-      if (result.order) {
-        const rzpResult = await openRazorpayCheckout({
-          order: result.order,
-          name: 'NRI Circle',
-          description: `${pkg.name} — monthly add-on`,
-          user,
-        });
-        await verifyPayment({
-          paymentId: result.paymentId,
-          razorpayOrderId: rzpResult.razorpayOrderId,
-          razorpayPaymentId: rzpResult.razorpayPaymentId,
-          razorpaySignature: rzpResult.razorpaySignature,
-          razorpaySubscriptionId: rzpResult.razorpaySubscriptionId,
-        }).unwrap();
-        refetch();
-        showAlert('Subscribed', `You've subscribed to ${pkg.name}.`);
-      } else if (result.checkoutUrl) {
-        openStripeCheckout(result.checkoutUrl);
-        showAlert(
-          'Complete Payment',
-          'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: "I've Paid",
-              onPress: () => {
-                const sessionId = extractStripeSessionId(result.checkoutUrl);
-                verifyPayment({ paymentId: result.paymentId, sessionId })
-                  .unwrap()
-                  .then(() => {
-                    refetch();
-                    showAlert('Subscribed', `You've subscribed to ${pkg.name}.`);
-                  })
-                  .catch((error) => {
-                    showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
-                  });
-              },
-            },
-          ]
-        );
+      if (result.checkoutUrl) {
+        // Stripe / PayPal hosted checkout — open in the in-app WebView; verified
+        // in handleCheckoutSuccess once it redirects back with a session_id.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, pkgName: pkg.name });
       } else {
         refetch();
         showAlert('Subscribed', result.message || `You've subscribed to ${pkg.name}.`);
@@ -111,6 +77,24 @@ function AddonPackages({ navigation }) {
       setProcessingId(null);
     }
   };
+
+  // Hosted checkout (Stripe/PayPal) redirected back with a session_id — confirm
+  // the payment, which activates the add-on subscription.
+  const handleCheckoutSuccess = async (sessionId) => {
+    const session = checkoutSession;
+    setCheckoutSession(null);
+    try {
+      if (session?.paymentId) {
+        await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+      }
+      refetch();
+      showAlert('Subscribed', `You've subscribed to ${session?.pkgName || 'the package'}.`);
+    } catch (error) {
+      showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+    }
+  };
+
+  const handleCheckoutCancel = () => setCheckoutSession(null);
 
   const handleCancel = (pkg) => {
     showAlert('Cancel Auto-Renewal', `Stop auto-renewal for ${pkg.name}?`, [
@@ -138,7 +122,7 @@ function AddonPackages({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
         <Text style={styles.introText}>
-          Recurring monthly care packages that top up your membership. Pay with Razorpay to auto-renew every month (cancel anytime), or pay month-by-month with Stripe.
+          Recurring monthly care packages that top up your membership. Pay securely with Stripe or PayPal.
         </Text>
 
         {loading && (
@@ -233,6 +217,14 @@ function AddonPackages({ navigation }) {
       </Modal>
 
       <AppAlert {...alertProps} />
+
+      <StripeCheckoutModal
+        visible={!!checkoutSession}
+        checkoutUrl={checkoutSession?.url}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        title="Secure Payment"
+      />
     </View>
   );
 }

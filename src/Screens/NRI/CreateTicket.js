@@ -34,7 +34,7 @@ import { useMembership } from '../../Hooks/useMembership';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
-import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
+import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -43,6 +43,15 @@ const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
 const REQUEST_TYPES = [ONE_TIME, RECURRING];
 const PRIORITY_OPTIONS = ['Standard', 'Express', 'Emergency'];
+// Standard GST rate used for the instant local estimate (shown before a state
+// is picked). The server quote returns the authoritative gst_rate/gst_amount
+// once state_id is available and takes over from this estimate.
+const GST_RATE = 0.18;
+// International gateways offered for ticket/subscription checkout.
+const PAYMENT_METHODS = [
+  { key: 'stripe', label: 'Stripe', desc: 'Credit / Debit Card', icon: 'credit-card' },
+  { key: 'paypal', label: 'PayPal', desc: 'Pay with your PayPal account', icon: 'account-balance-wallet' },
+];
 
 // Recurring services are priced/quoted in USD (customer_price).
 const formatUsdMonthly = (pricing) => {
@@ -184,6 +193,10 @@ function CreateTicket({ route, navigation }) {
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe' | 'paypal'
+  // While the hosted-checkout WebView (Stripe/PayPal) is open:
+  // { url, paymentId?, kind, successTitle, successMessage }
+  const [checkoutSession, setCheckoutSession] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
@@ -305,7 +318,9 @@ function CreateTicket({ route, navigation }) {
   const localAddonsSubtotal = selectedAddonServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
   const selectedBaseServicesList = baseServices.filter(s => selectedBaseServiceIds.includes(s.id));
   const localBasePrice = selectedBaseServicesList.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
-  const localTotal = localBasePrice + localAddonsSubtotal;
+  const localSubtotal = localBasePrice + localAddonsSubtotal;
+  const localGst = Math.round(localSubtotal * GST_RATE * 100) / 100;
+  const localTotal = localSubtotal + localGst;
 
   // --- Recurring subscription selection ---
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
@@ -559,54 +574,27 @@ function CreateTicket({ route, navigation }) {
     setPendingDate(null);
   };
 
+  // After a successful booking/payment, land on the main Services page (the
+  // Services tab's list), not just the previous screen.
+  const goToServices = () => navigation.navigate('Services', { screen: 'ServicesMain' });
+
   const handleGatewayPayment = async (ticketId, gateway) => {
     try {
       const result = await payForTicket({ ticketId, gateway }).unwrap();
 
-      if (result.order) {
-        const rzpResult = await openRazorpayCheckout({
-          order: result.order,
-          name: 'NRI Circle',
-          description: `${selectedService?.name || 'Service Request'} Payment`,
-          user,
-        });
-        await verifyPayment({
+      if (result.checkoutUrl) {
+        // Stripe / PayPal hosted checkout — open in the in-app WebView; verified
+        // in handleCheckoutSuccess once it redirects back with a session_id.
+        setCheckoutSession({
+          url: result.checkoutUrl,
           paymentId: result.paymentId,
-          razorpayOrderId: rzpResult.razorpayOrderId,
-          razorpayPaymentId: rzpResult.razorpayPaymentId,
-          razorpaySignature: rzpResult.razorpaySignature,
-        }).unwrap();
-        Alert.alert('Payment Successful', 'Your service request has been paid and confirmed.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else if (result.checkoutUrl) {
-        openStripeCheckout(result.checkoutUrl);
-        Alert.alert(
-          'Complete Payment',
-          'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
-          [
-            { text: 'Pay Later', style: 'cancel', onPress: () => navigation.goBack() },
-            {
-              text: "I've Paid",
-              onPress: () => {
-                const sessionId = extractStripeSessionId(result.checkoutUrl);
-                verifyPayment({ paymentId: result.paymentId, sessionId })
-                  .unwrap()
-                  .then(() => {
-                    Alert.alert('Payment Successful', 'Your service request has been paid and confirmed.', [
-                      { text: 'OK', onPress: () => navigation.goBack() },
-                    ]);
-                  })
-                  .catch((error) => {
-                    Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
-                  });
-              },
-            },
-          ]
-        );
+          kind: 'ticket',
+          successTitle: 'Payment Successful',
+          successMessage: 'Your service request has been paid and confirmed.',
+        });
       } else {
         Alert.alert('Payment Confirmed', result.message || 'Your service request has been paid.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { text: 'OK', onPress: goToServices },
         ]);
       }
     } catch (error) {
@@ -617,6 +605,31 @@ function CreateTicket({ route, navigation }) {
       );
     }
   };
+
+  // Called once the hosted-checkout WebView (Stripe/PayPal) redirects back with
+  // a session_id. Tickets carry a payment_id we confirm via /payments/verify;
+  // subscriptions are activated server-side by webhook, so there's nothing to
+  // verify client-side — we just acknowledge and leave.
+  const handleCheckoutSuccess = async (sessionId) => {
+    const session = checkoutSession;
+    setCheckoutSession(null);
+    const onOk = () => {
+      if (session?.kind === 'subscription') resetSubscription();
+      goToServices();
+    };
+    try {
+      if (session?.paymentId) {
+        await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+      }
+      Alert.alert(session?.successTitle || 'Payment Successful', session?.successMessage || '', [
+        { text: 'OK', onPress: onOk },
+      ]);
+    } catch (error) {
+      Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+    }
+  };
+
+  const handleCheckoutCancel = () => setCheckoutSession(null);
 
   // The ticket API only accepts an existing family_member_id, not raw
   // name/relation — reuse a matching saved member if one exists (avoids
@@ -652,15 +665,18 @@ function CreateTicket({ route, navigation }) {
       }).unwrap();
 
       if (result.checkoutUrl) {
-        openStripeCheckout(result.checkoutUrl);
-        showAlert(
-          'Complete Subscription',
-          'Finish setting up your subscription in the browser. It becomes active once payment is confirmed.',
-          [{ text: 'OK', onPress: () => { resetSubscription(); navigation.goBack(); } }]
-        );
+        // Open the hosted checkout (Stripe/PayPal) in the in-app WebView. The
+        // subscription is activated server-side by webhook on completion, so
+        // there's no client-side payment_id to verify here.
+        setCheckoutSession({
+          url: result.checkoutUrl,
+          kind: 'subscription',
+          successTitle: 'Subscription Created',
+          successMessage: 'Your recurring subscription is now being activated.',
+        });
       } else {
         showAlert('Subscription Created', result.message || 'Your recurring subscription has been created.', [
-          { text: 'OK', onPress: () => { resetSubscription(); navigation.goBack(); } },
+          { text: 'OK', onPress: () => { resetSubscription(); goToServices(); } },
         ]);
       }
     } catch (error) {
@@ -671,8 +687,8 @@ function CreateTicket({ route, navigation }) {
   const handleSubmit = async () => {
     if (!isValid) return;
     if (isRecurring) {
-      // Auto-renew subscriptions are billed through Stripe hosted checkout.
-      submitSubscription('stripe');
+      // Billed through the customer's chosen international gateway.
+      submitSubscription(paymentMethod);
       return;
     }
     try {
@@ -698,18 +714,12 @@ function CreateTicket({ route, navigation }) {
       }).unwrap();
 
       if (result.paymentRequired) {
-        Alert.alert(
-          'Payment Required',
-          `Request ${result.ticket.ticketNumber} needs a payment of ${formatUsdAmount(result.amountDue)} to proceed. Choose how you'd like to pay.`,
-          [
-            { text: 'Pay Later', style: 'cancel', onPress: () => navigation.goBack() },
-            { text: 'Pay with Razorpay', onPress: () => handleGatewayPayment(result.ticket.id, 'razorpay') },
-            { text: 'Pay with Stripe', onPress: () => handleGatewayPayment(result.ticket.id, 'stripe') },
-          ]
-        );
+        // The payment method was already chosen on the form — go straight to
+        // that gateway's checkout instead of asking again.
+        handleGatewayPayment(result.ticket.id, paymentMethod);
       } else {
         showAlert('Request Submitted', `Your request ${result.ticket.ticketNumber} has been submitted.`, [
-          { text: 'OK', onPress: () => navigation.goBack() },
+          { text: 'OK', onPress: goToServices },
         ]);
       }
     } catch (error) {
@@ -1137,6 +1147,12 @@ function CreateTicket({ route, navigation }) {
                   <Text style={styles.priceValue}>{formatUsdAmount(line.customerPrice)}</Text>
                 </View>
               ))}
+              {quote.addonsSubtotal > 0 && (
+                <View style={[styles.priceRow, styles.priceRowDashed]}>
+                  <Text style={styles.priceLabel} numberOfLines={1}>+ Add-ons</Text>
+                  <Text style={styles.priceValue}>{formatUsdAmount(quote.addonsSubtotal)}</Text>
+                </View>
+              )}
               {quote.expressSurcharge > 0 && (
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>Express surcharge</Text>
@@ -1179,16 +1195,50 @@ function CreateTicket({ route, navigation }) {
                   <Text style={styles.priceValue}>{formatUsdAmount(s.pricing?.customerPrice)}</Text>
                 </View>
               ))}
+              {localGst > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>{formatGstLabel(GST_RATE)}</Text>
+                  <Text style={styles.priceValue}>+{formatUsdAmount(localGst)}</Text>
+                </View>
+              )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>{formatUsdAmount(localTotal)}</Text>
               </View>
               {!stateId && (
-                <Text style={styles.hint}>Select your state below to confirm final pricing (incl. any express surcharge).</Text>
+                <Text style={styles.hint}>GST is estimated at 18% — select your state below to confirm final pricing (incl. any express surcharge).</Text>
               )}
             </>
           ) : (
             <Text style={styles.hint}>Choose add-ons to see pricing.</Text>
+          )}
+
+          {(isRecurring ? selectedSubscriptionIds.length > 0 : selectedBaseServiceIds.length > 0) && (
+            <>
+              <Text style={styles.paymentMethodLabel}>Payment Method</Text>
+              <View style={styles.paymentMethodRow}>
+                {PAYMENT_METHODS.map(m => {
+                  const active = paymentMethod === m.key;
+                  return (
+                    <TouchableOpacity
+                      key={m.key}
+                      style={[styles.paymentOption, active && styles.paymentOptionActive]}
+                      onPress={() => setPaymentMethod(m.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name={m.icon} size={20} color={active ? '#D94625' : '#94A3B8'} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.paymentOptionText, active && styles.paymentOptionTextActive]}>{m.label}</Text>
+                        <Text style={styles.paymentOptionDesc}>{m.desc}</Text>
+                      </View>
+                      <View style={[styles.paymentRadio, active && styles.paymentRadioActive]}>
+                        {active && <View style={styles.paymentRadioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
           )}
 
           {selectedBaseServiceIds.length > 0 && (
@@ -1274,6 +1324,14 @@ function CreateTicket({ route, navigation }) {
         </TouchableOpacity>
       </Modal>
       <AppAlert {...alertProps} />
+
+      <StripeCheckoutModal
+        visible={!!checkoutSession}
+        checkoutUrl={checkoutSession?.url}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        title="Secure Payment"
+      />
     </View>
   );
 }
@@ -1442,6 +1500,16 @@ const styles = StyleSheet.create({
   addonCardSub: { fontSize: 13, color: '#64748B', marginTop: 4 },
   addonCardPrice: { fontSize: 15, fontWeight: '600', color: '#D94625' },
 
+  paymentMethodLabel: { ...typography.labelMedium, color: colors.textPrimary, marginTop: 16, marginBottom: 10 },
+  paymentMethodRow: { gap: 10 },
+  paymentOption: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FFFFFF' },
+  paymentOptionActive: { borderColor: '#D94625', backgroundColor: '#FEF6F3' },
+  paymentOptionText: { fontSize: 14, fontFamily: typography.labelLarge.fontFamily, color: '#64748B' },
+  paymentOptionTextActive: { color: '#1E293B' },
+  paymentOptionDesc: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  paymentRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+  paymentRadioActive: { borderColor: '#D94625' },
+  paymentRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D94625' },
   couponLabel: { ...typography.labelMedium, color: colors.textPrimary, marginTop: 12 },
   couponRow: { flexDirection: 'row', gap: 12 },
   couponInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 24, paddingHorizontal: 16, height: 48, color: colors.textPrimary, ...typography.body },

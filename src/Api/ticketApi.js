@@ -211,10 +211,11 @@ export async function createTicket({
   }
 }
 
-export async function getTickets({ page } = {}) {
+export async function getTickets({ page, perPage } = {}) {
   try {
     const params = {};
     if (page) params.page = page;
+    if (perPage) params.per_page = perPage;
     const response = await apiClient.get('/customer/tickets', { params });
     const list = response.data?.data || [];
     const tickets = list.map(mapTicket);

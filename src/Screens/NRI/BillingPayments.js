@@ -11,7 +11,7 @@ import { useBilling } from '../../Hooks/useBilling';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 import { getReceiptDownloadUrl } from '../../Api/paymentsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
-import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from '../../Utils/paymentGateway';
+import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -70,6 +70,8 @@ function BillingPayments({ navigation }) {
   const [payingKey, setPayingKey] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [cancelingId, setCancelingId] = useState(null);
+  // { url, paymentId, label } while the hosted-checkout WebView is open.
+  const [checkoutSession, setCheckoutSession] = useState(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const { showAlert, alertProps } = useAppAlert();
@@ -96,45 +98,10 @@ function BillingPayments({ navigation }) {
     try {
       const result = await pay(item.type, item.id, gateway, false).unwrap();
 
-      if (result.order) {
-        const rzpResult = await openRazorpayCheckout({
-          order: result.order,
-          name: 'NRI Circle',
-          description: item.label,
-          user,
-        });
-        await verifyPayment({
-          paymentId: result.paymentId,
-          razorpayOrderId: rzpResult.razorpayOrderId,
-          razorpayPaymentId: rzpResult.razorpayPaymentId,
-          razorpaySignature: rzpResult.razorpaySignature,
-        }).unwrap();
-        retry();
-        showAlert('Payment Successful', `${item.label} has been paid.`);
-      } else if (result.checkoutUrl) {
-        openStripeCheckout(result.checkoutUrl);
-        showAlert(
-          'Complete Payment',
-          'Complete your payment in the browser, then come back and tap "I\'ve Paid" to confirm.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: "I've Paid",
-              onPress: () => {
-                const sessionId = extractStripeSessionId(result.checkoutUrl);
-                verifyPayment({ paymentId: result.paymentId, sessionId })
-                  .unwrap()
-                  .then(() => {
-                    retry();
-                    showAlert('Payment Successful', `${item.label} has been paid.`);
-                  })
-                  .catch((error) => {
-                    showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
-                  });
-              },
-            },
-          ]
-        );
+      if (result.checkoutUrl) {
+        // Stripe / PayPal hosted checkout — open in the in-app WebView; verified
+        // in handleCheckoutSuccess once it redirects back with a session_id.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, label: item.label });
       } else {
         retry();
         showAlert('Payment Successful', result.message || `${item.label} has been paid.`);
@@ -146,14 +113,32 @@ function BillingPayments({ navigation }) {
     }
   };
 
+  // Hosted checkout (Stripe/PayPal) redirected back with a session_id — confirm
+  // the payment, which marks the invoice paid.
+  const handleCheckoutSuccess = async (sessionId) => {
+    const session = checkoutSession;
+    setCheckoutSession(null);
+    try {
+      if (session?.paymentId) {
+        await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+      }
+      retry();
+      showAlert('Payment Successful', `${session?.label || 'Your invoice'} has been paid.`);
+    } catch (error) {
+      showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+    }
+  };
+
+  const handleCheckoutCancel = () => setCheckoutSession(null);
+
   const handlePayNow = (item) => {
     showAlert(
       'Choose Payment Method',
       `Pay ${formatUsd(item.amount)} for ${item.label}`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Razorpay', onPress: () => handleGatewayPayment(item, 'razorpay') },
         { text: 'Stripe', onPress: () => handleGatewayPayment(item, 'stripe') },
+        { text: 'PayPal', onPress: () => handleGatewayPayment(item, 'paypal') },
       ]
     );
   };
@@ -389,6 +374,14 @@ function BillingPayments({ navigation }) {
         )}
       </ScrollView>
       <AppAlert {...alertProps} />
+
+      <StripeCheckoutModal
+        visible={!!checkoutSession}
+        checkoutUrl={checkoutSession?.url}
+        onSuccess={handleCheckoutSuccess}
+        onCancel={handleCheckoutCancel}
+        title="Secure Payment"
+      />
     </View>
   );
 }
