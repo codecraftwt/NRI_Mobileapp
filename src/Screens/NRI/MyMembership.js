@@ -211,7 +211,7 @@ function MyMembership({ navigation }) {
                 </View>
               </View>
 
-              <Text style={styles.planDesc}>Unlocks every service — billed per request or subscription.</Text>
+              <Text style={styles.planDesc}>Unlocks every service billed per request or subscription.</Text>
 
               {membership.features.length > 0 && (
                 <>
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   paymentText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', fontWeight: '600' },
   validUntil: { fontSize: 13, color: '#E5E7EB', marginTop: 4 },
   heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, marginBottom: 16 },
-  planDesc: { fontSize: 13, color: '#E5E7EB', marginTop: 14, lineHeight: 20 },
+  planDesc: { fontSize: 13, color: '#E5E7EB', marginTop: 14, lineHeight: 20, maxWidth: '55%' },
   benefitsHeading: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#D1D5DB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   benefitsList: { gap: 10 },
   benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
