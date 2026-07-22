@@ -21,6 +21,11 @@ const C = {
 };
 const colors = C;
 
+// Plan price, add-on priceMonthly, wallet balance and coupon amounts are all
+// USD (same as the rest of the flow) — format with $ instead of the old ₹.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function MembershipCheckout({ navigation, route }) {
   const { mode = 'new', planId: initialPlanId } = route.params || {};
   const user = useSelector(state => state.user.user);
@@ -108,7 +113,7 @@ function MembershipCheckout({ navigation, route }) {
     validateCoupon({ planId: selectedPlanId, code: planCouponCode.trim() })
       .unwrap()
       .then((result) => {
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`, 'success');
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
@@ -128,7 +133,7 @@ function MembershipCheckout({ navigation, route }) {
     validateCoupon({ planId: selectedPlanId, code: coupon.code })
       .unwrap()
       .then((result) => {
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ₹${result.finalAmount.toLocaleString('en-IN')}.`, 'success');
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
@@ -243,7 +248,7 @@ function MembershipCheckout({ navigation, route }) {
                     <Text style={styles.planName}>{plan.name}</Text>
                     {plan.isPopular && <Text style={styles.planPopular}>Most popular</Text>}
                   </View>
-                  <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}/yr</Text>
+                  <Text style={styles.planPrice}>{formatUsd(plan.price)}/yr</Text>
                   <View style={[styles.radio, selectedPlanId === plan.id && styles.radioActive]} />
                 </TouchableOpacity>
               ))}
@@ -273,7 +278,7 @@ function MembershipCheckout({ navigation, route }) {
                       {checked && <Icon name="check" size={14} color="white" />}
                     </View>
                     <Text style={styles.addonName} numberOfLines={1}>{pkg.name}</Text>
-                    <Text style={styles.planPrice}>₹{pkg.priceMonthly.toLocaleString('en-IN')}/mo</Text>
+                    <Text style={styles.planPrice}>{formatUsd(pkg.priceMonthly)}/mo</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -290,23 +295,23 @@ function MembershipCheckout({ navigation, route }) {
           <Text style={styles.cardTitle}>Order Summary</Text>
           <View style={styles.row}>
             <Text style={styles.rowLabel}>{selectedPlan?.name || 'Plan'}</Text>
-            <Text style={styles.rowValue}>₹{(selectedPlan?.price || 0).toLocaleString('en-IN')}</Text>
+            <Text style={styles.rowValue}>{formatUsd(selectedPlan?.price)}</Text>
           </View>
           {planDiscount > 0 && (
             <View style={styles.row}>
               <Text style={[styles.rowLabel, styles.discountText]}>Plan coupon discount</Text>
-              <Text style={[styles.rowValue, styles.discountText]}>-₹{planDiscount.toLocaleString('en-IN')}</Text>
+              <Text style={[styles.rowValue, styles.discountText]}>-{formatUsd(planDiscount)}</Text>
             </View>
           )}
           {selectedAddons.map(pkg => (
             <View key={pkg.id} style={styles.row}>
               <Text style={styles.rowLabel} numberOfLines={1}>+ {pkg.name}</Text>
-              <Text style={styles.rowValue}>₹{pkg.priceMonthly.toLocaleString('en-IN')}/mo</Text>
+              <Text style={styles.rowValue}>{formatUsd(pkg.priceMonthly)}/mo</Text>
             </View>
           ))}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Amount Payable</Text>
-            <Text style={styles.totalValue}>₹{amountPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.totalValue}>{formatUsd(amountPayable)}</Text>
           </View>
 
           <Text style={styles.couponLabel}>Have a plan coupon?</Text>
@@ -355,7 +360,7 @@ function MembershipCheckout({ navigation, route }) {
           <View style={[styles.switchRow, walletBalance <= 0 && styles.switchRowDisabled]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.switchLabel}>Use wallet credits</Text>
-              <Text style={styles.hint}>Available balance: ₹{walletBalance.toLocaleString('en-IN')}</Text>
+              <Text style={styles.hint}>Available balance: {formatUsd(walletBalance)}</Text>
             </View>
             <Switch value={useWallet} onValueChange={setUseWallet} disabled={walletBalance <= 0} />
           </View>
@@ -365,7 +370,7 @@ function MembershipCheckout({ navigation, route }) {
           ) : (
             <TouchableOpacity style={styles.payBtn} onPress={handleSubmit} disabled={!selectedPlanId}>
               <Icon name="lock" size={16} color="white" />
-              <Text style={styles.payBtnText}>Pay ₹{amountPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.payBtnText}>Pay {formatUsd(amountPayable)}</Text>
             </TouchableOpacity>
           )}
         </View>

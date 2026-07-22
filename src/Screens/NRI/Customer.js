@@ -109,7 +109,7 @@ function Customer({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Wallet Balance</Text>
-          <Text style={styles.walletValue}>₹{walletBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+          <Text style={styles.walletValue}>${Number(walletBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
         </View>
 
         <View style={styles.card}>

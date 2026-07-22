@@ -27,6 +27,8 @@ import { useDistricts } from '../../Hooks/useDistricts';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
+import { useServiceGroups } from '../../Hooks/useServiceGroups';
+import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useMembership } from '../../Hooks/useMembership';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
@@ -37,7 +39,32 @@ import { openRazorpayCheckout, openStripeCheckout, extractStripeSessionId } from
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const NO_PROPERTY = 'Not applicable';
+const ONE_TIME = 'One-Time Request';
+const RECURRING = 'Recurring Subscription';
+const REQUEST_TYPES = [ONE_TIME, RECURRING];
 const PRIORITY_OPTIONS = ['Standard', 'Express', 'Emergency'];
+
+// Recurring services are priced/quoted in USD (customer_price).
+const formatUsdMonthly = (pricing) => {
+  if (!pricing) return '';
+  if (pricing.isQuoted) return 'On quote';
+  return `$${Number(pricing.customerPrice ?? 0).toFixed(2)}/${pricing.unit || 'monthly'}`;
+};
+
+// One-time charges are quoted in USD (customer_price / total_amount), same as
+// the catalog — format them with a $ instead of the old ₹ display.
+const formatUsdAmount = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// The quote's gst_rate may arrive as a fraction (0.18) or a whole percent
+// (18) — normalize to a percent for the "GST (18%)" label, dropping trailing
+// decimals when it's a round number.
+const formatGstLabel = (rate) => {
+  if (rate == null) return 'GST';
+  const pct = rate <= 1 ? rate * 100 : rate;
+  const rounded = Number.isInteger(pct) ? pct : Number(pct.toFixed(2));
+  return `GST (${rounded}%)`;
+};
 const PRIORITY_TO_URGENCY = { Standard: 'standard', Express: 'express', Emergency: 'emergency' };
 // Matches the family member API's `relationship` enum (parent/sibling/spouse/child/other).
 const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
@@ -98,10 +125,48 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
   );
 }
 
+// A single required-document field: label + description + a web-style
+// "Choose File / No file chosen" row, plus a preview pill once a file is
+// picked. Used for the recurring-subscription Required Documents section.
+function DocumentUploadField({ document, file, onChoose, onRemove }) {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.docLabel}>
+        {document.name}
+        {document.required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
+      {!!document.description && <Text style={styles.docDesc}>{document.description}</Text>}
+
+      <View style={styles.docInputRow}>
+        <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
+          <Text style={styles.docChooseBtnText}>Choose File</Text>
+        </TouchableOpacity>
+        <Text style={styles.docFileName} numberOfLines={1}>
+          {file ? file.name : 'No file chosen'}
+        </Text>
+      </View>
+
+      {!!file && (
+        <View style={styles.filePill}>
+          <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#3298D4" />
+          <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
+          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="close" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function CreateTicket({ route, navigation }) {
+  const [requestType, setRequestType] = useState(route.params?.requestType === 'recurring' ? RECURRING : ONE_TIME);
   const [serviceCategory, setServiceCategory] = useState(route.params?.initialCategory || '');
   const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState(route.params?.initialBaseServiceIds || []);
   const [selectedAddonIds, setSelectedAddonIds] = useState(route.params?.initialAddons || []);
+  const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState(route.params?.initialSubscriptionServiceIds || []);
+  const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
+  const isRecurring = requestType === RECURRING;
   const [priority, setPriority] = useState('Standard');
   const [fullName, setFullName] = useState('');
   const [relation, setRelation] = useState('');
@@ -145,6 +210,19 @@ function CreateTicket({ route, navigation }) {
     failed: addonServicesFailed,
     retry: retryAddonServices,
   } = useServicesByCategory(serviceCategory, state, { type: 'addon' });
+
+  // Recurring services for the subscription flow (Service.allows_recurring).
+  const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state);
+  const {
+    requiredDocuments,
+    requiredDocsLoading,
+    requiredDocsError,
+    fetchRequiredDocuments,
+    clearRequiredDocuments,
+    createLoading: subscribeLoading,
+    createSubscription,
+    reset: resetSubscription,
+  } = useServiceSubscription();
 
   const {
     quote,
@@ -229,13 +307,35 @@ function CreateTicket({ route, navigation }) {
   const localBasePrice = selectedBaseServicesList.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
   const localTotal = localBasePrice + localAddonsSubtotal;
 
+  // --- Recurring subscription selection ---
+  const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
+  const subscriptionMonthlyTotal = selectedSubscriptionServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
+  const subscriptionIdsKey = selectedSubscriptionIds.join(',');
+
+  // Which documents the current subscription selection requires — refreshed
+  // whenever the selected recurring services change (empty = none required).
+  useEffect(() => {
+    if (!isRecurring || selectedSubscriptionIds.length === 0) {
+      clearRequiredDocuments();
+      return;
+    }
+    fetchRequiredDocuments(selectedSubscriptionIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecurring, subscriptionIdsKey]);
+
   const formattedDate = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
-  const isValid = serviceCategory && selectedBaseServiceIds.length > 0
-    && fullName.trim().length > 0 && relation && state
-    && fullAddress.trim().length > 0 && pincode.trim().length > 0;
+  const missingRequiredDoc = requiredDocuments.some(d => d.required && !documentFiles[d.id]);
+
+  const isValid = isRecurring
+    ? (serviceCategory && selectedSubscriptionIds.length > 0
+        && fullName.trim().length > 0 && relation && state
+        && fullAddress.trim().length > 0 && !missingRequiredDoc)
+    : (serviceCategory && selectedBaseServiceIds.length > 0
+        && fullName.trim().length > 0 && relation && state
+        && fullAddress.trim().length > 0 && pincode.trim().length > 0);
 
   const handlePincodeLookup = () => {
     if (!pincode || pincode.trim().length < 4) {
@@ -263,6 +363,21 @@ function CreateTicket({ route, navigation }) {
     setServiceCategory(v);
     setSelectedBaseServiceIds([]);
     setSelectedAddonIds([]);
+    setSelectedSubscriptionIds([]);
+    setDocumentFiles({});
+    setCouponCode('');
+    clearCoupon();
+    resetBooking();
+  };
+
+  const handleSelectRequestType = (v) => {
+    setRequestType(v);
+    // The two modes track different selections/pricing — clear the other one's
+    // state so a leftover base-service or subscription pick can't leak across.
+    setSelectedBaseServiceIds([]);
+    setSelectedAddonIds([]);
+    setSelectedSubscriptionIds([]);
+    setDocumentFiles({});
     setCouponCode('');
     clearCoupon();
     resetBooking();
@@ -272,12 +387,16 @@ function CreateTicket({ route, navigation }) {
     setSelectedAddonIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
+  const toggleSubscriptionService = (id) => {
+    setSelectedSubscriptionIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
   const handleApplyCoupon = () => {
     if (!couponCode.trim()) return;
     applyCoupon({ code: couponCode.trim(), addons: selectedAddonIds, stateId })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ₹${result.discount.toLocaleString('en-IN')}.`);
+        Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ${formatUsdAmount(result.discount)}.`);
       })
       .catch((error) => {
         Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
@@ -296,7 +415,7 @@ function CreateTicket({ route, navigation }) {
     applyCoupon({ code: coupon.code, addons: selectedAddonIds, stateId })
       .unwrap()
       .then((result) => {
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ₹${result.discount.toLocaleString('en-IN')}.`);
+        Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ${formatUsdAmount(result.discount)}.`);
       })
       .catch((error) => {
         Alert.alert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
@@ -375,6 +494,40 @@ function CreateTicket({ route, navigation }) {
 
   const handleRemoveFile = (uri) => {
     setFiles(prev => prev.filter(f => f.uri !== uri));
+  };
+
+  // Single-file picker for a specific required subscription document.
+  const handleChooseDocument = async (docId) => {
+    const allowed = await requestFilePermission();
+    if (!allowed) return;
+    try {
+      const results = await pick({
+        type: [docTypes.images, docTypes.pdf],
+        allowMultiSelection: false,
+        copyTo: 'cachesDirectory',
+      });
+      const picked = results[0];
+      if (!picked) return;
+      if (picked.size && picked.size > MAX_FILE_SIZE_BYTES) {
+        Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
+        return;
+      }
+      setDocumentFiles(prev => ({
+        ...prev,
+        [docId]: { name: picked.name, uri: picked.fileCopyUri || picked.uri, type: picked.type, size: picked.size },
+      }));
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      Alert.alert('Error', 'Could not select the file. Please try again.');
+    }
+  };
+
+  const handleRemoveDocument = (docId) => {
+    setDocumentFiles(prev => {
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
   };
 
   // Android's native picker has no combined "datetime" mode — a single
@@ -480,8 +633,48 @@ function CreateTicket({ route, navigation }) {
     return created.id;
   };
 
+  const submitSubscription = async (gateway) => {
+    if (!isValid) return;
+    try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const address = pincode.trim() ? `${fullAddress.trim()} - ${pincode.trim()}` : fullAddress.trim();
+      const result = await createSubscription({
+        serviceIds: selectedSubscriptionIds,
+        gateway,
+        familyMemberId,
+        propertyId,
+        stateId,
+        cityId,
+        talukaId,
+        address,
+        customerNotes: notes,
+        documents: documentFiles,
+      }).unwrap();
+
+      if (result.checkoutUrl) {
+        openStripeCheckout(result.checkoutUrl);
+        showAlert(
+          'Complete Subscription',
+          'Finish setting up your subscription in the browser. It becomes active once payment is confirmed.',
+          [{ text: 'OK', onPress: () => { resetSubscription(); navigation.goBack(); } }]
+        );
+      } else {
+        showAlert('Subscription Created', result.message || 'Your recurring subscription has been created.', [
+          { text: 'OK', onPress: () => { resetSubscription(); navigation.goBack(); } },
+        ]);
+      }
+    } catch (error) {
+      Alert.alert('Subscription Failed', error?.message || 'Could not create your subscription. Please try again.');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!isValid) return;
+    if (isRecurring) {
+      // Auto-renew subscriptions are billed through Stripe hosted checkout.
+      submitSubscription('stripe');
+      return;
+    }
     try {
       const familyMemberId = await resolveFamilyMemberId();
       // No dedicated pincode field on the ticket API — fold it into the
@@ -507,7 +700,7 @@ function CreateTicket({ route, navigation }) {
       if (result.paymentRequired) {
         Alert.alert(
           'Payment Required',
-          `Request ${result.ticket.ticketNumber} needs a payment of ₹${result.amountDue.toLocaleString('en-IN')} to proceed. Choose how you'd like to pay.`,
+          `Request ${result.ticket.ticketNumber} needs a payment of ${formatUsdAmount(result.amountDue)} to proceed. Choose how you'd like to pay.`,
           [
             { text: 'Pay Later', style: 'cancel', onPress: () => navigation.goBack() },
             { text: 'Pay with Razorpay', onPress: () => handleGatewayPayment(result.ticket.id, 'razorpay') },
@@ -544,8 +737,16 @@ function CreateTicket({ route, navigation }) {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>What do you need?</Text>
+        {/* <Text style={styles.sectionTitle}>What do you need?</Text>
         <View style={styles.card}>
+          <SelectField
+            label="Request Type"
+            required
+            value={requestType}
+            placeholder="Select request type..."
+            options={REQUEST_TYPES}
+            onSelect={handleSelectRequestType}
+          />
           <SelectField
             label="Service Category"
             required
@@ -561,6 +762,47 @@ function CreateTicket({ route, navigation }) {
               <Text style={styles.retryText}>Couldn't load categories. Tap to retry.</Text>
             </TouchableOpacity>
           )}
+
+          {isRecurring && (
+            <View style={styles.fieldWrap}>
+              <Text style={styles.label}>Services to Subscribe To<Text style={styles.required}> *</Text></Text>
+              {!serviceCategory ? (
+                <Text style={styles.hint}>Select a category to see recurring services.</Text>
+              ) : loadingRecurring ? (
+                <View style={styles.inlineLoading}>
+                  <ActivityIndicator size="small" color="#3298D4" />
+                  <Text style={styles.hint}>Loading services…</Text>
+                </View>
+              ) : recurringServices.length === 0 ? (
+                <Text style={styles.hint}>No recurring services available for this category.</Text>
+              ) : (
+                <View style={{ gap: 12 }}>
+                  {recurringServices.map(s => {
+                    const isSelected = selectedSubscriptionIds.includes(s.id);
+                    return (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={[styles.addonCard, isSelected && styles.addonCardSelected]}
+                        onPress={() => toggleSubscriptionService(s.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.addonCheckboxSquare, isSelected && styles.addonCheckboxSquareChecked]}>
+                          {isSelected && <Icon name="check" size={14} color="white" />}
+                        </View>
+                        <View style={{ flex: 1, paddingRight: 12 }}>
+                          <Text style={styles.addonCardName}>{s.name}</Text>
+                          <Text style={styles.addonCardSub}>{s.description || 'Billed monthly'}</Text>
+                        </View>
+                        <Text style={styles.addonCardPrice}>{formatUsdMonthly(s.pricing)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
+          {!isRecurring && (<>
           <SelectField
             label="Priority"
             required
@@ -650,7 +892,41 @@ function CreateTicket({ route, navigation }) {
               )}
             </View>
           )}
-        </View>
+          </>)}
+        </View> */}
+
+        {isRecurring && selectedSubscriptionIds.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Required Documents</Text>
+            <View style={styles.card}>
+              {requiredDocsLoading ? (
+                <View style={styles.inlineLoading}>
+                  <ActivityIndicator size="small" color="#3298D4" />
+                  <Text style={styles.hint}>Checking required documents…</Text>
+                </View>
+              ) : requiredDocsError ? (
+                <TouchableOpacity onPress={() => fetchRequiredDocuments(selectedSubscriptionIds)}>
+                  <Text style={styles.retryText}>Couldn't load required documents. Tap to retry.</Text>
+                </TouchableOpacity>
+              ) : requiredDocuments.length === 0 ? (
+                <Text style={styles.hint}>No documents required for the selected services.</Text>
+              ) : (
+                requiredDocuments.map(doc => (
+                  <DocumentUploadField
+                    key={doc.id}
+                    document={doc}
+                    file={documentFiles[doc.id]}
+                    onChoose={() => handleChooseDocument(doc.id)}
+                    onRemove={() => handleRemoveDocument(doc.id)}
+                  />
+                ))
+              )}
+              {!requiredDocsLoading && requiredDocuments.length > 0 && (
+                <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
+              )}
+            </View>
+          </>
+        )}
 
         <Text style={styles.sectionTitle}>Who / Where</Text>
         <View style={styles.card}>
@@ -832,32 +1108,56 @@ function CreateTicket({ route, navigation }) {
         </View>
 
         <View style={styles.estimateCard}>
-          <Text style={styles.sectionTitle}>Estimated Charges</Text>
-          {selectedBaseServiceIds.length === 0 ? (
+          <Text style={styles.sectionTitle}>{isRecurring ? 'Subscription Summary' : 'Estimated Charges'}</Text>
+          {isRecurring ? (
+            selectedSubscriptionServices.length === 0 ? (
+              <Text style={styles.hint}>Choose one or more services to subscribe to.</Text>
+            ) : (
+              <>
+                {selectedSubscriptionServices.map(s => (
+                  <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
+                    <Text style={styles.priceLabel} numberOfLines={1}>+ {s.name}</Text>
+                    <Text style={styles.priceValue}>{formatUsdMonthly(s.pricing)}</Text>
+                  </View>
+                ))}
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total / month</Text>
+                  <Text style={styles.totalValue}>${subscriptionMonthlyTotal.toFixed(2)}</Text>
+                </View>
+                <Text style={[styles.hint, { marginTop: 4 }]}>Billed automatically each period until you cancel.</Text>
+              </>
+            )
+          ) : selectedBaseServiceIds.length === 0 ? (
             <Text style={styles.hint}>Choose a service to see pricing.</Text>
           ) : quote && stateId ? (
             <>
               {quote.lines.map(line => (
                 <View key={line.serviceId} style={[styles.priceRow, styles.priceRowDashed]}>
                   <Text style={styles.priceLabel} numberOfLines={1}>+ {line.name}</Text>
-                  <Text style={styles.priceValue}>₹{line.customerPrice.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.priceValue}>{formatUsdAmount(line.customerPrice)}</Text>
                 </View>
               ))}
               {quote.expressSurcharge > 0 && (
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>Express surcharge</Text>
-                  <Text style={styles.priceValue}>+₹{quote.expressSurcharge.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.priceValue}>+{formatUsdAmount(quote.expressSurcharge)}</Text>
                 </View>
               )}
               {quote.discount > 0 && (
                 <View style={styles.priceRow}>
                   <Text style={[styles.priceLabel, styles.discountText]}>Coupon discount</Text>
-                  <Text style={[styles.priceValue, styles.discountText]}>-₹{quote.discount.toLocaleString('en-IN')}</Text>
+                  <Text style={[styles.priceValue, styles.discountText]}>-{formatUsdAmount(quote.discount)}</Text>
+                </View>
+              )}
+              {quote.gstAmount > 0 && (
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceLabel}>{formatGstLabel(quote.gstRate)}</Text>
+                  <Text style={styles.priceValue}>+{formatUsdAmount(quote.gstAmount)}</Text>
                 </View>
               )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>₹{quote.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.totalValue}>{formatUsdAmount(quote.totalAmount)}</Text>
               </View>
             </>
           ) : quoteLoading && stateId ? (
@@ -870,18 +1170,18 @@ function CreateTicket({ route, navigation }) {
               {selectedBaseServicesList.map(s => (
                 <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
                   <Text style={styles.priceLabel} numberOfLines={1}>+ {s.name}</Text>
-                  <Text style={styles.priceValue}>₹{(s.pricing?.customerPrice || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.priceValue}>{formatUsdAmount(s.pricing?.customerPrice)}</Text>
                 </View>
               ))}
               {selectedAddonServices.map(s => (
                 <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
                   <Text style={styles.priceLabel} numberOfLines={1}>+ {s.name}</Text>
-                  <Text style={styles.priceValue}>₹{(s.pricing?.customerPrice || 0).toLocaleString('en-IN')}</Text>
+                  <Text style={styles.priceValue}>{formatUsdAmount(s.pricing?.customerPrice)}</Text>
                 </View>
               ))}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>₹{localTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.totalValue}>{formatUsdAmount(localTotal)}</Text>
               </View>
               {!stateId && (
                 <Text style={styles.hint}>Select your state below to confirm final pricing (incl. any express surcharge).</Text>
@@ -915,17 +1215,21 @@ function CreateTicket({ route, navigation }) {
             </>
           )}
 
-          <Text style={[styles.hint, { marginTop: 4 }]}>Final amount is confirmed after your request is reviewed.</Text>
+          <Text style={[styles.hint, { marginTop: 4 }]}>
+            {isRecurring
+              ? 'Your subscription activates once payment is confirmed.'
+              : 'Final amount is confirmed after your request is reviewed.'}
+          </Text>
 
           <TouchableOpacity
-            style={[styles.submitBtn, (!isValid || submitLoading || payLoading || verifyLoading) && styles.submitBtnDisabled]}
-            disabled={!isValid || submitLoading || payLoading || verifyLoading}
+            style={[styles.submitBtn, (!isValid || submitLoading || payLoading || verifyLoading || subscribeLoading) && styles.submitBtnDisabled]}
+            disabled={!isValid || submitLoading || payLoading || verifyLoading || subscribeLoading}
             onPress={handleSubmit}
           >
-            {submitLoading || payLoading || verifyLoading ? (
+            {submitLoading || payLoading || verifyLoading || subscribeLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.submitBtnText}>Submit Request</Text>
+              <Text style={styles.submitBtnText}>{isRecurring ? 'Subscribe' : 'Submit Request'}</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()}>
@@ -1150,6 +1454,28 @@ const styles = StyleSheet.create({
   couponIneligibleText: { color: colors.textPlaceholder },
   couponDescText: { ...typography.small, color: colors.textSecondary, marginTop: 4 },
   couponReasonText: { ...typography.small, color: colors.error, marginTop: 4 },
+
+  // Required-document upload field (web-style "Choose File | No file chosen").
+  docLabel: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  docDesc: { fontSize: 13, color: '#64748B', marginTop: 2, marginBottom: 4 },
+  docInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+  },
+  docChooseBtn: {
+    backgroundColor: '#EAF4FB',
+    borderRightWidth: 1,
+    borderRightColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  docChooseBtnText: { color: '#20304C', fontSize: 14, fontWeight: '600' },
+  docFileName: { flex: 1, paddingHorizontal: 14, fontSize: 14, color: '#94A3B8' },
 
   fileRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   chooseFileBtn: {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useStripe } from '@stripe/stripe-react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -60,6 +60,15 @@ function OnboardingPayment({ route, navigation }) {
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
+  const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
+
+  const showAlert = (title, message, type = 'info') => {
+    setCustomAlert({ visible: true, title, message, type });
+  };
+
+  const hideAlert = () => {
+    setCustomAlert(prev => ({ ...prev, visible: false }));
+  };
 
   const basePrice = plan?.price || 0;
   const planDiscount = couponResult?.discount || 0;
@@ -72,7 +81,8 @@ function OnboardingPayment({ route, navigation }) {
     validateCoupon({ code: planCouponCode.trim() })
       .unwrap()
       .then((result) => {
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
+        const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
@@ -92,9 +102,8 @@ function OnboardingPayment({ route, navigation }) {
     validateCoupon({ code: coupon.code })
       .unwrap()
       .then((result) => {
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
         const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
-        Alert.alert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`);
+        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');

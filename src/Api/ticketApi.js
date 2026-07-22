@@ -29,6 +29,10 @@ function mapQuote(raw) {
     expressSurcharge: raw.express_surcharge,
     expressWaived: raw.express_waived,
     discount: raw.discount,
+    // Line items are GST-exclusive; GST is added once and baked into
+    // total_amount only. gst_rate is a fraction (e.g. 0.18 for 18%).
+    gstRate: raw.gst_rate,
+    gstAmount: raw.gst_amount,
     totalAmount: raw.total_amount,
     lines: (raw.lines || []).map(mapQuoteLine),
   };
@@ -68,6 +72,7 @@ export async function getTicketQuote({ serviceId, extraServices, addons, stateId
       urgency,
       coupon_code: couponCode || undefined,
     });
+    if (__DEV__) console.log('[tickets/quote] raw response:', JSON.stringify(response.data));
     return mapQuote(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

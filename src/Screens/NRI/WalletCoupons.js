@@ -11,6 +11,11 @@ import { useWalletAccount } from '../../Hooks/useWalletAccount';
 
 const discountLabel = (c) => c.discountType === 'percentage' ? `${c.discountValue}% off` : `₹${c.discountValue.toLocaleString('en-IN')} off`;
 
+// Wallet balance / cash-out minimum / transaction amounts are USD (from the
+// wallet API) — format with $ like the rest of the flow.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function WalletCoupons({ navigation }) {
   const wallet = useSelector(state => state.wallet);
   const {
@@ -86,7 +91,7 @@ function WalletCoupons({ navigation }) {
             {loading ? (
               <ActivityIndicator size="small" color={colors.success} style={{ marginTop: 4 }} />
             ) : (
-              <Text style={styles.statValue}>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.statValue}>{formatUsd(balance)}</Text>
             )}
           </View>
           <View style={styles.statCard}>
@@ -123,7 +128,7 @@ function WalletCoupons({ navigation }) {
           </View>
           {cashout?.eligible ? (
             <>
-              <Text style={styles.cashOutHelp}>Minimum cash-out amount: ₹{cashout.minBalance?.toLocaleString('en-IN')}</Text>
+              <Text style={styles.cashOutHelp}>Minimum cash-out amount: {formatUsd(cashout.minBalance)}</Text>
               {cashout.pendingRequest ? (
                 <Text style={styles.cashOutPending}>You already have a pending cash-out request.</Text>
               ) : (
@@ -192,7 +197,7 @@ function WalletCoupons({ navigation }) {
                   <Text style={styles.txnDate}>{t.createdAt}</Text>
                 </View>
                 <Text style={[styles.txnAmount, { color: t.type === 'credit' ? colors.success : colors.error }]}>
-                  {t.type === 'credit' ? '+' : '-'}₹{t.amount}
+                  {t.type === 'credit' ? '+' : '-'}{formatUsd(t.amount)}
                 </Text>
               </View>
             ))

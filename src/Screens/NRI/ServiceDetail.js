@@ -1,28 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
+import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { typography } from '../../theme';
+
+// Pricing must display in USD (customer_price), not the ₹ display_price.
+const formatUsd = (pricing) => {
+  if (!pricing) return '';
+  if (pricing.isQuoted) return 'On quote';
+  const amount = `$${Number(pricing.customerPrice ?? 0).toFixed(2)}`;
+  return pricing.unit ? `${amount}/${pricing.unit}` : amount;
+};
 
 function ServiceDetail({ route, navigation }) {
   const { category } = route.params;
-  const [activeTab, setActiveTab] = useState('base'); // 'base' or 'addons'
-  const [selectedAddonIds, setSelectedAddonIds] = useState([]);
-  const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState([]);
+  const [activeTab, setActiveTab] = useState('oneTime'); // 'oneTime' or 'recurring'
+  const [selectedIds, setSelectedIds] = useState([]);
 
-  // Fetch services
-  const { services: baseServices, loading: loadingBase } = useServicesByCategory(category.name, '', { type: 'base' });
-  const { services: addonServices, loading: loadingAddons } = useServicesByCategory(category.name, '', { type: 'addon' });
+  // One-time (allows_single_use) and recurring (allows_recurring) services.
+  const { oneTime, recurring, loading } = useServiceGroups(category.name, '');
 
-  const toggleAddon = (id) => {
-    setSelectedAddonIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const services = activeTab === 'oneTime' ? oneTime : recurring;
+
+  const toggleService = (id) => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
   const handleBook = () => {
+    if (activeTab === 'recurring') {
+      navigation.navigate('CreateTicket', {
+        initialCategory: category.name,
+        requestType: 'recurring',
+        initialSubscriptionServiceIds: selectedIds,
+      });
+      return;
+    }
     navigation.navigate('CreateTicket', {
       initialCategory: category.name,
-      initialAddons: selectedAddonIds,
-      initialBaseServiceIds: selectedBaseServiceIds,
+      initialBaseServiceIds: selectedIds.slice(0, 1),
+      initialAddons: selectedIds.slice(1),
     });
   };
 
@@ -45,12 +61,14 @@ function ServiceDetail({ route, navigation }) {
         <View style={styles.heroContent}>
           <Text style={styles.heroDesc}>{category.desc}</Text>
 
-          <TouchableOpacity 
-            style={[styles.bookBtn, (selectedBaseServiceIds || []).length === 0 && styles.bookBtnDisabled]} 
+          <TouchableOpacity
+            style={[styles.bookBtn, selectedIds.length === 0 && styles.bookBtnDisabled]}
             onPress={handleBook}
-            disabled={(selectedBaseServiceIds || []).length === 0}
+            disabled={selectedIds.length === 0}
           >
-            <Text style={styles.bookBtnText}>Book This Service</Text>
+            <Text style={styles.bookBtnText}>
+              {selectedIds.length > 0 ? `Book ${selectedIds.length} Service${selectedIds.length > 1 ? 's' : ''}` : 'Book This Service'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -58,81 +76,56 @@ function ServiceDetail({ route, navigation }) {
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         <View style={styles.tabsWrapper}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'base' && styles.activeTab]}
-            onPress={() => setActiveTab('base')}
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'oneTime' && styles.activeTab]}
+            onPress={() => setActiveTab('oneTime')}
           >
-            <Text style={[styles.tabText, activeTab === 'base' && styles.activeTabText]}>Base (Included)</Text>
+            <Text style={[styles.tabText, activeTab === 'oneTime' && styles.activeTabText]}>One-Time Request</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'addons' && styles.activeTab]}
-            onPress={() => setActiveTab('addons')}
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'recurring' && styles.activeTab]}
+            onPress={() => setActiveTab('recurring')}
           >
-            <Text style={[styles.tabText, activeTab === 'addons' && styles.activeTabText]}>Add-On Services</Text>
+            <Text style={[styles.tabText, activeTab === 'recurring' && styles.activeTabText]}>Recurring</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* List */}
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {activeTab === 'addons' ? (
-          loadingAddons ? (
-            <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
-          ) : addonServices.length === 0 ? (
-            <Text style={styles.emptyText}>No add-on services available.</Text>
-          ) : (
-            addonServices.map(s => {
-              const isSelected = selectedAddonIds.includes(s.id);
-              return (
-                <View key={s.id} style={styles.serviceCard}>
-                  <View style={styles.serviceCardLeft}>
-                    <Text style={styles.serviceCardTitle}>{s.name}</Text>
-                    <Text style={styles.serviceCardSub}>{s.pricing?.turnaroundLabel || 'Standard turnaround'}</Text>
-                  </View>
-                  <View style={styles.serviceCardRight}>
-                    <Text style={styles.serviceCardPrice}>{s.pricing?.displayPrice}</Text>
-                    <TouchableOpacity 
-                      style={[styles.addBtn, isSelected && styles.addedBtn]}
-                      onPress={() => toggleAddon(s.id)}
-                    >
-                      <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
-                        {isSelected ? '✓ Added' : '+ Add'}
-                      </Text>
-                    </TouchableOpacity>
+        {loading ? (
+          <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
+        ) : services.length === 0 ? (
+          <Text style={styles.emptyText}>
+            {activeTab === 'oneTime' ? 'No one-time services available.' : 'No recurring plans available.'}
+          </Text>
+        ) : (
+          services.map(s => {
+            const isSelected = selectedIds.includes(s.id);
+            return (
+              <TouchableOpacity
+                key={s.id}
+                style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
+                onPress={() => toggleService(s.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.serviceCardLeft}>
+                  <Text style={styles.serviceCardTitle}>{s.name}</Text>
+                  <Text style={styles.serviceCardSub} numberOfLines={2}>
+                    {s.description || s.pricing?.turnaroundLabel || 'Standard turnaround'}
+                  </Text>
+                </View>
+                <View style={styles.serviceCardRight}>
+                  <Text style={styles.serviceCardPrice}>{formatUsd(s.pricing)}</Text>
+                  <View style={[styles.addBtn, isSelected && styles.addedBtn]}>
+                    <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
+                      {isSelected ? '✓ Added' : '+ Add'}
+                    </Text>
                   </View>
                 </View>
-              );
-            })
-          )
-        ) : (
-          loadingBase ? (
-            <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
-          ) : baseServices.length === 0 ? (
-            <Text style={styles.emptyText}>No base services available.</Text>
-          ) : (
-            baseServices.map(s => {
-              const safeIds = selectedBaseServiceIds || [];
-              const isSelected = safeIds.includes(s.id);
-              return (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.serviceCard, isSelected && styles.serviceCardSelected]}
-                  onPress={() => setSelectedBaseServiceIds(prev => ((prev || []).includes(s.id) ? [] : [s.id]))}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.serviceCardLeft}>
-                    <Text style={styles.serviceCardTitle}>{s.name}</Text>
-                    <Text style={styles.serviceCardSub}>{s.pricing?.turnaroundLabel || 'Standard turnaround'}</Text>
-                  </View>
-                  <View style={styles.serviceCardRight}>
-                    <View style={styles.includedPill}>
-                      <Text style={styles.includedPillText}>Included</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </View>

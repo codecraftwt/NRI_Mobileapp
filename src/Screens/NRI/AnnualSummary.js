@@ -118,7 +118,7 @@ function AnnualSummary({ navigation }) {
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Total Spend</Text>
-                <Text style={styles.statValue}>₹{summary.totalSpend.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.statValue}>${Number(summary.totalSpend || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statLabel}>Membership</Text>

@@ -10,6 +10,11 @@ import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 
 const { width: W, height: H } = Dimensions.get('window');
 
+// Membership price / history amount / add-on priceMonthly are USD, same as the
+// rest of the flow — format with $ instead of the old ₹.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 // Icon per plan feature slug, verified live against GET /plans (Essential/Family/Premium/Elite/Corporate
 // all share this same 17-feature set).
 const FEATURE_ICONS = {
@@ -129,7 +134,7 @@ function MyMembership({ navigation }) {
                   {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>}
                 </View>
                 <View style={styles.heroPriceCol}>
-                  {membership.price != null && <Text style={styles.priceValue}>₹{Number(membership.price).toLocaleString('en-IN', { minimumFractionDigits: 0 })}</Text>}
+                  {membership.price != null && <Text style={styles.priceValue}>{formatUsd(membership.price)}</Text>}
                   {!!membership.paymentStatus && (
                     <View style={styles.paymentBadge}>
                       <Text style={styles.paymentText}>{membership.paymentStatus}</Text>
@@ -175,7 +180,7 @@ function MyMembership({ navigation }) {
                   <View style={styles.historyTopRow}>
                     <Text style={styles.historyPlan}>{item.planName || '—'}</Text>
                     {item.price != null && (
-                      <Text style={styles.historyAmount}>₹{Number(item.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                      <Text style={styles.historyAmount}>{formatUsd(item.price)}</Text>
                     )}
                   </View>
                   {!!(item.startDate || item.endDate) && (
@@ -218,7 +223,7 @@ function MyMembership({ navigation }) {
                     <Icon name="stars" size={18} color="#F59E0B" />
                     <Text style={styles.miniAddonName}>{pkg.name}</Text>
                   </View>
-                  <Text style={styles.miniAddonPrice}>₹{pkg.priceMonthly?.toLocaleString('en-IN')}<Text style={styles.miniAddonInterval}> / mo</Text></Text>
+                  <Text style={styles.miniAddonPrice}>{formatUsd(pkg.priceMonthly)}<Text style={styles.miniAddonInterval}> / mo</Text></Text>
                 </View>
               ))}
             </ScrollView>

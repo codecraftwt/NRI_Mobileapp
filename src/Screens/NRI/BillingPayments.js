@@ -22,6 +22,12 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Billing amounts (item.amount, outstanding_total, renewal amount) are in USD,
+// same as the rest of the booking flow — display with $ instead of the old ₹.
+function formatUsd(value) {
+  return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function resolveReceiptId(item) {
   if (!item.receipt) return null;
   if (typeof item.receipt === 'object') return item.receipt.payment_id ?? item.receipt.id ?? null;
@@ -143,7 +149,7 @@ function BillingPayments({ navigation }) {
   const handlePayNow = (item) => {
     showAlert(
       'Choose Payment Method',
-      `Pay ₹${item.amount.toLocaleString('en-IN')} for ${item.label}`,
+      `Pay ${formatUsd(item.amount)} for ${item.label}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Razorpay', onPress: () => handleGatewayPayment(item, 'razorpay') },
@@ -243,7 +249,7 @@ function BillingPayments({ navigation }) {
                   </View>
                   <Text style={styles.statLabel}>Outstanding</Text>
                 </View>
-                <Text style={styles.statValue}>₹{overview.outstandingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.statValue}>{formatUsd(overview.outstandingTotal)}</Text>
               </View>
               <View style={styles.statCard}>
                 <View style={styles.statHeaderRow}>
@@ -271,7 +277,7 @@ function BillingPayments({ navigation }) {
                       </Text>
                       <Text style={styles.autoRenewMeta}>
                         Auto-renews{overview.autoRenewingMembership.nextRenewalAt ? ` on ${formatDate(overview.autoRenewingMembership.nextRenewalAt)}` : ''}
-                        {overview.autoRenewingMembership.amount != null ? ` at ₹${overview.autoRenewingMembership.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : ''}
+                        {overview.autoRenewingMembership.amount != null ? ` at ${formatUsd(overview.autoRenewingMembership.amount)}` : ''}
                       </Text>
                     </View>
                     <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopMembershipAutoRenew(overview.autoRenewingMembership)} disabled={stopAutoRenewLoading}>
@@ -327,7 +333,7 @@ function BillingPayments({ navigation }) {
                       </View>
                       <View style={styles.invoiceMetaRow}>
                         <Text style={styles.invoiceDate}>{formatDate(item.createdAt)}</Text>
-                        <Text style={styles.invoiceAmount}>₹{item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                        <Text style={styles.invoiceAmount}>{formatUsd(item.amount)}</Text>
                       </View>
                       <View style={styles.invoiceFooter}>
                         <View style={[styles.invoiceStatus, item.isPaid ? styles.invoiceStatusPaid : styles.invoiceStatusDue]}>

@@ -7,6 +7,11 @@ import { useTicketDetail } from '../../Hooks/useTicketDetail';
 import { useReports } from '../../Hooks/useReports';
 import { typography } from '../../theme/typography';
 
+// Ticket amounts (total, base, add-ons, surcharge, discount) are USD, same as
+// the booking flow — format with $ instead of the old ₹.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function getStatusColor(statusLabel) {
   switch (statusLabel?.toUpperCase()) {
     case 'NEW': return { bg: '#E0F2FE', text: '#0284C7' };
@@ -208,7 +213,7 @@ function TicketDetail({ route, navigation }) {
             {ticket.totalAmount != null && (
               <View style={styles.infoBlock}>
                 <Text style={styles.label}>Amount</Text>
-                <Text style={styles.value}>₹{ticket.totalAmount.toLocaleString('en-IN')} · {ticket.isPaid ? 'Paid' : 'Unpaid'}</Text>
+                <Text style={styles.value}>{formatUsd(ticket.totalAmount)} · {ticket.isPaid ? 'Paid' : 'Unpaid'}</Text>
               </View>
             )}
             {!!ticket.customerNotes && (
@@ -240,29 +245,29 @@ function TicketDetail({ route, navigation }) {
             <View style={styles.chargesList}>
               <View style={styles.chargeRow}>
                 <Text style={styles.chargeLabel}>Base: {ticket.serviceName}</Text>
-                <Text style={styles.chargeValue}>₹{baseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.chargeValue}>{formatUsd(baseAmount)}</Text>
               </View>
               {ticket.addons.map((addon, idx) => (
                 <View key={addon.serviceId ?? idx} style={styles.chargeRow}>
                   <Text style={styles.chargeLabel}>+ {addon.name}</Text>
-                  <Text style={styles.chargeValue}>₹{Number(addon.customerPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                  <Text style={styles.chargeValue}>{formatUsd(addon.customerPrice)}</Text>
                 </View>
               ))}
               {ticket.pricing.expressSurcharge > 0 && (
                 <View style={styles.chargeRow}>
                   <Text style={styles.chargeLabel}>+ Express Surcharge</Text>
-                  <Text style={styles.chargeValue}>₹{ticket.pricing.expressSurcharge.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                  <Text style={styles.chargeValue}>{formatUsd(ticket.pricing.expressSurcharge)}</Text>
                 </View>
               )}
               {ticket.pricing.discountAmount > 0 && (
                 <View style={styles.chargeRow}>
                   <Text style={styles.chargeLabel}>− Discount{ticket.pricing.couponCode ? ` (${ticket.pricing.couponCode})` : ''}</Text>
-                  <Text style={[styles.chargeValue, styles.discountValue]}>−₹{ticket.pricing.discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                  <Text style={[styles.chargeValue, styles.discountValue]}>−{formatUsd(ticket.pricing.discountAmount)}</Text>
                 </View>
               )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>₹{Number(ticket.pricing.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                <Text style={styles.totalValue}>{formatUsd(ticket.pricing.totalAmount)}</Text>
               </View>
             </View>
           </View>

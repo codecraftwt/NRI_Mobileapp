@@ -6,6 +6,11 @@ import Header from '../../Components/Header';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
 
+// Referral earnings / pending / reward amounts are USD, same as the rest of
+// the flow — format with $ instead of the old ₹.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function ReferEarn({ navigation }) {
   const { referralCode, shareLink, totals, referred, rewards, leaderboard, loading, retry } = useReferrals();
   const { cashout, retry: retryWallet } = useWalletAccount();
@@ -72,11 +77,11 @@ function ReferEarn({ navigation }) {
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Earned</Text>
-            <Text style={[styles.statValue, { color: '#10B981' }]}>₹{totals.earned.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={[styles.statValue, { color: '#10B981' }]}>{formatUsd(totals.earned)}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Pending Approval</Text>
-            <Text style={[styles.statValue, { color: '#D97706' }]}>₹{totals.pending.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={[styles.statValue, { color: '#D97706' }]}>{formatUsd(totals.pending)}</Text>
           </View>
         </View>
 
@@ -103,7 +108,7 @@ function ReferEarn({ navigation }) {
               <View key={i} style={styles.rewardRow}>
                 <View style={styles.rewardTopRow}>
                   <Text style={styles.rewardName}>{r.name}</Text>
-                  <Text style={styles.rewardAmount}>₹{Number(r.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+                  <Text style={styles.rewardAmount}>{formatUsd(r.amount)}</Text>
                 </View>
                 <View style={styles.rewardBottomRow}>
                   <View style={[styles.rewardStatus, { backgroundColor: r.status === 'Paid' ? '#E6F7EF' : '#FEF3C7' }]}>

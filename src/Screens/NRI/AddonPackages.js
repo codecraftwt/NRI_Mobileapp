@@ -16,6 +16,10 @@ const GATEWAYS = [
 
 const ACTIVE_STATUS_STYLE = { bg: '#D1FAE5', text: '#059669' };
 
+// Add-on package prices are USD, same as the rest of the flow — format with $.
+const formatUsd = (value) =>
+  `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function AddonPackages({ navigation }) {
   const { packages, loading, failed, retry, subscribe, cancelSubscription, verifyPayment, refetch } = useMyAddonPackages();
   const user = useSelector(state => state.user.user);
@@ -167,7 +171,7 @@ function AddonPackages({ navigation }) {
                   <Text style={styles.pkgName} numberOfLines={2}>{pkg.name}</Text>
                 </View>
                 <View style={styles.pkgPriceWrap}>
-                  <Text style={styles.pkgPrice}>₹{pkg.priceMonthly.toLocaleString('en-IN')}</Text>
+                  <Text style={styles.pkgPrice}>{formatUsd(pkg.priceMonthly)}</Text>
                   <Text style={styles.pkgPriceUnit}>/mo</Text>
                 </View>
               </View>

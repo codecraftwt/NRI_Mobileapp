@@ -44,10 +44,23 @@ function mapService(raw) {
     description: raw.description,
     isBaseService: raw.is_base_service,
     isAddon: raw.is_addon,
+    allowsSingleUse: raw.allows_single_use,
+    allowsRecurring: raw.allows_recurring,
     allowsEmergency: raw.allows_emergency,
     category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon } : null,
     pricing: mapPricing(raw.pricing),
   };
+}
+
+// The /services endpoint returns either a flat list (legacy) or a grouped
+// object `{ one_time, recurring }` (current). This flattens both to a single
+// de-duplicated list so callers that filter by base/addon keep working.
+function flattenServices(data) {
+  if (Array.isArray(data)) return data;
+  if (!data) return [];
+  const merged = [...(data.one_time || []), ...(data.recurring || [])];
+  const seen = new Set();
+  return merged.filter(s => (seen.has(s.id) ? false : seen.add(s.id)));
 }
 
 // `type` is 'base' | 'addon'; `stateId` requests state-specific pricing.
@@ -59,8 +72,36 @@ export async function getServices({ categoryId, type, stateId, search } = {}) {
     if (stateId) params.state_id = stateId;
     if (search) params.search = search;
     const response = await apiClient.get('/services', { params });
-    const list = response.data?.data || response.data || [];
-    return list.map(mapService);
+    const mapped = flattenServices(response.data?.data || response.data).map(mapService);
+    if (type === 'base') return mapped.filter(s => s.isBaseService);
+    if (type === 'addon') return mapped.filter(s => s.isAddon);
+    return mapped;
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Services for a category split into one-time (allows_single_use) and
+// recurring (allows_recurring) buckets, as returned by the grouped API shape.
+export async function getServiceGroups({ categoryId, stateId, search } = {}) {
+  try {
+    const params = {};
+    if (categoryId) params.category_id = categoryId;
+    if (stateId) params.state_id = stateId;
+    if (search) params.search = search;
+    const response = await apiClient.get('/services', { params });
+    const data = response.data?.data || response.data || {};
+    if (Array.isArray(data)) {
+      const mapped = data.map(mapService);
+      return {
+        oneTime: mapped.filter(s => s.allowsSingleUse),
+        recurring: mapped.filter(s => s.allowsRecurring),
+      };
+    }
+    return {
+      oneTime: (data.one_time || []).map(mapService),
+      recurring: (data.recurring || []).map(mapService),
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }

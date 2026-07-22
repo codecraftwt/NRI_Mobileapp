@@ -57,7 +57,7 @@ function buildHtml({ year, summary, membershipName, familyCount, propertiesCount
       <tr>
         <td class="stat-cell"><div class="stat-value">${summary.totalRequests}</div><div class="stat-label">Total Requests</div></td>
         <td class="stat-cell"><div class="stat-value">${summary.completed}</div><div class="stat-label">Completed</div></td>
-        <td class="stat-cell"><div class="stat-value">Rs. ${Math.round(summary.totalSpend).toLocaleString('en-IN')}</div><div class="stat-label">Total Spend</div></td>
+        <td class="stat-cell"><div class="stat-value">$${Math.round(summary.totalSpend).toLocaleString('en-US')}</div><div class="stat-label">Total Spend</div></td>
         <td class="stat-cell"><div class="stat-value">${escapeHtml(membershipName || 'Free')}</div><div class="stat-label">Membership</div></td>
       </tr>
     </table>

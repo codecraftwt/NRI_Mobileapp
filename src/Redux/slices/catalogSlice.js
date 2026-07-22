@@ -28,12 +28,25 @@ export const fetchServices = createAsyncThunk(
   }
 );
 
+// Category services split into one-time / recurring buckets (ServiceDetail).
+export const fetchServiceGroups = createAsyncThunk(
+  'catalog/fetchServiceGroups',
+  async ({ categoryId, stateId, search } = {}, { rejectWithValue }) => {
+    try {
+      return await catalogApi.getServiceGroups({ categoryId, stateId, search });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   categories: [], // [{ id, name, slug, icon, description, baseServicesCount, addonServicesCount }]
   categoriesStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   categoriesError: null,
   base: { services: [], status: 'idle', error: null, filterKey: null },
   addon: { services: [], status: 'idle', error: null, filterKey: null },
+  groups: { oneTime: [], recurring: [], status: 'idle', error: null, filterKey: null },
 };
 
 const catalogSlice = createSlice({
@@ -69,6 +82,20 @@ const catalogSlice = createSlice({
         const bucket = state[action.meta.arg.type];
         bucket.status = 'failed';
         bucket.error = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(fetchServiceGroups.pending, (state, action) => {
+        state.groups.status = 'loading';
+        state.groups.error = null;
+        state.groups.filterKey = JSON.stringify(action.meta.arg);
+      })
+      .addCase(fetchServiceGroups.fulfilled, (state, action) => {
+        state.groups.status = 'succeeded';
+        state.groups.oneTime = action.payload.oneTime;
+        state.groups.recurring = action.payload.recurring;
+      })
+      .addCase(fetchServiceGroups.rejected, (state, action) => {
+        state.groups.status = 'failed';
+        state.groups.error = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       });
   },
 });

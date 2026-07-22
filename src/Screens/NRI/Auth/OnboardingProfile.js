@@ -9,7 +9,7 @@ import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
 import { useInternationalStates } from '../../../Hooks/useInternationalStates';
 import { useInternationalCities } from '../../../Hooks/useInternationalCities';
-import { saveUserProfile } from '../../../Redux/slices/userSlice';
+import { saveUserProfile, logoutUser } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 
 const C = {
