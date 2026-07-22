@@ -21,17 +21,17 @@ function Onboarding({ navigation }) {
     {
       title: 'Parent & Elder Care',
       description: 'Scheduled doctor visits, medicine delivery, and weekly wellness reports. Peace of mind for your parents back home.',
-      image: require('../../../assets/images/onbgn1.png'),
+      image: require('../../../Assets/images/onbgn1.png'),
     },
     {
       title: 'Property & Farm',
       description: 'Periodic inspection visits, utility bill payments, tenant coordination, and property maintenance.',
-      image: require('../../../assets/images/onbgn2.png'),
+      image: require('../../../Assets/images/onbgn2.png'),
     },
     {
       title: '24x7 Emergency Support',
       description: 'Instant medical help, ambulance coordination, or break-in response. A dedicated manager on call.',
-      image: require('../../../assets/images/onbgn3.png'),
+      image: require('../../../Assets/images/onbgn3.png'),
     }
   ];
 

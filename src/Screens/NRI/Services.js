@@ -9,12 +9,12 @@ const { width: W, height: H } = Dimensions.get('window');
 
 const categoryDetails = {
   // Original Mappings
-  'Parent Care': { displayName: 'Parent & Elder Care', icon: 'favorite-border', color: '#D94625', desc: 'Scheduled visits, wellness reports & esc...' },
-  'Property Management': { displayName: 'Property Care', icon: 'domain', color: '#1E3A8A', desc: 'Inspections, tenant management & mai...' },
-  'Government Documentation': { displayName: 'Govt. Documents', icon: 'account-balance', color: '#92400E', desc: '7/12, PAN, Aadhaar, Passport, OCI & mo...' },
-  'Legal Services': { displayName: 'Legal & Finance', icon: 'gavel', color: '#047857', desc: 'Will drafting, NRI tax, FEMA & investm...' },
-  'Travel & Transport': { displayName: 'Travel & Transport', icon: 'airport-shuttle', color: '#4338CA', desc: 'Airport pickup, car rental & India visit p...' },
-  'Home Repair': { displayName: 'Home Maintenance', icon: 'build', color: '#B45309', desc: 'Plumbing, electrical, deep cleaning & pa...' },
+  'Parent Care': { icon: 'favorite-border', color: '#D94625', desc: 'Scheduled visits, wellness reports & esc...' },
+  'Property Management': { icon: 'domain', color: '#1E3A8A', desc: 'Inspections, tenant management & mai...' },
+  'Government Documentation': { icon: 'account-balance', color: '#92400E', desc: '7/12, PAN, Aadhaar, Passport, OCI & mo...' },
+  'Legal Services': { icon: 'gavel', color: '#047857', desc: 'Will drafting, NRI tax, FEMA & investm...' },
+  'Travel & Transport': { icon: 'airport-shuttle', color: '#4338CA', desc: 'Airport pickup, car rental & India visit p...' },
+  'Home Repair': { icon: 'build', color: '#B45309', desc: 'Plumbing, electrical, deep cleaning & pa...' },
   'Medical Assistance': { icon: 'medical-services', color: '#EF4444', desc: 'Medical emergency, doctor appointments...' },
   'Financial Services': { icon: 'trending-up', color: '#3B82F6', desc: 'MF, FD, NPS, real estate & demat setup' },
   'Insurance Services': { icon: 'shield', color: '#10B981', desc: 'Health, life, property insurance assistance' },

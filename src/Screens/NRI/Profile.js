@@ -300,7 +300,7 @@ function Profile({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#20304C' }, // Base is dark blue for top, ScrollView is white/cream
+  container: { flex: 1, backgroundColor: '#FDFBF7' }, // Base is light to prevent blue blink at bottom
   
   topBlueBg: {
     backgroundColor: '#20304C',

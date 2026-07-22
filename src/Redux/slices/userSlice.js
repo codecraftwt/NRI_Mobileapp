@@ -276,8 +276,12 @@ const userSlice = createSlice({
         state.loginStatus = 'succeeded';
         state.loginError = null;
         const previousOnboarded = state.user?.onboarded;
+        const previousAvatar = state.user?.avatarUri;
         state.user = action.payload.user;
         state.user.onboarded = resolveOnboarded(previousOnboarded, action.payload.user.onboarded);
+        if (!action.payload.user.avatarUri && previousAvatar) {
+          state.user.avatarUri = previousAvatar;
+        }
         state.token = action.payload.token;
         state.isAuthenticated = true;
       })
@@ -306,8 +310,12 @@ const userSlice = createSlice({
         state.profileStatus = 'succeeded';
         state.profileError = null;
         const previousOnboarded = state.user?.onboarded;
+        const previousAvatar = state.user?.avatarUri;
         state.user = { ...state.user, ...action.payload.user };
         state.user.onboarded = resolveOnboarded(previousOnboarded, action.payload.user.onboarded);
+        if (!action.payload.user.avatarUri && previousAvatar) {
+          state.user.avatarUri = previousAvatar;
+        }
         state.isAuthenticated = true;
       })
       .addCase(fetchCurrentUser.rejected, (state, action) => {
