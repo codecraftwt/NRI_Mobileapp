@@ -4,7 +4,7 @@ import Config from 'react-native-config';
 // NOTE: this points at an ngrok free-tier tunnel — it rotates whenever the
 // tunnel restarts. Update API_BASE_URL in .env whenever the backend gives
 // you a new ngrok URL (falls back to the last-known URL if .env is missing it).
-export const API_BASE_URL = Config.API_BASE_URL || 'https://09f4-103-226-142-125.ngrok-free.app/api/v1';
+export const API_BASE_URL = Config.API_BASE_URL || 'https://5d97-103-226-142-125.ngrok-free.app/api/v1';
 
 let storeRef = null;
 

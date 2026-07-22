@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, LayoutAnimation, UIManager, Platform, Animated } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors, typography } from '../theme';
@@ -73,7 +73,7 @@ import Requests from '../Screens/NRI/Requests';
 import VendorNavigator from './Vendor/VendorNavigator';
 
 const Stack = createStackNavigator();
-const Tab = createMaterialTopTabNavigator();
+const Tab = createBottomTabNavigator();
 
 // Stack for Services Booking Flow
 function ServicesStack() {
@@ -174,12 +174,14 @@ function ProfileStack() {
   );
 }
 
-function CustomTabBar({ state, descriptors, navigation, position }) {
+function CustomTabBar({ state, descriptors, navigation }) {
   const focusedRoute = state.routes[state.index];
   const { options } = descriptors[focusedRoute.key];
   const tabBarStyle = options.tabBarStyle;
   
   const [layouts, setLayouts] = React.useState([]);
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const pillWidth = React.useRef(new Animated.Value(0)).current;
 
   const handleLayout = (e, index) => {
     const { x, width } = e.nativeEvent.layout;
@@ -193,11 +195,26 @@ function CustomTabBar({ state, descriptors, navigation, position }) {
     });
   };
 
+  const isLayoutReady = layouts.filter(Boolean).length === state.routes.length;
+
+  React.useEffect(() => {
+    if (isLayoutReady && layouts[state.index]) {
+      Animated.parallel([
+        Animated.spring(translateX, {
+          toValue: layouts[state.index].x,
+          useNativeDriver: false,
+        }),
+        Animated.spring(pillWidth, {
+          toValue: layouts[state.index].width,
+          useNativeDriver: false,
+        })
+      ]).start();
+    }
+  }, [state.index, layouts, isLayoutReady]);
+
   if (tabBarStyle && tabBarStyle.display === 'none') {
     return null;
   }
-
-  const isLayoutReady = layouts.filter(Boolean).length === state.routes.length;
 
   return (
     <View style={styles.floatingTabBar}>
@@ -210,13 +227,8 @@ function CustomTabBar({ state, descriptors, navigation, position }) {
             bottom: Platform.OS === 'ios' ? 24 : 12,
             backgroundColor: '#A64416',
             borderRadius: 30,
-            width: layouts[state.index]?.width || 0,
-            transform: [{
-              translateX: position.interpolate({
-                inputRange: state.routes.map((_, i) => i),
-                outputRange: state.routes.map((_, i) => layouts[i]?.x || 0),
-              })
-            }],
+            width: pillWidth,
+            transform: [{ translateX }],
           }}
         />
       )}
@@ -278,10 +290,9 @@ function CustomTabBar({ state, descriptors, navigation, position }) {
 function MainTabNavigator() {
   return (
     <Tab.Navigator
-      tabBarPosition="bottom"
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
-        swipeEnabled: false,
+        headerShown: false,
       }}
     >
       <Tab.Screen

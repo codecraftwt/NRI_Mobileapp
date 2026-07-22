@@ -14,7 +14,7 @@ function App() {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <SafeAreaProvider>
-          <StripeProvider publishableKey={Config.STRIPE_KEY}>
+          <StripeProvider publishableKey={Config.STRIPE_KEY || 'pk_test_51TuSBhShVwQKFXgv4XQSJ1OVLvVqFoyH4Sh8jqAIbPsd3JTT4hsSrCF6ex4rZBVmjlVgBOYwwHoJ1ntNeKnjbQta00JtEFfqrN'}>
             <ToastProvider>
               <NavigationContainer>
                 <AppNavigator />
