@@ -178,6 +178,7 @@ export async function uploadProfilePhoto(file) {
     const response = await apiClient.post('/auth/profile/photo', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    if (__DEV__) console.log('[auth/profile/photo] response:', JSON.stringify(response.data));
     const data = response.data?.data || response.data || {};
     return { photoUrl: extractPhotoUrl(data), message: response.data?.message };
   } catch (error) {

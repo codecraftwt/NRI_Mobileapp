@@ -33,6 +33,7 @@ import Properties from '../Screens/NRI/Properties';
 import DocumentVault from '../Screens/NRI/DocumentVault';
 import BillingPayments from '../Screens/NRI/BillingPayments';
 import AddonPackages from '../Screens/NRI/AddonPackages';
+import AddonSubscriptions from '../Screens/NRI/AddonSubscriptions';
 import ReportsMedia from '../Screens/NRI/ReportsMedia';
 import AnnualSummary from '../Screens/NRI/AnnualSummary';
 import WalletCoupons from '../Screens/NRI/WalletCoupons';
@@ -149,6 +150,7 @@ function MyMembershipStack() {
       <Stack.Screen name="MembershipFeatures" component={MembershipFeatures} />
       <Stack.Screen name="MembershipCheckout" component={MembershipCheckout} />
       <Stack.Screen name="Add-on Packages" component={AddonPackages} />
+      <Stack.Screen name="AddonSubscriptions" component={AddonSubscriptions} />
     </Stack.Navigator>
   );
 }

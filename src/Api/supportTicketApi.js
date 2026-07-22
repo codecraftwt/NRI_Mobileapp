@@ -17,11 +17,34 @@ function mapSupportTicket(raw) {
   };
 }
 
+// Decide whether a reply is from the customer (right side, like WhatsApp) or
+// from support/admin (left side). The backend's sender field varies — an
+// explicit boolean, a plain type ('customer'/'admin'/'agent'), or an Eloquent
+// morph class ('App\\Models\\User' vs 'App\\Models\\Admin') — so classify
+// tolerantly: explicit flags first, then anything staff-like is NOT the
+// customer, and customer/user-like is.
+function isCustomerSender(raw) {
+  if (raw.is_customer != null) return !!raw.is_customer;
+  if (raw.is_staff != null) return !raw.is_staff;
+  if (raw.is_admin != null) return !raw.is_admin;
+  const t = String(
+    raw.sender_type || raw.author_type || raw.type || raw.sender?.type || raw.role || raw.user_type || ''
+  ).toLowerCase();
+  if (/admin|agent|staff|support|\brm\b|executive|team|manager/.test(t)) return false;
+  if (/customer|client|member|user/.test(t)) return true;
+  return false;
+}
+
 function mapSupportReply(raw) {
   return {
     id: raw.id,
-    fromCustomer: raw.sender_type ? raw.sender_type === 'customer' : !!raw.is_customer,
-    authorName: raw.sender_name || raw.author_name || raw.author?.name || null,
+    fromCustomer: isCustomerSender(raw),
+    // Raw sender identity, so the screen can also match against the logged-in
+    // user when the type field alone isn't conclusive.
+    senderType: raw.sender_type || raw.author_type || raw.type || raw.role || null,
+    // The reply's sender is returned as a nested `user: { id, name }` object.
+    authorId: raw.user?.id ?? raw.sender_id ?? raw.author_id ?? raw.user_id ?? raw.customer_id ?? raw.sender?.id ?? raw.author?.id ?? null,
+    authorName: raw.user?.name || raw.sender_name || raw.author_name || raw.author?.name || raw.sender?.name || null,
     message: raw.message || raw.body,
     createdAt: raw.created_at,
   };
@@ -76,9 +99,10 @@ export async function getSupportTicketDetail(ticketId) {
   try {
     const response = await apiClient.get(`/customer/support-tickets/${ticketId}`);
     const data = response.data?.data || response.data || {};
+    const rawReplies = data.replies || data.messages || [];
     return {
       ticket: mapSupportTicket(data.ticket || data),
-      replies: (data.replies || data.messages || []).map(mapSupportReply),
+      replies: rawReplies.map(mapSupportReply),
     };
   } catch (error) {
     throw normalizeApiError(error);
@@ -91,7 +115,9 @@ export async function replySupportTicket(ticketId, message) {
   try {
     const response = await apiClient.post(`/customer/support-tickets/${ticketId}/reply`, { message });
     const data = response.data?.data || {};
-    return mapSupportReply(data.reply || data.message || data);
+    // This endpoint is the customer replying, so the returned message is always
+    // ours — force it to the right side regardless of how the API tags it.
+    return { ...mapSupportReply(data.reply || data.message || data), fromCustomer: true };
   } catch (error) {
     throw normalizeApiError(error);
   }

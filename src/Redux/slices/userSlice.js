@@ -101,7 +101,10 @@ export const uploadUserProfilePhoto = createAsyncThunk(
   'user/uploadProfilePhoto',
   async (file, { rejectWithValue }) => {
     try {
-      return await authApi.uploadProfilePhoto(file);
+      const result = await authApi.uploadProfilePhoto(file);
+      // Keep the local uri so the avatar can show immediately even if the
+      // backend's response doesn't echo a usable photo URL.
+      return { ...result, localUri: file.uri };
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -340,8 +343,10 @@ const userSlice = createSlice({
       .addCase(uploadUserProfilePhoto.fulfilled, (state, action) => {
         state.uploadPhotoStatus = 'succeeded';
         state.uploadPhotoError = null;
-        if (state.user && action.payload.photoUrl) {
-          state.user.avatarUri = action.payload.photoUrl;
+        // Prefer the server URL; fall back to the locally-picked image so the
+        // new photo is visible even when the response omits a URL.
+        if (state.user) {
+          state.user.avatarUri = action.payload.photoUrl || action.payload.localUri || state.user.avatarUri;
         }
       })
       .addCase(uploadUserProfilePhoto.rejected, (state, action) => {

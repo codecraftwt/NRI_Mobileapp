@@ -3,12 +3,18 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useMembership } from '../../Hooks/useMembership';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
+import { usePlans } from '../../Hooks/usePlans';
+import { useBilling } from '../../Hooks/useBilling';
 
 const { width: W, height: H } = Dimensions.get('window');
+
+// Standard GST rate applied on the plan's USD price for the membership total.
+const GST_RATE = 0.18;
 
 // Membership price / history amount / add-on priceMonthly are USD, same as the
 // rest of the flow — format with $ instead of the old ₹.
@@ -65,12 +71,71 @@ function MyMembership({ navigation }) {
     retryHistory,
   } = useMembership();
 
-  const { packages: addonPackages, loading: addonsLoading } = useMyAddonPackages();
+  const { packages: addonPackages, loading: addonsLoading, cancelSubscription } = useMyAddonPackages();
+
+  // Auto-renewal settings come from the billing overview (same source as the
+  // Billing & Payments screen): the auto-renewing membership plus any
+  // auto-renewing monthly add-on subscriptions.
+  const { overview, stopAutoRenew, stopAutoRenewLoading, retry: retryBilling } = useBilling();
+  const { showAlert, alertProps } = useAppAlert();
+  const [cancelingId, setCancelingId] = useState(null);
+
+  const autoRenewingMembership = overview?.autoRenewingMembership || null;
+  const autoRenewingAddons = (overview?.addonSubscriptions || []).filter(s => s.autoRenew);
+  const hasAutoRenewals = !!autoRenewingMembership || autoRenewingAddons.length > 0;
+
+  const handleStopMembershipAutoRenew = (m) => {
+    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${m.planName}? It stays active until it expires.`, [
+      { text: 'Keep It', style: 'cancel' },
+      {
+        text: 'Stop Renewal',
+        style: 'destructive',
+        onPress: () => {
+          stopAutoRenew(m.id).unwrap().catch((error) => showAlert('Failed', error?.message || 'Could not stop auto-renewal.'));
+        },
+      },
+    ]);
+  };
+
+  const handleStopAddonAutoRenew = (sub) => {
+    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${sub.packageName}?`, [
+      { text: 'Keep It', style: 'cancel' },
+      {
+        text: 'Stop Renewal',
+        style: 'destructive',
+        onPress: () => {
+          setCancelingId(sub.id);
+          cancelSubscription(sub.id)
+            .unwrap()
+            .catch((error) => showAlert('Failed', error?.message || 'Could not stop auto-renewal.'))
+            .finally(() => setCancelingId(null));
+        },
+      },
+    ]);
+  };
+
+  // The membership amount to show is the plan's actual USD price (from
+  // GET /plans) plus GST — not membership.price, which falls back to the
+  // plan's INR base rate (e.g. 500) and rendered as "$500".
+  const { regularPlans } = usePlans();
+  const membershipPlan =
+    regularPlans.find(p => p.id === membership?.planId) ||
+    regularPlans.find(p => p.isPopular) ||
+    regularPlans[0] ||
+    null;
+  const planUsdPrice = membershipPlan?.usdPrice != null ? Number(membershipPlan.usdPrice) : null;
+  const membershipTotal = planUsdPrice != null
+    ? Math.round(planUsdPrice * (1 + GST_RATE) * 100) / 100
+    : null;
+
+  // The customer's own add-on subscriptions (anything subscribed via
+  // AddonPackages.js), shown as a preview here with a "View all" to the full list.
+  const subscribedAddons = (addonPackages || []).filter(p => p.mySubscription);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([retry(), retryHistory()]);
+    await Promise.all([retry(), retryHistory(), retryBilling()]);
     setRefreshing(false);
   };
 
@@ -81,6 +146,7 @@ function MyMembership({ navigation }) {
     useCallback(() => {
       retry();
       retryHistory();
+      retryBilling();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
@@ -118,23 +184,25 @@ function MyMembership({ navigation }) {
             </TouchableOpacity>
           </View>
         ) : membership ? (
-          <TouchableOpacity
-            style={styles.activePlanCard}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('MembershipFeatures', { features: membership.features, planName: membership.planName })}
-          >
+          <View style={styles.activePlanCard}>
             {/* Pseudo-gradient splash matching Dashboard */}
             <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '65%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
-            
+
             <View style={{ zIndex: 1 }}>
               <View style={styles.heroTopRow}>
                 <View style={styles.heroLeftCol}>
-                  <Text style={styles.activePlanLabel}>YOUR PLAN</Text>
-                  <Text style={styles.activePlanName}>{membership.planName || '—'}</Text>
-                  {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>}
+                  <Text style={styles.activePlanLabel}>YOUR MEMBERSHIP</Text>
+                  <Text style={styles.activePlanName}>{membership.planName || 'Membership'}</Text>
+                  {/* {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>} */}
                 </View>
                 <View style={styles.heroPriceCol}>
-                  {membership.price != null && <Text style={styles.priceValue}>{formatUsd(membership.price)}</Text>}
+                  {membershipTotal != null ? (
+                    <>
+                      <Text style={styles.priceValue}>{formatUsd(membershipTotal)}</Text>
+                    </>
+                  ) : (membership.amountPaid ?? membership.price) != null ? (
+                    <Text style={styles.priceValue}>{formatUsd(membership.amountPaid ?? membership.price)}</Text>
+                  ) : null}
                   {!!membership.paymentStatus && (
                     <View style={styles.paymentBadge}>
                       <Text style={styles.paymentText}>{membership.paymentStatus}</Text>
@@ -143,20 +211,71 @@ function MyMembership({ navigation }) {
                 </View>
               </View>
 
+              <Text style={styles.planDesc}>Unlocks every service — billed per request or subscription.</Text>
+
               {membership.features.length > 0 && (
                 <>
                   <View style={styles.heroDivider} />
-                  <View style={styles.viewBenefitsRow}>
-                    <Text style={styles.viewBenefitsText}>View all {membership.features.length} benefits</Text>
-                    <Icon name="arrow-forward" size={20} color="white" />
+                  <Text style={styles.benefitsHeading}>What's included</Text>
+                  <View style={styles.benefitsList}>
+                    {membership.features.map(f => (
+                      <View key={f.id ?? f.slug} style={styles.benefitRow}>
+                        <Icon name={FEATURE_ICONS[f.slug] || 'check-circle'} size={16} color="#F59E0B" />
+                        <Text style={styles.benefitText} numberOfLines={1}>
+                          {f.name}{f.value != null && f.value !== '' ? ` · ${f.value}` : ''}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 </>
               )}
             </View>
-          </TouchableOpacity>
+          </View>
         ) : null}
 
-        <View style={styles.sectionContainer}>
+        {hasAutoRenewals && (
+          <View style={styles.autoRenewCard}>
+            <View style={styles.autoRenewHeaderRow}>
+              <Icon name="autorenew" size={18} color={colors.success} />
+              <Text style={styles.autoRenewTitle}>Auto-renewal Settings</Text>
+            </View>
+
+            {autoRenewingMembership && (
+              <View style={styles.autoRenewRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.autoRenewName}>
+                    {autoRenewingMembership.planName} <Text style={styles.autoRenewType}>(membership)</Text>
+                  </Text>
+                  <Text style={styles.autoRenewMeta}>
+                    Auto-renews{autoRenewingMembership.nextRenewalAt ? ` on ${formatDate(autoRenewingMembership.nextRenewalAt)}` : ''}
+                    {autoRenewingMembership.amount != null ? ` at ${formatUsd(autoRenewingMembership.amount)}` : ''}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopMembershipAutoRenew(autoRenewingMembership)} disabled={stopAutoRenewLoading}>
+                  {stopAutoRenewLoading ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {autoRenewingAddons.map(sub => (
+              <View key={sub.id} style={styles.autoRenewRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.autoRenewName}>
+                    {sub.packageName} <Text style={styles.autoRenewType}>(monthly add-on)</Text>
+                  </Text>
+                  <Text style={styles.autoRenewMeta}>
+                    {sub.currentPeriodEndsAt ? `Auto-renews on ${formatDate(sub.currentPeriodEndsAt)}` : `Status: ${sub.status}`}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopAddonAutoRenew(sub)} disabled={cancelingId === sub.id}>
+                  {cancelingId === sub.id ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>Membership History</Text>
           {historyLoading && (
             <View style={styles.loadingBox}>
@@ -202,9 +321,9 @@ function MyMembership({ navigation }) {
               );
             })
           )}
-        </View>
+        </View> */}
 
-        {/* Add-on Packages Inline Section */}
+        {/* Add-on Packages Inline Section
         <View style={[styles.sectionContainer, { marginTop: 16 }]}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Add-on Packages</Text>
@@ -228,9 +347,39 @@ function MyMembership({ navigation }) {
               ))}
             </ScrollView>
           ) : null}
+        </View> */}
+
+        {/* My Add-on Packages (subscriptions) */}
+        <View style={[styles.sectionContainer, { marginTop: 16 }]}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>My Add-on Packages</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('AddonSubscriptions')}>
+              <Text style={styles.viewAllText}>View all →</Text>
+            </TouchableOpacity>
+          </View>
+
+          {addonsLoading ? (
+            <ActivityIndicator size="small" color="#F97316" style={{ alignSelf: 'flex-start', marginTop: 8 }} />
+          ) : subscribedAddons.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 4 }}>
+              {subscribedAddons.slice(0, 3).map(pkg => (
+                <View key={pkg.id} style={styles.miniAddonCard}>
+                  <View style={styles.miniAddonHeader}>
+                    <Icon name="stars" size={18} color="#F59E0B" />
+                    <Text style={styles.miniAddonName}>{pkg.name}</Text>
+                  </View>
+                  <Text style={styles.miniAddonPrice}>{formatUsd(pkg.priceMonthly)}<Text style={styles.miniAddonInterval}> / mo</Text></Text>
+                  {!!pkg.mySubscription?.status && <Text style={styles.miniAddonStatus}>{pkg.mySubscription.status}</Text>}
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.emptyText}>No add-on subscriptions yet.</Text>
+          )}
         </View>
 
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -271,12 +420,27 @@ const styles = StyleSheet.create({
   activePlanName: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
   heroPriceCol: { alignItems: 'flex-end' },
   priceValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
+
+  // Auto-renewal Settings (mirrors Billing & Payments)
+  autoRenewCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  autoRenewHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  autoRenewTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8 },
+  autoRenewName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  autoRenewType: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
+  autoRenewMeta: { fontSize: 13, color: '#64748B', marginTop: 4 },
+  stopRenewBtn: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  stopRenewBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
+  pricePaidCaption: { fontSize: 10, color: '#D1D5DB', marginTop: 2, textAlign: 'right' },
   paymentBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4, marginTop: 6 },
   paymentText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', fontWeight: '600' },
   validUntil: { fontSize: 13, color: '#E5E7EB', marginTop: 4 },
-  heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 24, marginBottom: 16 },
-  viewBenefitsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  viewBenefitsText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF', fontWeight: '600' },
+  heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 20, marginBottom: 16 },
+  planDesc: { fontSize: 13, color: '#E5E7EB', marginTop: 14, lineHeight: 20 },
+  benefitsHeading: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#D1D5DB', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
+  benefitsList: { gap: 10 },
+  benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  benefitText: { flex: 1, fontSize: 13, color: '#F3F4F6', fontFamily: typography.body?.fontFamily },
 
   // History Card
   sectionContainer: { marginTop: 8 },
@@ -337,6 +501,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     fontFamily: typography.regular?.fontFamily || typography.body?.fontFamily,
+  },
+  miniAddonStatus: {
+    fontSize: 12,
+    color: '#059669',
+    fontFamily: typography.labelMedium.fontFamily,
+    textTransform: 'capitalize',
+    marginTop: 6,
   },
 });
 

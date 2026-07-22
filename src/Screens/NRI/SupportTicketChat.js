@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useSupportTicketDetail } from '../../Hooks/useSupportTicketDetail';
@@ -28,6 +29,17 @@ function SupportTicketChat({ route, navigation }) {
   const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading } = useSupportTicketDetail(ticketId);
   const [replyText, setReplyText] = useState('');
   const [showCreatedBanner, setShowCreatedBanner] = useState(!!createdTicketNumber);
+  const user = useSelector(s => s.user.user);
+
+  // A message sits on the right (like WhatsApp) when it's the customer's own.
+  // Trust the mapped flag first, then fall back to matching the logged-in
+  // user's id/name — covers backends whose sender_type alone isn't conclusive.
+  const isMine = (msg) => {
+    if (msg.fromCustomer) return true;
+    if (msg.authorId != null && user?.id != null && String(msg.authorId) === String(user.id)) return true;
+    const myName = (user?.name || '').trim().toLowerCase();
+    return !!myName && (msg.authorName || '').trim().toLowerCase() === myName;
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -125,15 +137,18 @@ function SupportTicketChat({ route, navigation }) {
           </View>
 
           <View style={styles.messagesWrap}>
-            {replies.map(msg => (
-              <View key={msg.id} style={[styles.bubbleRow, msg.fromCustomer && styles.bubbleRowMe]}>
-                <View style={[styles.bubble, msg.fromCustomer ? styles.bubbleMe : styles.bubbleSupport]}>
-                  {!!msg.authorName && <Text style={[styles.bubbleAuthor, msg.fromCustomer && styles.bubbleAuthorMe]}>{msg.authorName}</Text>}
-                  <Text style={[styles.bubbleText, msg.fromCustomer && styles.bubbleTextMe]}>{msg.message}</Text>
-                  <Text style={[styles.bubbleTime, msg.fromCustomer && styles.bubbleTimeMe]}>{formatTime(msg.createdAt)}</Text>
+            {replies.map(msg => {
+              const mine = isMine(msg);
+              return (
+                <View key={msg.id} style={[styles.bubbleRow, mine && styles.bubbleRowMe]}>
+                  <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleSupport]}>
+                    {!!msg.authorName && <Text style={[styles.bubbleAuthor, mine && styles.bubbleAuthorMe]}>{msg.authorName}</Text>}
+                    <Text style={[styles.bubbleText, mine && styles.bubbleTextMe]}>{msg.message}</Text>
+                    <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMe]}>{formatTime(msg.createdAt)}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
 
           {!isClosed && (

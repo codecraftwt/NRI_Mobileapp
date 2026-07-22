@@ -21,9 +21,9 @@ function RMWidget({ rm }) {
         <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${rm.phone || '+910000000000'}`)}>
           <Icon name="phone" size={16} color="#FFFFFF" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.waBtn} onPress={() => Linking.openURL(`whatsapp://send?phone=${rm.phone || '+910000000000'}`)}>
+        {/* <TouchableOpacity style={styles.waBtn} onPress={() => Linking.openURL(`whatsapp://send?phone=${rm.phone || '+910000000000'}`)}>
           <Icon name="chat" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     </View>
   );

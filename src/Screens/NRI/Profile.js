@@ -285,9 +285,9 @@ function Profile({ navigation }) {
               <TouchableOpacity style={styles.modalOption} onPress={handleRemovePhoto}>
                 <View style={styles.modalOptionLeft}>
                   <View style={styles.menuIconBox}>
-                    <Icon name="delete-outline" size={20} color="#DC2626" />
+                    <Icon name="delete-outline" size={20} color="#1E3A8A" />
                   </View>
-                  <Text style={[styles.menuLabel, { color: '#DC2626' }]}>Remove Photo</Text>
+                  <Text style={[styles.menuLabel, { color: '#1E3A8A' }]}>Remove Photo</Text>
                 </View>
               </TouchableOpacity>
             )}

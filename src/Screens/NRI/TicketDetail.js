@@ -12,6 +12,15 @@ import { typography } from '../../theme/typography';
 const formatUsd = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// gst_rate may arrive as a fraction (0.18) or whole percent (18) — normalize
+// to a "GST (18%)" label.
+const formatGstLabel = (rate) => {
+  if (rate == null) return 'GST';
+  const pct = rate <= 1 ? rate * 100 : rate;
+  const rounded = Number.isInteger(pct) ? pct : Number(pct.toFixed(2));
+  return `GST (${rounded}%)`;
+};
+
 function getStatusColor(statusLabel) {
   switch (statusLabel?.toUpperCase()) {
     case 'NEW': return { bg: '#E0F2FE', text: '#0284C7' };
@@ -150,6 +159,18 @@ function TicketDetail({ route, navigation }) {
   const addonsTotal = ticket.addons.reduce((sum, a) => sum + Number(a.customerPrice || 0), 0);
   const baseAmount = Math.max(0, Number(ticket.pricing?.customerPrice || 0) - addonsTotal);
 
+  // GST is charged at payment and baked into total_amount; the detail's pricing
+  // often doesn't return gst_rate/gst_amount separately. Prefer the API's
+  // values, otherwise derive: GST = total − (base + add-ons + surcharge − discount).
+  const p = ticket.pricing || {};
+  const preGstSubtotal = Number(p.customerPrice || 0) + Number(p.expressSurcharge || 0) - Number(p.discountAmount || 0);
+  const gstAmount = p.gstAmount != null
+    ? Number(p.gstAmount)
+    : Math.max(0, Math.round((Number(p.totalAmount || 0) - preGstSubtotal) * 100) / 100);
+  const gstRate = p.gstRate != null
+    ? p.gstRate
+    : (preGstSubtotal > 0 && gstAmount > 0 ? gstAmount / preGstSubtotal : null);
+
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
@@ -265,6 +286,12 @@ function TicketDetail({ route, navigation }) {
                   <Text style={[styles.chargeValue, styles.discountValue]}>−{formatUsd(ticket.pricing.discountAmount)}</Text>
                 </View>
               )}
+              {gstAmount > 0 && (
+                <View style={styles.chargeRow}>
+                  <Text style={styles.chargeLabel}>{formatGstLabel(gstRate)}</Text>
+                  <Text style={styles.chargeValue}>{formatUsd(gstAmount)}</Text>
+                </View>
+              )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>{formatUsd(ticket.pricing.totalAmount)}</Text>
@@ -273,30 +300,43 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        {/* <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Request Timeline</Text>
+        <View style={styles.card}>
+          <View style={styles.timelineHeaderRow}>
+            <Text style={styles.sectionTitle}>Request Timeline</Text>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>Live</Text>
+            </View>
+          </View>
           <View style={styles.timelineWrapper}>
             {timeline.map((event, idx) => {
               const eventStatusStyle = getStatusColor(event.to);
-              const isLast = idx === timeline.length - 1;
+              const isFirst = idx === 0;
               return (
                 <View key={idx} style={styles.timelineRow}>
                   <View style={styles.timelineDotCol}>
-                    <View style={[styles.timelineDot, isLast && styles.timelineDotActive]} />
-                    {!isLast && <View style={styles.timelineLine} />}
+                    <View style={[styles.timelineDotRing, isFirst && styles.timelineDotRingActive]} />
+                    <View style={styles.timelineLine} />
                   </View>
-                  <View style={styles.timelineContent}>
-                    <View style={[styles.badge, styles.timelineBadge, { backgroundColor: eventStatusStyle.bg }]}>
-                      <Text style={[styles.badgeText, { color: eventStatusStyle.text }]}>{event.to?.toUpperCase() || 'UPDATE'}</Text>
+                  <View style={styles.timelineCard}>
+                    <View style={styles.timelineCardTop}>
+                      <Text style={[styles.timelineStatus, { color: eventStatusStyle.text }]}>{event.to?.toUpperCase() || 'UPDATE'}</Text>
+                      <Text style={styles.timelineTime}>{formatDateTime(event.at)}</Text>
                     </View>
-                    <Text style={styles.timelineDate}>{formatDateTime(event.at)}</Text>
-                    {!!event.note && <Text style={styles.timelineDesc}>{event.note}</Text>}
+                    <Text style={styles.timelineTitle}>{event.note || 'Status updated'}</Text>
+                    {!!event.note && <Text style={styles.timelineSub}>{event.note}</Text>}
                   </View>
                 </View>
               );
             })}
+            <View style={styles.timelineRow}>
+              <View style={styles.timelineDotCol}>
+                <View style={styles.timelineDotMuted} />
+              </View>
+              <Text style={styles.timelinePlaceholder}>Further updates will appear here…</Text>
+            </View>
           </View>
-        </View> */}
+        </View>
 
         {(ticket.status === 'completed' || !!report || reportsFailed) && (
           <View style={styles.card}>
@@ -495,16 +535,25 @@ const styles = StyleSheet.create({
   totalLabel: { ...typography.h4, color: '#0F172A' },
   totalValue: { ...typography.appTitle, color: '#0F172A' },
   
-  timelineWrapper: { marginTop: 8, paddingLeft: 8 },
-  timelineRow: { flexDirection: 'row', gap: 20 },
-  timelineDotCol: { alignItems: 'center', width: 12 },
-  timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#E2E8F0', marginTop: 8 },
-  timelineDotActive: { backgroundColor: '#D94625', width: 12, height: 12, borderRadius: 6, marginTop: 7 }, 
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#F1F5F9', marginTop: 4, marginBottom: -4 },
-  timelineContent: { flex: 1, paddingBottom: 28, gap: 6 },
-  timelineBadge: { alignSelf: 'flex-start' },
-  timelineDate: { ...typography.small, color: '#94A3B8' },
-  timelineDesc: { ...typography.body, color: '#334155' },
+  timelineHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#FFFFFF' },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
+  liveText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#10B981' },
+
+  timelineWrapper: { marginTop: 4 },
+  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineDotCol: { alignItems: 'center', width: 18 },
+  timelineDotRing: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 4 },
+  timelineDotRingActive: { borderColor: '#F97316' },
+  timelineDotMuted: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 2 },
+  timelineLine: { flex: 1, width: 0, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#CBD5E1', marginVertical: 2, minHeight: 16 },
+  timelineCard: { flex: 1, backgroundColor: '#EFF4FF', borderRadius: 12, padding: 14, marginBottom: 16 },
+  timelineCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  timelineStatus: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', textTransform: 'uppercase' },
+  timelineTime: { ...typography.tiny, color: '#64748B' },
+  timelineTitle: { ...typography.body, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700', marginTop: 6 },
+  timelineSub: { ...typography.small, color: '#64748B', marginTop: 2 },
+  timelinePlaceholder: { ...typography.small, color: '#94A3B8', fontStyle: 'italic', flex: 1, marginTop: 2 },
   
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: { ...typography.body, color: '#64748B' },

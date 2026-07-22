@@ -87,6 +87,10 @@ function mapTicketPricing(raw) {
     expressWaived: raw.express_waived,
     discountAmount: raw.discount_amount,
     couponCode: raw.coupon_code,
+    // GST is added once and baked into total_amount; gst_rate is a fraction
+    // (e.g. 0.18) or a whole percent depending on the backend.
+    gstRate: raw.gst_rate,
+    gstAmount: raw.gst_amount,
     totalAmount: raw.total_amount,
     amountDueNow: raw.amount_due_now,
     isPaid: raw.is_paid,

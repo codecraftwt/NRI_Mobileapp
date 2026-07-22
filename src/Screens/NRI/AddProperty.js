@@ -37,6 +37,12 @@ function newUtilityRow() {
   return { id: `u${utilityIdCounter}`, label: '', value: '' };
 }
 
+let attachmentLocalIdCounter = 0;
+function newAttachmentLocalId() {
+  attachmentLocalIdCounter += 1;
+  return `a${attachmentLocalIdCounter}`;
+}
+
 // Reusable bottom-sheet dropdown field
 function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect, style }) {
   const [open, setOpen] = useState(false);
@@ -327,6 +333,138 @@ function AttachmentsCard({ propertyId }) {
   );
 }
 
+// Add-mode variant: there's no property id yet, so files are collected locally
+// and uploaded after the property is created (see handleSubmit). Mirrors the
+// AttachmentsCard UI so the section is available while adding, not just editing.
+function PendingAttachmentsCard({ files, onAdd, onRemove }) {
+  const [label, setLabel] = useState('');
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
+
+  const addFromPhotoResponse = (response) => {
+    if (response.didCancel || response.errorCode) return;
+    const asset = response.assets?.[0];
+    if (!asset?.uri) return;
+    onAdd({
+      kind: 'photo',
+      label: label.trim(),
+      file: { uri: asset.uri, name: asset.fileName || `photo_${Date.now()}.jpg`, type: asset.type || 'image/jpeg' },
+    });
+    setLabel('');
+  };
+
+  const handleTakePhoto = async () => {
+    setShowPhotoModal(false);
+    const allowed = await requestCameraPermission(showAlert);
+    if (!allowed) return;
+    launchCamera({ mediaType: 'photo', quality: 0.8 }, addFromPhotoResponse);
+  };
+
+  const handleChooseFromGallery = async () => {
+    setShowPhotoModal(false);
+    const allowed = await requestFilePermission(showAlert);
+    if (!allowed) return;
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, addFromPhotoResponse);
+  };
+
+  const pickDocument = async () => {
+    const allowed = await requestFilePermission(showAlert);
+    if (!allowed) return;
+    try {
+      const [result] = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false, copyTo: 'cachesDirectory' });
+      if (!result) return;
+      if (result.size && result.size > 10 * 1024 * 1024) {
+        showAlert('File Too Large', 'Attachments must be 10 MB or smaller.');
+        return;
+      }
+      onAdd({
+        kind: 'document',
+        label: label.trim(),
+        file: { uri: result.fileCopyUri || result.uri, name: result.name, type: result.type || 'application/octet-stream' },
+      });
+      setLabel('');
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      showAlert('Error', 'Could not select the file. Please try again.');
+    }
+  };
+
+  return (
+    <View style={styles.card}>
+      <SectionHeader title="Photos & Documents" />
+
+      {files.length === 0 ? (
+        <Text style={styles.hint}>No attachments yet — add a photo or document below.</Text>
+      ) : (
+        <View style={{ gap: 8 }}>
+          {files.map(f => (
+            <View key={f.localId} style={styles.attachmentRow}>
+              <Icon name={f.kind === 'photo' ? 'image' : 'description'} size={18} color="#1E3A8A" />
+              <Text style={styles.attachmentLabel} numberOfLines={1}>{f.label || f.file.name || (f.kind === 'photo' ? 'Photo' : 'Document')}</Text>
+              <TouchableOpacity onPress={() => onRemove(f.localId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="delete-outline" size={18} color="#DC2626" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.fieldWrap}>
+        <Text style={styles.inputLabel}>Label (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={label}
+          onChangeText={setLabel}
+          placeholder="e.g. Front view, Tax receipt"
+          placeholderTextColor="#94A3B8"
+        />
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={() => setShowPhotoModal(true)}>
+          <Icon name="add-a-photo" size={16} color="#D94625" />
+          <Text style={styles.attachBtnText}>Add Photo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.attachBtn, styles.rowItem]} onPress={pickDocument}>
+          <Icon name="note-add" size={16} color="#D94625" />
+          <Text style={styles.attachBtnText}>Add Document</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.hint}>These upload automatically once you save the property.</Text>
+      <AppAlert {...alertProps} />
+
+      <Modal visible={showPhotoModal} transparent animationType="fade" onRequestClose={() => setShowPhotoModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPhotoModal(false)}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Add Photo</Text>
+
+            <TouchableOpacity style={[styles.modalOption, { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }]} onPress={handleTakePhoto}>
+              <View style={styles.modalOptionLeft}>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-camera" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Take Photo</Text>
+              </View>
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.modalOption} onPress={handleChooseFromGallery}>
+              <View style={styles.modalOptionLeft}>
+                <View style={styles.menuIconBox}>
+                  <Icon name="photo-library" size={20} color="#1E3A8A" />
+                </View>
+                <Text style={styles.menuLabel}>Choose from Gallery</Text>
+              </View>
+              <Icon name="chevron-right" size={24} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
 function AddProperty({ navigation, route }) {
   const dispatch = useDispatch();
   const propertyId = route?.params?.propertyId || null;
@@ -346,13 +484,17 @@ function AddProperty({ navigation, route }) {
   const [utilities, setUtilities] = useState([]);
   const [notes, setNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  // Add-mode only: files picked before the property exists, uploaded on save.
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [finishing, setFinishing] = useState(false);
   const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
   const { loading: loadingPostalLookup, lookup: lookupPostalCode } = usePostalCodeLookup();
-  const { detail, loading: loadingDetail, failed: detailFailed, fetchDetail } = usePropertyDetail();
+  const { detail, loading: loadingDetail, failed: detailFailed, fetchDetail, uploadAttachment } = usePropertyDetail();
   const submitting = useSelector(state => state.properties.mutationStatus === 'loading');
+  const busy = submitting || finishing;
 
   useEffect(() => {
     if (isEdit) {
@@ -408,7 +550,7 @@ function AddProperty({ navigation, route }) {
       });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !address || !type) {
       showAlert('Required', 'Nickname, Property Type and Address are required.');
       return;
@@ -433,20 +575,37 @@ function AddProperty({ navigation, route }) {
       notes,
     };
 
-    const action = isEdit
-      ? updateProperty({ id: propertyId, ...payload })
-      : addProperty(payload);
+    setFinishing(true);
+    try {
+      const result = isEdit
+        ? await dispatch(updateProperty({ id: propertyId, ...payload })).unwrap()
+        : await dispatch(addProperty(payload)).unwrap();
 
-    dispatch(action)
-      .unwrap()
-      .then(() => {
-        showAlert(isEdit ? 'Updated' : 'Added', `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`, [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      })
-      .catch((error) => {
-        showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
-      });
+      // Upload any files picked during add, now that the property has an id.
+      let uploadFailures = 0;
+      const newId = result?.id;
+      if (!isEdit && newId && pendingFiles.length > 0) {
+        for (const f of pendingFiles) {
+          try {
+            await uploadAttachment(newId, f.kind, f.label, f.file).unwrap();
+          } catch (e) {
+            uploadFailures += 1;
+          }
+        }
+      }
+
+      const baseMsg = `${name} has been ${isEdit ? 'updated' : 'added to your properties'}.`;
+      const msg = uploadFailures > 0
+        ? `${baseMsg} (${uploadFailures} attachment${uploadFailures > 1 ? 's' : ''} couldn't be uploaded — you can add them from Edit.)`
+        : baseMsg;
+      showAlert(isEdit ? 'Updated' : 'Added', msg, [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
+    } finally {
+      setFinishing(false);
+    }
   };
 
   return (
@@ -671,14 +830,22 @@ function AddProperty({ navigation, route }) {
               />
             </View>
 
-            {isEdit && <AttachmentsCard propertyId={propertyId} />}
+            {isEdit ? (
+              <AttachmentsCard propertyId={propertyId} />
+            ) : (
+              <PendingAttachmentsCard
+                files={pendingFiles}
+                onAdd={(f) => setPendingFiles(prev => [...prev, { localId: newAttachmentLocalId(), ...f }])}
+                onRemove={(localId) => setPendingFiles(prev => prev.filter(x => x.localId !== localId))}
+              />
+            )}
 
             <View style={styles.actions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitBtnDisabled]} onPress={handleSubmit} activeOpacity={0.85} disabled={submitting}>
-                {submitting ? (
+              <TouchableOpacity style={[styles.submitBtn, busy && styles.submitBtnDisabled]} onPress={handleSubmit} activeOpacity={0.85} disabled={busy}>
+                {busy ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>

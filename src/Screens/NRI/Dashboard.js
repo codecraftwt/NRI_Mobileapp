@@ -71,6 +71,13 @@ function Dashboard({ navigation }) {
     return !isNaN(d.getTime()) && d.getTime() < Date.now();
   };
 
+  const formatPlanDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  };
+
   const quickActions = [
     { id: 'sos', name: 'SOS', icon: 'error-outline', color: '#EF4444' },
     { id: 'new', name: 'New Request', icon: 'description', color: '#F97316' },
@@ -254,12 +261,25 @@ function Dashboard({ navigation }) {
               <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '57%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
 
               <View style={{ flex: 1, zIndex: 1 }}>
-                <Text style={styles.planSubtitle}>YOUR PLAN</Text>
-                <Text style={styles.planTitle}>{membership?.planName || 'Premium'} • Renews{'\n'}Dec 2025</Text>
-                <Text style={styles.planDesc}>25 requests/month • 4 care visits</Text>
+                {membership ? (
+                  <>
+                    <Text style={styles.planSubtitle}>YOUR MEMBERSHIP</Text>
+                    <Text style={styles.planTitle}>
+                      {membership.planName || 'Membership'}
+                      {membership.endDate ? `\n${membership.autoRenew ? 'Renews' : 'Expires'} ${formatPlanDate(membership.endDate)}` : ''}
+                    </Text>
+                    <Text style={styles.planDesc}>Unlocks every service — billed per request or subscription.</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.planSubtitle}>MEMBERSHIP</Text>
+                    <Text style={styles.planTitle}>Unlock every service{'\n'}with NRI Circle</Text>
+                    <Text style={styles.planDesc}>One annual membership — then pay per request or subscription.</Text>
+                  </>
+                )}
               </View>
               <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>
-                <Text style={styles.upgradeBtnText}>Upgrade</Text>
+                <Text style={styles.upgradeBtnText}>{membership ? 'Manage' : 'Join Now'}</Text>
               </TouchableOpacity>
             </View>
           </View>

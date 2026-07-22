@@ -48,6 +48,9 @@ function mapMembership(raw) {
     planId: raw.plan_id ?? raw.plan?.id ?? null,
     planName: raw.plan?.name || raw.plan_name || null,
     price: raw.amount_paid ?? raw.price ?? raw.plan?.price ?? null,
+    // The exact amount charged at registration/renewal (base + GST) — distinct
+    // from the plan's list price. Null when the backend doesn't send it.
+    amountPaid: raw.amount_paid ?? null,
     status,
     startDate: raw.start_date || raw.starts_at || null,
     endDate: raw.end_date || raw.expires_at || null,
