@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Header from '../../Components/Header';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { typography } from '../../theme';
 
@@ -53,33 +54,24 @@ function ServiceDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header / Hero Section */}
+      <Header navigation={navigation} title={category.name} showBack />
+
+      {/* Hero Section */}
       <View style={styles.heroSection}>
-        <View style={[styles.heroTopRow, { zIndex: 10 }]}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <Icon name="arrow-back" size={22} color={category.color} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{category.name}</Text>
-          </View>
-          <View style={[styles.headerIconBox, { backgroundColor: category.color + '15' }]}>
-            <Icon name={category.icon} size={20} color={category.color} />
-          </View>
+        <View style={[styles.headerIconBox, { backgroundColor: category.color + '15' }]}>
+          <Icon name={category.icon} size={22} color={category.color} />
         </View>
+        <Text style={styles.heroDesc}>{category.desc}</Text>
 
-        <View style={styles.heroContent}>
-          <Text style={styles.heroDesc}>{category.desc}</Text>
-
-          <TouchableOpacity
-            style={[styles.bookBtn, selectedIds.length === 0 && styles.bookBtnDisabled]}
-            onPress={handleBook}
-            disabled={selectedIds.length === 0}
-          >
-            <Text style={styles.bookBtnText}>
-              {selectedIds.length > 0 ? `Book ${selectedIds.length} Service${selectedIds.length > 1 ? 's' : ''}` : 'Book This Service'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.bookBtn, selectedIds.length === 0 && styles.bookBtnDisabled]}
+          onPress={handleBook}
+          disabled={selectedIds.length === 0}
+        >
+          <Text style={styles.bookBtnText}>
+            {selectedIds.length > 0 ? `Book ${selectedIds.length} Service${selectedIds.length > 1 ? 's' : ''}` : 'Book This Service'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -147,7 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDFBF7', // Matches the cream background
   },
   heroSection: {
-    paddingTop: 50,
+    paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
@@ -189,6 +181,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 12,
   },
   heroContent: {
     marginTop: 4,

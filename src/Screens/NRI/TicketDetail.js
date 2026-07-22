@@ -96,13 +96,7 @@ function TicketDetail({ route, navigation }) {
   if (loading && !ticket) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
-          <View style={{ width: 44 }} />
-        </View>
+        <Header navigation={navigation} title="Request Details" showBack />
         <View style={styles.emptyState}>
           <ActivityIndicator size="small" color="#D94625" />
           <Text style={styles.emptyText}>Loading request...</Text>
@@ -114,13 +108,7 @@ function TicketDetail({ route, navigation }) {
   if (failed) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
-          <View style={{ width: 44 }} />
-        </View>
+        <Header navigation={navigation} title="Request Details" showBack />
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Couldn't load this request.</Text>
           <TouchableOpacity style={styles.backLink} onPress={retry}>
@@ -134,13 +122,7 @@ function TicketDetail({ route, navigation }) {
   if (!ticket) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#5B21B6" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Request Details</Text>
-          <View style={{ width: 44 }} />
-        </View>
+        <Header navigation={navigation} title="Request Details" showBack />
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>Request not found.</Text>
           <TouchableOpacity style={styles.backLink} onPress={() => navigation.goBack()}>
@@ -173,13 +155,7 @@ function TicketDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{ticket.ticketNumber}</Text>
-        <View style={{ width: 44 }} />
-      </View>
+      <Header navigation={navigation} title={ticket.ticketNumber} showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
