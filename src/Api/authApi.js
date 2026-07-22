@@ -73,6 +73,10 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     name: apiUser.name,
     email: apiUser.email,
     phone: apiUser.phone || '',
+    // Persist the saved profile photo across sessions — the upload sets this in
+    // Redux, but on re-login the user is rebuilt from here, so it must be read
+    // back from the auth payload (checked on both the user and customer object).
+    avatarUri: extractPhotoUrl(apiUser) || extractPhotoUrl(customer) || null,
     role: apiUser.role || (roles?.[0] ? roles[0].charAt(0).toUpperCase() + roles[0].slice(1) : 'Customer'),
     membership: membershipName || 'None',
     membershipExpiry,
@@ -114,6 +118,7 @@ export async function register(payload) {
 export async function login(payload) {
   try {
     const response = await apiClient.post('/auth/login', toLoginRequestBody(payload));
+    if (__DEV__) console.log('[auth/login] user payload:', JSON.stringify(response.data?.data?.user || response.data?.user));
     return mapAuthResponse(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);
@@ -131,6 +136,7 @@ export async function logout() {
 export async function me() {
   try {
     const response = await apiClient.get('/auth/me');
+    if (__DEV__) console.log('[auth/me] user payload:', JSON.stringify(response.data?.data?.user || response.data?.user));
     return mapAuthResponse(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);
@@ -166,7 +172,8 @@ export async function updateProfile({ name, phone, nriCountry, nriCity, preferre
 // the rest of the auth payloads, or as a flat top-level field.
 function extractPhotoUrl(data) {
   const apiUser = data?.user || data?.customer || data || {};
-  return apiUser.photo_url || apiUser.avatar_url || apiUser.photo || apiUser.avatar || null;
+  return apiUser.photo_url || apiUser.avatar_url || apiUser.photo || apiUser.avatar
+    || apiUser.profile_photo_url || apiUser.profile_photo || apiUser.image_url || apiUser.image || null;
 }
 
 // Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
@@ -174,9 +181,18 @@ function extractPhotoUrl(data) {
 export async function uploadProfilePhoto(file) {
   try {
     const formData = new FormData();
-    formData.append('photo', { uri: file.uri, name: file.name || 'photo.jpg', type: file.type || 'image/jpeg' });
+    const filePart = { uri: file.uri, name: file.name || 'photo.jpg', type: file.type || 'image/jpeg' };
+    // The stored field is `profile_photo` (see GET /auth/me); include both keys
+    // so whichever the endpoint expects receives the file.
+    formData.append('profile_photo', filePart);
+    formData.append('photo', filePart);
     const response = await apiClient.post('/auth/profile/photo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      // Do NOT hard-set 'multipart/form-data' — that omits the boundary and the
+      // server can't parse the upload. Stripping it lets RN set the boundary.
+      transformRequest: (data, headers) => {
+        if (headers) { delete headers['Content-Type']; delete headers['content-type']; }
+        return data;
+      },
     });
     if (__DEV__) console.log('[auth/profile/photo] response:', JSON.stringify(response.data));
     const data = response.data?.data || response.data || {};

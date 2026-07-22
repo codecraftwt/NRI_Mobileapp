@@ -106,9 +106,9 @@ function Requests({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
-        {loading && (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#D94625" />
+        {loading && tickets.length === 0 && (
+          <View style={[styles.loadingBox, { flex: 1, justifyContent: 'center' }]}>
+            <ActivityIndicator size="large" color="#D94625" />
             <Text style={styles.loadingText}>Loading requests...</Text>
           </View>
         )}

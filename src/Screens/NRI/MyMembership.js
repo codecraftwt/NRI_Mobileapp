@@ -162,7 +162,7 @@ function MyMembership({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />}
       >
-        {loading && (
+        {loading && !membership && (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={styles.loadingText}>Loading your membership…</Text>

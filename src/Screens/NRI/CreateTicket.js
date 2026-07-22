@@ -322,6 +322,13 @@ function CreateTicket({ route, navigation }) {
   const localGst = Math.round(localSubtotal * GST_RATE * 100) / 100;
   const localTotal = localSubtotal + localGst;
 
+  // Service line items for the server-quote view. Some quotes come back with an
+  // empty `lines` array (only totals + GST), which would hide the service
+  // price — fall back to the selected base services so price + GST always show.
+  const quoteLines = quote?.lines?.length
+    ? quote.lines
+    : selectedBaseServicesList.map(s => ({ serviceId: s.id, name: s.name, customerPrice: s.pricing?.customerPrice || 0 }));
+
   // --- Recurring subscription selection ---
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
   const subscriptionMonthlyTotal = selectedSubscriptionServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
@@ -1141,7 +1148,7 @@ function CreateTicket({ route, navigation }) {
             <Text style={styles.hint}>Choose a service to see pricing.</Text>
           ) : quote && stateId ? (
             <>
-              {quote.lines.map(line => (
+              {quoteLines.map(line => (
                 <View key={line.serviceId} style={[styles.priceRow, styles.priceRowDashed]}>
                   <Text style={styles.priceLabel} numberOfLines={1}>+ {line.name}</Text>
                   <Text style={styles.priceValue}>{formatUsdAmount(line.customerPrice)}</Text>
