@@ -235,8 +235,6 @@ function CreateTicket({ route, navigation }) {
   const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state);
   const {
     requiredDocuments: subRequiredDocuments,
-    requiredDocsLoading: subRequiredDocsLoading,
-    requiredDocsError: subRequiredDocsError,
     fetchRequiredDocuments: fetchSubRequiredDocuments,
     clearRequiredDocuments: clearSubRequiredDocuments,
     createLoading: subscribeLoading,
@@ -256,8 +254,6 @@ function CreateTicket({ route, navigation }) {
     applyCoupon,
     clearCoupon,
     requiredDocuments: ticketRequiredDocuments,
-    requiredDocsLoading: ticketRequiredDocsLoading,
-    requiredDocsError: ticketRequiredDocsError,
     fetchRequiredDocuments: fetchTicketRequiredDocs,
     clearRequiredDocuments: clearTicketRequiredDocs,
     submitLoading,
@@ -273,9 +269,6 @@ function CreateTicket({ route, navigation }) {
   // subscription flow for recurring, the ticket flow for one-time. Both feed
   // the same `documentFiles` state and the same Required Documents UI below.
   const requiredDocuments = isRecurring ? subRequiredDocuments : ticketRequiredDocuments;
-  const requiredDocsLoading = isRecurring ? subRequiredDocsLoading : ticketRequiredDocsLoading;
-  const requiredDocsError = isRecurring ? subRequiredDocsError : ticketRequiredDocsError;
-  const fetchRequiredDocuments = isRecurring ? fetchSubRequiredDocuments : fetchTicketRequiredDocs;
 
   const stateId = state ? states.find(s => s.name === state)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;
@@ -395,7 +388,7 @@ function CreateTicket({ route, navigation }) {
     ? (serviceCategory && selectedSubscriptionIds.length > 0
         && fullName.trim().length > 0 && relation && state
         && fullAddress.trim().length > 0 && !missingRequiredDoc)
-    : (serviceCategory && selectedBaseServiceIds.length > 0
+    : (serviceCategory && selectedBaseServiceIds.length > 0 && !!prioritySlug
         && fullName.trim().length > 0 && relation && state
         && fullAddress.trim().length > 0 && pincode.trim().length > 0
         && !missingRequiredDoc);
@@ -786,7 +779,7 @@ function CreateTicket({ route, navigation }) {
         <View style={{ width: 44 }} />
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {membership && usage && (
+        {/* {membership && usage && (
           <View style={styles.usageBanner}>
             <Icon name="info-outline" size={16} color="#D94625" style={{ marginTop: 2 }} />
             <Text style={styles.usageBannerText}>
@@ -794,7 +787,7 @@ function CreateTicket({ route, navigation }) {
               {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
             </Text>
           </View>
-        )}
+        )} */}
 
         {/* Priority tiers — one-time requests only (recurring subscriptions
             have no per-request urgency). */}
@@ -984,35 +977,22 @@ function CreateTicket({ route, navigation }) {
           </>)}
         </View> */}
 
-        {((isRecurring && selectedSubscriptionIds.length > 0) || (!isRecurring && selectedBaseServiceIds.length > 0)) && (
+        {/* Only render when documents are actually required — services with no
+            required documents show nothing at all (no loader, no empty text). */}
+        {requiredDocuments.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Required Documents</Text>
             <View style={styles.card}>
-              {requiredDocsLoading ? (
-                <View style={styles.inlineLoading}>
-                  <ActivityIndicator size="small" color="#3298D4" />
-                  <Text style={styles.hint}>Checking required documents…</Text>
-                </View>
-              ) : requiredDocsError ? (
-                <TouchableOpacity onPress={() => fetchRequiredDocuments(isRecurring ? selectedSubscriptionIds : selectedBaseServiceIds)}>
-                  <Text style={styles.retryText}>Couldn't load required documents. Tap to retry.</Text>
-                </TouchableOpacity>
-              ) : requiredDocuments.length === 0 ? (
-                <Text style={styles.hint}>No documents required for the selected services.</Text>
-              ) : (
-                requiredDocuments.map(doc => (
-                  <DocumentUploadField
-                    key={doc.id}
-                    document={doc}
-                    file={documentFiles[doc.id]}
-                    onChoose={() => handleChooseDocument(doc.id)}
-                    onRemove={() => handleRemoveDocument(doc.id)}
-                  />
-                ))
-              )}
-              {!requiredDocsLoading && requiredDocuments.length > 0 && (
-                <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
-              )}
+              {requiredDocuments.map(doc => (
+                <DocumentUploadField
+                  key={doc.id}
+                  document={doc}
+                  file={documentFiles[doc.id]}
+                  onChoose={() => handleChooseDocument(doc.id)}
+                  onRemove={() => handleRemoveDocument(doc.id)}
+                />
+              ))}
+              <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
             </View>
           </>
         )}

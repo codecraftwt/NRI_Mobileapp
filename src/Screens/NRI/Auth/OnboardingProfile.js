@@ -219,6 +219,19 @@ function OnboardingProfile({ navigation }) {
     }
   };
 
+  const handleBack = () => {
+    // Prefer normal back navigation (returns to Login when it's beneath us
+    // after sign-in). When onboarding is the stack root and there's nothing to
+    // go back to (e.g. resumed on app open), fall back to the Login screen.
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    let root = navigation;
+    while (root.getParent()) root = root.getParent();
+    root.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
@@ -240,11 +253,7 @@ function OnboardingProfile({ navigation }) {
       <View style={styles.bgShape1} />
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
-      <OnboardingTopBar navigation={navigation} onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined} />
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
-        <Icon name="logout" size={18} color="#A64416" />
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
+      <OnboardingTopBar navigation={navigation} onBack={handleBack} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={1} />
 

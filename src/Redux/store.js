@@ -24,13 +24,16 @@ import walletAccountReducer from './slices/walletAccountSlice';
 import referralReducer from './slices/referralSlice';
 import supportTicketsReducer from './slices/supportTicketsSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
+import onboardingReducer from './slices/onboardingSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
   key: 'root',
   version: 2,
   storage: AsyncStorage,
-  whitelist: ['user', 'tickets', 'wallet'],
+  // `onboarding` must persist AND survive the auth reset below so mid-onboarding
+  // sign-outs resume the wizard rather than landing on the dashboard.
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);
@@ -78,11 +81,18 @@ const appReducer = combineReducers({
   referral: referralReducer,
   supportTickets: supportTicketsReducer,
   serviceSubscription: serviceSubscriptionReducer,
+  onboarding: onboardingReducer,
 });
 
 const rootReducer = (state, action) => {
   if (RESET_ACTION_TYPES.has(action.type)) {
-    state = undefined;
+    // Wipe every slice on an auth-identity change EXCEPT `onboarding` (and the
+    // persist metadata) — that record must outlive logout so a user who signed
+    // out mid-onboarding resumes the wizard on their next sign-in. The
+    // triggering action (loginUser/registerUser.fulfilled) then repopulates the
+    // fresh `user` slice as normal.
+    const { onboarding, _persist } = state || {};
+    state = { onboarding, _persist };
   }
   return appReducer(state, action);
 };

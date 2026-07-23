@@ -6,9 +6,17 @@ import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { typography } from '../../theme';
 
 // Pricing must display in USD (customer_price), not the ₹ display_price.
-const formatUsd = (pricing) => {
+// On the Recurring tab, show the monthly recurring_price instead of the
+// one-time customer_price.
+const formatUsd = (pricing, recurring = false) => {
   if (!pricing) return '';
   if (pricing.isQuoted) return 'On quote';
+  if (recurring) {
+    // Prefer the server-formatted string ("$20.69/monthly") when present.
+    if (pricing.recurringDisplayPrice) return pricing.recurringDisplayPrice;
+    const amount = `$${Number(pricing.recurringPrice ?? 0).toFixed(2)}`;
+    return pricing.billingInterval ? `${amount}/${pricing.billingInterval}` : amount;
+  }
   const amount = `$${Number(pricing.customerPrice ?? 0).toFixed(2)}`;
   return pricing.unit ? `${amount}/${pricing.unit}` : amount;
 };
@@ -145,7 +153,7 @@ function ServiceDetail({ route, navigation }) {
                   </Text>
                 </View>
                 <View style={styles.serviceCardRight}>
-                  <Text style={styles.serviceCardPrice}>{formatUsd(s.pricing)}</Text>
+                  <Text style={styles.serviceCardPrice}>{formatUsd(s.pricing, activeTab === 'recurring')}</Text>
                   <View style={[styles.addBtn, isSelected && styles.addedBtn]}>
                     <Text style={[styles.addBtnText, isSelected && styles.addedBtnText]}>
                       {isSelected ? '✓ Added' : '+ Add'}

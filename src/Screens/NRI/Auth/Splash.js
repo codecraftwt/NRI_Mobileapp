@@ -11,6 +11,7 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { fetchCurrentUser } from '../../../Redux/slices/userSlice';
+import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
 import { store } from '../../../Redux/store';
 import { lightColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
@@ -102,8 +103,7 @@ export default function Splash({ navigation }) {
       if (!isAuthenticated) return 'Onboarding';
       const result = await dispatch(fetchCurrentUser());
       if (fetchCurrentUser.fulfilled.match(result)) {
-        const onboarded = store.getState().user.user?.onboarded;
-        return onboarded ? 'AppHome' : 'OnboardingProfile';
+        return selectOnboardingRoute(store.getState());
       }
       if (result.payload?.status === 401) return 'Onboarding';
       return 'AppHome';

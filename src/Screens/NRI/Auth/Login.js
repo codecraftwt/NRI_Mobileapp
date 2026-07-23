@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal,
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../../Redux/slices/userSlice';
+import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
 import { store } from '../../../Redux/store';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
@@ -57,8 +58,18 @@ function Login({ navigation }) {
     dispatch(loginUser({ login: email.trim(), password }))
       .unwrap()
       .then(() => {
-        const onboarded = store.getState().user.user?.onboarded;
-        navigation.replace(onboarded ? 'AppHome' : 'OnboardingProfile');
+        // Uses the persistent per-user onboarding record so signing out
+        // mid-onboarding resumes the wizard instead of the dashboard.
+        const route = selectOnboardingRoute(store.getState());
+        if (route === 'AppHome') {
+          // Fully onboarded → dashboard as the sole root (no back to auth).
+          navigation.reset({ index: 0, routes: [{ name: 'AppHome' }] });
+        } else {
+          // Not onboarded → land on the wizard but keep Login directly beneath
+          // it, so the onboarding back button returns to Login (and nothing
+          // else — no intro carousel / stale pre-login stack).
+          navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: route }] });
+        }
       })
       .catch((error) => {
         if (error?.errors) {

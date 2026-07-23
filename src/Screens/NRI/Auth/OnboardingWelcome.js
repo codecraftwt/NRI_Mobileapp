@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, setOnboarded } from '../../../Redux/slices/userSlice';
+import { markOnboardingComplete, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 
 const C = {
@@ -26,13 +27,18 @@ const NEXT_STEPS = [
 function OnboardingWelcome({ route, navigation }) {
   const { plan } = route.params || {};
   const dispatch = useDispatch();
+  const user = useSelector(s => s.user.user);
 
   useEffect(() => {
     dispatch(updateProfile({
       rm: { name: 'Rahul RM', email: 'rm@nricircle.com', phone: '+91 99887 76655', avatar: 'RA' },
     }));
     dispatch(setOnboarded(true));
-  }, [dispatch]);
+    // Persist completion so it survives logout — this is what stops a
+    // re-login from resuming the wizard once onboarding is genuinely done.
+    const userId = onboardingUserKey(user);
+    if (userId != null) dispatch(markOnboardingComplete(userId));
+  }, [dispatch, user]);
 
   return (
     <View style={styles.container}>

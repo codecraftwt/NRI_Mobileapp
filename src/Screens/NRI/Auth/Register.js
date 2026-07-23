@@ -15,6 +15,8 @@ const C = {
 const { width: W, height: H } = Dimensions.get('window');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_NUMBER_REGEX = /[0-9]/;
+const PASSWORD_SPECIAL_REGEX = /[^A-Za-z0-9]/;
 
 function Register({ navigation }) {
   const dispatch = useDispatch();
@@ -50,6 +52,8 @@ function Register({ navigation }) {
     else if (phone.trim().replace(/\D/g, '').length < 7) errors.phone = 'Enter a valid phone number.';
     if (!password) errors.password = 'Password is required.';
     else if (password.length < 8) errors.password = 'Password must be at least 8 characters.';
+    else if (!PASSWORD_NUMBER_REGEX.test(password)) errors.password = 'Password must include at least one number.';
+    else if (!PASSWORD_SPECIAL_REGEX.test(password)) errors.password = 'Password must include at least one special character.';
     if (!confirmPassword) errors.password_confirmation = 'Please confirm your password.';
     else if (password !== confirmPassword) errors.password_confirmation = 'Passwords do not match.';
     return errors;
@@ -171,7 +175,7 @@ function Register({ navigation }) {
             </View>
             <TextInput
               style={styles.input}
-              placeholder="Minimum 8 characters"
+              placeholder="Min 8 chars, 1 number & 1 special char"
               placeholderTextColor={C.textPlaceholder}
               secureTextEntry={!showPassword}
               value={password}

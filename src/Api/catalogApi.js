@@ -51,6 +51,7 @@ function mapPricing(raw) {
   if (!raw) return null;
   return {
     customerPrice: raw.customer_price,
+    currency: raw.currency || 'USD',
     displayPrice: raw.display_price,
     pricingType: raw.pricing_type,
     unit: raw.unit,
@@ -58,6 +59,10 @@ function mapPricing(raw) {
     expressSurcharge: raw.express_surcharge,
     turnaroundHours: raw.turnaround_hours,
     turnaroundLabel: raw.turnaround_label,
+    // Recurring-subscription pricing (present when the service allows_recurring).
+    recurringPrice: raw.recurring_price,
+    billingInterval: raw.billing_interval,
+    recurringDisplayPrice: raw.recurring_display_price,
   };
 }
 
