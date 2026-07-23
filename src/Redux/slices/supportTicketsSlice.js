@@ -28,7 +28,20 @@ export const fetchSupportTicketDetail = createAsyncThunk('supportTickets/fetchDe
 export const replySupportTicket = createAsyncThunk('supportTickets/reply', async ({ ticketId, message }, { rejectWithValue }) => {
   try {
     const reply = await supportTicketApi.replySupportTicket(ticketId, message);
-    return { ticketId, reply };
+    // The reply endpoint's response sometimes omits the echoed text (or returns
+    // only a status message) and no id/timestamp — which left the freshly-sent
+    // bubble blank until a manual refresh. Backfill from what the user actually
+    // sent so it shows immediately.
+    return {
+      ticketId,
+      reply: {
+        ...reply,
+        id: reply.id ?? `local-${Date.now()}`,
+        message: reply.message || message,
+        createdAt: reply.createdAt || new Date().toISOString(),
+        fromCustomer: true,
+      },
+    };
   } catch (error) {
     return rejectWithValue(error);
   }

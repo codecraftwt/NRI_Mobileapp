@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Linking, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Linking, Alert, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -66,6 +66,7 @@ function TicketDetail({ route, navigation }) {
 
   const [selectedStars, setSelectedStars] = useState(0);
   const [feedbackNote, setFeedbackNote] = useState('');
+  const [thankYouVisible, setThankYouVisible] = useState(false);
 
   const handleSubmitRating = async () => {
     if (!selectedStars) {
@@ -74,7 +75,7 @@ function TicketDetail({ route, navigation }) {
     }
     try {
       await rate(selectedStars, feedbackNote.trim() || undefined).unwrap();
-      Alert.alert('Thank You', 'Your rating has been submitted.');
+      setThankYouVisible(true);
     } catch (error) {
       Alert.alert('Could Not Submit Rating', error?.message || 'Please try again.');
     }
@@ -425,6 +426,38 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Styled "Thank You" confirmation after a rating is submitted */}
+      <Modal
+        visible={thankYouVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setThankYouVisible(false)}
+      >
+        <View style={styles.thankYouOverlay}>
+          <View style={styles.thankYouCard}>
+            <View style={styles.thankYouIconWrap}>
+              <Icon name="check-circle" size={40} color="#10B981" />
+            </View>
+            <Text style={styles.thankYouTitle}>Thank You!</Text>
+            <View style={styles.thankYouStars}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <Icon key={n} name={n <= selectedStars ? 'star' : 'star-border'} size={22} color="#F59E0B" />
+              ))}
+            </View>
+            <Text style={styles.thankYouMessage}>
+              Your rating has been submitted. We appreciate your feedback on this service.
+            </Text>
+            <TouchableOpacity
+              style={styles.thankYouBtn}
+              onPress={() => setThankYouVisible(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.thankYouBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -586,6 +619,71 @@ const styles = StyleSheet.create({
   submitRatingBtn: { backgroundColor: '#D94625', borderRadius: 24, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   submitRatingBtnDisabled: { opacity: 0.7 },
   submitRatingBtnText: { ...typography.labelLarge, color: '#FFFFFF' },
+
+  // Thank You dialog
+  thankYouOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  thankYouCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingTop: 28,
+    paddingBottom: 22,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+  },
+  thankYouIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#D1FAE5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  thankYouTitle: {
+    ...typography.h2,
+    fontSize: 22,
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  thankYouStars: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  thankYouMessage: {
+    ...typography.small,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 22,
+  },
+  thankYouBtn: {
+    width: '100%',
+    backgroundColor: '#D94625',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  thankYouBtnText: { ...typography.labelLarge, color: '#FFFFFF' },
 });
 
 export default TicketDetail;
