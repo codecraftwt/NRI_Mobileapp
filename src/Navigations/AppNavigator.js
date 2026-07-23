@@ -331,6 +331,7 @@ function MainTabNavigator() {
           };
         }}
       />
+      {/* Plans tab hidden from the bottom bar for now.
       <Tab.Screen
         name="My Membership"
         component={MyMembershipStack}
@@ -342,7 +343,7 @@ function MainTabNavigator() {
             tabBarStyle: focusedRouteName === 'MyMembershipMain' ? {} : { display: 'none' },
           };
         }}
-      />
+      /> */}
       <Tab.Screen
         name="Profile"
         component={ProfileStack}

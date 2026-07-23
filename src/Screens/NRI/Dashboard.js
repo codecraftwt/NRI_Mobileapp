@@ -6,13 +6,19 @@ import { useSelector } from 'react-redux';
 import RMWidget from '../../Components/RMWidget';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useDashboard } from '../../Hooks/useDashboard';
+import { usePlans } from '../../Hooks/usePlans';
 import { lightColors as colors, typography, spacing, radius } from '../../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
+// Same rate applied at onboarding checkout — the membership card shows the
+// GST-inclusive amount so it matches what the customer actually paid.
+const GST_RATE = 0.18;
+
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
   const user = useSelector(s => s.user.user);
+  const { plans } = usePlans();
   const { showAlert, alertProps } = useAppAlert();
   const waveAnim = useRef(new Animated.Value(0)).current;
 
@@ -35,6 +41,15 @@ function Dashboard({ navigation }) {
 
   const membership = data?.membership;
   const recentTickets = data?.recentTickets || [];
+
+  // Match the active membership to its plan from GET /plans (by id, then slug,
+  // then name) so the card can show the plan's real price.
+  const membershipPlan = membership
+    ? (plans.find(p => p.id === membership.planId)
+        || plans.find(p => p.slug === membership.planSlug)
+        || plans.find(p => p.name === membership.planName)
+        || null)
+    : null;
 
   // Dashboard is the app's home screen (root of the bottom-tab navigator) —
   // hardware back here has nowhere left to go, so it falls through to the
@@ -78,6 +93,27 @@ function Dashboard({ navigation }) {
     return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   };
 
+  const formatPlanPrice = () => {
+    let price;
+    let currency;
+    // 1) The matched plan from GET /plans (prefer USD price the app displays).
+    if (membershipPlan) {
+      if (membershipPlan.usdPrice != null) { price = membershipPlan.usdPrice; currency = 'USD'; }
+      else if (membershipPlan.price != null) { price = membershipPlan.price; currency = membershipPlan.currency || 'USD'; }
+    }
+    // 2) Fall back to the dashboard membership price, then the price the user
+    //    paid at registration (stored on the user during onboarding checkout).
+    if (price == null) {
+      price = membership?.planPrice ?? user?.planPrice;
+      currency = membership?.planCurrency ?? user?.planCurrency ?? 'USD';
+    }
+    if (price == null) return '';
+    // Add GST so the card reflects the GST-inclusive amount actually paid.
+    const gross = Math.round(Number(price) * (1 + GST_RATE) * 100) / 100;
+    const symbol = currency === 'INR' ? '₹' : '$';
+    return `${symbol}${gross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   const quickActions = [
     { id: 'sos', name: 'SOS', icon: 'error-outline', color: '#EF4444' },
     { id: 'new', name: 'New Request', icon: 'description', color: '#F97316' },
@@ -97,7 +133,6 @@ function Dashboard({ navigation }) {
   const exploreActions = [
     { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: '#3B82F6' },
     { id: 'billing', name: 'Billing', icon: 'receipt-long', screen: 'Billing & Payments', color: '#1E3A8A' },
-    { id: 'addons', name: 'Packages', icon: 'auto-awesome-mosaic', screen: 'Add-on Packages', color: '#F59E0B' },
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
     { id: 'support', name: 'General Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#D94625' },
@@ -278,9 +313,16 @@ function Dashboard({ navigation }) {
                   </>
                 )}
               </View>
-              <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>
-                <Text style={styles.upgradeBtnText}>{membership ? 'Manage' : 'Join Now'}</Text>
-              </TouchableOpacity>
+              {membership ? (
+                <View style={[styles.priceTag, { zIndex: 1 }]}>
+                  <Text style={styles.priceTagValue}>{formatPlanPrice() || '—'}</Text>
+                  <Text style={styles.priceTagLabel}>plan price</Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('My Membership')}>
+                  <Text style={styles.upgradeBtnText}>Join Now</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -596,6 +638,26 @@ const styles = StyleSheet.create({
     fontFamily: typography.labelMedium.fontFamily,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  priceTag: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  priceTagValue: {
+    fontSize: 18,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF',
+  },
+  priceTagLabel: {
+    fontSize: 10,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#E5E7EB',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 40 },

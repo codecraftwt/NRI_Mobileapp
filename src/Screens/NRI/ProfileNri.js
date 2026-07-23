@@ -252,18 +252,6 @@ export default function ProfileNri({ navigation }) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Actions</Text>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('FamilyMain')}>
-            <Icon name="people" size={18} color="#1E3A8A" />
-            <Text style={[styles.actionBtnText, { color: '#1E3A8A' }]}>Manage Family ({familyMembers.length})</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnAmber]} onPress={() => navigation.navigate('Dashboard', { screen: 'Properties' })}>
-            <Icon name="home" size={18} color="#F59E0B" />
-            <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>Manage Properties ({properties.length})</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.card}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.cardTitle}>Family Members ({familyMembers.length})</Text>
             <TouchableOpacity style={styles.addLinkBtn} onPress={() => navigation.navigate('AddFamilyMember')}>

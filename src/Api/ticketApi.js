@@ -1,6 +1,7 @@
 import apiClient, { normalizeApiError } from './client';
 import { mapReport } from './reportApi';
 import { extractDocumentList, mapRequiredDocument } from './serviceSubscriptionApi';
+import { mapSupportTicket, mapSupportReply } from './supportTicketApi';
 
 // Documents required for a one-time (single-use) service selection. Call as the
 // selection changes on the booking form to know which document fields to render
@@ -183,6 +184,15 @@ function mapTicket(raw) {
     attachments: raw.attachments || [],
     timeline: (raw.timeline || []).map(mapTimelineEvent),
     rating: mapRating(raw.rating),
+    // Lightweight request-linked support-chat summary (present on the detail
+    // payload) so the screen can show a "Chat about this request" entry with
+    // an unread badge without a second call.
+    supportChat: raw.support_chat ? {
+      id: raw.support_chat.id,
+      status: raw.support_chat.status || null,
+      escalated: !!raw.support_chat.escalated,
+      unreadCount: raw.support_chat.unread_count ?? 0,
+    } : null,
     slaDeadline: raw.sla_deadline || null,
     serviceStartedAt: raw.service_started_at || null,
     serviceCompletedAt: raw.service_completed_at || null,
@@ -315,6 +325,42 @@ export async function getTicketDetail(ticketId) {
   try {
     const response = await apiClient.get(`/customer/tickets/${ticketId}`);
     return mapTicket(response.data?.data || response.data);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// GET /customer/tickets/{ticket}/support-chat — the request-linked chat plus
+// its full reply thread (chat is null if none started yet). Marks it read.
+export async function getTicketSupportChat(ticketId) {
+  try {
+    const response = await apiClient.get(`/customer/tickets/${ticketId}/support-chat`);
+    const data = response.data?.data || {};
+    const chat = data.chat || null;
+    const rawReplies = chat?.replies || chat?.messages || data.replies || [];
+    return {
+      chat: chat ? mapSupportTicket(chat) : null,
+      replies: rawReplies.map(mapSupportReply),
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /customer/tickets/{ticket}/support-chat — starts the chat on the first
+// message (201) or appends a reply thereafter (200); one endpoint either way.
+export async function sendTicketSupportChat(ticketId, message) {
+  try {
+    const response = await apiClient.post(`/customer/tickets/${ticketId}/support-chat`, { message });
+    const data = response.data?.data || {};
+    const chat = data.chat || null;
+    const rawReply = data.reply || data.message || null;
+    return {
+      chat: chat ? mapSupportTicket(chat) : null,
+      // This endpoint is the customer sending, so force our reply to the right side.
+      reply: rawReply ? { ...mapSupportReply(rawReply), fromCustomer: true } : null,
+      isNew: response.status === 201,
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }

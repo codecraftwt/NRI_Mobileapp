@@ -4,7 +4,7 @@ import apiClient, { normalizeApiError } from './client';
 // schema (descriptions only, no response `content`), so these mappers stay
 // tolerant across a couple of plausible snake_case shapes rather than
 // asserting one, consistent with mapTicket() in ticketApi.js.
-function mapSupportTicket(raw) {
+export function mapSupportTicket(raw) {
   if (!raw) return null;
   return {
     id: raw.id,
@@ -35,7 +35,7 @@ function isCustomerSender(raw) {
   return false;
 }
 
-function mapSupportReply(raw) {
+export function mapSupportReply(raw) {
   return {
     id: raw.id,
     fromCustomer: isCustomerSender(raw),

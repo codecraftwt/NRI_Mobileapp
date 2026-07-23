@@ -86,13 +86,14 @@ const appReducer = combineReducers({
 
 const rootReducer = (state, action) => {
   if (RESET_ACTION_TYPES.has(action.type)) {
-    // Wipe every slice on an auth-identity change EXCEPT `onboarding` (and the
-    // persist metadata) — that record must outlive logout so a user who signed
-    // out mid-onboarding resumes the wizard on their next sign-in. The
-    // triggering action (loginUser/registerUser.fulfilled) then repopulates the
-    // fresh `user` slice as normal.
-    const { onboarding, _persist } = state || {};
-    state = { onboarding, _persist };
+    // Wipe every slice on an auth-identity change EXCEPT `onboarding` — that
+    // record must outlive logout so a user who signed out mid-onboarding
+    // resumes the wizard on their next sign-in. The triggering action
+    // (loginUser/registerUser.fulfilled) then repopulates the fresh `user`
+    // slice as normal. Don't carry `_persist` here — the outer persistReducer
+    // owns that key; passing it into combineReducers triggers an
+    // "unexpected key" warning.
+    state = { onboarding: state?.onboarding };
   }
   return appReducer(state, action);
 };

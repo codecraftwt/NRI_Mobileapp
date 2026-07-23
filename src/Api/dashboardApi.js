@@ -60,6 +60,10 @@ function mapDashboard(raw) {
       planId: raw.membership.plan?.id ?? null,
       planName: raw.membership.plan?.name || null,
       planSlug: raw.membership.plan?.slug || null,
+      // Plan price for the dashboard membership card. Prefer the USD price the
+      // app displays in $; fall back to the base price if that's all there is.
+      planPrice: raw.membership.plan?.usd_price ?? raw.membership.plan?.price ?? null,
+      planCurrency: raw.membership.plan?.usd_price != null ? 'USD' : (raw.membership.plan?.currency || 'USD'),
       status: raw.membership.status || null,
       startDate: raw.membership.starts_at || null,
       endDate: raw.membership.expires_at || null,

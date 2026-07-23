@@ -126,6 +126,10 @@ function OnboardingPayment({ route, navigation }) {
       homeState: profile?.homeState,
       phone: profile?.phone,
       whatsapp: profile?.whatsapp,
+      // Remember the plan price paid at registration (USD) so the dashboard
+      // membership card can show it even before the API echoes a price.
+      planPrice: basePrice,
+      planCurrency: 'USD',
     }));
     dispatch(updateMembership(plan?.name));
     dispatch(addInvoice({

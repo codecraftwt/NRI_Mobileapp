@@ -164,10 +164,29 @@ function TicketDetail({ route, navigation }) {
         <TouchableOpacity
           style={styles.supportChatBar}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber })}
+          onPress={() => {
+            // A chat already exists on this request → open its full thread
+            // (reply/escalate via the existing support-ticket endpoints).
+            // Otherwise start one via POST /tickets/{id}/support-chat.
+            if (ticket.supportChat?.id) {
+              navigation.navigate('SupportTicketChat', { ticketId: ticket.supportChat.id });
+            } else {
+              navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber });
+            }
+          }}
         >
           <Icon name="chat-bubble-outline" size={18} color="#3B82F6" />
           <Text style={styles.supportChatBarText}>Support Chat</Text>
+          {ticket.supportChat?.escalated && (
+            <View style={styles.chatEscalatedBadge}>
+              <Text style={styles.chatEscalatedText}>Escalated</Text>
+            </View>
+          )}
+          {ticket.supportChat?.unreadCount > 0 && (
+            <View style={styles.chatUnreadBadge}>
+              <Text style={styles.chatUnreadText}>{ticket.supportChat.unreadCount}</Text>
+            </View>
+          )}
           <Icon name="chevron-right" size={20} color="#94A3B8" />
         </TouchableOpacity>
 
@@ -500,6 +519,10 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   supportChatBarText: { flex: 1, fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  chatUnreadBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  chatUnreadText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+  chatEscalatedBadge: { backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  chatEscalatedText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
   
   chargesList: { gap: 0 },
   chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', borderStyle: 'dashed' },

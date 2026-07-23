@@ -2,22 +2,33 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
-import { useSupportTickets } from '../../Hooks/useSupportTickets';
+import { sendTicketSupportChat } from '../../Api/ticketApi';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 function RequestSupportChat({ route, navigation }) {
-  const { serviceTicketId, ticketNumber } = route.params || {};
-  const { create, createLoading } = useSupportTickets();
+  const { serviceTicketId } = route.params || {};
   const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const createLoading = sending;
 
   const handleSend = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || sending) return;
+    setSending(true);
     try {
-      const result = await create(`Regarding request ${ticketNumber}`, message.trim(), serviceTicketId).unwrap();
-      navigation.replace('SupportTicketChat', { ticketId: result.ticket.id, createdTicketNumber: result.ticket.ticketNumber });
+      // Start-or-continue the request-linked chat via
+      // POST /customer/tickets/{id}/support-chat, then open the full thread.
+      const result = await sendTicketSupportChat(serviceTicketId, message.trim());
+      const chat = result.chat;
+      if (!chat?.id) {
+        Alert.alert('Could Not Start Chat', 'Please try again.');
+        return;
+      }
+      navigation.replace('SupportTicketChat', { ticketId: chat.id, createdTicketNumber: chat.ticketNumber });
     } catch (error) {
       Alert.alert('Could Not Start Chat', error?.message || 'Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 

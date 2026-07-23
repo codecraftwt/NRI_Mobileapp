@@ -27,7 +27,10 @@ const NEXT_STEPS = [
 function OnboardingWelcome({ route, navigation }) {
   const { plan } = route.params || {};
   const dispatch = useDispatch();
-  const user = useSelector(s => s.user.user);
+  // Select a STABLE primitive key, not the whole user object — the effect
+  // below mutates the user (updateProfile/setOnboarded), so depending on the
+  // object would re-run it every render and hit "Maximum update depth".
+  const userId = useSelector(s => onboardingUserKey(s.user.user));
 
   useEffect(() => {
     dispatch(updateProfile({
@@ -36,9 +39,8 @@ function OnboardingWelcome({ route, navigation }) {
     dispatch(setOnboarded(true));
     // Persist completion so it survives logout — this is what stops a
     // re-login from resuming the wizard once onboarding is genuinely done.
-    const userId = onboardingUserKey(user);
     if (userId != null) dispatch(markOnboardingComplete(userId));
-  }, [dispatch, user]);
+  }, [dispatch, userId]);
 
   return (
     <View style={styles.container}>
