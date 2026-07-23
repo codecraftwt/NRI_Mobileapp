@@ -327,7 +327,7 @@ function Dashboard({ navigation }) {
           </View>
 
           {/* Explore Grid */}
-          <View style={styles.sectionContainer}>
+          <View style={[styles.sectionContainer, { marginBottom: 0 }]}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Explore</Text>
             </View>
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   scrollContainer: {
     paddingHorizontal: 20,
     paddingTop: 24, // Standard top padding since RM card no longer overlaps
-    paddingBottom: 100,
+    paddingBottom: 40,
   },
 
   quickActionsCard: {

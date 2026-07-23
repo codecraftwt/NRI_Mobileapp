@@ -209,12 +209,9 @@ function Profile({ navigation }) {
               </View>
               <Text style={styles.referralTitle}>Refer & Earn</Text>
             </View>
-            <View style={styles.earnedBadge}>
-              <Text style={styles.earnedText}>₹2,500 earned</Text>
-            </View>
           </View>
           
-          <Text style={styles.referralFooter}>Share your code & earn ₹2,500 for every Premium plan referral.</Text>
+          <Text style={styles.referralFooter}>Share your code & earn for every Premium plan referral.</Text>
 
           <View style={styles.referralCodeBox}>
             <Text style={styles.referralCodeText}>{referralCode || 'WY71RSH2'}</Text>

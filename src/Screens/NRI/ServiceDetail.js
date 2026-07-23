@@ -94,9 +94,6 @@ function ServiceDetail({ route, navigation }) {
 
       {/* Hero Section */}
       <View style={styles.heroSection}>
-        <View style={[styles.headerIconBox, { backgroundColor: category.color + '15' }]}>
-          <Icon name={category.icon} size={22} color={category.color} />
-        </View>
         <Text style={styles.heroDesc}>{category.desc}</Text>
 
         <TouchableOpacity

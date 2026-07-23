@@ -175,7 +175,7 @@ function Register({ navigation }) {
             </View>
             <TextInput
               style={styles.input}
-              placeholder="Min 8 chars, 1 number & 1 special char"
+              placeholder="Enter your password"
               placeholderTextColor={C.textPlaceholder}
               secureTextEntry={!showPassword}
               value={password}

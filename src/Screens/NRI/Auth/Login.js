@@ -94,12 +94,6 @@ function Login({ navigation }) {
       <View style={styles.bgShape1} />
       <View style={styles.bgShape2} />
 
-      {navigation.canGoBack() && (
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={22} color={C.primary} />
-        </TouchableOpacity>
-      )}
-
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -160,10 +154,10 @@ function Login({ navigation }) {
 
         <View style={styles.optionsRow}>
           <TouchableOpacity style={styles.checkboxRow} onPress={() => setKeepSignedIn(v => !v)} activeOpacity={0.7}>
-            <View style={[styles.checkbox, keepSignedIn && { backgroundColor: C.accent, borderColor: C.accent }]}>
+            {/* <View style={[styles.checkbox, keepSignedIn && { backgroundColor: C.accent, borderColor: C.accent }]}>
               {keepSignedIn && <Icon name="check" size={14} color="white" />}
-            </View>
-            <Text style={styles.checkboxLabel}>Keep me signed in</Text>
+            </View> */}
+            {/* <Text style={styles.checkboxLabel}>Keep me signed in</Text> */}
           </TouchableOpacity>
           <TouchableOpacity onPress={handleForgotPassword}>
             <Text style={[styles.forgotText, { color: C.primary }]}>Forgot password?</Text>
@@ -219,24 +213,6 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'hidden'
-  },
-
-  backBtn: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
 
   // Dynamic Background Layers
@@ -389,9 +365,9 @@ const styles = StyleSheet.create({
   },
   optionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 8,
     paddingHorizontal: 4,
   },
   checkboxRow: {
@@ -432,7 +408,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
-    marginTop: 40,
+    marginTop: 24,
   },
   ctaBtnDisabled: {
     opacity: 0.7

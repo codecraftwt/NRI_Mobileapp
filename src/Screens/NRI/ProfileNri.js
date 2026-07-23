@@ -276,50 +276,6 @@ export default function ProfileNri({ navigation }) {
             ))
           )}
         </View>
-
-        <View style={styles.card}>
-          <View style={styles.listHeaderRow}>
-            <Text style={styles.cardTitle}>Properties ({properties.length})</Text>
-            <TouchableOpacity style={styles.addLinkBtn} onPress={() => navigation.navigate('Dashboard', { screen: 'AddProperty' })}>
-              <Icon name="add" size={16} color="#1E3A8A" />
-              <Text style={styles.addLinkText}>Add</Text>
-            </TouchableOpacity>
-          </View>
-          {properties.length === 0 ? (
-            <Text style={styles.emptyText}>No properties added yet.</Text>
-          ) : (
-            properties.map(p => (
-              <View key={p.id} style={styles.listRow}>
-                <Text style={styles.listRowName}>{p.nickname}</Text>
-                <View style={styles.relationPill}>
-                  <Text style={styles.relationPillText}>{PROPERTY_TYPE_LABELS[p.type] || p.type}</Text>
-                </View>
-                <Text style={styles.listRowMeta}>{p.address}</Text>
-                {!!p.tenantName && <Text style={styles.listRowMeta}>Tenant: {p.tenantName}</Text>}
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Documents ({documents.length})</Text>
-          {documents.length === 0 ? (
-            <Text style={styles.emptyText}>No documents uploaded yet.</Text>
-          ) : (
-            documents.map(doc => (
-              <View key={doc.id} style={styles.listRow}>
-                <Text style={styles.listRowName}>{doc.documentName}</Text>
-                <View style={styles.listRowMetaRow}>
-                  <View style={styles.relationPill}>
-                    <Text style={styles.relationPillText}>{DOCUMENT_TYPE_LABELS[doc.documentType] || doc.documentType}</Text>
-                  </View>
-                  <Text style={styles.listRowMeta}>Expiry: {doc.expiryDate || '—'}</Text>
-                </View>
-                <Text style={styles.listRowMeta}>{doc.sharedWithRm ? 'Shared with RM' : 'Not shared with RM'}</Text>
-              </View>
-            ))
-          )}
-        </View>
       </ScrollView>
       <AppAlert {...alertProps} />
     </View>
