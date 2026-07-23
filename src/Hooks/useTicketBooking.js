@@ -4,6 +4,9 @@ import {
   fetchTicketCoupons,
   applyTicketCoupon,
   clearAppliedCoupon,
+  fetchTicketRequiredDocuments,
+  addTicketDocuments,
+  clearTicketRequiredDocuments,
   resetTicketBooking,
   submitTicket,
   payForTicket,
@@ -27,6 +30,11 @@ export function useTicketBooking() {
   const couponApplyLoading = useSelector(state => state.ticketBooking.couponApplyStatus === 'loading');
   const couponApplyError = useSelector(state => state.ticketBooking.couponApplyError);
 
+  const requiredDocuments = useSelector(state => state.ticketBooking.requiredDocuments);
+  const requiredDocsLoading = useSelector(state => state.ticketBooking.requiredDocsStatus === 'loading');
+  const requiredDocsError = useSelector(state => state.ticketBooking.requiredDocsError);
+  const docsUploadLoading = useSelector(state => state.ticketBooking.docsUploadStatus === 'loading');
+
   const submitLoading = useSelector(state => state.ticketBooking.submitStatus === 'loading');
   const payLoading = useSelector(state => state.ticketBooking.payStatus === 'loading');
   const verifyLoading = useSelector(state => state.ticketBooking.verifyStatus === 'loading');
@@ -48,6 +56,14 @@ export function useTicketBooking() {
     couponApplyError,
     applyCoupon: (params) => dispatch(applyTicketCoupon(params)),
     clearCoupon: () => dispatch(clearAppliedCoupon()),
+
+    requiredDocuments,
+    requiredDocsLoading,
+    requiredDocsError,
+    fetchRequiredDocuments: (serviceIds) => dispatch(fetchTicketRequiredDocuments(serviceIds)),
+    clearRequiredDocuments: () => dispatch(clearTicketRequiredDocuments()),
+    docsUploadLoading,
+    addDocuments: (params) => dispatch(addTicketDocuments(params)),
 
     submitLoading,
     submitTicket: (params) => dispatch(submitTicket(params)),

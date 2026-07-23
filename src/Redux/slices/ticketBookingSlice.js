@@ -39,6 +39,28 @@ export const applyTicketCoupon = createAsyncThunk(
   }
 );
 
+export const fetchTicketRequiredDocuments = createAsyncThunk(
+  'ticketBooking/fetchRequiredDocuments',
+  async (serviceIds, { rejectWithValue }) => {
+    try {
+      return await ticketApi.getTicketRequiredDocuments(serviceIds);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const addTicketDocuments = createAsyncThunk(
+  'ticketBooking/addDocuments',
+  async ({ ticketId, documents }, { rejectWithValue }) => {
+    try {
+      return await ticketApi.addTicketDocuments(ticketId, documents);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const submitTicket = createAsyncThunk(
   'ticketBooking/submit',
   async (params, { rejectWithValue }) => {
@@ -82,6 +104,11 @@ const initialState = {
   appliedCoupon: null,
   couponApplyStatus: 'idle',
   couponApplyError: null,
+  requiredDocuments: [],
+  requiredDocsStatus: 'idle',
+  requiredDocsError: null,
+  docsUploadStatus: 'idle',
+  docsUploadError: null,
   submitStatus: 'idle',
   submitError: null,
   payStatus: 'idle',
@@ -98,6 +125,11 @@ const ticketBookingSlice = createSlice({
       state.appliedCoupon = null;
       state.couponApplyStatus = 'idle';
       state.couponApplyError = null;
+    },
+    clearTicketRequiredDocuments: (state) => {
+      state.requiredDocuments = [];
+      state.requiredDocsStatus = 'idle';
+      state.requiredDocsError = null;
     },
     resetTicketBooking: () => initialState,
   },
@@ -140,6 +172,29 @@ const ticketBookingSlice = createSlice({
         state.couponApplyError = action.payload;
         state.appliedCoupon = null;
       })
+      .addCase(fetchTicketRequiredDocuments.pending, (state) => {
+        state.requiredDocsStatus = 'loading';
+        state.requiredDocsError = null;
+      })
+      .addCase(fetchTicketRequiredDocuments.fulfilled, (state, action) => {
+        state.requiredDocsStatus = 'succeeded';
+        state.requiredDocuments = action.payload;
+      })
+      .addCase(fetchTicketRequiredDocuments.rejected, (state, action) => {
+        state.requiredDocsStatus = 'failed';
+        state.requiredDocsError = action.payload;
+      })
+      .addCase(addTicketDocuments.pending, (state) => {
+        state.docsUploadStatus = 'loading';
+        state.docsUploadError = null;
+      })
+      .addCase(addTicketDocuments.fulfilled, (state) => {
+        state.docsUploadStatus = 'succeeded';
+      })
+      .addCase(addTicketDocuments.rejected, (state, action) => {
+        state.docsUploadStatus = 'failed';
+        state.docsUploadError = action.payload;
+      })
       .addCase(submitTicket.pending, (state) => {
         state.submitStatus = 'loading';
         state.submitError = null;
@@ -176,5 +231,5 @@ const ticketBookingSlice = createSlice({
   },
 });
 
-export const { clearAppliedCoupon, resetTicketBooking } = ticketBookingSlice.actions;
+export const { clearAppliedCoupon, clearTicketRequiredDocuments, resetTicketBooking } = ticketBookingSlice.actions;
 export default ticketBookingSlice.reducer;

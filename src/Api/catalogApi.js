@@ -22,6 +22,31 @@ export async function getServiceCategories() {
   }
 }
 
+function mapPriority(raw) {
+  return {
+    id: raw.id,
+    name: raw.name || raw.label || raw.title,
+    slug: raw.slug,
+    description: raw.description || null,
+    // Flat, single fee added once to the request for this tier (0 for the
+    // default tier); amounts are in USD.
+    surcharge: raw.surcharge != null ? Number(raw.surcharge) : 0,
+    isDefault: raw.is_default ?? raw.default ?? false,
+  };
+}
+
+// One-time request priority tiers (public) — the tiers a customer picks from
+// when booking a single service. Post the chosen tier's `slug` as `urgency`.
+export async function getPriorities() {
+  try {
+    const response = await apiClient.get('/priorities');
+    const list = response.data?.data || response.data || [];
+    return list.map(mapPriority);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 function mapPricing(raw) {
   if (!raw) return null;
   return {

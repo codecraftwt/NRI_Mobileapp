@@ -1,5 +1,39 @@
 import apiClient, { normalizeApiError } from './client';
 import { mapReport } from './reportApi';
+import { extractDocumentList, mapRequiredDocument } from './serviceSubscriptionApi';
+
+// Documents required for a one-time (single-use) service selection. Call as the
+// selection changes on the booking form to know which document fields to render
+// before submitting POST /customer/tickets. Empty array means none required.
+export async function getTicketRequiredDocuments(serviceIds = []) {
+  try {
+    const response = await apiClient.get('/customer/tickets/required-documents', {
+      params: { service_ids: serviceIds },
+    });
+    if (__DEV__) console.log('[tickets/required-documents] raw response:', JSON.stringify(response.data));
+    return extractDocumentList(response.data).map(mapRequiredDocument);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Add a missing required document, or replace one already uploaded. Available
+// any time the ticket is still open (Ticket::isOpen()). `documents` is keyed by
+// required-document id: { [docId]: { uri, name, type } }.
+export async function addTicketDocuments(ticketId, documents) {
+  try {
+    const formData = new FormData();
+    Object.entries(documents || {}).forEach(([docId, file]) => {
+      if (file) formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
+    });
+    const response = await apiClient.post(`/customer/tickets/${ticketId}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
 
 function mapCoupon(raw) {
   return {
@@ -159,10 +193,13 @@ function mapTicket(raw) {
 // upload), plain JSON otherwise.
 export async function createTicket({
   serviceId, extraServices, addons, couponCode, familyMemberId, propertyId,
-  stateId, cityId, talukaId, address, urgency, preferredDate, customerNotes, files,
+  stateId, cityId, talukaId, address, urgency, preferredDate, customerNotes, files, documents,
 }) {
   try {
-    const hasFiles = files && files.length > 0;
+    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
+    // Multipart is required whenever there are generic attachments OR keyed
+    // required-documents to upload; plain JSON otherwise.
+    const hasFiles = (files && files.length > 0) || docEntries.length > 0;
     let response;
 
     if (hasFiles) {
@@ -180,7 +217,10 @@ export async function createTicket({
       formData.append('urgency', urgency);
       if (preferredDate) formData.append('preferred_date', preferredDate);
       if (customerNotes) formData.append('customer_notes', customerNotes);
-      files.forEach(f => formData.append('attachments[]', { uri: f.uri, name: f.name, type: f.type || 'application/octet-stream' }));
+      (files || []).forEach(f => formData.append('attachments[]', { uri: f.uri, name: f.name, type: f.type || 'application/octet-stream' }));
+      docEntries.forEach(([docId, file]) => {
+        formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
+      });
 
       response = await apiClient.post('/customer/tickets', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },

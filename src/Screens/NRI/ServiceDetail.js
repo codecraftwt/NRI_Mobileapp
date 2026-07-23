@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
@@ -27,9 +27,37 @@ function ServiceDetail({ route, navigation }) {
   const services = activeTab === 'oneTime' ? oneTime : recurring;
   const selectedIds = activeTab === 'oneTime' ? oneTimeIds : recurringIds;
 
+  // Holds the pending selection while the switch-type confirmation is shown:
+  // { id, otherLabel, count } — null when the dialog is closed.
+  const [switchPrompt, setSwitchPrompt] = useState(null);
+
   const toggleService = (id) => {
     const setIds = activeTab === 'oneTime' ? setOneTimeIds : setRecurringIds;
+    const isSelected = selectedIds.includes(id);
+    const otherIds = activeTab === 'oneTime' ? recurringIds : oneTimeIds;
+
+    // A single booking can't mix one-time and recurring services. If the other
+    // tab already has picks, ask before switching type (clearing the other).
+    if (!isSelected && otherIds.length > 0) {
+      setSwitchPrompt({
+        id,
+        otherLabel: activeTab === 'oneTime' ? 'recurring' : 'one-time',
+        count: otherIds.length,
+      });
+      return;
+    }
+
     setIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const confirmSwitch = () => {
+    if (!switchPrompt) return;
+    const { id } = switchPrompt;
+    const setIds = activeTab === 'oneTime' ? setOneTimeIds : setRecurringIds;
+    const clearOther = activeTab === 'oneTime' ? setRecurringIds : setOneTimeIds;
+    clearOther([]);
+    setIds(prev => (prev.includes(id) ? prev : [...prev, id]));
+    setSwitchPrompt(null);
   };
 
   const handleBook = () => {
@@ -129,6 +157,43 @@ function ServiceDetail({ route, navigation }) {
           })
         )}
       </ScrollView>
+
+      {/* Styled Switch Request Type confirmation */}
+      <Modal
+        visible={!!switchPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSwitchPrompt(null)}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={styles.dialogIconWrap}>
+              <Icon name="swap-horiz" size={32} color="#D94625" />
+            </View>
+            <Text style={styles.dialogTitle}>Switch Request Type?</Text>
+            <Text style={styles.dialogMessage}>
+              You have {switchPrompt?.count} {switchPrompt?.otherLabel} service{switchPrompt?.count > 1 ? 's' : ''} selected.
+              A booking can only include one type at a time. Clear them and continue?
+            </Text>
+            <View style={styles.dialogBtnRow}>
+              <TouchableOpacity
+                style={[styles.dialogBtn, styles.dialogBtnGhost]}
+                onPress={() => setSwitchPrompt(null)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dialogBtnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dialogBtn, styles.dialogBtnPrimary]}
+                onPress={confirmSwitch}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.dialogBtnPrimaryText}>Clear & Continue</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -324,7 +389,87 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: typography.labelMedium.fontFamily,
     color: '#059669',
-  }
+  },
+
+  // Switch Request Type dialog
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+  },
+  dialogIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FDECE7', // tint of the #D94625 accent
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  dialogMessage: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 24,
+  },
+  dialogBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  dialogBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialogBtnGhost: {
+    backgroundColor: '#F1F5F9',
+  },
+  dialogBtnGhostText: {
+    fontSize: 15,
+    fontFamily: typography.h4.fontFamily,
+    color: '#475569',
+  },
+  dialogBtnPrimary: {
+    backgroundColor: '#D94625',
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  dialogBtnPrimaryText: {
+    fontSize: 15,
+    fontFamily: typography.h4.fontFamily,
+    color: '#FFFFFF',
+  },
 });
 
 export default ServiceDetail;

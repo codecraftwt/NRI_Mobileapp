@@ -3,7 +3,7 @@ import apiClient, { normalizeApiError } from './client';
 // Recurring per-service subscriptions (Service.allows_recurring). A single
 // subscription can bundle several services that share one billing interval.
 
-function mapRequiredDocument(raw) {
+export function mapRequiredDocument(raw) {
   return {
     id: raw.id ?? raw.document_id ?? raw.key ?? raw.slug ?? raw.type,
     name: raw.name || raw.label || raw.title || raw.document_name || raw.type || 'Document',
@@ -17,7 +17,7 @@ function mapRequiredDocument(raw) {
 // wrapper, or grouped per service (either keyed by id or as objects each
 // carrying a `documents` array). Flatten whatever comes back to a single
 // de-duplicated list of document definitions.
-function extractDocumentList(payload) {
+export function extractDocumentList(payload) {
   const data = payload?.data ?? payload;
   let list = [];
   if (Array.isArray(data)) {

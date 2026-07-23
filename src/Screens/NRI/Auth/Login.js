@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '../../../Redux/slices/userSlice';
@@ -25,6 +25,7 @@ function Login({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [errorDialog, setErrorDialog] = useState(null);
 
   const clearError = (field) => {
     if (fieldErrors[field]) setFieldErrors(prev => ({ ...prev, [field]: undefined }));
@@ -63,7 +64,10 @@ function Login({ navigation }) {
         if (error?.errors) {
           setFieldErrors(error.errors);
         }
-        Alert.alert('Sign In Failed', error?.message || 'Email or password is incorrect.');
+        setErrorDialog({
+          title: 'Sign In Failed',
+          message: error?.message || 'Email or password is incorrect.',
+        });
       });
   };
 
@@ -170,6 +174,31 @@ function Login({ navigation }) {
         <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Styled Sign In Failed Dialog */}
+      <Modal
+        visible={!!errorDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorDialog(null)}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.dialogCard}>
+            <View style={styles.dialogIconWrap}>
+              <Icon name="error-outline" size={34} color="#EF4444" />
+            </View>
+            <Text style={styles.dialogTitle}>{errorDialog?.title}</Text>
+            <Text style={styles.dialogMessage}>{errorDialog?.message}</Text>
+            <TouchableOpacity
+              style={[styles.dialogBtn, { backgroundColor: C.accent }]}
+              onPress={() => setErrorDialog(null)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.dialogBtnText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -421,6 +450,72 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     textAlign: 'center',
     marginTop: 40
+  },
+
+  // Styled Error Dialog
+  dialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  dialogCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius['2xl'],
+    paddingTop: 28,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+  },
+  dialogIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: radius.full,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontFamily: 'Montserrat-Bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  dialogMessage: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Regular',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  dialogBtn: {
+    width: '100%',
+    height: 52,
+    borderRadius: radius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+  },
+  dialogBtnText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
   },
 });
 

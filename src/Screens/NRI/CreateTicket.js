@@ -26,6 +26,7 @@ import { useStates } from '../../Hooks/useStates';
 import { useDistricts } from '../../Hooks/useDistricts';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
+import { usePriorities } from '../../Hooks/usePriorities';
 import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
@@ -42,7 +43,6 @@ const NO_PROPERTY = 'Not applicable';
 const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
 const REQUEST_TYPES = [ONE_TIME, RECURRING];
-const PRIORITY_OPTIONS = ['Standard', 'Express', 'Emergency'];
 // Standard GST rate used for the instant local estimate (shown before a state
 // is picked). The server quote returns the authoritative gst_rate/gst_amount
 // once state_id is available and takes over from this estimate.
@@ -65,6 +65,10 @@ const formatUsdMonthly = (pricing) => {
 const formatUsdAmount = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// Dropdown label for a priority tier — appends the flat surcharge when it has
+// one so the cost is visible in the picker (the default tier shows no fee).
+const priorityLabel = (p) => (p.surcharge > 0 ? `${p.name} (+${formatUsdAmount(p.surcharge)})` : p.name);
+
 // The quote's gst_rate may arrive as a fraction (0.18) or a whole percent
 // (18) — normalize to a percent for the "GST (18%)" label, dropping trailing
 // decimals when it's a round number.
@@ -74,7 +78,6 @@ const formatGstLabel = (rate) => {
   const rounded = Number.isInteger(pct) ? pct : Number(pct.toFixed(2));
   return `GST (${rounded}%)`;
 };
-const PRIORITY_TO_URGENCY = { Standard: 'standard', Express: 'express', Emergency: 'emergency' };
 // Matches the family member API's `relationship` enum (parent/sibling/spouse/child/other).
 const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
@@ -176,7 +179,10 @@ function CreateTicket({ route, navigation }) {
   const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState(route.params?.initialSubscriptionServiceIds || []);
   const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
   const isRecurring = requestType === RECURRING;
-  const [priority, setPriority] = useState('Standard');
+  // The selected one-time priority tier's slug (posted as `urgency`). Defaults
+  // to 'standard' so quotes work before the /priorities list loads; corrected
+  // to the API's default tier once available.
+  const [prioritySlug, setPrioritySlug] = useState('standard');
   const [fullName, setFullName] = useState('');
   const [relation, setRelation] = useState('');
   const [property, setProperty] = useState(NO_PROPERTY);
@@ -206,6 +212,7 @@ function CreateTicket({ route, navigation }) {
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(state);
   const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas(city, '');
   const { categoryNames, loading: loadingCategories, failed: categoriesFailed, retry: retryCategories } = useServiceCategories();
+  const { priorities, loading: prioritiesLoading, failed: prioritiesFailed, retry: retryPriorities } = usePriorities();
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { properties } = useProperties();
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
@@ -227,11 +234,11 @@ function CreateTicket({ route, navigation }) {
   // Recurring services for the subscription flow (Service.allows_recurring).
   const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state);
   const {
-    requiredDocuments,
-    requiredDocsLoading,
-    requiredDocsError,
-    fetchRequiredDocuments,
-    clearRequiredDocuments,
+    requiredDocuments: subRequiredDocuments,
+    requiredDocsLoading: subRequiredDocsLoading,
+    requiredDocsError: subRequiredDocsError,
+    fetchRequiredDocuments: fetchSubRequiredDocuments,
+    clearRequiredDocuments: clearSubRequiredDocuments,
     createLoading: subscribeLoading,
     createSubscription,
     reset: resetSubscription,
@@ -248,6 +255,11 @@ function CreateTicket({ route, navigation }) {
     couponApplyLoading,
     applyCoupon,
     clearCoupon,
+    requiredDocuments: ticketRequiredDocuments,
+    requiredDocsLoading: ticketRequiredDocsLoading,
+    requiredDocsError: ticketRequiredDocsError,
+    fetchRequiredDocuments: fetchTicketRequiredDocs,
+    clearRequiredDocuments: clearTicketRequiredDocs,
     submitLoading,
     submitTicket,
     payLoading,
@@ -256,6 +268,14 @@ function CreateTicket({ route, navigation }) {
     verifyPayment,
     reset: resetBooking,
   } = useTicketBooking();
+
+  // Required documents come from a different endpoint per mode: the
+  // subscription flow for recurring, the ticket flow for one-time. Both feed
+  // the same `documentFiles` state and the same Required Documents UI below.
+  const requiredDocuments = isRecurring ? subRequiredDocuments : ticketRequiredDocuments;
+  const requiredDocsLoading = isRecurring ? subRequiredDocsLoading : ticketRequiredDocsLoading;
+  const requiredDocsError = isRecurring ? subRequiredDocsError : ticketRequiredDocsError;
+  const fetchRequiredDocuments = isRecurring ? fetchSubRequiredDocuments : fetchTicketRequiredDocs;
 
   const stateId = state ? states.find(s => s.name === state)?.id : null;
   const cityId = city ? cities.find(c => c.name === city)?.id : null;
@@ -278,16 +298,21 @@ function CreateTicket({ route, navigation }) {
   // so default to the first one as soon as the category's list loads. The
 
 
-  // Reset an Emergency selection that's no longer valid for the chosen service.
-  useEffect(() => {
-    if (priority === 'Emergency' && selectedService && !selectedService.allowsEmergency) {
-      setPriority('Standard');
-    }
-  }, [selectedService, priority]);
+  // The emergency tier isn't offered for services that don't allow it.
+  const emergencyAllowed = !selectedService || selectedService.allowsEmergency;
+  const availablePriorities = priorities.filter(p => emergencyAllowed || p.slug !== 'emergency');
 
-  const priorityOptions = selectedService && !selectedService.allowsEmergency
-    ? ['Standard', 'Express']
-    : PRIORITY_OPTIONS;
+  // Keep the selection valid: default to the API's default tier (or the first
+  // available) once priorities load, and reset off an emergency tier that's no
+  // longer valid for the chosen service.
+  useEffect(() => {
+    if (availablePriorities.length === 0) return;
+    if (!availablePriorities.some(p => p.slug === prioritySlug)) {
+      const fallback = availablePriorities.find(p => p.isDefault) || availablePriorities[0];
+      setPrioritySlug(fallback.slug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priorities, emergencyAllowed]);
 
   const addonIdsKey = selectedAddonIds.join(',');
   const baseServiceIdsKey = selectedBaseServiceIds.join(',');
@@ -302,11 +327,11 @@ function CreateTicket({ route, navigation }) {
       extraServices: selectedBaseServiceIds.slice(1),
       addons: selectedAddonIds,
       stateId,
-      urgency: PRIORITY_TO_URGENCY[priority],
+      urgency: prioritySlug || 'standard',
       couponCode: appliedCoupon?.code,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseServiceIdsKey, addonIdsKey, stateId, priority, appliedCoupon?.code]);
+  }, [baseServiceIdsKey, addonIdsKey, stateId, prioritySlug, appliedCoupon?.code]);
 
   // The server quote needs a state (the API 422s without state_id), which
   // sits further down the form than the add-on checkboxes. So the panel
@@ -318,7 +343,11 @@ function CreateTicket({ route, navigation }) {
   const localAddonsSubtotal = selectedAddonServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
   const selectedBaseServicesList = baseServices.filter(s => selectedBaseServiceIds.includes(s.id));
   const localBasePrice = selectedBaseServicesList.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
-  const localSubtotal = localBasePrice + localAddonsSubtotal;
+  // The chosen priority tier's flat surcharge (0 for the default tier) — folded
+  // into the local estimate; the server quote returns the authoritative amount.
+  const selectedPriority = availablePriorities.find(p => p.slug === prioritySlug) || null;
+  const prioritySurcharge = selectedPriority?.surcharge || 0;
+  const localSubtotal = localBasePrice + localAddonsSubtotal + prioritySurcharge;
   const localGst = Math.round(localSubtotal * GST_RATE * 100) / 100;
   const localTotal = localSubtotal + localGst;
 
@@ -338,12 +367,23 @@ function CreateTicket({ route, navigation }) {
   // whenever the selected recurring services change (empty = none required).
   useEffect(() => {
     if (!isRecurring || selectedSubscriptionIds.length === 0) {
-      clearRequiredDocuments();
+      clearSubRequiredDocuments();
       return;
     }
-    fetchRequiredDocuments(selectedSubscriptionIds);
+    fetchSubRequiredDocuments(selectedSubscriptionIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecurring, subscriptionIdsKey]);
+
+  // Which documents the current one-time selection requires — refreshed
+  // whenever the selected base services change (empty = none required).
+  useEffect(() => {
+    if (isRecurring || selectedBaseServiceIds.length === 0) {
+      clearTicketRequiredDocs();
+      return;
+    }
+    fetchTicketRequiredDocs(selectedBaseServiceIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecurring, baseServiceIdsKey]);
 
   const formattedDate = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -357,7 +397,8 @@ function CreateTicket({ route, navigation }) {
         && fullAddress.trim().length > 0 && !missingRequiredDoc)
     : (serviceCategory && selectedBaseServiceIds.length > 0
         && fullName.trim().length > 0 && relation && state
-        && fullAddress.trim().length > 0 && pincode.trim().length > 0);
+        && fullAddress.trim().length > 0 && pincode.trim().length > 0
+        && !missingRequiredDoc);
 
   const handlePincodeLookup = () => {
     if (!pincode || pincode.trim().length < 4) {
@@ -600,12 +641,12 @@ function CreateTicket({ route, navigation }) {
           successMessage: 'Your service request has been paid and confirmed.',
         });
       } else {
-        Alert.alert('Payment Confirmed', result.message || 'Your service request has been paid.', [
+        showAlert('Payment Confirmed', result.message || 'Your service request has been paid.', [
           { text: 'OK', onPress: goToServices },
         ]);
       }
     } catch (error) {
-      Alert.alert(
+      showAlert(
         'Payment Failed',
         error?.message || 'Could not complete payment. Your request has been saved — you can pay from My Tickets.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
@@ -628,11 +669,11 @@ function CreateTicket({ route, navigation }) {
       if (session?.paymentId) {
         await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
       }
-      Alert.alert(session?.successTitle || 'Payment Successful', session?.successMessage || '', [
+      showAlert(session?.successTitle || 'Payment Successful', session?.successMessage || 'Your payment has been confirmed.', [
         { text: 'OK', onPress: onOk },
       ]);
     } catch (error) {
-      Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+      showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
     }
   };
 
@@ -687,7 +728,7 @@ function CreateTicket({ route, navigation }) {
         ]);
       }
     } catch (error) {
-      Alert.alert('Subscription Failed', error?.message || 'Could not create your subscription. Please try again.');
+      showAlert('Subscription Failed', error?.message || 'Could not create your subscription. Please try again.');
     }
   };
 
@@ -714,10 +755,11 @@ function CreateTicket({ route, navigation }) {
         cityId,
         talukaId,
         address,
-        urgency: PRIORITY_TO_URGENCY[priority],
+        urgency: prioritySlug || 'standard',
         preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
         customerNotes: notes,
         files,
+        documents: documentFiles,
       }).unwrap();
 
       if (result.paymentRequired) {
@@ -730,7 +772,7 @@ function CreateTicket({ route, navigation }) {
         ]);
       }
     } catch (error) {
-      Alert.alert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
+      showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
     }
   };
 
@@ -752,6 +794,36 @@ function CreateTicket({ route, navigation }) {
               {' '}Parent-care visits used: <Text style={styles.bold}>{usage.visitsUsed ?? 0}{parentCareVisitsLimit != null ? ` of ${parentCareVisitsLimit}` : ''}</Text>.
             </Text>
           </View>
+        )}
+
+        {/* Priority tiers — one-time requests only (recurring subscriptions
+            have no per-request urgency). */}
+        {!isRecurring && (
+          <>
+            <Text style={styles.sectionTitle}>Priority</Text>
+            <View style={styles.card}>
+              <SelectField
+                label="Priority"
+                required
+                value={selectedPriority ? priorityLabel(selectedPriority) : ''}
+                placeholder="Select priority..."
+                options={availablePriorities.map(priorityLabel)}
+                loading={prioritiesLoading}
+                onSelect={(label) => {
+                  const picked = availablePriorities.find(p => priorityLabel(p) === label);
+                  if (picked) setPrioritySlug(picked.slug);
+                }}
+              />
+              {prioritiesFailed && (
+                <TouchableOpacity onPress={retryPriorities}>
+                  <Text style={styles.retryText}>Couldn't load priorities. Tap to retry.</Text>
+                </TouchableOpacity>
+              )}
+              {!emergencyAllowed && !prioritiesLoading && (
+                <Text style={styles.hint}>Emergency priority isn't available for the selected service.</Text>
+              )}
+            </View>
+          </>
         )}
 
         {/* <Text style={styles.sectionTitle}>What do you need?</Text>
@@ -912,7 +984,7 @@ function CreateTicket({ route, navigation }) {
           </>)}
         </View> */}
 
-        {isRecurring && selectedSubscriptionIds.length > 0 && (
+        {((isRecurring && selectedSubscriptionIds.length > 0) || (!isRecurring && selectedBaseServiceIds.length > 0)) && (
           <>
             <Text style={styles.sectionTitle}>Required Documents</Text>
             <View style={styles.card}>
@@ -922,7 +994,7 @@ function CreateTicket({ route, navigation }) {
                   <Text style={styles.hint}>Checking required documents…</Text>
                 </View>
               ) : requiredDocsError ? (
-                <TouchableOpacity onPress={() => fetchRequiredDocuments(selectedSubscriptionIds)}>
+                <TouchableOpacity onPress={() => fetchRequiredDocuments(isRecurring ? selectedSubscriptionIds : selectedBaseServiceIds)}>
                   <Text style={styles.retryText}>Couldn't load required documents. Tap to retry.</Text>
                 </TouchableOpacity>
               ) : requiredDocuments.length === 0 ? (
@@ -1162,7 +1234,7 @@ function CreateTicket({ route, navigation }) {
               )}
               {quote.expressSurcharge > 0 && (
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Express surcharge</Text>
+                  <Text style={styles.priceLabel}>{selectedPriority?.name ? `${selectedPriority.name} priority` : 'Priority surcharge'}</Text>
                   <Text style={styles.priceValue}>+{formatUsdAmount(quote.expressSurcharge)}</Text>
                 </View>
               )}
@@ -1188,7 +1260,7 @@ function CreateTicket({ route, navigation }) {
               <ActivityIndicator size="small" color="#3298D4" />
               <Text style={styles.hint}>Calculating…</Text>
             </View>
-          ) : selectedAddonServices.length > 0 || localBasePrice > 0 ? (
+          ) : selectedAddonServices.length > 0 || localBasePrice > 0 || prioritySurcharge > 0 ? (
             <>
               {selectedBaseServicesList.map(s => (
                 <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
@@ -1202,6 +1274,12 @@ function CreateTicket({ route, navigation }) {
                   <Text style={styles.priceValue}>{formatUsdAmount(s.pricing?.customerPrice)}</Text>
                 </View>
               ))}
+              {prioritySurcharge > 0 && (
+                <View style={[styles.priceRow, styles.priceRowDashed]}>
+                  <Text style={styles.priceLabel} numberOfLines={1}>+ {selectedPriority?.name || 'Priority'} priority</Text>
+                  <Text style={styles.priceValue}>{formatUsdAmount(prioritySurcharge)}</Text>
+                </View>
+              )}
               {localGst > 0 && (
                 <View style={styles.priceRow}>
                   <Text style={styles.priceLabel}>{formatGstLabel(GST_RATE)}</Text>
