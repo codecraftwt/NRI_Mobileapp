@@ -149,10 +149,6 @@ export async function me() {
     const response = await apiClient.get('/auth/me');
     const payload = response.data?.data || response.data;
     const mapped = mapAuthResponse(payload);
-    if (__DEV__) {
-      console.log('[auth/me] user payload:', JSON.stringify(payload?.user));
-      console.log('[auth/me] resolved avatarUri:', mapped.user.avatarUri);
-    }
     return mapped;
   } catch (error) {
     throw normalizeApiError(error);

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "349281994979",
+    "project_id": "nriapp-ca85f",
+    "storage_bucket": "nriapp-ca85f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:349281994979:android:b760801a90c7c082a71dd6",
+        "android_client_info": {
+          "package_name": "com.nriapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9DvFtF6s_eWbEN6QJLtJDUIGfENiVYTc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
