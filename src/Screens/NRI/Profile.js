@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated, ActivityIndicator } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto } from '../../Redux/slices/userSlice';
+import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser } from '../../Redux/slices/userSlice';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useToast } from '../../context/ToastContext';
 
@@ -29,6 +30,15 @@ function Profile({ navigation }) {
   const { referralCode } = useReferrals();
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
+
+  // Refresh from GET /auth/me on focus so the profile photo and details are
+  // always current (a fresh login doesn't hit /auth/me, so the photo stored
+  // only on the server wouldn't otherwise appear here).
+  useFocusEffect(
+    useCallback(() => {
+      dispatch(fetchCurrentUser());
+    }, [dispatch])
+  );
 
   const handleCopyCode = () => {
     showToast('Referral code copied successfully!', 'success');

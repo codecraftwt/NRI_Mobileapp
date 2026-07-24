@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, LayoutAnimation, UIManager, P
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors, typography } from '../theme';
 
@@ -178,7 +179,12 @@ function CustomTabBar({ state, descriptors, navigation }) {
   const focusedRoute = state.routes[state.index];
   const { options } = descriptors[focusedRoute.key];
   const tabBarStyle = options.tabBarStyle;
-  
+
+  // Edge-to-edge (Android 15/16 SDK 35+) forces the app under the system nav
+  // bar — pad the bottom by the safe-area inset so the tab bar isn't clipped.
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
+
   const [layouts, setLayouts] = React.useState([]);
   const translateX = React.useRef(new Animated.Value(0)).current;
   const pillWidth = React.useRef(new Animated.Value(0)).current;
@@ -217,14 +223,14 @@ function CustomTabBar({ state, descriptors, navigation }) {
   }
 
   return (
-    <View style={styles.floatingTabBar}>
+    <View style={[styles.floatingTabBar, { paddingBottom: bottomInset }]}>
       {isLayoutReady && (
         <Animated.View
           style={{
             position: 'absolute',
             left: 0,
             top: 12,
-            bottom: Platform.OS === 'ios' ? 24 : 12,
+            bottom: bottomInset,
             backgroundColor: '#A64416',
             borderRadius: 30,
             width: pillWidth,
@@ -395,8 +401,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
     shadowColor: '#1E293B',

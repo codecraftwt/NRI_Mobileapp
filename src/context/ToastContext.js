@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
 import { StyleSheet, Text, View, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../theme/typography';
 
@@ -14,6 +15,7 @@ export const useToast = () => {
 };
 
 export const ToastProvider = ({ children }) => {
+  const insets = useSafeAreaInsets();
   const [toastVisible, setToastVisible] = useState(false);
   const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' }); // type: success | error
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -58,7 +60,7 @@ export const ToastProvider = ({ children }) => {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toastVisible && (
-        <Animated.View style={[styles.toastContainer, { opacity: toastOpacity, transform: [{ translateY: toastTranslateY }] }]}>
+        <Animated.View style={[styles.toastContainer, { bottom: Math.max(insets.bottom, 16) + 24, opacity: toastOpacity, transform: [{ translateY: toastTranslateY }] }]}>
           <Icon name={toastConfig.type === 'error' ? 'error-outline' : 'check-circle'} size={20} color={toastConfig.type === 'error' ? '#EF4444' : '#10B981'} />
           <Text style={styles.toastText}>{toastConfig.message}</Text>
         </Animated.View>
@@ -70,7 +72,6 @@ export const ToastProvider = ({ children }) => {
 const styles = StyleSheet.create({
   toastContainer: {
     position: 'absolute',
-    bottom: 40,
     alignSelf: 'center',
     backgroundColor: '#1E293B',
     paddingHorizontal: 20,

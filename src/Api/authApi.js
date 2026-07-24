@@ -1,4 +1,15 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, API_BASE_URL } from './client';
+
+// Server origin (strip the trailing /api/v1) — used to turn a relative photo
+// path from the backend (e.g. "storage/profile-photos/x.jpg") into an absolute
+// URL that <Image> can actually load.
+const API_ORIGIN = String(API_BASE_URL || '').replace(/\/api\/v1\/?$/, '');
+
+function toAbsolutePhotoUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url;
+  return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
+}
 
 function toRegisterRequestBody({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode, deviceName }) {
   return {
@@ -136,8 +147,13 @@ export async function logout() {
 export async function me() {
   try {
     const response = await apiClient.get('/auth/me');
-    if (__DEV__) console.log('[auth/me] user payload:', JSON.stringify(response.data?.data?.user || response.data?.user));
-    return mapAuthResponse(response.data?.data || response.data);
+    const payload = response.data?.data || response.data;
+    const mapped = mapAuthResponse(payload);
+    if (__DEV__) {
+      console.log('[auth/me] user payload:', JSON.stringify(payload?.user));
+      console.log('[auth/me] resolved avatarUri:', mapped.user.avatarUri);
+    }
+    return mapped;
   } catch (error) {
     throw normalizeApiError(error);
   }
@@ -171,9 +187,19 @@ export async function updateProfile({ name, phone, nriCountry, nriCity, preferre
 // updated photo URL comes back — either nested under `user`/`customer` like
 // the rest of the auth payloads, or as a flat top-level field.
 function extractPhotoUrl(data) {
-  const apiUser = data?.user || data?.customer || data || {};
-  return apiUser.photo_url || apiUser.avatar_url || apiUser.photo || apiUser.avatar
-    || apiUser.profile_photo_url || apiUser.profile_photo || apiUser.image_url || apiUser.image || null;
+  if (!data) return null;
+  // Check the object itself FIRST, then any nested user/customer. The old code
+  // unwrapped `data.user || data.customer || data`, which — when passed a user
+  // object that has a nested `customer` — descended into customer and missed a
+  // user-level `profile_photo`, leaving the avatar null even though /auth/me
+  // returned a valid URL.
+  const candidates = [data, data.user, data.customer].filter(Boolean);
+  for (const obj of candidates) {
+    const raw = obj.photo_url || obj.avatar_url || obj.photo || obj.avatar
+      || obj.profile_photo_url || obj.profile_photo || obj.image_url || obj.image;
+    if (raw) return toAbsolutePhotoUrl(raw);
+  }
+  return null;
 }
 
 // Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):

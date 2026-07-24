@@ -351,6 +351,33 @@ function CreateTicket({ route, navigation }) {
     ? quote.lines
     : selectedBaseServicesList.map(s => ({ serviceId: s.id, name: s.name, customerPrice: s.pricing?.customerPrice || 0 }));
 
+  // The live backend bakes GST into total_amount and often returns
+  // gst_amount / gst_rate as null on the quote — so GST didn't render and the
+  // total could come back empty. Derive both when missing:
+  // GST = total − (base lines + add-ons + surcharge − discount).
+  const quoteBaseSum = quoteLines.reduce((sum, l) => sum + Number(l.customerPrice || 0), 0);
+  const quotePreGst = quote
+    ? quoteBaseSum + Number(quote.addonsSubtotal || 0) + Number(quote.expressSurcharge || 0) - Number(quote.discount || 0)
+    : 0;
+  const quoteGstAmount = quote
+    ? (Number(quote.gstAmount) > 0
+        ? Number(quote.gstAmount)
+        : Math.max(0, Math.round((Number(quote.totalAmount || 0) - quotePreGst) * 100) / 100))
+    : 0;
+  // If the quote didn't return usable GST, estimate it at the standard rate so
+  // the customer always sees a GST line and a correct total.
+  const effectiveQuoteGst = quoteGstAmount > 0
+    ? quoteGstAmount
+    : Math.round(quotePreGst * GST_RATE * 100) / 100;
+  const quoteGstRate = quote?.gstRate != null
+    ? quote.gstRate
+    : (quotePreGst > 0 ? effectiveQuoteGst / quotePreGst : GST_RATE);
+  // Always keep Total = subtotal + the GST we actually display, so the rows on
+  // screen add up. When the backend baked GST into total_amount, effectiveQuoteGst
+  // equals (total − subtotal), so this reproduces the backend total exactly;
+  // when it didn't, this adds the estimated GST on top consistently.
+  const quoteTotal = quotePreGst + effectiveQuoteGst;
+
   // --- Recurring subscription selection ---
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
   const subscriptionMonthlyTotal = selectedSubscriptionServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
@@ -670,7 +697,16 @@ function CreateTicket({ route, navigation }) {
     }
   };
 
-  const handleCheckoutCancel = () => setCheckoutSession(null);
+  const handleCheckoutCancel = () => {
+    setCheckoutSession(null);
+    // The request isn't confirmed until it's paid — make that explicit instead
+    // of silently closing (which looked like the request went through).
+    showAlert(
+      'Payment Required',
+      "Your request isn't confirmed until payment is completed. You can finish paying anytime from My Requests.",
+      [{ text: 'OK' }]
+    );
+  };
 
   // The ticket API only accepts an existing family_member_id, not raw
   // name/relation — reuse a matching saved member if one exists (avoids
@@ -1224,15 +1260,15 @@ function CreateTicket({ route, navigation }) {
                   <Text style={[styles.priceValue, styles.discountText]}>-{formatUsdAmount(quote.discount)}</Text>
                 </View>
               )}
-              {quote.gstAmount > 0 && (
+              {effectiveQuoteGst > 0 && (
                 <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>{formatGstLabel(quote.gstRate)}</Text>
-                  <Text style={styles.priceValue}>+{formatUsdAmount(quote.gstAmount)}</Text>
+                  <Text style={styles.priceLabel}>{formatGstLabel(quoteGstRate)}</Text>
+                  <Text style={styles.priceValue}>+{formatUsdAmount(effectiveQuoteGst)}</Text>
                 </View>
               )}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>{formatUsdAmount(quote.totalAmount)}</Text>
+                <Text style={styles.totalValue}>{formatUsdAmount(quoteTotal)}</Text>
               </View>
             </>
           ) : quoteLoading && stateId ? (
@@ -1240,7 +1276,7 @@ function CreateTicket({ route, navigation }) {
               <ActivityIndicator size="small" color="#3298D4" />
               <Text style={styles.hint}>Calculating…</Text>
             </View>
-          ) : selectedAddonServices.length > 0 || localBasePrice > 0 || prioritySurcharge > 0 ? (
+          ) : (
             <>
               {selectedBaseServicesList.map(s => (
                 <View key={s.id} style={[styles.priceRow, styles.priceRowDashed]}>
@@ -1274,8 +1310,6 @@ function CreateTicket({ route, navigation }) {
                 <Text style={styles.hint}>GST is estimated at 18% — select your state below to confirm final pricing (incl. any express surcharge).</Text>
               )}
             </>
-          ) : (
-            <Text style={styles.hint}>Choose add-ons to see pricing.</Text>
           )}
 
           {(isRecurring ? selectedSubscriptionIds.length > 0 : selectedBaseServiceIds.length > 0) && (

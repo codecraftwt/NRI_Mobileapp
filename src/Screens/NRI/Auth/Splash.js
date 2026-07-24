@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { fetchCurrentUser } from '../../../Redux/slices/userSlice';
 import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
@@ -52,6 +53,7 @@ function LoadingBar({ color, trackColor }) {
 export default function Splash({ navigation }) {
   const isAuthenticated = useSelector(state => state.user.isAuthenticated);
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
 
   // Animated values
   const bgOpacity = useRef(new Animated.Value(0)).current;
@@ -159,7 +161,7 @@ export default function Splash({ navigation }) {
         </Animated.View>
       </View>
 
-      <Animated.View style={[styles.footer, { opacity: footerOpacity }]}>
+      <Animated.View style={[styles.footer, { bottom: styles.footer.bottom + insets.bottom, opacity: footerOpacity }]}>
         <LoadingBar color={C.primary} trackColor={C.progressTrack || '#E0E0E0'} />
         <Text style={[styles.footerLabel, { color: C.textPlaceholder }]}>
           Preparing your experience
@@ -167,7 +169,7 @@ export default function Splash({ navigation }) {
       </Animated.View>
 
       {/* Bottom stamp */}
-      <Animated.View style={[styles.stamp, { opacity: footerOpacity }]}>
+      <Animated.View style={[styles.stamp, { bottom: styles.stamp.bottom + insets.bottom, opacity: footerOpacity }]}>
         <Text style={[styles.stampText, { color: C.textPlaceholder }]}>
           POWERED BY NRI CIRCLE
         </Text>
