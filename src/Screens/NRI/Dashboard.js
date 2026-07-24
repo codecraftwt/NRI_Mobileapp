@@ -332,19 +332,25 @@ function Dashboard({ navigation }) {
               <Text style={styles.sectionTitle}>Explore</Text>
             </View>
             <View style={styles.actionGrid}>
-              {exploreActions.map(action => (
-                <TouchableOpacity
-                  key={action.id}
-                  style={styles.actionSquare}
-                  onPress={() => navigation.navigate(action.screen)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.actionIconBg, { backgroundColor: action.color + '10' }]}>
-                    <Icon name={action.icon} size={28} color={action.color} />
-                  </View>
-                  <Text style={styles.actionLabel} numberOfLines={2}>{action.name}</Text>
-                </TouchableOpacity>
-              ))}
+              {exploreActions.map((action, index) => {
+                // The trailing two cards (Wallet, General Support) sit alone on
+                // the last row — widen them (and trim their height a touch) so
+                // the pair fills the row instead of leaving a gap.
+                const isLastPair = index >= exploreActions.length - 2;
+                return (
+                  <TouchableOpacity
+                    key={action.id}
+                    style={[styles.actionSquare, isLastPair && styles.actionSquareWide]}
+                    onPress={() => navigation.navigate(action.screen)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.actionIconBg, { backgroundColor: action.color + '10' }]}>
+                      <Icon name={action.icon} size={28} color={action.color} />
+                    </View>
+                    <Text style={styles.actionLabel} numberOfLines={2}>{action.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
@@ -556,7 +562,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   actionSquare: {
     width: '30%',
@@ -570,6 +576,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
+  },
+  actionSquareWide: {
+    width: '35%',
+    paddingVertical: 14,
   },
   actionIconBg: {
     width: 52,

@@ -164,7 +164,7 @@ function TicketDetail({ route, navigation }) {
       >
         <TouchableOpacity
           style={styles.supportChatBar}
-          activeOpacity={0.7}
+          activeOpacity={0.85}
           onPress={() => {
             // A chat already exists on this request → open its full thread
             // (reply/escalate via the existing support-ticket endpoints).
@@ -176,19 +176,35 @@ function TicketDetail({ route, navigation }) {
             }
           }}
         >
-          <Icon name="chat-bubble-outline" size={18} color="#3B82F6" />
-          <Text style={styles.supportChatBarText}>Support Chat</Text>
-          {ticket.supportChat?.escalated && (
-            <View style={styles.chatEscalatedBadge}>
-              <Text style={styles.chatEscalatedText}>Escalated</Text>
+          {/* Left: a distinct "support agent" icon in a filled badge. */}
+          <View style={styles.supportChatLeftIcon}>
+            <Icon name="support-agent" size={24} color="#FFFFFF" />
+          </View>
+
+          <View style={styles.supportChatTextWrap}>
+            <View style={styles.supportChatTitleRow}>
+              <Text style={styles.supportChatTitle}>Support Chat</Text>
+              {ticket.supportChat?.escalated && (
+                <View style={styles.chatEscalatedBadge}>
+                  <Text style={styles.chatEscalatedText}>Escalated</Text>
+                </View>
+              )}
             </View>
-          )}
-          {ticket.supportChat?.unreadCount > 0 && (
-            <View style={styles.chatUnreadBadge}>
-              <Text style={styles.chatUnreadText}>{ticket.supportChat.unreadCount}</Text>
-            </View>
-          )}
-          <Icon name="chevron-right" size={20} color="#94A3B8" />
+            <Text style={styles.supportChatSubtitle} numberOfLines={1}>
+              {ticket.supportChat?.id ? 'Continue your conversation' : 'Need help? Chat with our team'}
+            </Text>
+          </View>
+
+          {/* Right: the chat icon as an accent action button, with the unread
+              count overlaid as a badge. */}
+          <View style={styles.supportChatRightIcon}>
+            <Icon name="chat-bubble" size={20} color="#FFFFFF" />
+            {ticket.supportChat?.unreadCount > 0 && (
+              <View style={styles.chatUnreadBadge}>
+                <Text style={styles.chatUnreadText}>{ticket.supportChat.unreadCount}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
 
         <View style={styles.card}>
@@ -538,21 +554,50 @@ const styles = StyleSheet.create({
   supportChatBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 18,
+    gap: 14,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 18,
+    paddingHorizontal: 16,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
+    borderColor: '#DBEAFE',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  supportChatBarText: { flex: 1, fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  chatUnreadBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  supportChatLeftIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  supportChatTextWrap: { flex: 1, gap: 2 },
+  supportChatTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  supportChatTitle: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  supportChatSubtitle: { ...typography.tiny, color: '#3B82F6' },
+  supportChatRightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  chatUnreadBadge: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#EFF6FF' },
   chatUnreadText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   chatEscalatedBadge: { backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   chatEscalatedText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
