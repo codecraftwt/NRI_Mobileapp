@@ -73,6 +73,9 @@ import Requests from '../Screens/NRI/Requests';
 // Import Vendor Screens
 import VendorNavigator from './Vendor/VendorNavigator';
 
+// Import RM (Relationship Manager) Screens
+import RMNavigator from './RM/RMNavigator';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -390,6 +393,9 @@ export default function AppNavigator() {
 
       {/* Vendor Flow — reached from the same Login screen based on account role */}
       <Stack.Screen name="VendorHome" component={VendorNavigator} />
+
+      {/* RM (Relationship Manager) Flow — reached from the same Login screen based on account role */}
+      <Stack.Screen name="RMHome" component={RMNavigator} />
     </Stack.Navigator>
   );
 }
