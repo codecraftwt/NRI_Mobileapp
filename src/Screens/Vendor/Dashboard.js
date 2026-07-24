@@ -1,7 +1,13 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
+
+const HEADER_STATS = [
+  { id: 'new', label: 'New Jobs', value: '2', icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
+  { id: 'today', label: 'Today', value: '2', icon: 'event', bg: '#EAF1FE', color: '#3B82F6' },
+  { id: 'done', label: 'Done (Dec)', value: '2', icon: 'check-circle-outline', bg: '#E5F6EC', color: '#10B981' },
+];
 
 const QUICK_ACTIONS = [
   { id: 'jobs', name: 'My Jobs', icon: 'work', color: '#3B82F6' },
@@ -10,31 +16,48 @@ const QUICK_ACTIONS = [
   { id: 'documents', name: 'Documents', icon: 'folder-shared', color: '#1E3A8A' },
 ];
 
-const STAT_CARDS = [
-  { id: 'new', label: 'New Jobs to Accept', value: '0', icon: 'move-to-inbox', bg: '#EFF6FF', color: '#3B82F6' },
-  { id: 'progress', label: 'In Progress', value: '0', icon: 'build', bg: '#FFEDD5', color: '#C2410C' },
-  { id: 'completed', label: 'Completed Jobs', value: '2', icon: 'check-circle', bg: '#D1FAE5', color: '#059669' },
-  { id: 'payout', label: 'Pending Payout', value: '₹0.00', icon: 'currency-rupee', bg: '#EFF6FF', color: '#3B82F6' },
-];
-
 const RECENT_JOBS = [
   { id: '1', ticket: 'NRI-2026-00009', service: 'Scheduled Home Visits by Care Executive', location: 'Kolhapur, Maharashtra', status: 'Completed' },
   { id: '2', ticket: 'NRI-2026-00008', service: 'Medicine Reminder Coordination', location: 'Kolhapur, Maharashtra', status: 'Completed' },
 ];
 
 function Dashboard({ navigation }) {
+  const [available, setAvailable] = useState(true);
+
   return (
     <View style={styles.container}>
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.userName}>Hello Ramesh 👋</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.userName}>Suresh Kambli</Text>
+        </View>
+
+        <View style={styles.metaRow}>
+          <View style={styles.goldBadge}>
+            <Icon name="star" size={12} color="#F5B301" />
+            <Text style={styles.goldBadgeText}>Gold Vendor</Text>
           </View>
-          <TouchableOpacity style={styles.bellBtn}>
-            <Icon name="notifications-none" size={26} color="#FFFFFF" />
-            <View style={styles.badgeDot} />
-          </TouchableOpacity>
+          <Text style={styles.metaText}>Pune · 4.8 Rating</Text>
+        </View>
+
+        {/* Availability Toggle */}
+        <View style={styles.availCard}>
+          <View style={styles.availLeft}>
+            <View style={styles.availDot} />
+            <View>
+              <Text style={styles.availTitle}>Available for Jobs</Text>
+            </View>
+          </View>
+          <View style={styles.availRight}>
+            <Text style={styles.availHint}>Toggle off to go offline</Text>
+            <Switch
+              value={available}
+              onValueChange={setAvailable}
+              trackColor={{ false: '#CBD5E1', true: '#22C55E' }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor="#CBD5E1"
+            />
+          </View>
         </View>
       </View>
 
@@ -45,6 +68,20 @@ function Dashboard({ navigation }) {
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
+
+          {/* Header Stat Strip */}
+          <View style={styles.headerStatStrip}>
+            {HEADER_STATS.map((stat, index) => (
+              <View
+                key={stat.id}
+                style={[styles.headerStatCard, { backgroundColor: stat.bg }, index < HEADER_STATS.length - 1 && { marginRight: 12 }]}
+              >
+                <Icon name={stat.icon} size={20} color={stat.color} />
+                <Text style={styles.headerStatValue}>{stat.value}</Text>
+                <Text style={styles.headerStatLabel}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
 
           {/* Quick Actions Unified Card */}
           <View style={styles.quickActionsCard}>
@@ -65,21 +102,6 @@ function Dashboard({ navigation }) {
                 <Text style={styles.qaLabel}>{action.name}</Text>
               </TouchableOpacity>
             ))}
-          </View>
-
-          {/* Stat Cards */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.statGrid}>
-              {STAT_CARDS.map(card => (
-                <View key={card.id} style={styles.statCard}>
-                  <View style={[styles.statIconBg, { backgroundColor: card.bg }]}>
-                    <Icon name={card.icon} size={22} color={card.color} />
-                  </View>
-                  <Text style={styles.statLabel}>{card.label}</Text>
-                  <Text style={styles.statValue}>{card.value}</Text>
-                </View>
-              ))}
-            </View>
           </View>
 
           {/* Recent Jobs List */}
@@ -148,7 +170,7 @@ const styles = StyleSheet.create({
   blueHeader: {
     paddingTop: 48,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 22,
     backgroundColor: '#20304C',
     zIndex: 10,
     elevation: 0,
@@ -156,32 +178,119 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+  },
+  portalLabel: {
+    fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#E9A23B',
+    letterSpacing: 1.2,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 12,
   },
   userName: {
     fontSize: 26,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
-    marginBottom: 4,
+  },
+  rmPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#1E7A46',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  rmPillText: {
+    fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#FFFFFF',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 10,
+  },
+  goldBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245,179,1,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  goldBadgeText: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#F5B301',
+  },
+  metaText: {
+    fontSize: 12,
+    fontFamily: typography.small.fontFamily,
+    color: '#9FB0C9',
   },
   bellBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   badgeDot: {
     position: 'absolute',
-    top: 10,
-    right: 12,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 11,
+    right: 13,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
     backgroundColor: '#EF4444',
-    borderWidth: 1,
-    borderColor: '#1E3A8A',
+    borderWidth: 1.5,
+    borderColor: '#20304C',
+  },
+
+  availCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 18,
+  },
+  availLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  availDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+  },
+  availTitle: {
+    fontSize: 14,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#FFFFFF',
+  },
+  availRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  availHint: {
+    fontSize: 11,
+    fontFamily: typography.small.fontFamily,
+    color: '#9FB0C9',
   },
 
   creamBody: {
@@ -195,6 +304,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 100,
+  },
+
+  headerStatStrip: {
+    flexDirection: 'row',
+    marginBottom: 28,
+  },
+  headerStatCard: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  headerStatValue: {
+    fontSize: 24,
+    fontFamily: typography.h2.fontFamily,
+    color: '#1A1A1A',
+    marginTop: 6,
+  },
+  headerStatLabel: {
+    fontSize: 11,
+    fontFamily: typography.small.fontFamily,
+    color: '#64748B',
+    marginTop: 2,
   },
 
   quickActionsCard: {
