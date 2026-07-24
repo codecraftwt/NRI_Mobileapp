@@ -29,9 +29,17 @@ function mapPriority(raw) {
     slug: raw.slug,
     description: raw.description || null,
     // Flat, single fee added once to the request for this tier (0 for the
-    // default tier); amounts are in USD.
-    surcharge: raw.surcharge != null ? Number(raw.surcharge) : 0,
+    // default tier); amounts are in USD. The API exposes it as `surcharge`
+    // but also mirrors it as `amount` — fall back to `amount` so tiers like
+    // Express/Emergency still show their fee if only `amount` comes back.
+    surcharge: Number(raw.surcharge ?? raw.amount ?? 0),
+    currency: raw.currency || 'USD',
     isDefault: raw.is_default ?? raw.default ?? false,
+    // Whether this is the top "Emergency" tier — offered only for services
+    // that allow it. Use the flag rather than matching the slug.
+    isEmergencyTier: raw.is_emergency_tier ?? false,
+    badgeClass: raw.badge_class || null,
+    sortOrder: raw.sort_order ?? 0,
   };
 }
 
@@ -41,7 +49,9 @@ export async function getPriorities() {
   try {
     const response = await apiClient.get('/priorities');
     const list = response.data?.data || response.data || [];
-    return list.map(mapPriority);
+    // Present tiers in the backend's intended order (Emergency → Express →
+    // Standard) instead of relying on the raw array order.
+    return list.map(mapPriority).sort((a, b) => a.sortOrder - b.sortOrder);
   } catch (error) {
     throw normalizeApiError(error);
   }

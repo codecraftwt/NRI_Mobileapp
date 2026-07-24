@@ -291,9 +291,11 @@ function CreateTicket({ route, navigation }) {
   // so default to the first one as soon as the category's list loads. The
 
 
-  // The emergency tier isn't offered for services that don't allow it.
-  const emergencyAllowed = !selectedService || selectedService.allowsEmergency;
-  const availablePriorities = priorities.filter(p => emergencyAllowed || p.slug !== 'emergency');
+  // The emergency tier isn't offered only for services that *explicitly*
+  // disallow it. When the service omits `allows_emergency` (undefined/null),
+  // treat it as allowed so the Emergency tier from /priorities still shows.
+  const emergencyAllowed = !selectedService || selectedService.allowsEmergency !== false;
+  const availablePriorities = priorities.filter(p => emergencyAllowed || !p.isEmergencyTier);
 
   // Keep the selection valid: default to the API's default tier (or the first
   // available) once priorities load, and reset off an emergency tier that's no
