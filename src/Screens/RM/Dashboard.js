@@ -11,11 +11,10 @@ const EXPLORE_ACTIONS = [
   { id: 'reports', name: 'Reports', icon: 'fact-check', color: '#6366F1' },
 ];
 
-const STAT_CARDS = [
-  { id: 'customers', label: 'My Customers', value: '12', icon: 'groups', bg: '#EFF6FF', color: '#3B82F6' },
-  { id: 'open', label: 'Open Requests', value: '2', icon: 'hourglass-empty', bg: '#FFEDD5', color: '#C2410C' },
-  { id: 'overdue', label: 'Overdue SLA', value: '2', icon: 'error-outline', bg: '#FEE2E2', color: '#DC2626' },
-  { id: 'reports', label: 'Reports to Review', value: '1', icon: 'fact-check', bg: '#EEF2FF', color: '#6366F1' },
+const HEADER_STATS = [
+  { id: 'customers', label: 'Customers', value: '12', icon: 'groups', bg: '#EAF1FE', color: '#3B82F6' },
+  { id: 'open', label: 'Open', value: '2', icon: 'hourglass-empty', bg: '#FEF3E7', color: '#C2410C' },
+  { id: 'overdue', label: 'Overdue SLA', value: '2', icon: 'error-outline', bg: '#FEECEC', color: '#EF4444' },
 ];
 
 const PENDING_REQUESTS = [
@@ -66,19 +65,18 @@ function Dashboard({ navigation }) {
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Stat Cards */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.statGrid}>
-              {STAT_CARDS.map(card => (
-                <View key={card.id} style={styles.statCard}>
-                  <View style={[styles.statIconBg, { backgroundColor: card.bg }]}>
-                    <Icon name={card.icon} size={22} color={card.color} />
-                  </View>
-                  <Text style={styles.statLabel}>{card.label}</Text>
-                  <Text style={styles.statValue}>{card.value}</Text>
-                </View>
-              ))}
-            </View>
+          {/* Header Stat Strip */}
+          <View style={styles.headerStatStrip}>
+            {HEADER_STATS.map((stat, index) => (
+              <View
+                key={stat.id}
+                style={[styles.headerStatCard, { backgroundColor: stat.bg }, index < HEADER_STATS.length - 1 && { marginRight: 12 }]}
+              >
+                <Icon name={stat.icon} size={20} color={stat.color} />
+                <Text style={styles.headerStatValue}>{stat.value}</Text>
+                <Text style={styles.headerStatLabel}>{stat.label}</Text>
+              </View>
+            ))}
           </View>
 
           {/* Pending Requests — SLA Countdown */}
@@ -234,15 +232,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#1A1A1A', marginBottom: 10 },
   viewAllText: { ...typography.labelMedium, color: '#D94625' },
 
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 },
-  statCard: {
-    width: '47%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16,
-    borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
+  headerStatStrip: { flexDirection: 'row', marginBottom: 28 },
+  headerStatCard: {
+    flex: 1, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center',
   },
-  statIconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  statLabel: { fontSize: 12, color: '#64748B', marginBottom: 4 },
-  statValue: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  headerStatValue: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#1A1A1A', marginTop: 6 },
+  headerStatLabel: { fontSize: 11, fontFamily: typography.small.fontFamily, color: '#64748B', marginTop: 2 },
 
   cardBlock: { gap: 16 },
   ticketItem: {
