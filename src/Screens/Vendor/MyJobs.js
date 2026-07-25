@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { useVendorJobs } from '../../Hooks/useVendorJobs';
 
-const MOCK_JOBS = [
-  { id: '1', ticket: 'NRI-2026-00011', service: 'Scheduled Home Visits by Care Executive', location: 'Kolhapur, Maharashtra', slaDeadline: '18 Jul, 08:59', status: 'In Progress', priority: 'Standard' },
-  { id: '2', ticket: 'NRI-2026-00009', service: 'Scheduled Home Visits by Care Executive', location: 'Kolhapur, Maharashtra', slaDeadline: '17 Jul, 05:21', status: 'Completed', priority: 'Standard' },
-  { id: '3', ticket: 'NRI-2026-00008', service: 'Medicine Reminder Coordination', location: 'Kolhapur, Maharashtra', slaDeadline: '16 Jul, 08:54', status: 'Completed', priority: 'Standard' },
+const TABS = [
+  { key: 'all', label: 'All', query: undefined },
+  { key: 'assigned', label: 'Assigned', query: 'assigned' },
+  { key: 'in_progress', label: 'In Progress', query: 'in_progress' },
+  { key: 'completed', label: 'Completed', query: 'completed' },
 ];
 
 function getStatusPill(status) {
@@ -20,29 +22,26 @@ function getStatusPill(status) {
 }
 
 function MyJobs({ navigation }) {
-  const [activeTab, setActiveTab] = useState('All');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [activeTab, setActiveTab] = useState('all');
+  const { jobs, counts, meta, loading, failed, error, fetch, retry } = useVendorJobs({ page: 1 });
 
-  const tabs = [
-    { key: 'All', label: 'All' },
-    { key: 'New', label: 'New / To Accept' },
-    { key: 'In Progress', label: 'In Progress' },
-    { key: 'Completed', label: 'Completed' },
-  ];
+  const currentPage = meta.currentPage;
+  const totalPages = meta.lastPage || 1;
 
   const getTabCount = (tabKey) => {
-    if (tabKey === 'All') return MOCK_JOBS.length;
-    return MOCK_JOBS.filter(j => j.status === tabKey).length;
+    if (tabKey === 'all') return (counts.assigned || 0) + (counts.in_progress || 0) + (counts.completed || 0);
+    return counts[tabKey] || 0;
   };
 
-  const filteredJobs = MOCK_JOBS.filter(job => activeTab === 'All' || job.status === activeTab);
-  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / itemsPerPage));
-  const paginatedJobs = filteredJobs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const activeQuery = TABS.find(t => t.key === activeTab)?.query;
 
-  const handleTabPress = (tabKey) => {
-    setActiveTab(tabKey);
-    setCurrentPage(1);
+  const handleTabPress = (tab) => {
+    setActiveTab(tab.key);
+    fetch({ status: tab.query, page: 1 });
+  };
+
+  const goToPage = (p) => {
+    fetch({ status: activeQuery, page: p });
   };
 
   return (
@@ -54,14 +53,14 @@ function MyJobs({ navigation }) {
 
       <View style={styles.tabsContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
-          {tabs.map(tab => {
+          {TABS.map(tab => {
             const count = getTabCount(tab.key);
             const isActive = activeTab === tab.key;
             return (
               <TouchableOpacity
                 key={tab.key}
                 style={[styles.tab, isActive && styles.tabActive]}
-                onPress={() => handleTabPress(tab.key)}
+                onPress={() => handleTabPress(tab)}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
@@ -75,7 +74,18 @@ function MyJobs({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filteredJobs.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="small" color="#D94625" />
+            <Text style={styles.emptyText}>Loading jobs...</Text>
+          </View>
+        ) : failed ? (
+          <TouchableOpacity style={styles.emptyState} onPress={retry} activeOpacity={0.7}>
+            <Icon name="refresh" size={40} color="#DC2626" />
+            <Text style={styles.emptyTitle}>Couldn't load jobs</Text>
+            <Text style={styles.emptyText}>{error?.message || 'Tap to retry.'}</Text>
+          </TouchableOpacity>
+        ) : jobs.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="work-outline" size={48} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>No Jobs Found</Text>
@@ -83,9 +93,9 @@ function MyJobs({ navigation }) {
           </View>
         ) : (
           <>
-            {paginatedJobs.map((job, idx) => {
+            {jobs.map((job, idx) => {
               const statusPill = getStatusPill(job.status);
-              const rowNum = (currentPage - 1) * itemsPerPage + idx + 1;
+              const rowNum = (currentPage - 1) * meta.perPage + idx + 1;
               return (
                 <TouchableOpacity
                   key={job.id}
@@ -115,7 +125,7 @@ function MyJobs({ navigation }) {
                     </View>
                     <View style={styles.detailItem}>
                       <Icon name="schedule" size={14} color="#94A3B8" />
-                      <Text style={styles.detailText}>{job.slaDeadline}</Text>
+                      <Text style={styles.detailText}>{job.slaDeadline || '—'}</Text>
                     </View>
                   </View>
 
@@ -138,12 +148,12 @@ function MyJobs({ navigation }) {
 
             <View style={styles.paginationRow}>
               <Text style={styles.paginationInfo}>
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredJobs.length)} of {filteredJobs.length} entries
+                Showing {((currentPage - 1) * meta.perPage) + 1} to {Math.min(currentPage * meta.perPage, meta.total)} of {meta.total} entries
               </Text>
               <View style={styles.paginationControls}>
                 <TouchableOpacity
                   style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
-                  onPress={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onPress={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
                   <Icon name="chevron-left" size={20} color={currentPage === 1 ? '#CBD5E1' : '#64748B'} />
@@ -153,7 +163,7 @@ function MyJobs({ navigation }) {
                 </View>
                 <TouchableOpacity
                   style={[styles.pageBtn, currentPage === totalPages && styles.pageBtnDisabled]}
-                  onPress={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onPress={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
                 >
                   <Icon name="chevron-right" size={20} color={currentPage === totalPages ? '#CBD5E1' : '#64748B'} />

@@ -11,7 +11,7 @@ const HEADER_STATS = [
 
 const QUICK_ACTIONS = [
   { id: 'jobs', name: 'My Jobs', icon: 'work', color: '#3B82F6' },
-  { id: 'earnings', name: 'Earnings', icon: 'account-balance-wallet', color: '#F97316' },
+  { id: 'ratings', name: 'Ratings', icon: 'star', color: '#F97316' },
   { id: 'support', name: 'Support', icon: 'support-agent', color: '#10B981' },
   { id: 'documents', name: 'Documents', icon: 'folder-shared', color: '#1E3A8A' },
 ];
@@ -91,7 +91,7 @@ function Dashboard({ navigation }) {
                 style={styles.quickActionItem}
                 onPress={() => {
                   if (action.id === 'jobs') navigation.navigate('MyJobs');
-                  if (action.id === 'earnings') navigation.navigate('Earnings');
+                  if (action.id === 'ratings') navigation.navigate('Ratings');
                   if (action.id === 'support') navigation.navigate('Support');
                   if (action.id === 'documents') navigation.navigate('Documents');
                 }}

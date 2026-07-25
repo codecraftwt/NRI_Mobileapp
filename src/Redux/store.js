@@ -23,6 +23,9 @@ import myTicketsReducer from './slices/myTicketsSlice';
 import walletAccountReducer from './slices/walletAccountSlice';
 import referralReducer from './slices/referralSlice';
 import supportTicketsReducer from './slices/supportTicketsSlice';
+import vendorSupportReducer from './slices/vendorSupportSlice';
+import vendorRatingsReducer from './slices/vendorRatingsSlice';
+import vendorJobsReducer from './slices/vendorJobsSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
@@ -80,6 +83,9 @@ const appReducer = combineReducers({
   walletAccount: walletAccountReducer,
   referral: referralReducer,
   supportTickets: supportTicketsReducer,
+  vendorSupport: vendorSupportReducer,
+  vendorRatings: vendorRatingsReducer,
+  vendorJobs: vendorJobsReducer,
   serviceSubscription: serviceSubscriptionReducer,
   onboarding: onboardingReducer,
 });

@@ -1,67 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator } from 'react-native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
-
-const MOCK_JOB_DATA = {
-  '1': {
-    ticket: 'NRI-2026-00011',
-    service: 'Scheduled Home Visits by Care Executive',
-    status: 'In Progress',
-    priority: 'Standard',
-    completeBy: '18 Jul 2026, 08:59',
-    payout: 0,
-    customer: { name: 'akanksha', phone: '7890120910' },
-    address: { line: 'qwert', city: 'Kolhapur, Maharashtra' },
-    addons: ['Extra Home Visit (beyond plan limit)'],
-    committedEta: '17 Jul 2026, 20:40',
-    timeline: [
-      { status: 'New', date: '17 Jul 2026, 08:59', note: 'Ticket created' },
-      { status: 'Assigned', date: '17 Jul 2026, 09:02', note: 'Vendor assigned' },
-      { status: 'In Progress', date: '17 Jul 2026, 09:04', note: 'Service started' },
-    ],
-  },
-  '2': {
-    ticket: 'NRI-2026-00009',
-    service: 'Scheduled Home Visits by Care Executive',
-    status: 'Completed',
-    priority: 'Standard',
-    completeBy: '17 Jul 2026, 05:21',
-    payout: 0,
-    customer: { name: 'akanksha', phone: '7890120910' },
-    address: { line: 'House 12', city: 'Kolhapur, Maharashtra' },
-    addons: [],
-    committedEta: '16 Jul 2026, 10:57',
-    report: 'done....',
-    reportSubmittedAt: '1 day ago',
-    timeline: [
-      { status: 'New', date: '16 Jul 2026, 05:21', note: 'Ticket created' },
-      { status: 'Assigned', date: '16 Jul 2026, 05:24', note: 'Vendor assigned' },
-      { status: 'In Progress', date: '16 Jul 2026, 05:27', note: 'Service started' },
-      { status: 'Completed', date: '16 Jul 2026, 05:27', note: 'Report submitted by vendor' },
-    ],
-  },
-  '3': {
-    ticket: 'NRI-2026-00008',
-    service: 'Medicine Reminder Coordination',
-    status: 'Completed',
-    priority: 'Standard',
-    completeBy: '16 Jul 2026, 08:54',
-    payout: 0,
-    customer: { name: 'Ramesh Kulkarni', phone: '9876543210' },
-    address: { line: '45 Ring Road', city: 'Kolhapur, Maharashtra' },
-    addons: [],
-    committedEta: '15 Jul 2026, 18:00',
-    report: 'Reminders set up and confirmed with family.',
-    reportSubmittedAt: '2 days ago',
-    timeline: [
-      { status: 'New', date: '15 Jul 2026, 08:54', note: 'Ticket created' },
-      { status: 'Assigned', date: '15 Jul 2026, 09:00', note: 'Vendor assigned' },
-      { status: 'In Progress', date: '15 Jul 2026, 09:10', note: 'Service started' },
-      { status: 'Completed', date: '15 Jul 2026, 17:45', note: 'Report submitted by vendor' },
-    ],
-  },
-};
+import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
+import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
+import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 function getStatusStyle(status) {
   switch (status) {
@@ -75,11 +19,14 @@ function getStatusStyle(status) {
 
 function JobDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
-  const job = MOCK_JOB_DATA[ticketId] || MOCK_JOB_DATA['1'];
+  const { detail: job, loading, failed, error, retry } = useVendorJobDetail(ticketId);
+  const token = useSelector(state => state.user.token);
 
   const [commitDate, setCommitDate] = useState('');
   const [commitTime, setCommitTime] = useState('');
   const [reportText, setReportText] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [trackingUrl, setTrackingUrl] = useState('');
 
   const handleAccept = () => {
     Alert.alert('Job Accepted', 'You have accepted this job.');
@@ -100,6 +47,65 @@ function JobDetail({ route, navigation }) {
     Alert.alert('Report Submitted', 'Your completion report has been submitted.');
   };
 
+  const handleSaveTracking = () => {
+    Alert.alert('Tracking Saved', 'Shipment tracking details have been saved.');
+  };
+
+  const handleDownloadInvoice = async () => {
+    try {
+      await downloadDocumentFile({
+        url: getVendorJobInvoiceUrl(ticketId),
+        filename: `Invoice-${job?.ticket || ticketId}`,
+        token,
+      });
+      Alert.alert('Invoice Downloaded', 'The invoice PDF has been saved to your device.');
+    } catch (e) {
+      Alert.alert('Download Failed', e?.message || 'Could not download the invoice.');
+    }
+  };
+
+  const handleCallCustomer = () => {
+    Linking.openURL(`tel:${job.customer.phone}`).catch(() =>
+      Alert.alert('Could Not Call', 'Unable to open the dialer.')
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <View style={styles.centerState}>
+          <ActivityIndicator size="small" color="#D94625" />
+          <Text style={styles.centerStateText}>Loading job...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (failed || !job) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <TouchableOpacity style={styles.centerState} onPress={retry} activeOpacity={0.7}>
+          <Icon name="refresh" size={40} color="#DC2626" />
+          <Text style={styles.centerStateText}>{error?.message || "Couldn't load this job. Tap to retry."}</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   const isAssigned = job.status === 'New' || job.status === 'Assigned';
   const isInProgress = job.status === 'In Progress';
   const isCompleted = job.status === 'Completed';
@@ -116,97 +122,82 @@ function JobDetail({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Summary Header Card */}
         <View style={styles.card}>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusStyle.text }]} />
-              <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>{job.status}</Text>
-            </View>
-            <View style={styles.priorityBadge}>
-              <Text style={styles.priorityBadgeText}>{job.priority}</Text>
+          <View style={styles.summaryTop}>
+            <Text style={styles.summaryTicket}>{job.ticket}</Text>
+            <View style={styles.summaryBadges}>
+              <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusStyle.text }]} />
+                <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>{job.status}</Text>
+              </View>
+              <View style={styles.priorityBadge}>
+                <Text style={styles.priorityBadgeText}>{job.priority}</Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconWrap}>
-              <Icon name="event" size={18} color="#64748B" />
+          <View style={styles.serviceRow}>
+            <Icon name="home-repair-service" size={16} color="#64748B" />
+            <Text style={styles.summaryService}>{job.service}</Text>
+          </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryMetaRow}>
+            <View style={styles.summaryMetaCol}>
+              <Text style={styles.infoLabel}>Your Payout</Text>
+              <Text style={styles.payoutValue}>₹{job.payout.toFixed(2)}</Text>
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Complete by</Text>
+            <View style={[styles.summaryMetaCol, { alignItems: 'flex-end' }]}>
+              <Text style={styles.infoLabel}>Complete By</Text>
               <Text style={styles.infoValue}>{job.completeBy}</Text>
             </View>
           </View>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconWrap}>
-              <Icon name="home-repair-service" size={18} color="#64748B" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Service</Text>
-              <Text style={styles.infoValue}>{job.service}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconWrap}>
-              <Icon name="account-balance-wallet" size={18} color="#64748B" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Your Payout (vendor cost)</Text>
-              <Text style={styles.infoValueBold}>₹{job.payout.toFixed(2)}</Text>
-            </View>
-          </View>
         </View>
 
+        {/* Job Details */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Icon name="person" size={18} color="#3B82F6" />
-            <Text style={styles.sectionTitle}>Customer</Text>
+            <Icon name="info-outline" size={18} color="#3B82F6" />
+            <Text style={styles.sectionTitle}>Job Details</Text>
           </View>
-          <View style={styles.customerInfo}>
-            <View style={styles.customerAvatar}>
-              <Text style={styles.customerInitial}>{job.customer.name.charAt(0).toUpperCase()}</Text>
-            </View>
-            <View>
-              <Text style={styles.customerName}>{job.customer.name}</Text>
-              <Text style={styles.customerPhone}>{job.customer.phone}</Text>
-            </View>
-          </View>
-        </View>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Icon name="location-on" size={18} color="#DC2626" />
-            <Text style={styles.sectionTitle}>Address</Text>
+          <View style={styles.detailBlock}>
+            <Text style={styles.infoLabel}>Customer</Text>
+            <Text style={styles.infoValueBold}>{job.customer.name}</Text>
+            <TouchableOpacity style={styles.phoneRow} onPress={handleCallCustomer} activeOpacity={0.7}>
+              <Icon name="call" size={14} color="#2563EB" />
+              <Text style={styles.phoneText}>{job.customer.phone}</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.addressLine}>{job.address.line}</Text>
-          <Text style={styles.addressCity}>{job.address.city}</Text>
-        </View>
 
-        {job.addons.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Icon name="add-circle-outline" size={18} color="#8B5CF6" />
-              <Text style={styles.sectionTitle}>Add-ons</Text>
+          <View style={styles.detailBlock}>
+            <Text style={styles.infoLabel}>Address</Text>
+            <Text style={styles.infoValueBold}>{job.address.line}</Text>
+            <Text style={styles.addressCity}>{job.address.city}</Text>
+          </View>
+
+          {!!job.committedEta && (
+            <View style={styles.detailBlock}>
+              <Text style={styles.infoLabel}>Your Committed ETA</Text>
+              <Text style={styles.infoValueBold}>{job.committedEta}</Text>
             </View>
-            {job.addons.map((addon, idx) => (
-              <View key={idx} style={styles.addonItem}>
-                <Icon name="check-circle" size={16} color="#10B981" />
-                <Text style={styles.addonText}>{addon}</Text>
+          )}
+
+          {job.addons.length > 0 && (
+            <View style={styles.detailBlock}>
+              <Text style={styles.infoLabel}>Add-ons</Text>
+              <View style={styles.addonChips}>
+                {job.addons.map((addon, idx) => (
+                  <View key={idx} style={styles.addonChip}>
+                    <Text style={styles.addonChipText}>{addon}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        )}
-
-        {(isInProgress || isCompleted) && job.committedEta && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Icon name="schedule" size={18} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>Your Committed ETA</Text>
             </View>
-            <Text style={styles.etaValue}>{job.committedEta}</Text>
-          </View>
-        )}
+          )}
+        </View>
 
         {isAssigned && (
           <View style={styles.card}>
@@ -301,24 +292,79 @@ function JobDetail({ route, navigation }) {
         {isCompleted && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Icon name="gavel" size={18} color="#059669" />
+              <Icon name="bolt" size={18} color="#059669" />
               <Text style={styles.sectionTitle}>Job Actions</Text>
             </View>
             <View style={styles.completedBanner}>
               <Icon name="check-circle" size={22} color="#059669" />
               <Text style={styles.completedBannerText}>This job is complete. Thank you!</Text>
             </View>
+            <TouchableOpacity style={styles.invoiceBtn} onPress={handleDownloadInvoice} activeOpacity={0.8}>
+              <Icon name="picture-as-pdf" size={18} color="#2563EB" />
+              <Text style={styles.invoiceBtnText}>Download Invoice (PDF)</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Shipment / Tracking */}
+        {(isInProgress || isCompleted) && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <Icon name="local-shipping" size={18} color="#0EA5E9" />
+                <Text style={styles.sectionTitle}>Shipment / Tracking</Text>
+              </View>
+              <Text style={styles.optionalText}>optional</Text>
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Tracking / Shipment Number</Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="e.g. AWB123456789"
+                placeholderTextColor="#94A3B8"
+                value={trackingNumber}
+                onChangeText={setTrackingNumber}
+              />
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Tracking URL</Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="https://tracking.example.com/..."
+                placeholderTextColor="#94A3B8"
+                value={trackingUrl}
+                onChangeText={setTrackingUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+
+            <TouchableOpacity style={styles.saveTrackingBtn} onPress={handleSaveTracking} activeOpacity={0.8}>
+              <Icon name="save-alt" size={16} color="#2563EB" />
+              <Text style={styles.saveTrackingText}>Save Tracking</Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {isCompleted && job.report && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeader}>
-              <Icon name="description" size={18} color="#3B82F6" />
-              <Text style={styles.sectionTitle}>Your Submitted Report</Text>
+          <View style={[styles.card, styles.reportCardWrap]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <Icon name="description" size={18} color="#059669" />
+                <Text style={styles.sectionTitle}>Your Submitted Report</Text>
+              </View>
             </View>
-            <View style={styles.reportCard}>
-              <Text style={styles.reportContent}>{job.report}</Text>
+            <Text style={styles.reportContent}>{job.report}</Text>
+            {!!job.reportFile && (
+              <TouchableOpacity style={styles.pdfThumb} activeOpacity={0.7}>
+                <Icon name="insert-drive-file" size={26} color="#64748B" />
+                <Text style={styles.pdfThumbText}>PDF</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.reportTimeRow}>
+              <Icon name="schedule" size={13} color="#94A3B8" />
               <Text style={styles.reportTime}>Submitted {job.reportSubmittedAt}</Text>
             </View>
           </View>
@@ -340,10 +386,12 @@ function JobDetail({ route, navigation }) {
                     {!isLast && <View style={styles.timelineLine} />}
                   </View>
                   <View style={styles.timelineContent}>
-                    <View style={[styles.timelineBadge, { backgroundColor: eventStyle.bg }]}>
-                      <Text style={[styles.timelineBadgeText, { color: eventStyle.text }]}>{event.status}</Text>
+                    <View style={styles.timelineTopRow}>
+                      <View style={[styles.timelineBadge, { backgroundColor: eventStyle.bg }]}>
+                        <Text style={[styles.timelineBadgeText, { color: eventStyle.text }]}>{event.status}</Text>
+                      </View>
+                      <Text style={styles.timelineDate}>{event.date}</Text>
                     </View>
-                    <Text style={styles.timelineDate}>{event.date}</Text>
                     <Text style={styles.timelineNote}>{event.note}</Text>
                   </View>
                 </View>
@@ -351,6 +399,11 @@ function JobDetail({ route, navigation }) {
             })}
           </View>
         </View>
+
+        <TouchableOpacity style={styles.backToJobsBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <Icon name="arrow-back" size={16} color="#2563EB" />
+          <Text style={styles.backToJobsText}>Back to My Jobs</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -358,6 +411,9 @@ function JobDetail({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
+
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+  centerStateText: { fontSize: 14, color: '#64748B', textAlign: 'center' },
 
   headerContainer: {
     backgroundColor: '#FDFBF7',
@@ -502,8 +558,60 @@ const styles = StyleSheet.create({
   timelineContent: { flex: 1, paddingBottom: 20, gap: 4 },
   timelineBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   timelineBadgeText: { fontSize: 12, fontWeight: '700' },
-  timelineDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-  timelineNote: { fontSize: 13, color: '#475569' },
+  timelineTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  timelineDate: { fontSize: 12, color: '#94A3B8' },
+  timelineNote: { fontSize: 13, color: '#475569', marginTop: 4 },
+
+  // Summary header card
+  summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  summaryTicket: { fontSize: 18, fontWeight: '800', color: '#1E293B', flexShrink: 1 },
+  summaryBadges: { flexDirection: 'row', gap: 8, flexShrink: 0 },
+  serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  summaryService: { fontSize: 14, color: '#475569', flex: 1, lineHeight: 20 },
+  summaryDivider: { height: 1, backgroundColor: '#F1F5F9' },
+  summaryMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  summaryMetaCol: { gap: 3 },
+  payoutValue: { fontSize: 20, fontWeight: '800', color: '#059669' },
+
+  // Job details blocks
+  detailBlock: { gap: 3 },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  phoneText: { fontSize: 14, fontWeight: '600', color: '#2563EB' },
+  addonChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  addonChip: { backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  addonChipText: { fontSize: 12, fontWeight: '600', color: '#6D28D9' },
+
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  optionalText: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic' },
+
+  invoiceBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 14, paddingVertical: 13,
+  },
+  invoiceBtnText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
+
+  saveTrackingBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10,
+  },
+  saveTrackingText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
+
+  reportCardWrap: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DCFCE7', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  sharedBadgeText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  pdfThumb: {
+    width: 72, height: 72, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0',
+    justifyContent: 'center', alignItems: 'center', gap: 2,
+  },
+  pdfThumbText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
+  reportTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+  backToJobsBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'center',
+    borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 24, paddingHorizontal: 24, paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  backToJobsText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
 });
 
 export default JobDetail;

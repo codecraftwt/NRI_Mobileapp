@@ -64,7 +64,20 @@ function Login({ navigation }) {
 
     dispatch(loginUser({ login: email.trim(), password }))
       .unwrap()
-      .then(() => {
+      .then((result) => {
+        // Role-based routing: vendor / relationship-manager accounts get their
+        // own app shells (and, crucially, the auth token loginUser just stored,
+        // so their APIs authenticate). Everyone else falls through to the
+        // customer onboarding/dashboard flow.
+        const role = String(result?.user?.role || '').toLowerCase();
+        if (/vendor/.test(role)) {
+          navigation.reset({ index: 0, routes: [{ name: 'VendorHome' }] });
+          return;
+        }
+        if (/relationship|manager|\brm\b/.test(role)) {
+          navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
+          return;
+        }
         // Uses the persistent per-user onboarding record so signing out
         // mid-onboarding resumes the wizard instead of the dashboard.
         const route = selectOnboardingRoute(store.getState());
