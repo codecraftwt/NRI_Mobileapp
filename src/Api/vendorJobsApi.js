@@ -109,13 +109,15 @@ export function mapJobDetail(raw) {
   };
 }
 
-// GET /vendor/jobs?status=&page= — "Job queue". Paginated; meta.counts has
-// assigned / in_progress / completed totals.
-export async function getVendorJobs({ status, page } = {}) {
+// GET /vendor/jobs?status=&page=&search= — "Job queue". Paginated; meta.counts
+// has assigned / in_progress / completed totals. `search` matches ticket number
+// or service name (used by the dispute "Related Job" typeahead).
+export async function getVendorJobs({ status, page, search } = {}) {
   try {
     const params = {};
     if (status) params.status = status;
     if (page) params.page = page;
+    if (search) params.search = search;
     const response = await apiClient.get('/vendor/jobs', { params });
     const list = response.data?.data || [];
     const rawMeta = response.data?.meta || {};

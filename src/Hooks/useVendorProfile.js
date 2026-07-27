@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchVendorProfile,
   fetchVendorRates,
+  fetchVendorDocumentTypes,
   updateVendorProfile,
   updateVendorAvailability,
   uploadVendorDocument,
@@ -18,10 +19,16 @@ export function useVendorProfile() {
   const error = useSelector(s => s.vendorProfile.error);
   const actionStatus = useSelector(s => s.vendorProfile.actionStatus);
   const actionError = useSelector(s => s.vendorProfile.actionError);
+  const documentTypes = useSelector(s => s.vendorProfile.documentTypes);
+  const documentTypesStatus = useSelector(s => s.vendorProfile.documentTypesStatus);
 
   useEffect(() => {
     if (status === 'idle') dispatch(fetchVendorProfile());
   }, [status, dispatch]);
+
+  useEffect(() => {
+    if (documentTypesStatus === 'idle') dispatch(fetchVendorDocumentTypes());
+  }, [documentTypesStatus, dispatch]);
 
   // PUT requires the full contact+bank+category set — merge the caller's
   // changed fields over the current profile so nothing gets wiped.
@@ -51,6 +58,10 @@ export function useVendorProfile() {
 
     actionLoading: actionStatus === 'loading',
     actionError,
+
+    // Valid document types for the upload picker (GET .../document-types).
+    documentTypes,
+    documentTypesLoading: documentTypesStatus === 'loading',
 
     // `changes` is a snake_case partial (contact/bank/category_ids) merged over
     // the current profile before PUT.

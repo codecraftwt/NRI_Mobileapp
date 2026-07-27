@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useVendorSupport } from '../../Hooks/useVendorSupport';
+import { useVendorJobs } from '../../Hooks/useVendorJobs';
 
 // The dispute can optionally be tied to one of the vendor's jobs (sends
 // `ticket_id`). Default is a general payout/account issue (no ticket_id).
-// Extend this list from the vendor's jobs endpoint to offer job-linked disputes.
-const JOB_OPTIONS = [
-  { label: '— General / payment issue —', ticketId: null },
-];
+const GENERAL_OPTION = { label: '— General / payment issue —', ticketId: null };
 
 function getStatusPill(status) {
   switch (String(status || '').toLowerCase()) {
@@ -33,10 +31,30 @@ function Support() {
     raiseLoading, raise,
   } = useVendorSupport(page);
 
-  const [relatedJob, setRelatedJob] = useState(JOB_OPTIONS[0]);
+  // Jobs for the "Related Job" typeahead (GET /vendor/jobs?search=). No status
+  // filter — a vendor can dispute a completed job's payment, not just active ones.
+  const { jobs, loading: jobsLoading, fetch: fetchJobs } = useVendorJobs({ page: 1 });
+  const [jobSearch, setJobSearch] = useState('');
+
+  const jobOptions = useMemo(() => [
+    GENERAL_OPTION,
+    ...jobs.map(j => ({ label: `${j.ticket} · ${j.service}`.trim(), ticketId: j.id })),
+  ], [jobs]);
+
+  const [relatedJob, setRelatedJob] = useState(GENERAL_OPTION);
   const [issue, setIssue] = useState('');
   const [amount, setAmount] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  const openJobPicker = () => {
+    setJobSearch('');
+    setPickerOpen(true);
+  };
+
+  const onJobSearch = (text) => {
+    setJobSearch(text);
+    fetchJobs({ search: text.trim() || undefined, page: 1 });
+  };
 
   const goToPage = (p) => {
     setPage(p);
@@ -52,7 +70,7 @@ function Support() {
       await raise({ ticketId: relatedJob.ticketId, reason: issue.trim(), amount }).unwrap();
       setIssue('');
       setAmount('');
-      setRelatedJob(JOB_OPTIONS[0]);
+      setRelatedJob(GENERAL_OPTION);
       Alert.alert('Dispute Submitted', 'Your district partner will review this dispute.');
     } catch (e) {
       const msg = e?.status === 403
@@ -82,7 +100,7 @@ function Support() {
           <View style={styles.field}>
             <Text style={styles.label}>Related Job</Text>
             <Text style={styles.hint}>Optional — leave as "General / payment issue" for payout or account problems.</Text>
-            <TouchableOpacity style={styles.select} onPress={() => setPickerOpen(true)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.select} onPress={openJobPicker} activeOpacity={0.7}>
               <Text style={styles.selectText} numberOfLines={1}>{relatedJob.label}</Text>
               <Icon name="expand-more" size={22} color="#64748B" />
             </TouchableOpacity>
@@ -220,26 +238,43 @@ function Support() {
 
       </ScrollView>
 
-      {/* Related Job picker */}
+      {/* Related Job picker — searches ticket number / service name */}
       <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPickerOpen(false)}>
-          <View style={styles.modalSheet}>
+          <TouchableOpacity style={styles.modalSheet} activeOpacity={1} onPress={() => {}}>
             <Text style={styles.modalTitle}>Select Related Job</Text>
-            {JOB_OPTIONS.map(opt => {
-              const selected = opt.ticketId === relatedJob.ticketId;
-              return (
-                <TouchableOpacity
-                  key={opt.label}
-                  style={styles.optionRow}
-                  onPress={() => { setRelatedJob(opt); setPickerOpen(false); }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{opt.label}</Text>
-                  {selected && <Icon name="check" size={20} color="#D94625" />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            <View style={styles.searchBox}>
+              <Icon name="search" size={18} color="#94A3B8" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by ticket or service..."
+                placeholderTextColor="#94A3B8"
+                value={jobSearch}
+                onChangeText={onJobSearch}
+                autoCorrect={false}
+              />
+              {jobsLoading && <ActivityIndicator size="small" color="#94A3B8" />}
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320 }}>
+              {jobOptions.map(opt => {
+                const selected = opt.ticketId === relatedJob.ticketId;
+                return (
+                  <TouchableOpacity
+                    key={opt.ticketId ?? 'general'}
+                    style={styles.optionRow}
+                    onPress={() => { setRelatedJob(opt); setPickerOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.optionText, selected && styles.optionTextSelected]} numberOfLines={1}>{opt.label}</Text>
+                    {selected && <Icon name="check" size={20} color="#D94625" />}
+                  </TouchableOpacity>
+                );
+              })}
+              {!jobsLoading && jobOptions.length === 1 && (
+                <Text style={styles.noJobsText}>No jobs found{jobSearch ? ` for "${jobSearch}"` : ''}.</Text>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -322,9 +357,16 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32 },
   modalTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 12 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    paddingHorizontal: 12, height: 44, marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: '#0F172A', padding: 0 },
   optionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  optionText: { fontSize: 15, color: '#334155' },
+  optionText: { fontSize: 15, color: '#334155', flex: 1, paddingRight: 12 },
   optionTextSelected: { color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
+  noJobsText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 20 },
 });
 
 export default Support;

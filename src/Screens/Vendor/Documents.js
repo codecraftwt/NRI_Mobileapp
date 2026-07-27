@@ -8,11 +8,6 @@ import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
-const DOCUMENT_TYPES = [
-  { key: 'pan', label: 'PAN Card' },
-  { key: 'aadhaar', label: 'Aadhaar Card' },
-  { key: 'gst', label: 'GST Certificate' },
-];
 
 function getStatusStyle(status) {
   switch ((status || '').toLowerCase()) {
@@ -23,14 +18,16 @@ function getStatusStyle(status) {
   }
 }
 
-const typeLabel = (t) => DOCUMENT_TYPES.find(d => d.key === (t || '').toLowerCase())?.label || (t || 'Document');
-
 function Documents({ navigation }) {
-  const { profile, loading, actionLoading, uploadDocument, deleteDocument } = useVendorProfile();
+  const { profile, loading, actionLoading, uploadDocument, deleteDocument, documentTypes, documentTypesLoading } = useVendorProfile();
   const [documentType, setDocumentType] = useState('');
   const [showTypes, setShowTypes] = useState(false);
 
   const documents = profile?.documents || [];
+
+  // Label for a stored/selected type, resolved from the fetched enum list.
+  const typeLabel = (t) =>
+    documentTypes.find(d => d.value === (t || '').toLowerCase())?.label || (t || 'Document');
 
   const requestPermission = async () => {
     if (Platform.OS !== 'android') return true;
@@ -134,19 +131,25 @@ function Documents({ navigation }) {
         )}
 
         <View style={styles.uploadCard}>
-          <TouchableOpacity style={styles.select} onPress={() => setShowTypes(v => !v)} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.select} onPress={() => setShowTypes(v => !v)} activeOpacity={0.7} disabled={documentTypesLoading}>
             <Text style={[styles.selectText, !documentType && styles.selectPlaceholder]}>
-              {documentType ? typeLabel(documentType) : 'Document type...'}
+              {documentType ? typeLabel(documentType) : (documentTypesLoading ? 'Loading types...' : 'Document type...')}
             </Text>
-            <Icon name={showTypes ? 'expand-less' : 'expand-more'} size={22} color={colors.textSecondary} />
+            {documentTypesLoading
+              ? <ActivityIndicator size="small" color={colors.textSecondary} />
+              : <Icon name={showTypes ? 'expand-less' : 'expand-more'} size={22} color={colors.textSecondary} />}
           </TouchableOpacity>
           {showTypes && (
             <View style={styles.dropdown}>
-              {DOCUMENT_TYPES.map(t => (
-                <TouchableOpacity key={t.key} style={styles.dropdownItem} onPress={() => { setDocumentType(t.key); setShowTypes(false); }}>
-                  <Text style={styles.dropdownItemText}>{t.label}</Text>
-                </TouchableOpacity>
-              ))}
+              {documentTypes.length === 0 ? (
+                <Text style={[styles.dropdownItemText, { padding: 14, color: colors.textPlaceholder }]}>No document types available.</Text>
+              ) : (
+                documentTypes.map(t => (
+                  <TouchableOpacity key={t.value} style={styles.dropdownItem} onPress={() => { setDocumentType(t.value); setShowTypes(false); }}>
+                    <Text style={styles.dropdownItemText}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
           )}
           <TouchableOpacity style={[styles.uploadBtn, actionLoading && styles.uploadBtnDisabled]} onPress={handleUpload} disabled={actionLoading} activeOpacity={0.8}>

@@ -145,6 +145,37 @@ export async function updateVendorAvailability({ isAvailable, unavailableFrom, u
   }
 }
 
+// Nice display label for a document-type enum value (pan → "PAN Card").
+function prettifyDocType(v) {
+  const known = {
+    pan: 'PAN Card',
+    aadhaar: 'Aadhaar Card',
+    gst: 'GST Certificate',
+    passport: 'Passport',
+    license: 'License',
+    registration: 'Registration Certificate',
+    cancelled_cheque: 'Cancelled Cheque',
+  };
+  const k = String(v || '').toLowerCase();
+  return known[k] || k.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// GET /vendor/profile/document-types — valid enum values for the upload picker.
+// Tolerates a flat string array or objects ({value|key|type, label|name}).
+export async function getVendorDocumentTypes() {
+  try {
+    const response = await apiClient.get('/vendor/profile/document-types');
+    const list = response.data?.data || response.data || [];
+    return list.map((item) => {
+      if (typeof item === 'string') return { value: item, label: prettifyDocType(item) };
+      const value = item.value ?? item.key ?? item.type ?? item.slug;
+      return { value, label: item.label || item.name || prettifyDocType(value) };
+    }).filter(t => t.value);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // POST /vendor/profile/documents — multipart KYC/registration document upload.
 // `file` is an RN picker object: { uri, name, type }.
 export async function uploadVendorDocument({ documentType, file }) {

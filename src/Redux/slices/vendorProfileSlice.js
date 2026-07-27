@@ -17,6 +17,14 @@ export const fetchVendorRates = createAsyncThunk('vendorProfile/fetchRates', asy
   }
 });
 
+export const fetchVendorDocumentTypes = createAsyncThunk('vendorProfile/fetchDocumentTypes', async (_, { rejectWithValue }) => {
+  try {
+    return await vendorProfileApi.getVendorDocumentTypes();
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 // Mutations refresh the profile on success so the UI reflects saved changes.
 export const updateVendorProfile = createAsyncThunk('vendorProfile/update', async (fields, { dispatch, rejectWithValue }) => {
   try {
@@ -67,6 +75,9 @@ const initialState = {
   ratesStatus: 'idle',
   ratesError: null,
 
+  documentTypes: [],
+  documentTypesStatus: 'idle',
+
   // Shared status for all profile mutations (update / availability / documents).
   actionStatus: 'idle',
   actionError: null,
@@ -106,6 +117,16 @@ const vendorProfileSlice = createSlice({
       .addCase(fetchVendorRates.rejected, (state, action) => {
         state.ratesStatus = 'failed';
         state.ratesError = action.payload;
+      })
+      .addCase(fetchVendorDocumentTypes.pending, (state) => {
+        state.documentTypesStatus = 'loading';
+      })
+      .addCase(fetchVendorDocumentTypes.fulfilled, (state, action) => {
+        state.documentTypesStatus = 'succeeded';
+        state.documentTypes = action.payload;
+      })
+      .addCase(fetchVendorDocumentTypes.rejected, (state) => {
+        state.documentTypesStatus = 'failed';
       });
 
     [updateVendorProfile, updateVendorAvailability, uploadVendorDocument, deleteVendorDocument].forEach((thunk) => {
