@@ -37,6 +37,7 @@ export const requestCashout = createAsyncThunk(
 const initialState = {
   balance: 0,
   cashout: null,
+  coupons: [],
   status: 'idle',
   error: null,
   transactions: [],
@@ -61,6 +62,7 @@ const walletAccountSlice = createSlice({
         state.status = 'succeeded';
         state.balance = action.payload.balance;
         state.cashout = action.payload.cashout;
+        state.coupons = action.payload.coupons;
       })
       .addCase(fetchWallet.rejected, (state, action) => {
         state.status = 'failed';

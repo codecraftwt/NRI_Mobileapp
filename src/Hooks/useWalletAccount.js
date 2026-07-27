@@ -10,6 +10,7 @@ export function useWalletAccount() {
   const dispatch = useDispatch();
   const balance = useSelector(state => state.walletAccount.balance);
   const cashout = useSelector(state => state.walletAccount.cashout);
+  const coupons = useSelector(state => state.walletAccount.coupons);
   const status = useSelector(state => state.walletAccount.status);
   const error = useSelector(state => state.walletAccount.error);
 
@@ -32,6 +33,7 @@ export function useWalletAccount() {
   return {
     balance,
     cashout,
+    coupons,
     loading: status === 'loading',
     failed: status === 'failed',
     error,

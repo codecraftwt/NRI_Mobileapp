@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
-import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -9,18 +8,16 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
 
-const discountLabel = (c) => c.discountType === 'percentage' ? `${c.discountValue}% off` : `₹${c.discountValue.toLocaleString('en-IN')} off`;
-
 // Wallet balance / cash-out minimum / transaction amounts are USD (from the
 // wallet API) — format with $ like the rest of the flow.
 const formatUsd = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function WalletCoupons({ navigation }) {
-  const wallet = useSelector(state => state.wallet);
   const {
     balance,
     cashout,
+    coupons,
     loading,
     retry,
     transactions,
@@ -101,7 +98,7 @@ function WalletCoupons({ navigation }) {
               </View>
               <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Coupons Available</Text>
             </View>
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{wallet.coupons.length}</Text>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{coupons.length}</Text>
           </View>
         </View>
 
@@ -167,17 +164,25 @@ function WalletCoupons({ navigation }) {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Available Coupons</Text>
-          {wallet.coupons.map(c => (
-            <View key={c.code} style={styles.couponRow}>
-              <View style={styles.couponTopRow}>
-                <View style={styles.couponCodeBadge}>
-                  <Text style={styles.couponCodeText}>{c.code}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.primary} style={{ paddingVertical: 20 }} />
+          ) : coupons.length === 0 ? (
+            <Text style={styles.emptyText}>No coupons available.</Text>
+          ) : (
+            coupons.map(c => (
+              <View key={c.id ?? c.code} style={styles.couponRow}>
+                <View style={styles.couponTopRow}>
+                  <View style={styles.couponCodeBadge}>
+                    <Text style={styles.couponCodeText}>{c.code}</Text>
+                  </View>
+                  {c.validUntil ? (
+                    <Text style={styles.couponDiscount}>Valid until {c.validUntil}</Text>
+                  ) : null}
                 </View>
-                <Text style={styles.couponDiscount}>{discountLabel(c)}</Text>
+                {c.description ? <Text style={styles.couponDesc}>{c.description}</Text> : null}
               </View>
-              <Text style={styles.couponDesc}>{c.description}</Text>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         <View style={styles.sectionCard}>

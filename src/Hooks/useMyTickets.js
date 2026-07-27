@@ -20,7 +20,7 @@ export function useMyTickets(page = 1, perPage) {
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    fetchPage: (p) => dispatch(fetchMyTickets({ page: p, perPage })),
-    retry: () => dispatch(fetchMyTickets({ page, perPage })),
+    fetchPage: (p, status) => dispatch(fetchMyTickets({ page: p, perPage, status })),
+    retry: (status) => dispatch(fetchMyTickets({ page, perPage, status })),
   };
 }

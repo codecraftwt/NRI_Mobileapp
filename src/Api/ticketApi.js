@@ -265,11 +265,15 @@ export async function createTicket({
   }
 }
 
-export async function getTickets({ page, perPage } = {}) {
+export async function getTickets({ page, perPage, status } = {}) {
   try {
     const params = {};
     if (page) params.page = page;
     if (perPage) params.per_page = perPage;
+    // Server-side status filter (e.g. 'new' | 'assigned' | 'completed') so each
+    // Requests tab pulls only its own tickets across all pages, rather than
+    // client-filtering just the loaded page.
+    if (status) params.status = status;
     const response = await apiClient.get('/customer/tickets', { params });
     const list = response.data?.data || [];
     const tickets = list.map(mapTicket);

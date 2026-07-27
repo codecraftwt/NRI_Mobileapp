@@ -5,7 +5,16 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMyTickets } from '../../Hooks/useMyTickets';
 import { typography } from '../../theme/typography';
 
-const TABS = ['All', 'Active', 'Completed', 'Pending'];
+const TABS = ['All', 'New', 'Assigned', 'Completed'];
+
+// Each tab maps to a backend `status` value so tickets are fetched
+// server-side (across all pages), not client-filtered on the loaded page.
+const STATUS_BY_TAB = {
+  All: undefined,
+  New: 'new',
+  Assigned: 'assigned',
+  Completed: 'completed',
+};
 
 function getStatusPill(statusLabel) {
   switch (statusLabel) {
@@ -59,23 +68,26 @@ function Requests({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await retry();
+    await retry(STATUS_BY_TAB[activeTab]);
     setRefreshing(false);
   };
 
+  // Refetch whenever the screen regains focus or the active tab changes, always
+  // with the current tab's status filter. `retry` is a fresh reference each
+  // render (not memoized by the hook), so it's intentionally kept out of deps
+  // to avoid an infinite refetch loop.
   useFocusEffect(
     useCallback(() => {
-      retry();
+      retry(STATUS_BY_TAB[activeTab]);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [activeTab])
   );
 
-  const filteredTickets = tickets.filter(t => {
-    if (activeTab === 'Active' && !['New', 'Assigned', 'In Progress'].includes(t.statusLabel)) return false;
-    if (activeTab === 'Completed' && t.statusLabel !== 'Completed') return false;
-    if (activeTab === 'Pending' && !['New', 'Assigned'].includes(t.statusLabel)) return false;
-    return true;
-  });
+  // Server already filters by status; this is a defensive fallback in case the
+  // backend ignores the param for a given tab.
+  const filteredTickets = activeTab === 'All'
+    ? tickets
+    : tickets.filter(t => t.status === STATUS_BY_TAB[activeTab]);
 
   return (
     <View style={styles.container}>
@@ -84,7 +96,7 @@ function Requests({ navigation }) {
         <Text style={styles.headerTitle}>My Requests</Text>
       </View>
 
-      {tickets.length > 0 && (
+      {(tickets.length > 0 || activeTab !== 'All') && (
         <View style={styles.tabsContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
             {TABS.map(tab => (
@@ -171,7 +183,7 @@ function Requests({ navigation }) {
           );
         })}
 
-        {meta.lastPage > 1 && (
+        {filteredTickets.length > 0 && meta.lastPage > 1 && (
           <View style={styles.pagerRow}>
             <TouchableOpacity
               style={[styles.pagerBtn, meta.currentPage <= 1 && styles.pagerBtnDisabled]}

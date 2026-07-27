@@ -10,6 +10,15 @@ function mapCashout(raw) {
   };
 }
 
+function mapCoupon(raw) {
+  return {
+    id: raw.id,
+    code: raw.code,
+    description: raw.description || null,
+    validUntil: raw.valid_until || null,
+  };
+}
+
 export async function getWallet() {
   try {
     const response = await apiClient.get('/customer/wallet');
@@ -17,6 +26,7 @@ export async function getWallet() {
     return {
       balance: data.balance ?? 0,
       cashout: mapCashout(data.cashout),
+      coupons: Array.isArray(data.coupons) ? data.coupons.map(mapCoupon) : [],
     };
   } catch (error) {
     throw normalizeApiError(error);
