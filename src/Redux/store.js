@@ -27,6 +27,7 @@ import vendorSupportReducer from './slices/vendorSupportSlice';
 import vendorRatingsReducer from './slices/vendorRatingsSlice';
 import vendorJobsReducer from './slices/vendorJobsSlice';
 import vendorProfileReducer from './slices/vendorProfileSlice';
+import vendorEarningsReducer from './slices/vendorEarningsSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
 import serviceLocationReducer from './slices/serviceLocationSlice';
 import onboardingReducer from './slices/onboardingSlice';
@@ -89,6 +90,7 @@ const appReducer = combineReducers({
   vendorRatings: vendorRatingsReducer,
   vendorJobs: vendorJobsReducer,
   vendorProfile: vendorProfileReducer,
+  vendorEarnings: vendorEarningsReducer,
   serviceSubscription: serviceSubscriptionReducer,
   serviceLocation: serviceLocationReducer,
   onboarding: onboardingReducer,

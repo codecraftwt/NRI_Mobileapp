@@ -9,6 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Dashboard from '../../Screens/Vendor/Dashboard';
 import MyJobs from '../../Screens/Vendor/MyJobs';
 import Earnings from '../../Screens/Vendor/Earnings';
+import PayoutDetail from '../../Screens/Vendor/PayoutDetail';
 import Ratings from '../../Screens/Vendor/Ratings';
 import Support from '../../Screens/Vendor/Support';
 import Profile from '../../Screens/Vendor/Profile';
@@ -49,6 +50,7 @@ function EarningsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="EarningsMain" component={Earnings} />
+      <Stack.Screen name="PayoutDetail" component={PayoutDetail} />
     </Stack.Navigator>
   );
 }
