@@ -27,6 +27,7 @@ import vendorSupportReducer from './slices/vendorSupportSlice';
 import vendorRatingsReducer from './slices/vendorRatingsSlice';
 import vendorJobsReducer from './slices/vendorJobsSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
+import serviceLocationReducer from './slices/serviceLocationSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
@@ -36,7 +37,7 @@ const persistConfig = {
   storage: AsyncStorage,
   // `onboarding` must persist AND survive the auth reset below so mid-onboarding
   // sign-outs resume the wizard rather than landing on the dashboard.
-  whitelist: ['user', 'tickets', 'wallet', 'onboarding'],
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);
@@ -87,6 +88,7 @@ const appReducer = combineReducers({
   vendorRatings: vendorRatingsReducer,
   vendorJobs: vendorJobsReducer,
   serviceSubscription: serviceSubscriptionReducer,
+  serviceLocation: serviceLocationReducer,
   onboarding: onboardingReducer,
 });
 

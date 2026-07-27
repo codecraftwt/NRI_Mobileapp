@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar } from 'react-native';
+import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
@@ -111,11 +113,17 @@ function LocationSelect({ label, value, placeholder, options, disabled, loading,
 }
 
 function Services({ navigation }) {
+  const dispatch = useDispatch();
   const { categories, loading } = useServiceCategories();
   const [search, setSearch] = useState('');
 
-  // Category tapped → location modal. `pendingCategory` holds it while the
-  // modal collects the state + city to fetch that category's services for.
+  // Saved (persisted) service location — set once, reused for every category.
+  const savedLocation = useSelector(s => s.serviceLocation);
+  const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
+
+  // Location modal state. `pendingCategory` holds the category to open once a
+  // location is chosen (null when the modal is just editing the saved location).
+  const [modalOpen, setModalOpen] = useState(false);
   const [pendingCategory, setPendingCategory] = useState(null);
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -125,24 +133,40 @@ function Services({ navigation }) {
   const cityId = selectedCity ? cities.find(c => c.name === selectedCity)?.id : null;
   const canSubmit = !!(selectedState && selectedCity && cityId);
 
+  const goToServices = (cat, loc) => navigation.navigate('ServiceDetail', {
+    category: cat,
+    stateName: loc.stateName,
+    cityName: loc.cityName,
+    cityId: loc.cityId,
+  });
+
+  // Open the modal — prefilled with the saved location so it can be tweaked.
   const openLocationModal = (cat) => {
-    setSelectedState('');
-    setSelectedCity('');
-    setPendingCategory(cat);
+    setSelectedState(savedLocation?.stateName || '');
+    setSelectedCity(savedLocation?.cityName || '');
+    setPendingCategory(cat || null);
+    setModalOpen(true);
   };
 
-  const closeLocationModal = () => setPendingCategory(null);
+  const closeLocationModal = () => { setModalOpen(false); setPendingCategory(null); };
+
+  // Category tap: go straight through with the saved location; only ask when
+  // none is saved yet.
+  const handleCategoryPress = (cat) => {
+    if (hasLocation) {
+      goToServices(cat, savedLocation);
+    } else {
+      openLocationModal(cat);
+    }
+  };
 
   const handleSubmitLocation = () => {
     if (!canSubmit) return;
+    const loc = { stateName: selectedState, cityName: selectedCity, cityId };
+    dispatch(setServiceLocation(loc)); // persist for next time
     const cat = pendingCategory;
     closeLocationModal();
-    navigation.navigate('ServiceDetail', {
-      category: cat,
-      stateName: selectedState,
-      cityName: selectedCity,
-      cityId,
-    });
+    if (cat) goToServices(cat, loc); // came from a category tap → continue
   };
 
   const displayCategories = categories.map(c => {
@@ -183,7 +207,7 @@ function Services({ navigation }) {
                 key={idx}
                 style={styles.card}
                 activeOpacity={0.7}
-                onPress={() => openLocationModal(cat)}
+                onPress={() => handleCategoryPress(cat)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cat.color + '15' }]}>
                   <Icon name={cat.icon} size={24} color={cat.color} />
@@ -199,9 +223,9 @@ function Services({ navigation }) {
         )}
       </ScrollView>
 
-      {/* Location modal — shown after a category is tapped */}
+      {/* Location modal — from a category tap (first time) or the banner */}
       <Modal
-        visible={!!pendingCategory}
+        visible={modalOpen}
         transparent
         animationType="slide"
         onRequestClose={closeLocationModal}
@@ -212,7 +236,9 @@ function Services({ navigation }) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.locTitle}>Select Location</Text>
                 <Text style={styles.locSubtitle} numberOfLines={1}>
-                  Where do you need {pendingCategory?.displayName || 'this service'}?
+                  {pendingCategory
+                    ? `Where do you need ${pendingCategory.displayName}?`
+                    : 'Choose the state & city for your services.'}
                 </Text>
               </View>
               <TouchableOpacity onPress={closeLocationModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -244,7 +270,7 @@ function Services({ navigation }) {
               disabled={!canSubmit}
               activeOpacity={0.85}
             >
-              <Text style={styles.submitBtnText}>Submit</Text>
+              <Text style={styles.submitBtnText}>{pendingCategory ? 'Submit' : 'Save Location'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -295,6 +321,15 @@ const styles = StyleSheet.create({
     height: '100%',
     color: '#1E293B',
   },
+
+  locBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 12, marginTop: 12,
+  },
+  locBannerLabel: { fontSize: 11, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
+  locBannerValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, marginTop: 1 },
+  locBannerAction: { fontSize: 13, color: '#D94625', fontFamily: typography.h4.fontFamily },
 
   list: { gap: 16 },
   card: {
