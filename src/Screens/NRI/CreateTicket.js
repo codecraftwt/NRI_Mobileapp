@@ -23,7 +23,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useStates } from '../../Hooks/useStates';
-import { useDistricts } from '../../Hooks/useDistricts';
+import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { usePriorities } from '../../Hooks/usePriorities';
@@ -186,8 +186,9 @@ function CreateTicket({ route, navigation }) {
   const [fullName, setFullName] = useState('');
   const [relation, setRelation] = useState('');
   const [property, setProperty] = useState(NO_PROPERTY);
-  const [state, setState] = useState('');
-  const [city, setCity] = useState('');
+  // State/city are pre-filled from the location gate (Services → ServiceDetail).
+  const [state, setState] = useState(route.params?.initialState || '');
+  const [city, setCity] = useState(route.params?.initialCity || '');
   const [taluka, setTaluka] = useState('');
   const [fullAddress, setFullAddress] = useState('');
   const [pincode, setPincode] = useState('');
@@ -206,12 +207,20 @@ function CreateTicket({ route, navigation }) {
   const { showAlert, alertProps } = useAppAlert();
 
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
-  // The districts endpoint is what actually returns city-level data for this
-  // backend (same fix as AddFamilyMember.js) — there's no separate District
-  // picker in this form, so its results are surfaced directly as "City".
-  const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(state);
-  const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas(city, '');
+  // Real geo cities (GET /geo/cities?state_id=) — vendor availability and
+  // pricing are keyed on the city, and city_id is now required at checkout.
+  const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state);
+  const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas('', city);
   const { categoryNames, loading: loadingCategories, failed: categoriesFailed, retry: retryCategories } = useServiceCategories();
+
+  // Resolved geo ids — needed by the service/quote calls below. cityId prefers
+  // the resolved city, falling back to the id passed from the location gate
+  // (in case the /geo/cities list hasn't loaded yet on first render).
+  const stateId = state ? states.find(s => s.name === state)?.id : null;
+  const cityId = (city ? cities.find(c => c.name === city)?.id : null) ?? route.params?.initialCityId ?? null;
+  // State + city are picked in the location step (Services) and can't be
+  // changed here — the fetched services are specific to that location.
+  const locationLocked = !!(route.params?.initialState && route.params?.initialCity);
   const { priorities, loading: prioritiesLoading, failed: prioritiesFailed, retry: retryPriorities } = usePriorities();
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { properties } = useProperties();
@@ -223,16 +232,16 @@ function CreateTicket({ route, navigation }) {
     loading: loadingBaseServices,
     failed: baseServicesFailed,
     retry: retryBaseServices,
-  } = useServicesByCategory(serviceCategory, state, { type: 'base' });
+  } = useServicesByCategory(serviceCategory, state, { type: 'base', cityId });
   const {
     services: addonServices,
     loading: loadingAddonServices,
     failed: addonServicesFailed,
     retry: retryAddonServices,
-  } = useServicesByCategory(serviceCategory, state, { type: 'addon' });
+  } = useServicesByCategory(serviceCategory, state, { type: 'addon', cityId });
 
   // Recurring services for the subscription flow (Service.allows_recurring).
-  const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state);
+  const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state, cityId);
   const {
     requiredDocuments: subRequiredDocuments,
     fetchRequiredDocuments: fetchSubRequiredDocuments,
@@ -270,8 +279,6 @@ function CreateTicket({ route, navigation }) {
   // the same `documentFiles` state and the same Required Documents UI below.
   const requiredDocuments = isRecurring ? subRequiredDocuments : ticketRequiredDocuments;
 
-  const stateId = state ? states.find(s => s.name === state)?.id : null;
-  const cityId = city ? cities.find(c => c.name === city)?.id : null;
   const talukaId = taluka ? talukas.find(t => t.name === taluka)?.id : null;
   const propertyId = property !== NO_PROPERTY ? properties.find(p => p.nickname === property)?.id : null;
   const primaryBaseServiceId = selectedBaseServiceIds[0] || null;
@@ -316,17 +323,20 @@ function CreateTicket({ route, navigation }) {
   // pricing (plan overage, express surcharge, coupon discount) is computed
   // server-side, not re-derived here.
   useEffect(() => {
-    if (selectedBaseServiceIds.length === 0 || !stateId) return;
+    // city_id is now required by the quote endpoint — don't call it until a
+    // city is resolved (avoids a guaranteed 422).
+    if (selectedBaseServiceIds.length === 0 || !stateId || !cityId) return;
     fetchQuote({
       serviceId: selectedBaseServiceIds[0],
       extraServices: selectedBaseServiceIds.slice(1),
       addons: selectedAddonIds,
       stateId,
+      cityId,
       urgency: prioritySlug || 'standard',
       couponCode: appliedCoupon?.code,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseServiceIdsKey, addonIdsKey, stateId, prioritySlug, appliedCoupon?.code]);
+  }, [baseServiceIdsKey, addonIdsKey, stateId, cityId, prioritySlug, appliedCoupon?.code]);
 
   // The server quote needs a state (the API 422s without state_id), which
   // sits further down the form than the add-on checkboxes. So the panel
@@ -413,12 +423,13 @@ function CreateTicket({ route, navigation }) {
 
   const missingRequiredDoc = requiredDocuments.some(d => d.required && !documentFiles[d.id]);
 
+  // city_id (a resolved city) is required by the backend for both flows.
   const isValid = isRecurring
     ? (serviceCategory && selectedSubscriptionIds.length > 0
-        && fullName.trim().length > 0 && relation && state
+        && fullName.trim().length > 0 && relation && state && !!cityId
         && fullAddress.trim().length > 0 && !missingRequiredDoc)
     : (serviceCategory && selectedBaseServiceIds.length > 0 && !!prioritySlug
-        && fullName.trim().length > 0 && relation && state
+        && fullName.trim().length > 0 && relation && state && !!cityId
         && fullAddress.trim().length > 0 && pincode.trim().length > 0
         && !missingRequiredDoc);
 
@@ -478,7 +489,7 @@ function CreateTicket({ route, navigation }) {
 
   const handleApplyCoupon = () => {
     if (!couponCode.trim()) return;
-    applyCoupon({ code: couponCode.trim(), addons: selectedAddonIds, stateId })
+    applyCoupon({ code: couponCode.trim(), addons: selectedAddonIds, stateId, cityId })
       .unwrap()
       .then((result) => {
         Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ${formatUsdAmount(result.discount)}.`);
@@ -489,7 +500,7 @@ function CreateTicket({ route, navigation }) {
   };
 
   const handleViewCoupons = () => {
-    fetchCoupons({ addons: selectedAddonIds, stateId });
+    fetchCoupons({ addons: selectedAddonIds, stateId, cityId });
     setShowCouponsModal(true);
   };
 
@@ -497,7 +508,7 @@ function CreateTicket({ route, navigation }) {
     if (!coupon.eligible) return;
     setCouponCode(coupon.code);
     setShowCouponsModal(false);
-    applyCoupon({ code: coupon.code, addons: selectedAddonIds, stateId })
+    applyCoupon({ code: coupon.code, addons: selectedAddonIds, stateId, cityId })
       .unwrap()
       .then((result) => {
         Alert.alert('Coupon Applied', `Code ${result.code} applied — you save ${formatUsdAmount(result.discount)}.`);
@@ -1062,12 +1073,34 @@ function CreateTicket({ route, navigation }) {
             options={[NO_PROPERTY, ...properties.map(p => p.nickname)]}
             onSelect={setProperty}
           />
+          {locationLocked && (
+            <View style={styles.lockedLocationRow}>
+              <Icon name="place" size={14} color="#64748B" />
+              <Text style={styles.lockedLocationText} numberOfLines={1}>
+                Location set for {city}, {state}
+              </Text>
+              <TouchableOpacity
+                onPress={() => showAlert(
+                  'Change Location?',
+                  'Services are specific to your location. To change your state or city, please pick your service again from the start.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Change Location', onPress: goToServices },
+                  ],
+                )}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.changeLocationText}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <SelectField
             label="State"
             required
             value={state}
             placeholder="Select state..."
             options={stateNames}
+            disabled={locationLocked}
             onSelect={(v) => {
               setState(v);
               setCity('');
@@ -1075,24 +1108,25 @@ function CreateTicket({ route, navigation }) {
             }}
             loading={loadingStates}
           />
-          {statesFailed && (
+          {statesFailed && !locationLocked && (
             <TouchableOpacity onPress={retryStates}>
               <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
             </TouchableOpacity>
           )}
           <SelectField
-            label="City / District"
+            label="City"
+            required
             value={city}
             placeholder="Select state first..."
             options={cityNames}
-            disabled={!state}
+            disabled={locationLocked || !state}
             loading={loadingCities}
             onSelect={(v) => {
               setCity(v);
               setTaluka('');
             }}
           />
-          {citiesFailed && (
+          {citiesFailed && !locationLocked && (
             <TouchableOpacity onPress={retryCities}>
               <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
             </TouchableOpacity>
@@ -1538,6 +1572,12 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 15, color: '#0F172A', flex: 1, fontWeight: '500' },
   placeholderText: { color: '#94A3B8', fontWeight: '400' },
   retryText: { fontSize: 13, color: '#EF4444', fontWeight: '600', marginTop: 4 },
+  lockedLocationRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12,
+  },
+  lockedLocationText: { flex: 1, fontSize: 12, color: '#475569', fontFamily: typography.labelMedium.fontFamily },
+  changeLocationText: { fontSize: 13, color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
   input: {
     borderWidth: 1,
     borderColor: '#E2E8F0',

@@ -73,6 +73,14 @@ function mapPricing(raw) {
     recurringPrice: raw.recurring_price,
     billingInterval: raw.billing_interval,
     recurringDisplayPrice: raw.recurring_display_price,
+    // Vendor availability for the requested city. null when city_id was NOT
+    // sent (unknown — catalog "starting from" price); true/false once a city
+    // is known. `false` means no vendor covers this service in that city, so
+    // it can't be booked there. Check these flags — don't string-match
+    // display_price (which is already presentation-ready, e.g. "Not available
+    // in your area").
+    vendorPriced: raw.vendor_priced ?? null,
+    recurringVendorPriced: raw.recurring_vendor_priced ?? null,
   };
 }
 
@@ -103,13 +111,15 @@ function flattenServices(data) {
   return merged.filter(s => (seen.has(s.id) ? false : seen.add(s.id)));
 }
 
-// `type` is 'base' | 'addon'; `stateId` requests state-specific pricing.
-export async function getServices({ categoryId, type, stateId, search } = {}) {
+// `type` is 'base' | 'addon'; `stateId` requests state-specific pricing;
+// `cityId` requests vendor availability + real (vendor) pricing for that city.
+export async function getServices({ categoryId, type, stateId, cityId, search } = {}) {
   try {
     const params = {};
     if (categoryId) params.category_id = categoryId;
     if (type) params.type = type;
     if (stateId) params.state_id = stateId;
+    if (cityId) params.city_id = cityId;
     if (search) params.search = search;
     const response = await apiClient.get('/services', { params });
     const mapped = flattenServices(response.data?.data || response.data).map(mapService);
@@ -123,11 +133,12 @@ export async function getServices({ categoryId, type, stateId, search } = {}) {
 
 // Services for a category split into one-time (allows_single_use) and
 // recurring (allows_recurring) buckets, as returned by the grouped API shape.
-export async function getServiceGroups({ categoryId, stateId, search } = {}) {
+export async function getServiceGroups({ categoryId, stateId, cityId, search } = {}) {
   try {
     const params = {};
     if (categoryId) params.category_id = categoryId;
     if (stateId) params.state_id = stateId;
+    if (cityId) params.city_id = cityId;
     if (search) params.search = search;
     const response = await apiClient.get('/services', { params });
     const data = response.data?.data || response.data || {};

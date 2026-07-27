@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Dimensions, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
-
-const { width: W, height: H } = Dimensions.get('window');
+import { useStates } from '../../Hooks/useStates';
+import { useCities } from '../../Hooks/useCities';
 
 const categoryDetails = {
   // Original Mappings
@@ -23,7 +23,7 @@ const categoryDetails = {
   'Gifts & Events': { icon: 'card-giftcard', color: '#EC4899', desc: 'Birthdays, festivals, pujas & celebrations' },
   'Emergency (24x7)': { icon: 'error-outline', color: '#EF4444', desc: 'Medical, property & legal emergency re...' },
   'Vehicle Care': { icon: 'car-repair', color: '#64748B', desc: 'RC renewal, PUC, insurance & servicing' },
-  
+
   // New API Category Mappings
   'Cleaning': { icon: 'cleaning-services', color: '#3B82F6', desc: 'Deep cleaning, maid services, pest control...' },
   'Gift Delivery': { icon: 'card-giftcard', color: '#EC4899', desc: 'Send cakes, flowers & custom gifts...' },
@@ -39,9 +39,111 @@ const categoryDetails = {
   'Annual India Visit Planning': { icon: 'card-travel', color: '#EC4899', desc: 'Itinerary planning, stay & transport...' },
 };
 
+// Labelled select that opens a searchable bottom-sheet list of options.
+function LocationSelect({ label, value, placeholder, options, disabled, loading, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const close = () => { setOpen(false); setQuery(''); };
+  const filtered = query.trim()
+    ? options.filter(o => o.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={styles.selectLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.selectBox, (disabled || loading) && styles.selectBoxDisabled]}
+        disabled={disabled || loading}
+        onPress={() => setOpen(true)}
+        activeOpacity={0.7}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <>
+            <Text style={[styles.selectText, !value && styles.selectPlaceholder]} numberOfLines={1}>
+              {value || placeholder}
+            </Text>
+            <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
+          </>
+        )}
+      </TouchableOpacity>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={close}>
+          {/* Stop the overlay's onPress from closing when tapping inside the sheet. */}
+          <TouchableOpacity style={styles.modalSheet} activeOpacity={1} onPress={() => {}}>
+            <Text style={styles.modalTitle}>{label}</Text>
+            <View style={styles.modalSearchBox}>
+              <Icon name="search" size={18} color="#94A3B8" />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder={`Search ${label.toLowerCase()}...`}
+                placeholderTextColor="#94A3B8"
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Icon name="close" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={filtered}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); close(); }}>
+                  <Text style={styles.modalOptionText}>{item}</Text>
+                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.modalEmpty}>No matches found.</Text>}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
 function Services({ navigation }) {
   const { categories, loading } = useServiceCategories();
   const [search, setSearch] = useState('');
+
+  // Category tapped → location modal. `pendingCategory` holds it while the
+  // modal collects the state + city to fetch that category's services for.
+  const [pendingCategory, setPendingCategory] = useState(null);
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+
+  const { stateNames, loading: loadingStates } = useStates();
+  const { cities, cityNames, loading: loadingCities } = useCities(selectedState);
+  const cityId = selectedCity ? cities.find(c => c.name === selectedCity)?.id : null;
+  const canSubmit = !!(selectedState && selectedCity && cityId);
+
+  const openLocationModal = (cat) => {
+    setSelectedState('');
+    setSelectedCity('');
+    setPendingCategory(cat);
+  };
+
+  const closeLocationModal = () => setPendingCategory(null);
+
+  const handleSubmitLocation = () => {
+    if (!canSubmit) return;
+    const cat = pendingCategory;
+    closeLocationModal();
+    navigation.navigate('ServiceDetail', {
+      category: cat,
+      stateName: selectedState,
+      cityName: selectedCity,
+      cityId,
+    });
+  };
 
   const displayCategories = categories.map(c => {
     const details = categoryDetails[c.name] || { icon: 'category', color: '#64748B', desc: 'Explore this service category...' };
@@ -58,7 +160,7 @@ function Services({ navigation }) {
       </View>
       <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
         <View style={styles.searchBox}>
-          <Icon name="crop-free" size={20} color="#64748B" />
+          <Icon name="search" size={20} color="#64748B" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search services..."
@@ -70,7 +172,6 @@ function Services({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
         {loading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -82,7 +183,7 @@ function Services({ navigation }) {
                 key={idx}
                 style={styles.card}
                 activeOpacity={0.7}
-                onPress={() => navigation.navigate('ServiceDetail', { category: cat })}
+                onPress={() => openLocationModal(cat)}
               >
                 <View style={[styles.iconBox, { backgroundColor: cat.color + '15' }]}>
                   <Icon name={cat.icon} size={24} color={cat.color} />
@@ -97,6 +198,57 @@ function Services({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Location modal — shown after a category is tapped */}
+      <Modal
+        visible={!!pendingCategory}
+        transparent
+        animationType="slide"
+        onRequestClose={closeLocationModal}
+      >
+        <View style={styles.locOverlay}>
+          <View style={styles.locSheet}>
+            <View style={styles.locHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locTitle}>Select Location</Text>
+                <Text style={styles.locSubtitle} numberOfLines={1}>
+                  Where do you need {pendingCategory?.displayName || 'this service'}?
+                </Text>
+              </View>
+              <TouchableOpacity onPress={closeLocationModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <LocationSelect
+              label="State"
+              value={selectedState}
+              placeholder="Select state"
+              options={stateNames}
+              loading={loadingStates}
+              onSelect={(name) => { setSelectedState(name); setSelectedCity(''); }}
+            />
+            <LocationSelect
+              label="City"
+              value={selectedCity}
+              placeholder={selectedState ? 'Select city' : 'Select state first'}
+              options={cityNames}
+              disabled={!selectedState}
+              loading={!!selectedState && loadingCities}
+              onSelect={setSelectedCity}
+            />
+
+            <TouchableOpacity
+              style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
+              onPress={handleSubmitLocation}
+              disabled={!canSubmit}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.submitBtnText}>Submit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -107,7 +259,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 15,
     paddingHorizontal: 20,
-    backgroundColor: '#20304C', // Dark blue status bar & header
+    backgroundColor: '#20304C',
   },
   headerTitle: {
     fontSize: 24,
@@ -127,7 +279,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     height: 52,
-    marginBottom: 24,
+    marginBottom: 4,
     shadowColor: '#A64416',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -143,7 +295,7 @@ const styles = StyleSheet.create({
     height: '100%',
     color: '#1E293B',
   },
-  
+
   list: { gap: 16 },
   card: {
     flexDirection: 'row',
@@ -181,11 +333,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
   },
-  
   loadingBox: {
     paddingVertical: 40,
     alignItems: 'center',
-  }
+  },
+
+  // Location modal
+  locOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  locSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  locHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
+  locTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  locSubtitle: { fontSize: 13, color: '#64748B', marginTop: 2 },
+
+  selectLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', marginBottom: 6 },
+  selectBox: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    paddingHorizontal: 12, height: 50,
+  },
+  selectBoxDisabled: { opacity: 0.5 },
+  selectText: { flex: 1, fontSize: 14, color: '#0F172A' },
+  selectPlaceholder: { color: '#94A3B8' },
+
+  submitBtn: {
+    backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8,
+  },
+  submitBtnDisabled: { backgroundColor: '#CBD5E1' },
+  submitBtnText: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+
+  // Option bottom-sheet (state/city lists)
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, maxHeight: '70%' },
+  modalTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 12 },
+  modalSearchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    paddingHorizontal: 12, height: 44, marginBottom: 8,
+  },
+  modalSearchInput: { flex: 1, fontSize: 14, color: '#0F172A', padding: 0 },
+  modalOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalOptionText: { fontSize: 15, color: '#0F172A' },
+  modalEmpty: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 24 },
 });
 
 export default Services;

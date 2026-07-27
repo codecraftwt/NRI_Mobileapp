@@ -31,9 +31,9 @@ export const fetchPriorities = createAsyncThunk(
 // both for the same category/state doesn't clobber one another.
 export const fetchServices = createAsyncThunk(
   'catalog/fetchServices',
-  async ({ categoryId, type, stateId, search } = {}, { rejectWithValue }) => {
+  async ({ categoryId, type, stateId, cityId, search } = {}, { rejectWithValue }) => {
     try {
-      return await catalogApi.getServices({ categoryId, type, stateId, search });
+      return await catalogApi.getServices({ categoryId, type, stateId, cityId, search });
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -43,9 +43,9 @@ export const fetchServices = createAsyncThunk(
 // Category services split into one-time / recurring buckets (ServiceDetail).
 export const fetchServiceGroups = createAsyncThunk(
   'catalog/fetchServiceGroups',
-  async ({ categoryId, stateId, search } = {}, { rejectWithValue }) => {
+  async ({ categoryId, stateId, cityId, search } = {}, { rejectWithValue }) => {
     try {
-      return await catalogApi.getServiceGroups({ categoryId, stateId, search });
+      return await catalogApi.getServiceGroups({ categoryId, stateId, cityId, search });
     } catch (error) {
       return rejectWithValue(error);
     }

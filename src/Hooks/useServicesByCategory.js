@@ -6,7 +6,7 @@ import { fetchServices } from '../Redux/slices/catalogSlice';
 // `type` is 'base' | 'addon' (defaults to 'base' — the common case for
 // booking a service request). Each type is cached in its own bucket so
 // fetching both for the same category doesn't overwrite one another.
-export function useServicesByCategory(categoryName, stateName, { type = 'base' } = {}) {
+export function useServicesByCategory(categoryName, stateName, { type = 'base', cityId = null } = {}) {
   const dispatch = useDispatch();
   const categories = useSelector(state => state.catalog.categories);
   const states = useSelector(state => state.geo.states);
@@ -21,15 +21,15 @@ export function useServicesByCategory(categoryName, stateName, { type = 'base' }
 
   useEffect(() => {
     if (!categoryId) return;
-    const currentFilter = { categoryId, type, stateId: stateId || null };
+    const currentFilter = { categoryId, type, stateId: stateId || null, cityId: cityId || null };
     const currentKey = JSON.stringify(currentFilter);
     if (currentKey !== lastFilterRef.current && status !== 'loading') {
       lastFilterRef.current = currentKey;
       dispatch(fetchServices(currentFilter));
     }
-  }, [categoryId, stateId, type, status, dispatch]);
+  }, [categoryId, stateId, cityId, type, status, dispatch]);
 
-  const currentFilter = categoryId ? { categoryId, type, stateId: stateId || null } : null;
+  const currentFilter = categoryId ? { categoryId, type, stateId: stateId || null, cityId: cityId || null } : null;
 
   return {
     services,

@@ -73,9 +73,9 @@ function mapQuote(raw) {
   };
 }
 
-export async function getTicketCoupons({ addons, stateId }) {
+export async function getTicketCoupons({ addons, stateId, cityId }) {
   try {
-    const response = await apiClient.post('/customer/tickets/coupons', { addons, state_id: stateId });
+    const response = await apiClient.post('/customer/tickets/coupons', { addons, state_id: stateId, city_id: cityId || undefined });
     const list = response.data?.data || response.data || [];
     return list.map(mapCoupon);
   } catch (error) {
@@ -83,12 +83,13 @@ export async function getTicketCoupons({ addons, stateId }) {
   }
 }
 
-export async function validateTicketCoupon({ code, addons, stateId }) {
+export async function validateTicketCoupon({ code, addons, stateId, cityId }) {
   try {
     const response = await apiClient.post('/customer/tickets/validate-coupon', {
       coupon_code: code,
       addons,
       state_id: stateId,
+      city_id: cityId || undefined,
     });
     const data = response.data?.data || {};
     return { code: data.code, discount: data.discount, message: response.data?.message };
@@ -97,13 +98,15 @@ export async function validateTicketCoupon({ code, addons, stateId }) {
   }
 }
 
-export async function getTicketQuote({ serviceId, extraServices, addons, stateId, urgency, couponCode }) {
+export async function getTicketQuote({ serviceId, extraServices, addons, stateId, cityId, urgency, couponCode }) {
   try {
     const response = await apiClient.post('/customer/tickets/quote', {
       service_id: serviceId,
       extra_services: extraServices || [],
       addons: addons || [],
       state_id: stateId,
+      // Now required by the backend — the quote 422s without a city.
+      city_id: cityId,
       urgency,
       coupon_code: couponCode || undefined,
     });

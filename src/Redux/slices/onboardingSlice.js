@@ -53,5 +53,16 @@ export function selectOnboardingRoute(state) {
   return record ? 'AppHome' : 'OnboardingProfile';
 }
 
+// Root route for an authenticated user, accounting for account role FIRST —
+// vendor / relationship-manager accounts get their own app shells, everyone
+// else falls through to the customer onboarding/dashboard flow. Keep this in
+// sync with the role routing in Login.handleSignIn (both read `user.role`).
+export function selectAuthenticatedRoute(state) {
+  const role = String(state.user.user?.role || '').toLowerCase();
+  if (/vendor/.test(role)) return 'VendorHome';
+  if (/relationship|manager|\brm\b/.test(role)) return 'RMHome';
+  return selectOnboardingRoute(state);
+}
+
 export const { markOnboardingComplete, markOnboardingIncomplete } = onboardingSlice.actions;
 export default onboardingSlice.reducer;

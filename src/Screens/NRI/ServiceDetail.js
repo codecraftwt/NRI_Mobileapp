@@ -22,18 +22,28 @@ const formatUsd = (pricing, recurring = false) => {
 };
 
 function ServiceDetail({ route, navigation }) {
-  const { category } = route.params;
+  const { category, stateName, cityName, cityId } = route.params;
   const [activeTab, setActiveTab] = useState('oneTime'); // 'oneTime' or 'recurring'
   // Each tab keeps its own selection — a service that exists in BOTH the
   // one-time and recurring lists must not appear selected in the other tab.
   const [oneTimeIds, setOneTimeIds] = useState([]);
   const [recurringIds, setRecurringIds] = useState([]);
 
-  // One-time (allows_single_use) and recurring (allows_recurring) services.
-  const { oneTime, recurring, loading } = useServiceGroups(category.name, '');
+  // One-time (allows_single_use) and recurring (allows_recurring) services,
+  // priced for the chosen city so vendor availability flags are populated.
+  const { oneTime, recurring, loading } = useServiceGroups(category.name, stateName, cityId);
 
-  const services = activeTab === 'oneTime' ? oneTime : recurring;
   const selectedIds = activeTab === 'oneTime' ? oneTimeIds : recurringIds;
+
+  // A service is bookable in this city when its vendor-availability flag isn't
+  // explicitly false (false = no vendor covers it here → can't book, would 422
+  // at checkout). Use the boolean flags, not display_price string-matching.
+  const isBookable = (s) => activeTab === 'recurring'
+    ? s.pricing?.recurringVendorPriced !== false
+    : s.pricing?.vendorPriced !== false;
+
+  // Only surface services actually available in the chosen city; hide the rest.
+  const services = (activeTab === 'oneTime' ? oneTime : recurring).filter(isBookable);
 
   // Holds the pending selection while the switch-type confirmation is shown:
   // { id, otherLabel, count } — null when the dialog is closed.
@@ -42,6 +52,9 @@ function ServiceDetail({ route, navigation }) {
   const toggleService = (id) => {
     const setIds = activeTab === 'oneTime' ? setOneTimeIds : setRecurringIds;
     const isSelected = selectedIds.includes(id);
+    const service = services.find(s => s.id === id);
+    // Guard: never let a not-available-in-this-city service be selected.
+    if (!isSelected && service && !isBookable(service)) return;
     const otherIds = activeTab === 'oneTime' ? recurringIds : oneTimeIds;
 
     // A single booking can't mix one-time and recurring services. If the other
@@ -74,6 +87,9 @@ function ServiceDetail({ route, navigation }) {
         initialCategory: category.name,
         requestType: 'recurring',
         initialSubscriptionServiceIds: recurringIds,
+        initialState: stateName,
+        initialCity: cityName,
+        initialCityId: cityId,
       });
       return;
     }
@@ -85,6 +101,9 @@ function ServiceDetail({ route, navigation }) {
       initialCategory: category.name,
       initialBaseServiceIds: oneTimeIds,
       initialAddons: [],
+      initialState: stateName,
+      initialCity: cityName,
+      initialCityId: cityId,
     });
   };
 

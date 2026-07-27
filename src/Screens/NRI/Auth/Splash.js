@@ -12,7 +12,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { fetchCurrentUser } from '../../../Redux/slices/userSlice';
-import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
+import { selectAuthenticatedRoute } from '../../../Redux/slices/onboardingSlice';
 import { store } from '../../../Redux/store';
 import { lightColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
@@ -105,7 +105,7 @@ export default function Splash({ navigation }) {
       if (!isAuthenticated) return 'Onboarding';
       const result = await dispatch(fetchCurrentUser());
       if (fetchCurrentUser.fulfilled.match(result)) {
-        return selectOnboardingRoute(store.getState());
+        return selectAuthenticatedRoute(store.getState());
       }
       if (result.payload?.status === 401) return 'Onboarding';
       return 'AppHome';
