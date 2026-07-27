@@ -618,6 +618,26 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
+        {/* Support Chat */}
+        <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <Icon name="chat-bubble-outline" size={18} color="#8B5CF6" />
+            <Text style={styles.sectionTitle}>Support Chat</Text>
+          </View>
+          <Text style={styles.actionDesc}>
+            Discuss this job with the customer or their relationship manager. They start the chat — you can view and reply here.
+          </Text>
+          <TouchableOpacity
+            style={styles.supportChatBtn}
+            onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+            activeOpacity={0.8}
+          >
+            <Icon name="forum" size={18} color="#6D28D9" />
+            <Text style={styles.supportChatBtnText}>Open Support Chat</Text>
+            <Icon name="chevron-right" size={18} color="#6D28D9" />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Icon name="timeline" size={18} color="#64748B" />
@@ -871,6 +891,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   backToJobsText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
+
+  supportChatBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1.5, borderColor: '#DDD6FE', backgroundColor: '#F5F3FF', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16,
+  },
+  supportChatBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#6D28D9' },
 });
 
 export default JobDetail;

@@ -15,6 +15,7 @@ import Support from '../../Screens/Vendor/Support';
 import Profile from '../../Screens/Vendor/Profile';
 
 import JobDetail from '../../Screens/Vendor/JobDetail';
+import JobSupportChat from '../../Screens/Vendor/JobSupportChat';
 import Documents from '../../Screens/Vendor/Documents';
 import ProfilePersonal from '../../Screens/Vendor/ProfilePersonal';
 import BankDetails from '../../Screens/Vendor/BankDetails';
@@ -32,6 +33,7 @@ function DashboardStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="DashboardMain" component={Dashboard} />
       <Stack.Screen name="JobDetail" component={JobDetail} />
+      <Stack.Screen name="JobSupportChat" component={JobSupportChat} />
       <Stack.Screen name="Documents" component={Documents} />
       <Stack.Screen name="Ratings" component={Ratings} />
       <Stack.Screen name="Notifications" component={Notifications} />
@@ -44,6 +46,7 @@ function MyJobsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MyJobsMain" component={MyJobs} />
       <Stack.Screen name="JobDetail" component={JobDetail} />
+      <Stack.Screen name="JobSupportChat" component={JobSupportChat} />
     </Stack.Navigator>
   );
 }

@@ -1,4 +1,5 @@
 import apiClient, { normalizeApiError, API_BASE_URL } from './client';
+import { mapSupportTicket, mapSupportReply } from './supportTicketApi';
 
 // Response field names aren't fully pinned in the backend's OpenAPI schema, so
 // these mappers stay tolerant across a few plausible snake_case shapes —
@@ -230,6 +231,42 @@ export async function saveVendorJobTracking(ticket, { trackingNumber, trackingUr
       tracking_url: trackingUrl ?? '',
     });
     return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// GET /vendor/jobs/{ticket}/support-chat — the job's support chat + its reply
+// thread (chat is null if the customer/RM hasn't started one). Opening marks it
+// read. 403 if the job is assigned to another vendor.
+export async function getVendorJobSupportChat(ticket) {
+  try {
+    const response = await apiClient.get(`/vendor/jobs/${ticket}/support-chat`);
+    const data = response.data?.data || {};
+    const chat = data.chat || null;
+    const rawReplies = chat?.replies || chat?.messages || data.replies || [];
+    return {
+      chat: chat ? mapSupportTicket(chat) : null,
+      replies: rawReplies.map(mapSupportReply),
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/support-chat — reply on an already-started chat.
+// A vendor cannot start one. 422 if no chat exists yet or it's resolved.
+export async function sendVendorJobSupportChat(ticket, message) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/support-chat`, { message });
+    const data = response.data?.data || {};
+    const chat = data.chat || null;
+    const rawReply = data.reply || data.message || null;
+    return {
+      chat: chat ? mapSupportTicket(chat) : null,
+      // This endpoint is the vendor sending, so force the reply to our side.
+      reply: rawReply ? { ...mapSupportReply(rawReply), fromVendor: true } : null,
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }
