@@ -6,11 +6,12 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from './src/Redux/store';
+import { syncDeviceToken } from './src/Redux/slices/userSlice';
 import { ToastProvider } from './src/context/ToastContext';
 import AppNavigator from './src/Navigations/AppNavigator';
+import { navigationRef } from './src/Navigations/navigationRef';
 import {
   requestUserPermission,
-  getFcmToken,
   listenTokenRefresh,
   onForegroundMessage,
   onNotificationOpenedFromBackground,
@@ -21,6 +22,7 @@ import {
   displayNotification,
   onNotificationPress,
 } from './src/Services/firebase/notifeeService';
+import { handleNotificationNavigation } from './src/Services/firebase/notificationRouting';
 
 function App() {
   useEffect(() => {
@@ -30,12 +32,15 @@ function App() {
       await createDefaultChannel();
       const granted = await requestUserPermission();
       if (granted) {
-        await getFcmToken();
+        // Register/refresh this device's token with the backend (no-op until
+        // the user is authenticated; re-run on login via the token-refresh path).
+        store.dispatch(syncDeviceToken());
       }
-      // If the app was opened from a killed state by tapping a notification.
+      // If the app was opened from a killed state by tapping a notification —
+      // wait for the nav container to be ready before routing.
       const initial = await getInitialNotification();
-      if (initial) {
-        console.log('[App] Launched from notification:', initial.data);
+      if (initial?.data) {
+        setTimeout(() => handleNotificationNavigation(initial.data), 600);
       }
     })();
 
@@ -45,15 +50,16 @@ function App() {
     });
     // Tap on a Notifee notification while the app is in the foreground.
     const unsubNotifeePress = onNotificationPress((data) => {
-      console.log('[App] Notification tapped:', data);
-      // TODO: navigate based on data (e.g. data.screen / data.ticketId)
+      handleNotificationNavigation(data);
     });
     // Tap on a system notification that brought the app back from background.
     const unsubOpened = onNotificationOpenedFromBackground((remoteMessage) => {
-      console.log('[App] Opened from background:', remoteMessage?.data);
-      // TODO: navigate based on remoteMessage.data
+      handleNotificationNavigation(remoteMessage?.data);
     });
-    const unsubTokenRefresh = listenTokenRefresh(() => {});
+    // Firebase rotates tokens periodically — push the new one to the backend.
+    const unsubTokenRefresh = listenTokenRefresh((token) => {
+      store.dispatch(syncDeviceToken(token));
+    });
 
     return () => {
       unsubForeground();
@@ -69,7 +75,7 @@ function App() {
         <SafeAreaProvider>
           <StripeProvider publishableKey={Config.STRIPE_KEY || 'pk_test_51TuSBhShVwQKFXgv4XQSJ1OVLvVqFoyH4Sh8jqAIbPsd3JTT4hsSrCF6ex4rZBVmjlVgBOYwwHoJ1ntNeKnjbQta00JtEFfqrN'}>
             <ToastProvider>
-              <NavigationContainer>
+              <NavigationContainer ref={navigationRef}>
                 <AppNavigator />
               </NavigationContainer>
             </ToastProvider>

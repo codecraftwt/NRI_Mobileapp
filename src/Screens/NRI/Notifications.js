@@ -1,90 +1,110 @@
-import React from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
-import { typography, spacing, radius } from '../../theme';
+import { typography } from '../../theme';
+import { useNotifications } from '../../Hooks/useNotifications';
+import { handleNotificationNavigation } from '../../Services/firebase/notificationRouting';
 
-const staticNotifications = [
-  {
-    id: '1',
-    type: 'success',
-    title: 'Service Completed',
-    message: 'Your property inspection for Pune Flat was completed successfully.',
-    time: '2 hours ago',
-    icon: 'check-circle',
-    color: '#059669',
-    bgColor: '#D1FAE5',
-  },
-  {
-    id: '2',
-    type: 'warning',
-    title: 'Action Required',
-    message: 'Please upload the pending documents for your new tenant agreement.',
-    time: '5 hours ago',
-    icon: 'warning',
-    color: '#D94625',
-    bgColor: '#FBEAE5',
-  },
-  {
-    id: '3',
-    type: 'info',
-    title: 'New Package Available',
-    message: 'Explore our new Premium Property Management plan tailored for you.',
-    time: '1 day ago',
-    icon: 'local-offer',
-    color: '#3B82F6',
-    bgColor: '#EFF6FF',
-  },
-  {
-    id: '4',
-    type: 'general',
-    title: 'Welcome to NRI Circle',
-    message: 'Thank you for joining. Your Relationship Manager is ready to assist you.',
-    time: '3 days ago',
-    icon: 'waving-hand',
-    color: '#8B5CF6',
-    bgColor: '#F3E8FF',
-  },
-];
+// Icon + colour by notification type/event keyword.
+function getVisual(n) {
+  const key = `${n.type || ''} ${n.event || ''}`.toLowerCase();
+  if (/complete|success|paid|resolved/.test(key)) return { icon: 'check-circle', color: '#059669', bg: '#D1FAE5' };
+  if (/warn|action|required|sla|overdue|reject/.test(key)) return { icon: 'warning', color: '#D94625', bg: '#FBEAE5' };
+  if (/offer|package|promo|coupon/.test(key)) return { icon: 'local-offer', color: '#3B82F6', bg: '#EFF6FF' };
+  if (/chat|message|support/.test(key)) return { icon: 'chat', color: '#8B5CF6', bg: '#F3E8FF' };
+  return { icon: 'notifications', color: '#3B82F6', bg: '#EFF6FF' };
+}
+
+// Compact relative time ("2h ago", "3d ago").
+function relativeTime(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return '';
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return 'Just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 function Notifications({ navigation }) {
+  const { items, unreadCount, loading, failed, error, fetch, markRead, markAllRead } = useNotifications();
+
+  useFocusEffect(
+    useCallback(() => {
+      fetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
+
+  const onPressItem = (n) => {
+    if (!n.read) markRead(n.id);
+    if (n.url || n.event) handleNotificationNavigation(n.data);
+  };
+
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="Notifications" showBack />
-      
-      <ScrollView 
+
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={fetch} colors={['#D94625']} tintColor="#D94625" />}
       >
         <View style={styles.headerSection}>
-          <Text style={styles.title}>Recent Activity</Text>
-          <TouchableOpacity>
-            <Text style={styles.markReadText}>Mark all as read</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>Recent Activity{unreadCount > 0 ? ` (${unreadCount})` : ''}</Text>
+          {unreadCount > 0 && (
+            <TouchableOpacity onPress={markAllRead}>
+              <Text style={styles.markReadText}>Mark all as read</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.listContainer}>
-          {staticNotifications.map((notif, index) => (
-            <TouchableOpacity 
-              key={notif.id} 
-              style={[
-                styles.notificationCard, 
-                index === staticNotifications.length - 1 && styles.lastCard
-              ]}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconContainer, { backgroundColor: notif.bgColor }]}>
-                <Icon name={notif.icon} size={24} color={notif.color} />
-              </View>
-              
-              <View style={styles.contentContainer}>
-                <Text style={styles.notifTitle}>{notif.title}</Text>
-                <Text style={styles.notifMessage}>{notif.message}</Text>
-                <Text style={styles.notifTime}>{notif.time}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {loading && items.length === 0 ? (
+          <View style={styles.stateBox}><ActivityIndicator size="large" color="#D94625" /></View>
+        ) : failed ? (
+          <TouchableOpacity style={styles.stateBox} onPress={fetch} activeOpacity={0.7}>
+            <Icon name="refresh" size={36} color="#DC2626" />
+            <Text style={styles.stateText}>{error?.message || 'Couldn\'t load notifications. Tap to retry.'}</Text>
+          </TouchableOpacity>
+        ) : items.length === 0 ? (
+          <View style={styles.stateBox}>
+            <Icon name="notifications-none" size={48} color="#CBD5E1" />
+            <Text style={styles.stateText}>You're all caught up.</Text>
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {items.map((notif, index) => {
+              const v = getVisual(notif);
+              return (
+                <TouchableOpacity
+                  key={notif.id}
+                  style={[styles.notificationCard, index === items.length - 1 && styles.lastCard, !notif.read && styles.unreadCard]}
+                  activeOpacity={0.7}
+                  onPress={() => onPressItem(notif)}
+                >
+                  <View style={[styles.iconContainer, { backgroundColor: v.bg }]}>
+                    <Icon name={v.icon} size={24} color={v.color} />
+                  </View>
+
+                  <View style={styles.contentContainer}>
+                    <Text style={styles.notifTitle}>{notif.title}</Text>
+                    {!!notif.message && <Text style={styles.notifMessage}>{notif.message}</Text>}
+                    <Text style={styles.notifTime}>{relativeTime(notif.createdAt)}</Text>
+                  </View>
+
+                  {!notif.read && <View style={styles.unreadDot} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -98,6 +118,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+    flexGrow: 1,
   },
   headerSection: {
     flexDirection: 'row',
@@ -114,6 +135,10 @@ const styles = StyleSheet.create({
     ...typography.labelMedium,
     color: '#D94625',
   },
+
+  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 80 },
+  stateText: { fontSize: 14, color: '#64748B', textAlign: 'center', paddingHorizontal: 30 },
+
   listContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -126,10 +151,12 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  unreadCard: { backgroundColor: '#FBF7F2', borderRadius: 16 },
   lastCard: {
     borderBottomWidth: 0,
   },
@@ -161,6 +188,7 @@ const styles = StyleSheet.create({
     ...typography.tiny,
     color: '#94A3B8',
   },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D94625', marginLeft: 8 },
 });
 
 export default Notifications;

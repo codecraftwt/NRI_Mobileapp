@@ -30,6 +30,7 @@ import vendorProfileReducer from './slices/vendorProfileSlice';
 import vendorEarningsReducer from './slices/vendorEarningsSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
 import serviceLocationReducer from './slices/serviceLocationSlice';
+import notificationsReducer from './slices/notificationsSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
@@ -93,6 +94,7 @@ const appReducer = combineReducers({
   vendorEarnings: vendorEarningsReducer,
   serviceSubscription: serviceSubscriptionReducer,
   serviceLocation: serviceLocationReducer,
+  notifications: notificationsReducer,
   onboarding: onboardingReducer,
 });
 

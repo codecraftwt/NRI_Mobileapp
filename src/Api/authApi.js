@@ -11,7 +11,7 @@ function toAbsolutePhotoUrl(url) {
   return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
 }
 
-function toRegisterRequestBody({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode, deviceName }) {
+function toRegisterRequestBody({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode, deviceName, fcmToken }) {
   return {
     name,
     email,
@@ -21,14 +21,16 @@ function toRegisterRequestBody({ name, email, phone, password, passwordConfirmat
     referral_code: referralCode || undefined,
     affiliate_code: affiliateCode || undefined,
     device_name: deviceName,
+    fcm_token: fcmToken || undefined,
   };
 }
 
-function toLoginRequestBody({ login: loginId, password, deviceName }) {
+function toLoginRequestBody({ login: loginId, password, deviceName, fcmToken }) {
   return {
     login: loginId,
     password,
     device_name: deviceName,
+    fcm_token: fcmToken || undefined,
   };
 }
 
@@ -139,6 +141,17 @@ export async function login(payload) {
 export async function logout() {
   try {
     await apiClient.post('/auth/logout');
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// PUT /auth/device-token — register/refresh this device's FCM token so pushes
+// reach it. Call after login and again on every Firebase token rotation.
+export async function updateDeviceToken(fcmToken) {
+  try {
+    const response = await apiClient.put('/auth/device-token', { fcm_token: fcmToken });
+    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

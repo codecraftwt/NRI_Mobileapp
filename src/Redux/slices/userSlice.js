@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as authApi from '../../Api/authApi';
 import { getDeviceName } from '../../Utils/device';
+import { getFcmToken } from '../../Services/firebase/fcmService';
 
 // The backend doesn't currently promise an `onboarded` field on login/me
 // responses — onboarding-wizard completion is tracked purely client-side via
@@ -20,6 +21,9 @@ export const registerUser = createAsyncThunk(
   'user/register',
   async ({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode }, { rejectWithValue }) => {
     try {
+      // Best-effort FCM token so the account is push-targetable from first
+      // login; App.js re-syncs it via PUT /auth/device-token if unavailable now.
+      const fcmToken = await getFcmToken();
       return await authApi.register({
         name,
         email,
@@ -29,6 +33,7 @@ export const registerUser = createAsyncThunk(
         referralCode,
         affiliateCode,
         deviceName: getDeviceName(),
+        fcmToken,
       });
     } catch (error) {
       return rejectWithValue(error);
@@ -40,11 +45,31 @@ export const loginUser = createAsyncThunk(
   'user/login',
   async ({ login, password }, { rejectWithValue }) => {
     try {
+      const fcmToken = await getFcmToken();
       return await authApi.login({
         login,
         password,
         deviceName: getDeviceName(),
+        fcmToken,
       });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+// Push the current device's FCM token to the backend (post-login and on every
+// Firebase token rotation). No-op when not authenticated or no token yet.
+export const syncDeviceToken = createAsyncThunk(
+  'user/syncDeviceToken',
+  async (token, { getState, rejectWithValue }) => {
+    try {
+      const state = getState();
+      if (!state.user?.isAuthenticated) return null;
+      const fcmToken = token || (await getFcmToken());
+      if (!fcmToken) return null;
+      await authApi.updateDeviceToken(fcmToken);
+      return fcmToken;
     } catch (error) {
       return rejectWithValue(error);
     }

@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { useVendorRatings } from '../../Hooks/useVendorRatings';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useNotifications } from '../../Hooks/useNotifications';
 
 const HEADER_STATS = [
   { id: 'new', label: 'New Jobs', value: '2', icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
@@ -29,6 +30,10 @@ function Dashboard({ navigation }) {
   const user = useSelector(state => state.user.user);
   const { summary } = useVendorRatings();
   const { profile, actionLoading, updateAvailability } = useVendorProfile();
+  const { unreadCount, fetch: fetchNotifications } = useNotifications();
+
+  // Load the unread count for the header bell badge.
+  useEffect(() => { fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const vendorName = profile?.businessName || user?.name || 'Vendor';
   // Prefer the customer-facing average; fall back to the overall/composite score.
@@ -56,7 +61,15 @@ function Dashboard({ navigation }) {
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.nameRow}>
-          <Text style={styles.userName}>{vendorName}</Text>
+          <Text style={styles.userName} numberOfLines={1}>{vendorName}</Text>
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
+            <Icon name="notifications-none" size={24} color="#FFFFFF" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.metaRow}>
@@ -219,14 +232,31 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 8,
     gap: 12,
   },
   userName: {
+    flex: 1,
     fontSize: 26,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
   },
+  bellBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#20304C',
+  },
+  bellBadgeText: { fontSize: 10, fontWeight: '700', color: '#FFFFFF' },
   rmPill: {
     flexDirection: 'row',
     alignItems: 'center',

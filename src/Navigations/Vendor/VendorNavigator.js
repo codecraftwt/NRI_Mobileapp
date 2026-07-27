@@ -22,6 +22,7 @@ import SupportTicketDetail from '../../Screens/Vendor/SupportTicketDetail';
 import Availability from '../../Screens/Vendor/Availability';
 import ServiceOffered from '../../Screens/Vendor/ServiceOffered';
 import CoverageAreas from '../../Screens/Vendor/CoverageAreas';
+import Notifications from '../../Screens/NRI/Notifications';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -33,6 +34,7 @@ function DashboardStack() {
       <Stack.Screen name="JobDetail" component={JobDetail} />
       <Stack.Screen name="Documents" component={Documents} />
       <Stack.Screen name="Ratings" component={Ratings} />
+      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   );
 }
