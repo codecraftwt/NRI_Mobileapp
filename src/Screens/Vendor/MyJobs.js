@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useVendorJobs } from '../../Hooks/useVendorJobs';
@@ -34,6 +35,16 @@ function MyJobs({ navigation }) {
   };
 
   const activeQuery = TABS.find(t => t.key === activeTab)?.query;
+
+  // Refresh on focus so job-status changes made in JobDetail (accept / reject /
+  // complete) are reflected when returning to the list. `fetch` is a fresh
+  // reference each render, so it's kept out of deps to avoid a refetch loop.
+  useFocusEffect(
+    useCallback(() => {
+      fetch({ status: activeQuery, page: currentPage });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab])
+  );
 
   const handleTabPress = (tab) => {
     setActiveTab(tab.key);

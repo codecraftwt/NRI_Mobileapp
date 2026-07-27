@@ -17,6 +17,58 @@ export const fetchVendorJobDetail = createAsyncThunk('vendorJobs/fetchDetail', a
   }
 });
 
+// Job mutations — each refreshes the detail on success so the UI reflects the
+// new status/report/tracking without a manual reload.
+export const acceptJob = createAsyncThunk('vendorJobs/accept', async ({ ticket, vendorEta }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.acceptVendorJob(ticket, { vendorEta });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const rejectJob = createAsyncThunk('vendorJobs/reject', async ({ ticket, reason }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.rejectVendorJob(ticket, { reason });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const completeJob = createAsyncThunk('vendorJobs/complete', async ({ ticket, reportText, files }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.completeVendorJob(ticket, { reportText, files });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const addReportAttachments = createAsyncThunk('vendorJobs/addAttachments', async ({ ticket, files }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.addVendorJobReportAttachments(ticket, { files });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const saveTracking = createAsyncThunk('vendorJobs/saveTracking', async ({ ticket, trackingNumber, trackingUrl }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.saveVendorJobTracking(ticket, { trackingNumber, trackingUrl });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   jobs: [],
   counts: { assigned: 0, in_progress: 0, completed: 0 },
@@ -27,6 +79,10 @@ const initialState = {
   detail: null,
   detailStatus: 'idle',
   detailError: null,
+
+  // Shared status for the accept/reject/complete/attachments/tracking mutations.
+  actionStatus: 'idle',
+  actionError: null,
 };
 
 const vendorJobsSlice = createSlice({
@@ -37,6 +93,12 @@ const vendorJobsSlice = createSlice({
       state.detail = null;
       state.detailStatus = 'idle';
       state.detailError = null;
+      state.actionStatus = 'idle';
+      state.actionError = null;
+    },
+    resetJobAction: (state) => {
+      state.actionStatus = 'idle';
+      state.actionError = null;
     },
   },
   extraReducers: (builder) => {
@@ -67,8 +129,24 @@ const vendorJobsSlice = createSlice({
         state.detailStatus = 'failed';
         state.detailError = action.payload;
       });
+
+    // Shared pending/fulfilled/rejected handling for every job mutation.
+    [acceptJob, rejectJob, completeJob, addReportAttachments, saveTracking].forEach((thunk) => {
+      builder
+        .addCase(thunk.pending, (state) => {
+          state.actionStatus = 'loading';
+          state.actionError = null;
+        })
+        .addCase(thunk.fulfilled, (state) => {
+          state.actionStatus = 'succeeded';
+        })
+        .addCase(thunk.rejected, (state, action) => {
+          state.actionStatus = 'failed';
+          state.actionError = action.payload;
+        });
+    });
   },
 });
 
-export const { clearJobDetail } = vendorJobsSlice.actions;
+export const { clearJobDetail, resetJobAction } = vendorJobsSlice.actions;
 export default vendorJobsSlice.reducer;

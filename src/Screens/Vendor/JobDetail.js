@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator, Platform, PermissionsAndroid } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { typography } from '../../theme/typography';
 import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
 import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
+
+// Completion proof: up to 8 files, 25 MB each (per the /complete endpoint).
+const MAX_MEDIA_FILES = 8;
+const MAX_MEDIA_SIZE_BYTES = 25 * 1024 * 1024;
 
 function getStatusStyle(status) {
   switch (status) {
@@ -19,37 +25,193 @@ function getStatusStyle(status) {
 
 function JobDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
-  const { detail: job, loading, failed, error, retry } = useVendorJobDetail(ticketId);
+  const {
+    detail: job, loading, failed, error, retry,
+    actionLoading, accept, reject, complete, addAttachments, saveTracking,
+  } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
 
-  const [commitDate, setCommitDate] = useState('');
-  const [commitTime, setCommitTime] = useState('');
+  // Accept — ETA commitment
+  const [committedEta, setCommittedEta] = useState(null);
+  const [showEtaPicker, setShowEtaPicker] = useState(false);
+  const [showEtaTimePicker, setShowEtaTimePicker] = useState(false);
+  const [pendingEta, setPendingEta] = useState(null);
+
+  // Reject — mandatory reason (revealed on first tap)
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  // Complete — report + proof files
   const [reportText, setReportText] = useState('');
+  const [reportFiles, setReportFiles] = useState([]);
+
+  // Tracking (prefilled from the job once it loads)
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
 
-  const handleAccept = () => {
-    Alert.alert('Job Accepted', 'You have accepted this job.');
+  useEffect(() => {
+    if (job?.tracking) {
+      setTrackingNumber(job.tracking.number || '');
+      setTrackingUrl(job.tracking.url || '');
+    }
+  }, [job?.tracking?.number, job?.tracking?.url]);
+
+  const requestFilePermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const permission = Platform.Version >= 33
+      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+    if (await PermissionsAndroid.check(permission)) return true;
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Allow Photo & Document Access',
+      message: 'NRI Circle needs access to your files so you can attach proof to the completion report.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      Alert.alert('Permission Required', 'File access is blocked. Enable it from app settings to attach files.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
+    }
+    return false;
   };
 
-  const handleReject = () => {
-    Alert.alert('Reject Job', 'Are you sure you want to reject this job?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Reject', style: 'destructive' },
-    ]);
+  // Picks up to `remaining` proof files (images/pdf/video), enforcing the 25 MB
+  // per-file cap. Returns the accepted picker files, or null if cancelled.
+  const pickProofFiles = async (remaining) => {
+    const allowed = await requestFilePermission();
+    if (!allowed) return null;
+    try {
+      const results = await pick({
+        type: [docTypes.images, docTypes.pdf, docTypes.video],
+        allowMultiSelection: true,
+        copyTo: 'cachesDirectory',
+      });
+      const tooMany = results.length > remaining;
+      const candidates = results.slice(0, remaining);
+      const oversized = candidates.filter(f => f.size && f.size > MAX_MEDIA_SIZE_BYTES);
+      const accepted = candidates
+        .filter(f => !f.size || f.size <= MAX_MEDIA_SIZE_BYTES)
+        .map(f => ({ name: f.name, uri: f.fileCopyUri || f.uri, type: f.type, size: f.size }));
+      if (oversized.length > 0) {
+        Alert.alert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 25 MB.`);
+      } else if (tooMany) {
+        Alert.alert('Limit Reached', `Only the first ${remaining} file(s) were added (max ${MAX_MEDIA_FILES}).`);
+      }
+      return accepted;
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return null;
+      Alert.alert('Error', 'Could not select the file(s). Please try again.');
+      return null;
+    }
   };
 
-  const handleSubmitReport = () => {
+  const handlePickReportFiles = async () => {
+    if (reportFiles.length >= MAX_MEDIA_FILES) {
+      Alert.alert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
+      return;
+    }
+    const accepted = await pickProofFiles(MAX_MEDIA_FILES - reportFiles.length);
+    if (accepted?.length) setReportFiles(prev => [...prev, ...accepted]);
+  };
+
+  const handleRemoveReportFile = (uri) => {
+    setReportFiles(prev => prev.filter(f => f.uri !== uri));
+  };
+
+  const handleAccept = async () => {
+    if (!committedEta) {
+      Alert.alert('ETA Required', 'Please commit to a completion date & time.');
+      return;
+    }
+    try {
+      await accept(committedEta.toISOString()).unwrap();
+      Alert.alert('Job Accepted', 'You have accepted this job. It is now In Progress.');
+    } catch (e) {
+      Alert.alert('Could Not Accept', e?.message || 'Something went wrong. Please try again.');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejecting) {
+      setRejecting(true);
+      return;
+    }
+    if (!rejectReason.trim()) {
+      Alert.alert('Reason Required', 'Please provide a reason for rejecting this job.');
+      return;
+    }
+    try {
+      await reject(rejectReason.trim()).unwrap();
+      Alert.alert('Job Rejected', 'The job has been returned to the assignment team.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (e) {
+      Alert.alert('Could Not Reject', e?.message || 'Something went wrong. Please try again.');
+    }
+  };
+
+  const handleSubmitReport = async () => {
     if (!reportText.trim()) {
       Alert.alert('Report Required', 'Please describe the work completed.');
       return;
     }
-    Alert.alert('Report Submitted', 'Your completion report has been submitted.');
+    try {
+      await complete({ reportText: reportText.trim(), files: reportFiles }).unwrap();
+      setReportText('');
+      setReportFiles([]);
+      Alert.alert('Report Submitted', 'Your completion report has been submitted and the job is closed.');
+    } catch (e) {
+      Alert.alert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
+    }
   };
 
-  const handleSaveTracking = () => {
-    Alert.alert('Tracking Saved', 'Shipment tracking details have been saved.');
+  const handleAddAttachments = async () => {
+    const accepted = await pickProofFiles(MAX_MEDIA_FILES);
+    if (!accepted?.length) return;
+    try {
+      await addAttachments(accepted).unwrap();
+      Alert.alert('Attachments Added', 'The files were added to your report.');
+    } catch (e) {
+      Alert.alert('Could Not Add Attachments', e?.message || 'Something went wrong. Please try again.');
+    }
   };
+
+  const handleSaveTracking = async () => {
+    try {
+      await saveTracking({ trackingNumber: trackingNumber.trim(), trackingUrl: trackingUrl.trim() }).unwrap();
+      Alert.alert('Tracking Saved', 'Shipment tracking details have been saved.');
+    } catch (e) {
+      Alert.alert('Could Not Save Tracking', e?.message || 'Please check the details and try again.');
+    }
+  };
+
+  const onEtaDateChange = (event, selected) => {
+    setShowEtaPicker(false);
+    if (event.type === 'dismissed' || !selected) return;
+    if (Platform.OS === 'android') {
+      setPendingEta(selected);
+      setShowEtaTimePicker(true);
+    } else {
+      setCommittedEta(selected);
+    }
+  };
+
+  const onEtaTimeChange = (event, selected) => {
+    setShowEtaTimePicker(false);
+    if (event.type === 'dismissed' || !selected || !pendingEta) {
+      setPendingEta(null);
+      return;
+    }
+    const combined = new Date(pendingEta);
+    combined.setHours(selected.getHours(), selected.getMinutes());
+    setCommittedEta(combined);
+    setPendingEta(null);
+  };
+
+  const formattedEta = committedEta
+    ? committedEta.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const handleDownloadInvoice = async () => {
     try {
@@ -211,38 +373,63 @@ function JobDetail({ route, navigation }) {
 
             <View style={styles.commitField}>
               <Text style={styles.commitLabel}>I commit to complete this job by *</Text>
-              <View style={styles.dateTimeRow}>
-                <TextInput
-                  style={styles.dateInput}
-                  placeholder="dd-mm-yyyy"
-                  placeholderTextColor="#94A3B8"
-                  value={commitDate}
-                  onChangeText={setCommitDate}
-                  maxLength={10}
+              <TouchableOpacity style={styles.dateInput} onPress={() => setShowEtaPicker(true)} activeOpacity={0.7}>
+                <Text style={[styles.dateInputText, !formattedEta && styles.dateInputPlaceholder]}>
+                  {formattedEta || 'Select date & time'}
+                </Text>
+                <Icon name="event" size={18} color="#64748B" />
+              </TouchableOpacity>
+              {showEtaPicker && (
+                <DateTimePicker
+                  value={committedEta || new Date()}
+                  mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={onEtaDateChange}
                 />
-                <TextInput
-                  style={styles.timeInput}
-                  placeholder="--:--"
-                  placeholderTextColor="#94A3B8"
-                  value={commitTime}
-                  onChangeText={setCommitTime}
-                  maxLength={5}
+              )}
+              {showEtaTimePicker && (
+                <DateTimePicker
+                  value={pendingEta || committedEta || new Date()}
+                  mode="time"
+                  display="default"
+                  onChange={onEtaTimeChange}
                 />
-              </View>
+              )}
               <View style={styles.slaRow}>
                 <Icon name="info-outline" size={14} color="#94A3B8" />
                 <Text style={styles.slaHint}>SLA deadline: {job.completeBy}</Text>
               </View>
             </View>
 
+            {rejecting && (
+              <View style={styles.reportField}>
+                <Text style={styles.commitLabel}>Reason for rejection *</Text>
+                <TextInput
+                  style={styles.reportInput}
+                  placeholder="Let the assignment team know why you can't take this job."
+                  placeholderTextColor="#94A3B8"
+                  value={rejectReason}
+                  onChangeText={setRejectReason}
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+            )}
+
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.acceptBtn} onPress={handleAccept}>
-                <Icon name="check-circle-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.acceptBtnText}>Accept Job</Text>
+              <TouchableOpacity style={[styles.acceptBtn, actionLoading && styles.btnDisabled]} onPress={handleAccept} disabled={actionLoading}>
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Icon name="check-circle-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.acceptBtnText}>Accept Job</Text>
+                  </>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.rejectBtn} onPress={handleReject}>
+              <TouchableOpacity style={[styles.rejectBtn, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading}>
                 <Icon name="close" size={18} color="#DC2626" />
-                <Text style={styles.rejectBtnText}>Reject</Text>
+                <Text style={styles.rejectBtnText}>{rejecting ? 'Confirm Reject' : 'Reject'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -272,19 +459,43 @@ function JobDetail({ route, navigation }) {
             </View>
 
             <View style={styles.reportField}>
-              <Text style={styles.commitLabel}>Photos / Documents (optional, up to 8)</Text>
-              <TouchableOpacity style={styles.fileUploadBtn}>
+              <Text style={styles.commitLabel}>Photos / Documents (optional, up to {MAX_MEDIA_FILES})</Text>
+              <TouchableOpacity
+                style={[styles.fileUploadBtn, reportFiles.length >= MAX_MEDIA_FILES && styles.btnDisabled]}
+                onPress={handlePickReportFiles}
+                disabled={reportFiles.length >= MAX_MEDIA_FILES}
+                activeOpacity={0.7}
+              >
                 <Icon name="cloud-upload" size={20} color="#64748B" />
-                <Text style={styles.fileUploadText}>No file chosen</Text>
+                <Text style={styles.fileUploadText}>
+                  {reportFiles.length > 0 ? `${reportFiles.length} file(s) selected — add more` : 'Choose files'}
+                </Text>
               </TouchableOpacity>
+
+              {reportFiles.map((f) => (
+                <View key={f.uri} style={styles.fileChip}>
+                  <Icon name="insert-drive-file" size={16} color="#64748B" />
+                  <Text style={styles.fileChipText} numberOfLines={1}>{f.name}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveReportFile(f.uri)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icon name="close" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
               <Text style={styles.fileHint}>
                 Photos (JPG/PNG), PDF or video (MP4/MOV/WebM), max 25 MB each.
               </Text>
             </View>
 
-            <TouchableOpacity style={styles.submitReportBtn} onPress={handleSubmitReport}>
-              <Icon name="send" size={16} color="#FFFFFF" />
-              <Text style={styles.submitReportBtnText}>Submit Report</Text>
+            <TouchableOpacity style={[styles.submitReportBtn, actionLoading && styles.btnDisabled]} onPress={handleSubmitReport} disabled={actionLoading}>
+              {actionLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon name="send" size={16} color="#FFFFFF" />
+                  <Text style={styles.submitReportBtnText}>Submit Report</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -341,9 +552,15 @@ function JobDetail({ route, navigation }) {
               />
             </View>
 
-            <TouchableOpacity style={styles.saveTrackingBtn} onPress={handleSaveTracking} activeOpacity={0.8}>
-              <Icon name="save-alt" size={16} color="#2563EB" />
-              <Text style={styles.saveTrackingText}>Save Tracking</Text>
+            <TouchableOpacity style={[styles.saveTrackingBtn, actionLoading && styles.btnDisabled]} onPress={handleSaveTracking} disabled={actionLoading} activeOpacity={0.8}>
+              {actionLoading ? (
+                <ActivityIndicator size="small" color="#2563EB" />
+              ) : (
+                <>
+                  <Icon name="save-alt" size={16} color="#2563EB" />
+                  <Text style={styles.saveTrackingText}>Save Tracking</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -357,16 +574,47 @@ function JobDetail({ route, navigation }) {
               </View>
             </View>
             <Text style={styles.reportContent}>{job.report}</Text>
-            {!!job.reportFile && (
-              <TouchableOpacity style={styles.pdfThumb} activeOpacity={0.7}>
-                <Icon name="insert-drive-file" size={26} color="#64748B" />
-                <Text style={styles.pdfThumbText}>PDF</Text>
-              </TouchableOpacity>
+            {job.reportMedia.length > 0 && (
+              <View style={styles.reportMediaRow}>
+                {job.reportMedia.map((url, i) => {
+                  const isPdf = /\.pdf(\?|$)/i.test(url);
+                  return (
+                    <TouchableOpacity key={i} style={styles.pdfThumb} onPress={() => Linking.openURL(url)} activeOpacity={0.7}>
+                      <Icon name={isPdf ? 'picture-as-pdf' : 'image'} size={26} color="#64748B" />
+                      <Text style={styles.pdfThumbText}>{isPdf ? 'PDF' : 'IMG'}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
             <View style={styles.reportTimeRow}>
               <Icon name="schedule" size={13} color="#94A3B8" />
               <Text style={styles.reportTime}>Submitted {job.reportSubmittedAt}</Text>
             </View>
+
+            {/* Attachments can only be appended before the report is shared with the customer. */}
+            {!job.canAddAttachments ? (
+              <View style={styles.sharedBadge}>
+                <Icon name="lock" size={12} color="#059669" />
+                <Text style={styles.sharedBadgeText}>{job.sharedWithCustomer ? 'Shared with customer — locked' : 'Attachments locked'}</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.saveTrackingBtn, actionLoading && styles.btnDisabled]}
+                onPress={handleAddAttachments}
+                disabled={actionLoading}
+                activeOpacity={0.8}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#2563EB" />
+                ) : (
+                  <>
+                    <Icon name="add-photo-alternate" size={16} color="#2563EB" />
+                    <Text style={styles.saveTrackingText}>Add Attachments</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -490,10 +738,20 @@ const styles = StyleSheet.create({
   commitLabel: { fontSize: 13, fontWeight: '600', color: '#334155' },
   dateTimeRow: { flexDirection: 'row', gap: 10 },
   dateInput: {
-    flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A',
     backgroundColor: '#F8FAFC',
   },
+  dateInputText: { fontSize: 14, color: '#0F172A', flex: 1 },
+  dateInputPlaceholder: { color: '#94A3B8' },
+  btnDisabled: { opacity: 0.6 },
+  fileChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  fileChipText: { flex: 1, fontSize: 13, color: '#334155' },
   timeInput: {
     width: 100, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A',
@@ -599,6 +857,7 @@ const styles = StyleSheet.create({
   reportCardWrap: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DCFCE7', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   sharedBadgeText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  reportMediaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pdfThumb: {
     width: 72, height: 72, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0',
     justifyContent: 'center', alignItems: 'center', gap: 2,

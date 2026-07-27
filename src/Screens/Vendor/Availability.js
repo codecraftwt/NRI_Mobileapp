@@ -5,6 +5,7 @@ import Header from '../../Components/Header';
 import { typography } from '../../theme/typography';
 
 function Availability({ navigation }) {
+  const [availableForJobs, setAvailableForJobs] = useState(true);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [reason, setReason] = useState('');
@@ -28,15 +29,12 @@ function Availability({ navigation }) {
       <Header navigation={navigation} title="Availability" showBack />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Icon name="event-available" size={20} color="#059669" />
-            <Text style={styles.sectionTitle}>Available for jobs</Text>
+        <TouchableOpacity style={styles.availBanner} onPress={() => setAvailableForJobs(v => !v)} activeOpacity={0.8}>
+          <Text style={styles.availBannerText}>Available for jobs</Text>
+          <View style={[styles.checkbox, availableForJobs && styles.checkboxChecked]}>
+            {availableForJobs && <Icon name="check" size={14} color="#FFFFFF" />}
           </View>
-          <Text style={styles.sectionDesc}>
-            You are currently available. Mark yourself unavailable for a date range below.
-          </Text>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
@@ -111,6 +109,17 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   sectionDesc: { fontSize: 13, color: '#64748B', lineHeight: 19 },
+
+  availBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#DCFCE7', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 16,
+  },
+  availBannerText: { fontSize: 14, fontWeight: '700', color: '#16A34A' },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#16A34A',
+    justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF',
+  },
+  checkboxChecked: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
 
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: '#64748B' },

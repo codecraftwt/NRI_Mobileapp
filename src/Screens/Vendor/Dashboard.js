@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
+import { useVendorRatings } from '../../Hooks/useVendorRatings';
 
 const HEADER_STATS = [
   { id: 'new', label: 'New Jobs', value: '2', icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
@@ -23,13 +25,20 @@ const RECENT_JOBS = [
 
 function Dashboard({ navigation }) {
   const [available, setAvailable] = useState(true);
+  const user = useSelector(state => state.user.user);
+  const { summary } = useVendorRatings();
+
+  const vendorName = user?.name || 'Vendor';
+  // Prefer the customer-facing average; fall back to the overall/composite score.
+  const ratingValue = summary?.avgCustomerRating ?? summary?.overallScore ?? null;
+  const standing = summary?.standing || 'Account in good standing';
 
   return (
     <View style={styles.container}>
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.nameRow}>
-          <Text style={styles.userName}>Suresh Kambli</Text>
+          <Text style={styles.userName}>{vendorName}</Text>
         </View>
 
         <View style={styles.metaRow}>
@@ -37,7 +46,7 @@ function Dashboard({ navigation }) {
             <Icon name="star" size={12} color="#F5B301" />
             <Text style={styles.goldBadgeText}>Gold Vendor</Text>
           </View>
-          <Text style={styles.metaText}>Pune · 4.8 Rating</Text>
+          <Text style={styles.metaText}>{ratingValue != null ? `${Number(ratingValue).toFixed(1)} Rating` : 'No ratings yet'}</Text>
         </View>
 
         {/* Availability Toggle */}
@@ -147,7 +156,9 @@ function Dashboard({ navigation }) {
               <View style={{ flex: 1, zIndex: 1 }}>
                 <Text style={styles.planSubtitle}>MY STATUS</Text>
                 <Text style={styles.planTitle}>Active · Available</Text>
-                <Text style={styles.planDesc}>★ 4.00 rating · Account in good standing</Text>
+                <Text style={styles.planDesc}>
+                  {ratingValue != null ? `★ ${Number(ratingValue).toFixed(2)} rating · ` : ''}{standing}
+                </Text>
               </View>
               <TouchableOpacity style={[styles.upgradeBtn, { zIndex: 1 }]} onPress={() => navigation.navigate('Profile')}>
                 <Text style={styles.upgradeBtnText}>Manage</Text>

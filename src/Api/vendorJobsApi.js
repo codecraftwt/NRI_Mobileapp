@@ -38,7 +38,7 @@ export function mapJob(raw) {
   return {
     id: raw.id ?? raw.ticket_id,
     ticket: raw.ticket_number || raw.ticket?.ticket_number || (raw.id ? `#${raw.id}` : '—'),
-    service: raw.service_name || raw.service?.name || raw.service || '',
+    service: raw.service_name || raw.service?.name || (typeof raw.service === 'string' ? raw.service : '') || '',
     location: buildLocation(raw.location, raw),
     slaDeadline: formatDateTime(raw.sla_deadline || raw.deadline),
     status: statusLabel(raw.status),
@@ -54,11 +54,15 @@ export function mapJobDetail(raw) {
   const customer = raw.customer || {};
   const loc = raw.location || {};
   const report = raw.report || raw.submitted_report || raw.vendor_report || null;
-  const history = raw.status_history || raw.timeline || raw.history || [];
+  const reportMedia = Array.isArray(report?.media)
+    ? report.media.filter(Boolean)
+    : (report?.media ? [report.media] : []);
+  const tracking = raw.tracking || {};
+  const history = raw.status_logs || raw.status_history || raw.timeline || raw.history || [];
   return {
     id: raw.id ?? raw.ticket_id,
     ticket: raw.ticket_number || (raw.id ? `#${raw.id}` : '—'),
-    service: raw.service_name || raw.service?.name || raw.service || '',
+    service: raw.service_name || raw.service?.name || (typeof raw.service === 'string' ? raw.service : '') || '',
     status: statusLabel(raw.status),
     priority: capitalize(raw.priority || raw.urgency),
     completeBy: formatDateTime(raw.sla_deadline || raw.deadline) || '—',
@@ -72,13 +76,31 @@ export function mapJobDetail(raw) {
       city: buildLocation(loc, raw),
     },
     addons: Array.isArray(raw.addons)
-      ? raw.addons.map(a => a?.name || a?.service_name || a).filter(Boolean)
+      ? raw.addons
+          .map(a => {
+            if (typeof a === 'string') return a;
+            if (!a) return '';
+            // Tolerate the several shapes an addon comes in: {name}, {service_name},
+            // {service: 'x'} or {service: {name: 'x'}} — never fall through to the
+            // raw object (React can't render it).
+            return a.name || a.service_name || a.service?.name || (typeof a.service === 'string' ? a.service : '') || '';
+          })
+          .filter(Boolean)
       : [],
     committedEta: formatDateTime(raw.committed_eta || raw.vendor_eta || raw.committed_at),
-    report: report?.note || report?.text || report?.summary || report?.description || null,
-    reportFile: report?.file_url || report?.file || report?.attachment_url || null,
-    sharedWithCustomer: report?.shared_with_customer ?? report?.shared ?? false,
+    report: report?.report_text || report?.note || report?.text || report?.summary || report?.description || null,
+    reportFile: reportMedia[0] || report?.file_url || report?.file || report?.attachment_url || null,
+    reportMedia,
+    // The report is "shared" once it's been sent to the customer; the backend
+    // also returns an explicit can_add_attachments flag (false once shared or
+    // reviewed) — prefer it, falling back to the sent timestamp.
+    sharedWithCustomer: !!report?.sent_to_customer_at || (report?.shared_with_customer ?? report?.shared ?? false),
+    canAddAttachments: report?.can_add_attachments ?? (report ? !report?.sent_to_customer_at : false),
     reportSubmittedAt: formatDateTime(report?.submitted_at || report?.created_at),
+    tracking: {
+      number: raw.tracking_number ?? tracking.number ?? tracking.tracking_number ?? '',
+      url: raw.tracking_url ?? tracking.url ?? tracking.tracking_url ?? '',
+    },
     timeline: (history || []).map(h => ({
       status: statusLabel(h.to || h.status),
       date: formatDateTime(h.at || h.created_at || h.date),
@@ -123,6 +145,89 @@ export async function getVendorJobDetail(ticket) {
     const response = await apiClient.get(`/vendor/jobs/${ticket}`);
     const data = response.data?.data || response.data || {};
     return mapJobDetail(data.job || data);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Multipart body for the completion/report endpoints: an optional `report_text`
+// field plus up to 8 proof files under `media_files[]`. Files are RN picker
+// objects: { uri, name, type }.
+function buildReportFormData({ reportText, files } = {}) {
+  const formData = new FormData();
+  if (reportText != null) formData.append('report_text', reportText);
+  (files || []).forEach(f => {
+    formData.append('media_files[]', { uri: f.uri, name: f.name, type: f.type || 'application/octet-stream' });
+  });
+  return formData;
+}
+
+// POST /vendor/jobs/{ticket}/accept — accept with an ETA commitment; moves the
+// job to In Progress. `vendorEta` is an ISO 8601 datetime string. 422 if the
+// job isn't in the Assigned state.
+export async function acceptVendorJob(ticket, { vendorEta }) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/accept`, { vendor_eta: vendorEta });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/reject — reject with a mandatory reason (tracked);
+// returns the job to the assignment queue. 422 if the job isn't Assigned.
+export async function rejectVendorJob(ticket, { reason }) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/reject`, { reason });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/complete — submit the completion report
+// (report_text required) with optional proof files; closes the job and notifies
+// the RM. 422 if the job is not in progress.
+export async function completeVendorJob(ticket, { reportText, files }) {
+  try {
+    const response = await apiClient.post(
+      `/vendor/jobs/${ticket}/complete`,
+      buildReportFormData({ reportText, files }),
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/report/attachments — append proof files to an
+// already-submitted report; allowed only while it hasn't been shared with the
+// customer. 403 if the job is another vendor's; 422 if there's no report yet or
+// it's already been sent.
+export async function addVendorJobReportAttachments(ticket, { files }) {
+  try {
+    const response = await apiClient.post(
+      `/vendor/jobs/${ticket}/report/attachments`,
+      buildReportFormData({ files }),
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/tracking — add/edit shipment tracking (available
+// once the job is accepted). Empty strings clear a field; callable repeatedly.
+// 403 if another vendor's job; 422 if not yet accepted or the URL is invalid.
+export async function saveVendorJobTracking(ticket, { trackingNumber, trackingUrl }) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/tracking`, {
+      tracking_number: trackingNumber ?? '',
+      tracking_url: trackingUrl ?? '',
+    });
+    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }
