@@ -1,7 +1,13 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { logoutUser } from '../../Redux/slices/userSlice';
+
+const initialsFor = (name) => (name || 'V').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
 const MENU_ITEMS = [
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit your details', icon: 'person-outline', route: 'ProfilePersonal' },
@@ -9,12 +15,38 @@ const MENU_ITEMS = [
   { key: 'documents', label: 'Documents / KYC', subtitle: 'Manage verification documents', icon: 'folder-shared', route: 'Documents' },
   { key: 'availability', label: 'Availability', subtitle: 'Manage your job availability', icon: 'event-available', route: 'Availability' },
   { key: 'services', label: 'Services Offered', subtitle: 'View your offered services', icon: 'miscellaneous-services', route: 'ServiceOffered' },
-  { key: 'coverage', label: 'Coverage Areas', subtitle: 'Manage your service areas', icon: 'map', route: 'CoverageAreas' },
 ];
 
 const { height: H } = Dimensions.get('window');
 
 function Profile({ navigation }) {
+  const dispatch = useDispatch();
+  const { profile, loading } = useVendorProfile();
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => {
+          dispatch(logoutUser()); // POST /auth/logout + clear local session
+          let root = navigation;
+          while (root.getParent()) root = root.getParent();
+          root.reset({ index: 0, routes: [{ name: 'Login' }] });
+        },
+      },
+    ]);
+  };
+
+  const name = profile?.businessName || 'Vendor';
+  const vendorType = titleCase(profile?.vendorType);
+  const coverageCity = profile?.geoCoverage?.[0]?.city?.name || '';
+  const subtitle = [vendorType, coverageCity].filter(Boolean).join(' · ');
+  const ratingScore = profile?.rating?.score;
+  const isActive = (profile?.status || '').toLowerCase() === 'active';
+  const isAvailable = profile?.availability?.isAvailable !== false;
+
   return (
     <View style={styles.container}>
       {/* Top Blue Header */}
@@ -26,14 +58,14 @@ function Profile({ navigation }) {
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>RA</Text>
+              <Text style={styles.avatarText}>{initialsFor(name)}</Text>
             </View>
           </View>
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Ramesh Ambekar</Text>
-            <Text style={styles.profileEmail}>Vendor ID: VEN-2026-014</Text>
-            <Text style={styles.profilePhone}>Care Executive · Kolhapur</Text>
+            <Text style={styles.profileName} numberOfLines={1}>{name}</Text>
+            {!!profile?.id && <Text style={styles.profileEmail}>Vendor ID: VEN-{profile.id}</Text>}
+            {!!subtitle && <Text style={styles.profilePhone}>{subtitle}</Text>}
           </View>
         </View>
       </View>
@@ -46,20 +78,28 @@ function Profile({ navigation }) {
             <Text style={styles.statusTitle}>My Status</Text>
             <View style={styles.ratingRow}>
               <Icon name="star" size={16} color="#F59E0B" />
-              <Text style={styles.ratingText}>4.00</Text>
+              <Text style={styles.ratingText}>{ratingScore != null ? Number(ratingScore).toFixed(2) : '—'}</Text>
             </View>
           </View>
 
           <View style={styles.statusRow}>
             <Text style={styles.statusRowLabel}>Account</Text>
-            <View style={[styles.chip, { backgroundColor: '#D1FAE5' }]}>
-              <Text style={[styles.chipText, { color: '#059669' }]}>Active</Text>
-            </View>
+            {loading && !profile ? (
+              <ActivityIndicator size="small" color="#64748B" />
+            ) : (
+              <View style={[styles.chip, { backgroundColor: isActive ? '#D1FAE5' : '#FEE2E2' }]}>
+                <Text style={[styles.chipText, { color: isActive ? '#059669' : '#DC2626' }]}>
+                  {titleCase(profile?.status) || 'Unknown'}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={[styles.statusRow, { marginBottom: 0 }]}>
             <Text style={styles.statusRowLabel}>Availability</Text>
-            <View style={[styles.chip, { backgroundColor: '#D1FAE5' }]}>
-              <Text style={[styles.chipText, { color: '#059669' }]}>Available</Text>
+            <View style={[styles.chip, { backgroundColor: isAvailable ? '#D1FAE5' : '#FEF3C7' }]}>
+              <Text style={[styles.chipText, { color: isAvailable ? '#059669' : '#D97706' }]}>
+                {isAvailable ? 'Available' : 'Unavailable'}
+              </Text>
             </View>
           </View>
         </View>
@@ -85,7 +125,7 @@ function Profile({ navigation }) {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.7} onPress={handleLogout}>
           <Text style={styles.logoutBtnText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>

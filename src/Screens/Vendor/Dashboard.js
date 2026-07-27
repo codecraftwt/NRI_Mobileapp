@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { useVendorRatings } from '../../Hooks/useVendorRatings';
+import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
 const HEADER_STATS = [
   { id: 'new', label: 'New Jobs', value: '2', icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
@@ -27,11 +28,28 @@ function Dashboard({ navigation }) {
   const [available, setAvailable] = useState(true);
   const user = useSelector(state => state.user.user);
   const { summary } = useVendorRatings();
+  const { profile, actionLoading, updateAvailability } = useVendorProfile();
 
-  const vendorName = user?.name || 'Vendor';
+  const vendorName = profile?.businessName || user?.name || 'Vendor';
   // Prefer the customer-facing average; fall back to the overall/composite score.
   const ratingValue = summary?.avgCustomerRating ?? summary?.overallScore ?? null;
   const standing = summary?.standing || 'Account in good standing';
+
+  // Reflect the saved availability from the profile.
+  useEffect(() => {
+    if (profile?.availability) setAvailable(profile.availability.isAvailable !== false);
+  }, [profile?.availability?.isAvailable]);
+
+  // Toggle posts to /vendor/profile/availability; revert on failure.
+  const handleToggleAvailable = async (next) => {
+    setAvailable(next); // optimistic
+    try {
+      await updateAvailability({ isAvailable: next }).unwrap();
+    } catch (e) {
+      setAvailable(!next);
+      Alert.alert('Update Failed', e?.message || 'Could not update your availability.');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -52,16 +70,17 @@ function Dashboard({ navigation }) {
         {/* Availability Toggle */}
         <View style={styles.availCard}>
           <View style={styles.availLeft}>
-            <View style={styles.availDot} />
+            <View style={[styles.availDot, { backgroundColor: available ? '#22C55E' : '#F59E0B' }]} />
             <View>
-              <Text style={styles.availTitle}>Available for Jobs</Text>
+              <Text style={styles.availTitle}>{available ? 'Available for Jobs' : 'Unavailable'}</Text>
             </View>
           </View>
           <View style={styles.availRight}>
-            <Text style={styles.availHint}>Toggle off to go offline</Text>
+            <Text style={styles.availHint}>{available ? 'Toggle off to go offline' : 'Toggle on to go online'}</Text>
             <Switch
               value={available}
-              onValueChange={setAvailable}
+              onValueChange={handleToggleAvailable}
+              disabled={actionLoading}
               trackColor={{ false: '#CBD5E1', true: '#22C55E' }}
               thumbColor="#FFFFFF"
               ios_backgroundColor="#CBD5E1"
@@ -155,7 +174,7 @@ function Dashboard({ navigation }) {
               <View style={{ position: 'absolute', top: -50, bottom: -50, right: -50, width: '65%', backgroundColor: '#A64416', borderRadius: 300, opacity: 0.95 }} />
               <View style={{ flex: 1, zIndex: 1 }}>
                 <Text style={styles.planSubtitle}>MY STATUS</Text>
-                <Text style={styles.planTitle}>Active · Available</Text>
+                <Text style={styles.planTitle}>Active · {available ? 'Available' : 'Unavailable'}</Text>
                 <Text style={styles.planDesc}>
                   {ratingValue != null ? `★ ${Number(ratingValue).toFixed(2)} rating · ` : ''}{standing}
                 </Text>

@@ -1,23 +1,57 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
 function ProfilePersonal({ navigation }) {
-  const [businessName, setBusinessName] = useState('Medical Service');
-  const [contactPhone, setContactPhone] = useState('8888888888');
-  const [contactEmail, setContactEmail] = useState('name@example.com');
-  const [address, setAddress] = useState('');
-  const [gstNumber, setGstNumber] = useState('27ABCDE1234F1Z5');
+  const { profile, loading, actionLoading, updateProfile } = useVendorProfile();
 
-  const handleSave = () => {
+  const [businessName, setBusinessName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+
+  // Seed the form once the profile loads.
+  useEffect(() => {
+    if (profile) {
+      setBusinessName(profile.businessName || '');
+      setContactPhone(profile.contactPhone || '');
+      setContactEmail(profile.contactEmail || '');
+      setAddress(profile.address || '');
+      setGstNumber(profile.gstNumber || '');
+    }
+  }, [profile]);
+
+  const handleSave = async () => {
     if (!businessName.trim()) {
       Alert.alert('Required', 'Business name is required.');
       return;
     }
-    Alert.alert('Saved', 'Your personal info has been updated.');
+    try {
+      await updateProfile({
+        business_name: businessName.trim(),
+        contact_phone: contactPhone.trim(),
+        contact_email: contactEmail.trim(),
+        address: address.trim(),
+        gst_number: gstNumber.trim() || null,
+      }).unwrap();
+      Alert.alert('Saved', 'Your personal info has been updated.');
+    } catch (e) {
+      Alert.alert('Update Failed', e?.message || 'Could not save. Please try again.');
+    }
   };
+
+  if (loading && !profile) {
+    return (
+      <View style={styles.container}>
+        <Header navigation={navigation} title="Personal Info" showBack />
+        <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -40,8 +74,8 @@ function ProfilePersonal({ navigation }) {
           <TextInput style={styles.input} value={gstNumber} onChangeText={setGstNumber} autoCapitalize="characters" placeholder="GSTIN" placeholderTextColor={colors.textPlaceholder} />
           <Text style={styles.hint}>If provided, your GSTIN appears on job invoices.</Text>
 
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <TouchableOpacity style={[styles.saveBtn, actionLoading && styles.saveBtnDisabled]} onPress={handleSave} disabled={actionLoading}>
+            {actionLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -58,6 +92,7 @@ const styles = StyleSheet.create({
   textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: 12 },
   hint: { ...typography.small, color: colors.textPlaceholder, marginTop: 6 },
   saveBtn: { backgroundColor: '#D94625', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: '#FFFFFF', ...typography.labelLarge },
 });
 
