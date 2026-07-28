@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler, Animated } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler, Animated, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector } from 'react-redux';
@@ -164,6 +164,10 @@ function Dashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Assert the translucent status bar so the header doesn't reserve extra
+          space on reload (native default reserves status-bar space until JS
+          sets translucent, which made the top bar grow then settle). */}
+      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>

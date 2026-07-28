@@ -19,6 +19,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import { getWallet } from '../../Api/walletApi';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -251,13 +252,15 @@ function CreateTicket({ route, navigation }) {
     reset: resetSubscription,
   } = useServiceSubscription();
 
+  // Available coupons come from the customer wallet (GET /customer/wallet),
+  // fetched on demand when the coupons modal opens.
+  const [walletCoupons, setWalletCoupons] = useState([]);
+  const [walletCouponsLoading, setWalletCouponsLoading] = useState(false);
+
   const {
     quote,
     quoteLoading,
     fetchQuote,
-    coupons,
-    couponsLoading,
-    fetchCoupons,
     appliedCoupon,
     couponApplyLoading,
     applyCoupon,
@@ -500,12 +503,15 @@ function CreateTicket({ route, navigation }) {
   };
 
   const handleViewCoupons = () => {
-    fetchCoupons({ addons: selectedAddonIds, stateId, cityId });
     setShowCouponsModal(true);
+    setWalletCouponsLoading(true);
+    getWallet()
+      .then((res) => setWalletCoupons(res.coupons || []))
+      .catch(() => setWalletCoupons([]))
+      .finally(() => setWalletCouponsLoading(false));
   };
 
   const handlePickCoupon = (coupon) => {
-    if (!coupon.eligible) return;
     setCouponCode(coupon.code);
     setShowCouponsModal(false);
     applyCoupon({ code: coupon.code, addons: selectedAddonIds, stateId, cityId })
@@ -822,7 +828,7 @@ function CreateTicket({ route, navigation }) {
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={18} color="#20304C" style={{ marginLeft: 6 }} />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Submit a Service Request</Text>
         <View style={{ width: 44 }} />
@@ -1073,27 +1079,6 @@ function CreateTicket({ route, navigation }) {
             options={[NO_PROPERTY, ...properties.map(p => p.nickname)]}
             onSelect={setProperty}
           />
-          {locationLocked && (
-            <View style={styles.lockedLocationRow}>
-              <Icon name="place" size={14} color="#64748B" />
-              <Text style={styles.lockedLocationText} numberOfLines={1}>
-                Location set for {city}, {state}
-              </Text>
-              <TouchableOpacity
-                onPress={() => showAlert(
-                  'Change Location?',
-                  'Services are specific to your location. To change your state or city, please pick your service again from the start.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Change Location', onPress: goToServices },
-                  ],
-                )}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.changeLocationText}>Change</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           <SelectField
             label="State"
             required
@@ -1427,29 +1412,25 @@ function CreateTicket({ route, navigation }) {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Available Coupons</Text>
-            {couponsLoading ? (
+            {walletCouponsLoading ? (
               <View style={[styles.inlineLoading, { padding: 16 }]}>
                 <ActivityIndicator size="small" color="#3298D4" />
                 <Text style={styles.hint}>Loading coupons…</Text>
               </View>
             ) : (
               <FlatList
-                data={coupons}
-                keyExtractor={(item) => item.code}
+                data={walletCoupons}
+                keyExtractor={(item) => String(item.id ?? item.code)}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={styles.modalOption}
                     onPress={() => handlePickCoupon(item)}
-                    disabled={!item.eligible}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.couponCodeText, !item.eligible && styles.couponIneligibleText]}>
-                        {item.code} · {item.valueLabel}
-                      </Text>
+                      <Text style={styles.couponCodeText}>{item.code}</Text>
                       {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
-                      {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
                     </View>
-                    {item.eligible && <Icon name="chevron-right" size={20} color="#3298D4" />}
+                    <Icon name="chevron-right" size={20} color="#3298D4" />
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={<Text style={[styles.hint, { padding: 16 }]}>No coupons available right now.</Text>}
@@ -1481,19 +1462,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
     paddingBottom: 16,
+    gap: 12, // space between the back button and the title
   },
   headerBackBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   headerTitle: {
     fontSize: 18,
@@ -1732,7 +1709,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 6,
   },
   cancelBtnText: { color: '#D94625', fontSize: 16, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
