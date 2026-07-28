@@ -175,6 +175,20 @@ export const forgotPassword = createAsyncThunk(
   }
 );
 
+// Final reset — saves the new password and logs the user out of every device
+// server-side, so there's no session to update here; the UI sends them back
+// to the sign-in screen afterwards.
+export const resetPassword = createAsyncThunk(
+  'user/resetPassword',
+  async ({ email, phone, otp, password, passwordConfirmation }, { rejectWithValue }) => {
+    try {
+      return await authApi.resetPassword({ email, phone, otp, password, passwordConfirmation });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const sendEmailOtp = createAsyncThunk(
   'user/sendEmailOtp',
   async (_, { rejectWithValue }) => {
@@ -218,6 +232,8 @@ const initialState = {
   changePasswordError: null,
   forgotPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   forgotPasswordError: null,
+  resetPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  resetPasswordError: null,
   otpSendStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   otpSendError: null,
   otpVerifyStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -422,6 +438,18 @@ const userSlice = createSlice({
       .addCase(forgotPassword.rejected, (state, action) => {
         state.forgotPasswordStatus = 'failed';
         state.forgotPasswordError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(resetPassword.pending, (state) => {
+        state.resetPasswordStatus = 'loading';
+        state.resetPasswordError = null;
+      })
+      .addCase(resetPassword.fulfilled, (state) => {
+        state.resetPasswordStatus = 'succeeded';
+        state.resetPasswordError = null;
+      })
+      .addCase(resetPassword.rejected, (state, action) => {
+        state.resetPasswordStatus = 'failed';
+        state.resetPasswordError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
       .addCase(sendEmailOtp.pending, (state) => {
         state.otpSendStatus = 'loading';

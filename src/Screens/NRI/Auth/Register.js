@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 const C = {
   ...baseColors,
@@ -20,6 +21,7 @@ const PASSWORD_SPECIAL_REGEX = /[^A-Za-z0-9]/;
 
 function Register({ navigation }) {
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
   const registerStatus = useSelector(state => state.user.registerStatus);
   const submitting = registerStatus === 'loading';
 
@@ -83,9 +85,9 @@ function Register({ navigation }) {
       .catch((error) => {
         if (error?.errors) {
           setFieldErrors(error.errors);
-          Alert.alert('Check your details', error.message || 'Some information you entered is invalid.');
+          showAlert('Check your details', error.message || 'Some information you entered is invalid.');
         } else {
-          Alert.alert('Registration Failed', error?.message || 'Something went wrong. Please try again.');
+          showAlert('Registration Failed', error?.message || 'Something went wrong. Please try again.');
         }
       });
   };
@@ -239,6 +241,8 @@ function Register({ navigation }) {
           <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AppAlert {...alertProps} />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, Alert, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator, Dimensions } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -11,6 +11,7 @@ import { useInternationalStates } from '../../../Hooks/useInternationalStates';
 import { useInternationalCities } from '../../../Hooks/useInternationalCities';
 import { saveUserProfile, logoutUser } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 const C = {
   ...baseColors,
@@ -165,6 +166,7 @@ function AutocompleteField({ label, required, value, onChangeText, placeholder, 
 
 function OnboardingProfile({ navigation }) {
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(state => state.user.user);
   const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
@@ -197,7 +199,7 @@ function OnboardingProfile({ navigation }) {
 
   const handleContinue = async () => {
     if (!country || !stateProvince || !city || !homeState || !phone) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields before continuing.');
+      showAlert('Missing Fields', 'Please fill in all required fields before continuing.');
       return;
     }
     const stateId = states.find(s => s.name === homeState)?.id;
@@ -213,7 +215,7 @@ function OnboardingProfile({ navigation }) {
         profile: { countryOfResidence: country, stateProvince, city, homeState, phone, whatsapp },
       });
     } catch (error) {
-      Alert.alert('Could Not Save Profile', error?.message || 'Please try again.');
+      showAlert('Could Not Save Profile', error?.message || 'Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -233,7 +235,7 @@ function OnboardingProfile({ navigation }) {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    showAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
@@ -359,6 +361,7 @@ function OnboardingProfile({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

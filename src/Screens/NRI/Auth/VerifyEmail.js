@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { sendEmailOtp, verifyEmailOtp } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 const C = {
   ...baseColors,
@@ -17,6 +18,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 
 function VerifyEmail({ route, navigation }) {
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(state => state.user.user);
   const otpSendStatus = useSelector(state => state.user.otpSendStatus);
   const otpVerifyStatus = useSelector(state => state.user.otpVerifyStatus);
@@ -56,11 +58,11 @@ function VerifyEmail({ route, navigation }) {
       .unwrap()
       .then(() => {
         setCooldown(RESEND_COOLDOWN_SECONDS);
-        Alert.alert('Code Sent', `A new verification code has been sent to ${email}.`);
+        showAlert('Code Sent', `A new verification code has been sent to ${email}.`);
       })
       .catch((err) => {
         setCooldown(err?.retryAfter || 0);
-        Alert.alert('Please Wait', err?.message || 'Please wait before requesting another code.');
+        showAlert('Please Wait', err?.message || 'Please wait before requesting another code.');
       });
   };
 
@@ -155,6 +157,8 @@ function VerifyEmail({ route, navigation }) {
           <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AppAlert {...alertProps} />
     </SafeAreaView>
   );
 }

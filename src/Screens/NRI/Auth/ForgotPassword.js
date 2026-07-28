@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { forgotPassword } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 const C = {
   ...baseColors,
@@ -17,33 +18,34 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function ForgotPassword({ navigation }) {
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
   const forgotPasswordStatus = useSelector(state => state.user.forgotPasswordStatus);
   const submitting = forgotPasswordStatus === 'loading';
 
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
-  const [sent, setSent] = useState(false);
 
-  const handleSendResetLink = () => {
-    if (!email.trim()) {
+  const handleSendOtp = () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       setError('Email address is required.');
       return;
     }
-    if (!EMAIL_REGEX.test(email.trim())) {
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
       setError('Enter a valid email address.');
       return;
     }
     setError('');
 
-    dispatch(forgotPassword({ email: email.trim() }))
+    dispatch(forgotPassword({ email: trimmedEmail }))
       .unwrap()
       .then(() => {
-        setSent(true);
+        navigation.navigate('ResetVerifyOtp', { email: trimmedEmail });
       })
       .catch((err) => {
         const message = err?.errors?.email?.[0] || err?.message || 'Something went wrong. Please try again.';
         setError(err?.errors?.email ? message : '');
-        Alert.alert('Could Not Send Reset Link', message);
+        showAlert('Could Not Send OTP', message);
       });
   };
 
@@ -72,82 +74,47 @@ function ForgotPassword({ navigation }) {
             <Text style={styles.brandText}>NRI <Text style={{ color: C.primary }}>Circle</Text></Text>
           </View>
 
-          {sent ? (
-            <>
-              <View style={styles.checkCircleWrap}>
-                <View style={styles.checkCircle}>
-                  <Icon name="mark-email-read" size={36} color={C.accent} />
-                </View>
-              </View>
-              
-              <Text style={styles.title}>Check your email</Text>
-              <Text style={styles.subtitle}>
-                We've sent a password reset link to <Text style={{fontFamily: 'Poppins-SemiBold', color: '#1E293B'}}>{email.trim()}</Text>. Click the link in the email to reset your password.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.title}>Forgot Password?</Text>
-              <Text style={styles.subtitle}>Enter your email address and we'll send you a link to reset your password securely.</Text>
-            </>
-          )}
+          <Text style={styles.title}>Forgot Password?</Text>
+          <Text style={styles.subtitle}>Enter your email address and we'll send you a 4-digit OTP to reset your password securely.</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {sent ? (
-            <>
-              <View style={styles.ctaWrapper}>
-                <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.primary }, submitting && styles.ctaBtnDisabled]} onPress={handleSendResetLink} disabled={submitting}>
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text style={styles.ctaText}>Resend Email</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+          <Text style={styles.inputLabel}>Email Address</Text>
+          <View style={[styles.inputWrap, !!error && styles.inputWrapError]}>
+            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
+              <Icon name="mail-outline" size={20} color={C.primary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="you@example.com"
+              placeholderTextColor={C.textPlaceholder}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={(v) => { setEmail(v); if (error) setError(''); }}
+            />
+          </View>
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-              <TouchableOpacity style={styles.signInRow} onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.signInText}>Back to <Text style={[styles.signInLink, { color: C.accent }]}>Sign in</Text></Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.inputLabel}>Email Address</Text>
-              <View style={[styles.inputWrap, !!error && styles.inputWrapError]}>
-                <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
-                  <Icon name="mail-outline" size={20} color={C.primary} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="you@example.com"
-                  placeholderTextColor={C.textPlaceholder}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={(v) => { setEmail(v); if (error) setError(''); }}
-                />
-              </View>
-              {!!error && <Text style={styles.errorText}>{error}</Text>}
+          <View style={styles.ctaWrapper}>
+            <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, submitting && styles.ctaBtnDisabled]} onPress={handleSendOtp} disabled={submitting}>
+              {submitting ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={styles.ctaText}>Send OTP</Text>
+              )}
+            </TouchableOpacity>
+          </View>
 
-              <View style={styles.ctaWrapper}>
-                <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, submitting && styles.ctaBtnDisabled]} onPress={handleSendResetLink} disabled={submitting}>
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text style={styles.ctaText}>Send Reset Link</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity style={styles.signInRow} onPress={() => navigation.navigate('Login')} disabled={submitting}>
-                <Text style={styles.signInText}>Remembered your password? <Text style={[styles.signInLink, { color: C.accent }]}>Sign in</Text></Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity style={styles.signInRow} onPress={() => navigation.navigate('Login')} disabled={submitting}>
+            <Text style={styles.signInText}>Remembered your password? <Text style={[styles.signInLink, { color: C.accent }]}>Sign in</Text></Text>
+          </TouchableOpacity>
 
           <Text style={styles.footer}>© 2026 NRI Circle. All rights reserved.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AppAlert {...alertProps} />
     </SafeAreaView>
   );
 }

@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateMembership } from '../../../Redux/slices/userSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 function Payment({ route, navigation }) {
   const { plan } = route.params || { plan: { id: 'Family', price: '₹24,999' } };
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
   const wallet = useSelector(state => state.wallet);
 
   const [couponCode, setCouponCode] = useState('');
@@ -30,9 +32,9 @@ function Payment({ route, navigation }) {
       } else {
         setDiscount(matched.discountValue);
       }
-      Alert.alert('Coupon Applied', `Code ${matched.code} applied successfully! Discount of ₹${discount} deducted.`);
+      showAlert('Coupon Applied', `Code ${matched.code} applied successfully! Discount of ₹${discount} deducted.`);
     } else {
-      Alert.alert('Invalid Coupon', 'The coupon code entered is invalid or expired.');
+      showAlert('Invalid Coupon', 'The coupon code entered is invalid or expired.');
     }
   };
 
@@ -58,7 +60,7 @@ function Payment({ route, navigation }) {
         total: grandTotal,
       }));
 
-      Alert.alert(
+      showAlert(
         'Payment Successful!',
         `Welcome to NRI Circle ${plan.id} Plan! You can now add family and property details from the dashboard.`,
         [
@@ -168,6 +170,7 @@ function Payment({ route, navigation }) {
           </TouchableOpacity>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

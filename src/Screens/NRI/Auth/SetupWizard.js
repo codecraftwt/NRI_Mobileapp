@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch } from 'react-redux';
 import { addFamilyMember } from '../../../Redux/slices/familySlice';
 import { addProperty } from '../../../Redux/slices/propertiesSlice';
 import { setOnboarded, login } from '../../../Redux/slices/userSlice';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 function SetupWizard({ navigation }) {
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
 
   // Family Member inputs
   const [famName, setFamName] = useState('');
@@ -22,7 +24,7 @@ function SetupWizard({ navigation }) {
 
   const handleFinishSetup = () => {
     if (!famName || !famRelation || !propName || !propAddress) {
-      Alert.alert('Details Required', 'Please enter at least one family member and one property to finish setup.');
+      showAlert('Details Required', 'Please enter at least one family member and one property to finish setup.');
       return;
     }
 
@@ -72,7 +74,7 @@ function SetupWizard({ navigation }) {
       token: 'fake-jwt-token-998877',
     }));
 
-    Alert.alert(
+    showAlert(
       'Profile Setup Complete!',
       'Your care plan is now active. Your Relationship Manager has been briefed on your family and property details.',
       [
@@ -187,6 +189,7 @@ function SetupWizard({ navigation }) {
           <Icon name="done-all" size={20} color="white" />
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

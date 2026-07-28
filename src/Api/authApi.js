@@ -259,9 +259,30 @@ export async function changePassword({ currentPassword, password, passwordConfir
   }
 }
 
+// The backend requires `verification_channel` to say where the OTP goes; this
+// flow is email-based, so it's always 'email'.
 export async function forgotPassword({ email }) {
   try {
-    await apiClient.post('/auth/forgot-password', { email });
+    await apiClient.post('/auth/forgot-password', { email, verification_channel: 'email' });
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Final step: re-validates the OTP, saves the new password, invalidates the
+// OTP, and revokes every active token (all devices logged out). `phone` is
+// optional — the forgot flow identifies the account by email — so it's only
+// sent when present.
+export async function resetPassword({ email, phone, otp, password, passwordConfirmation }) {
+  try {
+    const response = await apiClient.post('/auth/reset-password', {
+      email,
+      phone: phone || undefined,
+      otp,
+      password,
+      password_confirmation: passwordConfirmation,
+    });
+    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

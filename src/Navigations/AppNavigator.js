@@ -16,6 +16,8 @@ import Splash from '../Screens/NRI/Auth/Splash';
 import Onboarding from '../Screens/NRI/Auth/Onboarding';
 import Login from '../Screens/NRI/Auth/Login';
 import ForgotPassword from '../Screens/NRI/Auth/ForgotPassword';
+import ResetVerifyOtp from '../Screens/NRI/Auth/ResetVerifyOtp';
+import ResetPassword from '../Screens/NRI/Auth/ResetPassword';
 import Register from '../Screens/NRI/Auth/Register';
 import VerifyEmail from '../Screens/NRI/Auth/VerifyEmail';
 import OnboardingProfile from '../Screens/NRI/Auth/OnboardingProfile';
@@ -380,6 +382,8 @@ export default function AppNavigator() {
       {/* Authentication */}
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+      <Stack.Screen name="ResetVerifyOtp" component={ResetVerifyOtp} />
+      <Stack.Screen name="ResetPassword" component={ResetPassword} />
       <Stack.Screen name="Register" component={Register} />
       <Stack.Screen name="VerifyEmail" component={VerifyEmail} />
 

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch } from 'react-redux';
 import { login } from '../../../Redux/slices/userSlice';
+import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
 function OTPVerify({ route, navigation }) {
   const { phone } = route.params || { phone: '+1 555 123 4567' };
   const [code, setCode] = useState('');
   const [timer, setTimer] = useState(59);
   const dispatch = useDispatch();
+  const { showAlert, alertProps } = useAppAlert();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -19,7 +21,7 @@ function OTPVerify({ route, navigation }) {
 
   const handleVerify = () => {
     if (code.length < 4) {
-      Alert.alert('Verification Failed', 'Please enter the 6-digit OTP code.');
+      showAlert('Verification Failed', 'Please enter the 6-digit OTP code.');
       return;
     }
 
@@ -44,7 +46,7 @@ function OTPVerify({ route, navigation }) {
 
   const handleResend = () => {
     setTimer(59);
-    Alert.alert('OTP Resent', 'A new OTP verification code has been sent to your mobile.');
+    showAlert('OTP Resent', 'A new OTP verification code has been sent to your mobile.');
   };
 
   return (
@@ -89,6 +91,7 @@ function OTPVerify({ route, navigation }) {
           <Icon name="done" size={20} color="white" />
         </TouchableOpacity>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
