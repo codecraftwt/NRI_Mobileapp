@@ -48,7 +48,7 @@ function PayoutDetail({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      <StatusBar translucent={false} backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
         <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
       </TouchableOpacity>

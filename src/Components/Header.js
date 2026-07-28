@@ -5,13 +5,21 @@ import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing } from '../theme/spacing';
 
+// Match the main tab screens (Services/Requests/MyMembership etc.), which use a
+// fixed paddingTop of 50 with a ~96px total header height. Using fixed
+// constants (NOT the async useSafeAreaInsets() hook, which returns 0 on the
+// first frame after a transition then updates) keeps every header the exact
+// same height as the main screens and flicker-free on navigation.
+const HEADER_PADDING_TOP = 50;
+const HEADER_HEIGHT = 96;
+
 function Header({ navigation, title, showBack, isTabRoot }) {
   const isDashboard = !showBack && !isTabRoot && !title;
 
   if (isDashboard) {
     return (
       <View style={styles.mainContainer}>
-        <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent={false} />
+        <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent />
 
         <View style={styles.profileContainer}>
           <View style={styles.avatarMain}>
@@ -34,16 +42,16 @@ function Header({ navigation, title, showBack, isTabRoot }) {
   // Standard Header for inner screens or Tab Roots
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent />
       {showBack ? (
         <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
       ) : (
-        <View style={{ width: 44 }} />
+        <View style={styles.sideSpacer} />
       )}
-      {!!title && <Text style={styles.title}>{title}</Text>}
-      <View style={{ width: 44 }} />
+      {!!title && <Text style={styles.title} numberOfLines={1}>{title}</Text>}
+      <View style={styles.sideSpacer} />
     </View>
   );
 }
@@ -55,8 +63,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C',
     paddingHorizontal: spacing.lg,
-    paddingTop: Platform.OS === 'android' ? 50 : 54, // Same as Services.js
-    paddingBottom: spacing.md,
+    paddingTop: HEADER_PADDING_TOP,
+    height: HEADER_HEIGHT,
     borderBottomWidth: 0,
     shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },
@@ -71,8 +79,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    // Nudge the back button up slightly so it optically aligns with the title.
+    transform: [{ translateY: -6 }],
   },
-  title: { flex: 1, ...typography.h4, color: '#FFFFFF', textAlign: 'center' },
+  backIcon: {
+    marginLeft: 6,
+  },
+  sideSpacer: {
+    width: 44,
+  },
+  title: { flex: 1, ...typography.h4, color: '#FFFFFF', textAlign: 'center', transform: [{ translateY: -6 }] },
 
   // Clean Modern Colored Header
   mainContainer: {
@@ -81,8 +97,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C', // Merges perfectly with status bar
     paddingHorizontal: spacing.lg,
-    paddingTop: 56, // Clear the status bar
-    paddingBottom: spacing.md,
+    paddingTop: HEADER_PADDING_TOP,
+    height: HEADER_HEIGHT,
     borderBottomWidth: 0,
     shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },
