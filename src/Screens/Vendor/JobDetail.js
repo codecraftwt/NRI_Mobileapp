@@ -247,9 +247,9 @@ function JobDetail({ route, navigation }) {
         <View style={styles.headerContainer}>
           <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
           <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Job Details</Text>
           <View style={{ width: 44 }} />
         </View>
         <View style={styles.centerState}>
@@ -266,9 +266,9 @@ function JobDetail({ route, navigation }) {
         <View style={styles.headerContainer}>
           <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
           <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
+            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>Job Details</Text>
           <View style={{ width: 44 }} />
         </View>
         <TouchableOpacity style={styles.centerState} onPress={retry} activeOpacity={0.7}>
@@ -291,7 +291,7 @@ function JobDetail({ route, navigation }) {
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{job.ticket}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Job Details</Text>
         <View style={{ width: 44 }} />
       </View>
 
@@ -742,7 +742,9 @@ const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: '#20304C',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22,
+    paddingBottom: 16,
     shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
   },
   headerBackBtn: {

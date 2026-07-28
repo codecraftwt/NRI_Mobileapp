@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, StatusBar, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, StatusBar, Platform, Animated } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
@@ -45,6 +45,24 @@ function Dashboard({ navigation }) {
   // Load the unread count for the header bell badge.
   useEffect(() => { fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Waving-hand animation next to the vendor name (mirrors the NRI dashboard).
+  const waveAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(waveAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: -1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.delay(1000),
+      ])
+    ).start();
+  }, [waveAnim]);
+  const waveInterpolate = waveAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-15deg', '0deg', '15deg'],
+  });
+
   const vendorName = profile?.businessName || user?.name || 'Vendor';
   // Prefer the customer-facing average; fall back to the overall/composite score,
   // then the dashboard payload's own rating.
@@ -75,10 +93,17 @@ function Dashboard({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Assert the translucent status bar so the header doesn't reserve extra
+          space on reload (native default reserves status-bar space until JS
+          sets translucent, which made the top bar grow then settle). */}
+      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.nameRow}>
-          <Text style={styles.userName} numberOfLines={1}>{vendorName}</Text>
+          <View style={styles.nameWrap}>
+            <Text style={styles.userName} numberOfLines={1}>{vendorName}</Text>
+            <Animated.Text style={[styles.wave, { transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
+          </View>
           <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} activeOpacity={0.7}>
             <Icon name="notifications-none" size={24} color="#FFFFFF" />
             {unreadCount > 0 && (
@@ -273,11 +298,20 @@ const styles = StyleSheet.create({
     marginTop: 0,
     gap: 12,
   },
-  userName: {
+  nameWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  userName: {
+    flexShrink: 1,
     fontSize: 26,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
+  },
+  wave: {
+    fontSize: 24,
+    marginLeft: 6,
   },
   bellBadge: {
     position: 'absolute',

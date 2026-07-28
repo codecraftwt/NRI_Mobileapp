@@ -58,11 +58,11 @@ function Ratings({ navigation }) {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Icon name="arrow-back" size={22} color="#FFFFFF" />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>Ratings</Text>
-          <Text style={styles.headerSub}>Your performance & customer feedback</Text>
+          {/* <Text style={styles.headerSub}>Your performance & customer feedback</Text> */}
         </View>
       </View>
 
@@ -182,7 +182,7 @@ function Ratings({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, backgroundColor: '#20304C' },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
 
