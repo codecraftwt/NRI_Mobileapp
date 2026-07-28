@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
 import { useVendorProfile, useVendorRates } from '../../Hooks/useVendorProfile';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
@@ -13,6 +14,7 @@ function ServiceOffered({ navigation }) {
   const { profile, loading, actionLoading, updateProfile } = useVendorProfile();
   const { categories, loading: loadingCategories } = useServiceCategories();
   const { rates, loading: loadingRates } = useVendorRates();
+  const { showAlert, alertProps } = useAppAlert();
 
   // Offered category ids, seeded from the profile's services.
   const [selected, setSelected] = useState(null); // Set | null (until loaded)
@@ -39,9 +41,9 @@ function ServiceOffered({ navigation }) {
   const handleSave = async () => {
     try {
       await updateProfile({ category_ids: [...selectedSet] }).unwrap();
-      Alert.alert('Saved', 'Your offered services have been updated.');
+      showAlert('Saved', 'Your offered services have been updated.');
     } catch (e) {
-      Alert.alert('Update Failed', e?.message || 'Could not save. Please try again.');
+      showAlert('Update Failed', e?.message || 'Could not save. Please try again.');
     }
   };
 
@@ -152,6 +154,7 @@ function ServiceOffered({ navigation }) {
           </View>
         )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

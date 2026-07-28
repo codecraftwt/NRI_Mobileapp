@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
@@ -18,6 +19,7 @@ const toDisplay = (d) =>
 
 function Availability({ navigation }) {
   const { profile, loading, actionLoading, updateAvailability } = useVendorProfile();
+  const { showAlert, alertProps } = useAppAlert();
 
   const [availableForJobs, setAvailableForJobs] = useState(true);
   const [fromDate, setFromDate] = useState(null);
@@ -47,19 +49,19 @@ function Availability({ navigation }) {
       await updateAvailability({ isAvailable: true }).unwrap();
       setAvailableForJobs(true);
       setFromDate(null); setToDate(null); setReason('');
-      Alert.alert('Availability Updated', 'You are now available for jobs.');
+      showAlert('Availability Updated', 'You are now available for jobs.');
     } catch (e) {
-      Alert.alert('Update Failed', e?.message || 'Could not update availability.');
+      showAlert('Update Failed', e?.message || 'Could not update availability.');
     }
   };
 
   const handleMarkUnavailable = async () => {
     if (!fromDate || !toDate) {
-      Alert.alert('Select Dates', 'Please choose both From and To dates.');
+      showAlert('Select Dates', 'Please choose both From and To dates.');
       return;
     }
     if (!reason.trim()) {
-      Alert.alert('Required Field', 'Please enter a reason.');
+      showAlert('Required Field', 'Please enter a reason.');
       return;
     }
     try {
@@ -70,9 +72,9 @@ function Availability({ navigation }) {
         reason: reason.trim(),
       }).unwrap();
       setAvailableForJobs(false);
-      Alert.alert('Marked Unavailable', `You are unavailable from ${toDisplay(fromDate)} to ${toDisplay(toDate)}.`);
+      showAlert('Marked Unavailable', `You are unavailable from ${toDisplay(fromDate)} to ${toDisplay(toDate)}.`);
     } catch (e) {
-      Alert.alert('Update Failed', e?.message || 'Could not update availability.');
+      showAlert('Update Failed', e?.message || 'Could not update availability.');
     }
   };
 
@@ -150,6 +152,7 @@ function Availability({ navigation }) {
           )}
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

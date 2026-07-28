@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
 import { useVendorSupport } from '../../Hooks/useVendorSupport';
 import { useVendorJobs } from '../../Hooks/useVendorJobs';
@@ -34,6 +35,7 @@ function Support() {
   // Jobs for the "Related Job" typeahead (GET /vendor/jobs?search=). No status
   // filter — a vendor can dispute a completed job's payment, not just active ones.
   const { jobs, loading: jobsLoading, fetch: fetchJobs } = useVendorJobs({ page: 1 });
+  const { showAlert, alertProps } = useAppAlert();
   const [jobSearch, setJobSearch] = useState('');
 
   const jobOptions = useMemo(() => [
@@ -63,7 +65,7 @@ function Support() {
 
   const handleSubmit = async () => {
     if (!issue.trim()) {
-      Alert.alert('Describe the issue', 'Please explain what went wrong with this job or payment.');
+      showAlert('Describe the issue', 'Please explain what went wrong with this job or payment.');
       return;
     }
     try {
@@ -71,12 +73,12 @@ function Support() {
       setIssue('');
       setAmount('');
       setRelatedJob(GENERAL_OPTION);
-      Alert.alert('Dispute Submitted', 'Your district partner will review this dispute.');
+      showAlert('Dispute Submitted', 'Your district partner will review this dispute.');
     } catch (e) {
       const msg = e?.status === 403
         ? 'This ticket belongs to another vendor.'
         : e?.message || 'Could not submit your dispute. Please try again.';
-      Alert.alert('Could Not Submit', msg);
+      showAlert('Could Not Submit', msg);
     }
   };
 
@@ -277,6 +279,7 @@ function Support() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

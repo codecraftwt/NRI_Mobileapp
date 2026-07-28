@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
 import { useVendorPayoutDetail } from '../../Hooks/useVendorEarnings';
 import { getVendorPayoutInvoiceUrl } from '../../Api/vendorEarningsApi';
@@ -30,6 +31,7 @@ function PayoutDetail({ route, navigation }) {
   const { payoutId } = route.params || {};
   const { detail, loading, failed, retry } = useVendorPayoutDetail(payoutId);
   const token = useSelector(s => s.user.token);
+  const { showAlert, alertProps } = useAppAlert();
 
   const handleDownload = async () => {
     try {
@@ -38,9 +40,9 @@ function PayoutDetail({ route, navigation }) {
         filename: `Payout-Statement-${payoutId}`,
         token,
       });
-      Alert.alert('Statement Downloaded', 'The payout statement PDF has been saved to your device.');
+      showAlert('Statement Downloaded', 'The payout statement PDF has been saved to your device.');
     } catch (e) {
-      Alert.alert('Download Failed', e?.message || 'Could not download the statement.');
+      showAlert('Download Failed', e?.message || 'Could not download the statement.');
     }
   };
 
@@ -139,6 +141,7 @@ function PayoutDetail({ route, navigation }) {
           <Text style={styles.backBtnText}>Back to Earnings</Text>
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

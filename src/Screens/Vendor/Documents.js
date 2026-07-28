@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, PermissionsAndroid, Linking, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, PermissionsAndroid, Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
@@ -20,6 +21,7 @@ function getStatusStyle(status) {
 
 function Documents({ navigation }) {
   const { profile, loading, actionLoading, uploadDocument, deleteDocument, documentTypes, documentTypesLoading } = useVendorProfile();
+  const { showAlert, alertProps } = useAppAlert();
   const [documentType, setDocumentType] = useState('');
   const [showTypes, setShowTypes] = useState(false);
 
@@ -43,7 +45,7 @@ function Documents({ navigation }) {
     });
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert('Permission Required', 'File access is blocked. Enable it from app settings.',
+      showAlert('Permission Required', 'File access is blocked. Enable it from app settings.',
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
     }
     return false;
@@ -51,7 +53,7 @@ function Documents({ navigation }) {
 
   const handleUpload = async () => {
     if (!documentType) {
-      Alert.alert('Select a type', 'Please choose a document type first.');
+      showAlert('Select a type', 'Please choose a document type first.');
       return;
     }
     if (!(await requestPermission())) return;
@@ -60,7 +62,7 @@ function Documents({ navigation }) {
       const picked = results[0];
       if (!picked) return;
       if (picked.size && picked.size > MAX_SIZE_BYTES) {
-        Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
+        showAlert('File Too Large', 'Please choose a file under 5 MB.');
         return;
       }
       await uploadDocument({
@@ -68,15 +70,15 @@ function Documents({ navigation }) {
         file: { uri: picked.fileCopyUri || picked.uri, name: picked.name, type: picked.type },
       }).unwrap();
       setDocumentType('');
-      Alert.alert('Uploaded', 'Document uploaded — pending verification.');
+      showAlert('Uploaded', 'Document uploaded — pending verification.');
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Upload Failed', err?.message || 'Could not upload the document. Please try again.');
+      showAlert('Upload Failed', err?.message || 'Could not upload the document. Please try again.');
     }
   };
 
   const handleDelete = (doc) => {
-    Alert.alert('Remove Document?', `Remove your ${typeLabel(doc.documentType)}?`, [
+    showAlert('Remove Document?', `Remove your ${typeLabel(doc.documentType)}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -85,7 +87,7 @@ function Documents({ navigation }) {
           try {
             await deleteDocument(doc.id).unwrap();
           } catch (e) {
-            Alert.alert('Remove Failed', e?.message || 'Could not remove the document.');
+            showAlert('Remove Failed', e?.message || 'Could not remove the document.');
           }
         },
       },
@@ -165,6 +167,7 @@ function Documents({ navigation }) {
           <Text style={styles.hint}>PDF, JPG or PNG — max 5 MB.</Text>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

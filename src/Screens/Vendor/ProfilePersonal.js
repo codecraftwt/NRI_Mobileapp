@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
 function ProfilePersonal({ navigation }) {
   const { profile, loading, actionLoading, updateProfile } = useVendorProfile();
+  const { showAlert, alertProps } = useAppAlert();
 
   const [businessName, setBusinessName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -27,7 +29,7 @@ function ProfilePersonal({ navigation }) {
 
   const handleSave = async () => {
     if (!businessName.trim()) {
-      Alert.alert('Required', 'Business name is required.');
+      showAlert('Required', 'Business name is required.');
       return;
     }
     try {
@@ -38,9 +40,9 @@ function ProfilePersonal({ navigation }) {
         address: address.trim(),
         gst_number: gstNumber.trim() || null,
       }).unwrap();
-      Alert.alert('Saved', 'Your personal info has been updated.');
+      showAlert('Saved', 'Your personal info has been updated.');
     } catch (e) {
-      Alert.alert('Update Failed', e?.message || 'Could not save. Please try again.');
+      showAlert('Update Failed', e?.message || 'Could not save. Please try again.');
     }
   };
 
@@ -79,6 +81,7 @@ function ProfilePersonal({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

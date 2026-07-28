@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useVendorRatings } from '../../Hooks/useVendorRatings';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 import { useNotifications } from '../../Hooks/useNotifications';
@@ -31,6 +32,7 @@ function Dashboard({ navigation }) {
   const { summary } = useVendorRatings();
   const { profile, actionLoading, updateAvailability } = useVendorProfile();
   const { unreadCount, fetch: fetchNotifications } = useNotifications();
+  const { showAlert, alertProps } = useAppAlert();
 
   // Load the unread count for the header bell badge.
   useEffect(() => { fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -52,7 +54,7 @@ function Dashboard({ navigation }) {
       await updateAvailability({ isAvailable: next }).unwrap();
     } catch (e) {
       setAvailable(!next);
-      Alert.alert('Update Failed', e?.message || 'Could not update your availability.');
+      showAlert('Update Failed', e?.message || 'Could not update your availability.');
     }
   };
 
@@ -200,6 +202,7 @@ function Dashboard({ navigation }) {
 
         </ScrollView>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
 function BankDetails({ navigation }) {
   const { profile, loading, actionLoading, updateProfile } = useVendorProfile();
+  const { showAlert, alertProps } = useAppAlert();
 
   const [payoutMethod, setPayoutMethod] = useState('bank'); // 'bank' | 'upi'
   const [bankName, setBankName] = useState('');
@@ -35,9 +37,9 @@ function BankDetails({ navigation }) {
         bank_ifsc: ifsc.trim(),
         upi_id: upiId.trim(),
       }).unwrap();
-      Alert.alert('Saved', 'Your payout details have been updated.');
+      showAlert('Saved', 'Your payout details have been updated.');
     } catch (e) {
-      Alert.alert('Update Failed', e?.message || 'Could not save. Please try again.');
+      showAlert('Update Failed', e?.message || 'Could not save. Please try again.');
     }
   };
 
@@ -93,6 +95,7 @@ function BankDetails({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

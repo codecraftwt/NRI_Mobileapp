@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator, Platform, PermissionsAndroid, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, PermissionsAndroid, StatusBar } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { typography } from '../../theme/typography';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
 import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
@@ -30,6 +31,7 @@ function JobDetail({ route, navigation }) {
     actionLoading, accept, reject, complete, addAttachments, saveTracking,
   } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
+  const { showAlert, alertProps } = useAppAlert();
 
   // Accept — ETA commitment
   const [committedEta, setCommittedEta] = useState(null);
@@ -70,7 +72,7 @@ function JobDetail({ route, navigation }) {
     });
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert('Permission Required', 'File access is blocked. Enable it from app settings to attach files.',
+      showAlert('Permission Required', 'File access is blocked. Enable it from app settings to attach files.',
         [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
     }
     return false;
@@ -94,21 +96,21 @@ function JobDetail({ route, navigation }) {
         .filter(f => !f.size || f.size <= MAX_MEDIA_SIZE_BYTES)
         .map(f => ({ name: f.name, uri: f.fileCopyUri || f.uri, type: f.type, size: f.size }));
       if (oversized.length > 0) {
-        Alert.alert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 25 MB.`);
+        showAlert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 25 MB.`);
       } else if (tooMany) {
-        Alert.alert('Limit Reached', `Only the first ${remaining} file(s) were added (max ${MAX_MEDIA_FILES}).`);
+        showAlert('Limit Reached', `Only the first ${remaining} file(s) were added (max ${MAX_MEDIA_FILES}).`);
       }
       return accepted;
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return null;
-      Alert.alert('Error', 'Could not select the file(s). Please try again.');
+      showAlert('Error', 'Could not select the file(s). Please try again.');
       return null;
     }
   };
 
   const handlePickReportFiles = async () => {
     if (reportFiles.length >= MAX_MEDIA_FILES) {
-      Alert.alert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
+      showAlert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
       return;
     }
     const accepted = await pickProofFiles(MAX_MEDIA_FILES - reportFiles.length);
@@ -121,14 +123,14 @@ function JobDetail({ route, navigation }) {
 
   const handleAccept = async () => {
     if (!committedEta) {
-      Alert.alert('ETA Required', 'Please commit to a completion date & time.');
+      showAlert('ETA Required', 'Please commit to a completion date & time.');
       return;
     }
     try {
       await accept(committedEta.toISOString()).unwrap();
-      Alert.alert('Job Accepted', 'You have accepted this job. It is now In Progress.');
+      showAlert('Job Accepted', 'You have accepted this job. It is now In Progress.');
     } catch (e) {
-      Alert.alert('Could Not Accept', e?.message || 'Something went wrong. Please try again.');
+      showAlert('Could Not Accept', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -138,31 +140,31 @@ function JobDetail({ route, navigation }) {
       return;
     }
     if (!rejectReason.trim()) {
-      Alert.alert('Reason Required', 'Please provide a reason for rejecting this job.');
+      showAlert('Reason Required', 'Please provide a reason for rejecting this job.');
       return;
     }
     try {
       await reject(rejectReason.trim()).unwrap();
-      Alert.alert('Job Rejected', 'The job has been returned to the assignment team.', [
+      showAlert('Job Rejected', 'The job has been returned to the assignment team.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (e) {
-      Alert.alert('Could Not Reject', e?.message || 'Something went wrong. Please try again.');
+      showAlert('Could Not Reject', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
   const handleSubmitReport = async () => {
     if (!reportText.trim()) {
-      Alert.alert('Report Required', 'Please describe the work completed.');
+      showAlert('Report Required', 'Please describe the work completed.');
       return;
     }
     try {
       await complete({ reportText: reportText.trim(), files: reportFiles }).unwrap();
       setReportText('');
       setReportFiles([]);
-      Alert.alert('Report Submitted', 'Your completion report has been submitted and the job is closed.');
+      showAlert('Report Submitted', 'Your completion report has been submitted and the job is closed.');
     } catch (e) {
-      Alert.alert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
+      showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -171,18 +173,18 @@ function JobDetail({ route, navigation }) {
     if (!accepted?.length) return;
     try {
       await addAttachments(accepted).unwrap();
-      Alert.alert('Attachments Added', 'The files were added to your report.');
+      showAlert('Attachments Added', 'The files were added to your report.');
     } catch (e) {
-      Alert.alert('Could Not Add Attachments', e?.message || 'Something went wrong. Please try again.');
+      showAlert('Could Not Add Attachments', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
   const handleSaveTracking = async () => {
     try {
       await saveTracking({ trackingNumber: trackingNumber.trim(), trackingUrl: trackingUrl.trim() }).unwrap();
-      Alert.alert('Tracking Saved', 'Shipment tracking details have been saved.');
+      showAlert('Tracking Saved', 'Shipment tracking details have been saved.');
     } catch (e) {
-      Alert.alert('Could Not Save Tracking', e?.message || 'Please check the details and try again.');
+      showAlert('Could Not Save Tracking', e?.message || 'Please check the details and try again.');
     }
   };
 
@@ -220,15 +222,15 @@ function JobDetail({ route, navigation }) {
         filename: `Invoice-${job?.ticket || ticketId}`,
         token,
       });
-      Alert.alert('Invoice Downloaded', 'The invoice PDF has been saved to your device.');
+      showAlert('Invoice Downloaded', 'The invoice PDF has been saved to your device.');
     } catch (e) {
-      Alert.alert('Download Failed', e?.message || 'Could not download the invoice.');
+      showAlert('Download Failed', e?.message || 'Could not download the invoice.');
     }
   };
 
   const handleCallCustomer = () => {
     Linking.openURL(`tel:${job.customer.phone}`).catch(() =>
-      Alert.alert('Could Not Call', 'Unable to open the dialer.')
+      showAlert('Could Not Call', 'Unable to open the dialer.')
     );
   };
 
@@ -376,7 +378,7 @@ function JobDetail({ route, navigation }) {
                 <TouchableOpacity
                   key={doc.id ?? idx}
                   style={styles.docRow}
-                  onPress={() => doc.url && Linking.openURL(doc.url).catch(() => Alert.alert('Could Not Open', 'Unable to open this document.'))}
+                  onPress={() => doc.url && Linking.openURL(doc.url).catch(() => showAlert('Could Not Open', 'Unable to open this document.'))}
                   activeOpacity={0.7}
                   disabled={!doc.url}
                 >
@@ -703,6 +705,7 @@ function JobDetail({ route, navigation }) {
           <Text style={styles.backToJobsText}>Back to My Jobs</Text>
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 import { logoutUser } from '../../Redux/slices/userSlice';
 
@@ -22,9 +23,10 @@ const { height: H } = Dimensions.get('window');
 function Profile({ navigation }) {
   const dispatch = useDispatch();
   const { profile, loading } = useVendorProfile();
+  const { showAlert, alertProps } = useAppAlert();
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    showAlert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out',
@@ -129,6 +131,7 @@ function Profile({ navigation }) {
           <Text style={styles.logoutBtnText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

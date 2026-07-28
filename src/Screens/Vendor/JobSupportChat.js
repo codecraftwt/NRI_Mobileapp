@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { getVendorJobSupportChat, sendVendorJobSupportChat } from '../../Api/vendorJobsApi';
 import { typography } from '../../theme/typography';
 
@@ -26,6 +27,7 @@ function formatTime(dateStr) {
 function JobSupportChat({ route, navigation }) {
   const { ticketId } = route.params || {};
   const user = useSelector(s => s.user.user);
+  const { showAlert, alertProps } = useAppAlert();
 
   const [chat, setChat] = useState(null);
   const [replies, setReplies] = useState([]);
@@ -75,7 +77,7 @@ function JobSupportChat({ route, navigation }) {
         : e?.status === 403
           ? 'This job is assigned to another vendor.'
           : e?.message || 'Please try again.';
-      Alert.alert('Could Not Send', msg);
+      showAlert('Could Not Send', msg);
     } finally {
       setSending(false);
     }
@@ -180,6 +182,7 @@ function JobSupportChat({ route, navigation }) {
           )}
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
 }
