@@ -321,8 +321,9 @@ const styles = StyleSheet.create({
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#EA7317', borderRadius: 26, paddingVertical: 15, minHeight: 52,
+    backgroundColor: '#A64416', borderRadius: 26, paddingVertical: 15, minHeight: 52,
   },
+
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   footerNote: { fontSize: 12, color: '#94A3B8', marginTop: 14, lineHeight: 18, textAlign: 'center' },

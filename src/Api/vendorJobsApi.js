@@ -88,6 +88,12 @@ export function mapJobDetail(raw) {
           })
           .filter(Boolean)
       : [],
+    // Documents the customer attached to the request (viewable by the vendor).
+    customerDocuments: (raw.customer_documents || []).map(d => ({
+      id: d.id,
+      name: d.name || 'Document',
+      url: d.url || null,
+    })),
     committedEta: formatDateTime(raw.committed_eta || raw.vendor_eta || raw.committed_at),
     report: report?.report_text || report?.note || report?.text || report?.summary || report?.description || null,
     reportFile: reportMedia[0] || report?.file_url || report?.file || report?.attachment_url || null,

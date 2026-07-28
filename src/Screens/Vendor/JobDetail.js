@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator, Platform, PermissionsAndroid } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Linking, ActivityIndicator, Platform, PermissionsAndroid, StatusBar } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -236,8 +236,9 @@ function JobDetail({ route, navigation }) {
     return (
       <View style={styles.container}>
         <View style={styles.headerContainer}>
+          <StatusBar translucent={false} backgroundColor="#20304C" barStyle="light-content" />
           <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
           <View style={{ width: 44 }} />
@@ -254,8 +255,9 @@ function JobDetail({ route, navigation }) {
     return (
       <View style={styles.container}>
         <View style={styles.headerContainer}>
+          <StatusBar translucent={false} backgroundColor="#20304C" barStyle="light-content" />
           <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>Job</Text>
           <View style={{ width: 44 }} />
@@ -276,8 +278,9 @@ function JobDetail({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
+        <StatusBar translucent={false} backgroundColor="#20304C" barStyle="light-content" />
         <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back-ios" size={18} color="#3B82F6" style={{ marginLeft: 6 }} />
+          <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{job.ticket}</Text>
         <View style={{ width: 44 }} />
@@ -360,6 +363,33 @@ function JobDetail({ route, navigation }) {
             </View>
           )}
         </View>
+
+        {(job.customerDocuments || []).length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Icon name="folder-shared" size={18} color="#0EA5E9" />
+              <Text style={styles.sectionTitle}>Customer Documents</Text>
+            </View>
+            {job.customerDocuments.map((doc, idx) => {
+              const isPdf = /\.pdf(\?|$)/i.test(doc.url || '');
+              return (
+                <TouchableOpacity
+                  key={doc.id ?? idx}
+                  style={styles.docRow}
+                  onPress={() => doc.url && Linking.openURL(doc.url).catch(() => Alert.alert('Could Not Open', 'Unable to open this document.'))}
+                  activeOpacity={0.7}
+                  disabled={!doc.url}
+                >
+                  <View style={styles.docIconWrap}>
+                    <Icon name={isPdf ? 'picture-as-pdf' : 'insert-drive-file'} size={20} color="#0EA5E9" />
+                  </View>
+                  <Text style={styles.docName} numberOfLines={2}>{doc.name}</Text>
+                  <Icon name="open-in-new" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {isAssigned && (
           <View style={styles.card}>
@@ -684,19 +714,18 @@ const styles = StyleSheet.create({
   centerStateText: { fontSize: 14, color: '#64748B', textAlign: 'center' },
 
   headerContainer: {
-    backgroundColor: '#FDFBF7',
+    backgroundColor: '#20304C',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
   },
   headerBackBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF',
+    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
   headerTitle: {
     ...typography.sectionTitle, fontFamily: typography.h2.fontFamily,
-    color: '#1E293B', flex: 1, textAlign: 'center',
+    color: '#FFFFFF', flex: 1, textAlign: 'center',
   },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 16, gap: 16 },
@@ -897,6 +926,13 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#DDD6FE', backgroundColor: '#F5F3FF', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16,
   },
   supportChatBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#6D28D9' },
+
+  docRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#F8FAFC',
+  },
+  docIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' },
+  docName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0F172A' },
 });
 
 export default JobDetail;
