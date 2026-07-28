@@ -7,11 +7,8 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateAddress } from '../../Redux/slices/userSlice';
-import { useCountries } from '../../Hooks/useCountries';
 import { useStates } from '../../Hooks/useStates';
-import { useDistricts } from '../../Hooks/useDistricts';
 import { useCities } from '../../Hooks/useCities';
-import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 
 function SelectField({ label, value, placeholder, options, onSelect, loading, disabled }) {
   const [open, setOpen] = useState(false);
@@ -62,46 +59,21 @@ export default function ProfileAddress({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
 
-  const [country, setCountry] = useState(user?.address?.country || '');
+  // This is the member's address in India — country is fixed to India.
+  const country = 'India';
   const [state, setStateVal] = useState(user?.address?.state || '');
-  const [district, setDistrict] = useState(user?.address?.district || '');
   const [city, setCity] = useState(user?.address?.city || '');
   const [postalCode, setPostalCode] = useState(user?.address?.postalCode || '');
   const [addressLine1, setAddressLine1] = useState(user?.address?.addressLine1 || '');
   const [addressLine2, setAddressLine2] = useState(user?.address?.addressLine2 || '');
   const { showAlert, alertProps } = useAppAlert();
 
-  const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
-  const { districtNames, loading: loadingDistricts, failed: districtsFailed, retry: retryDistricts } = useDistricts(state);
-  const { cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state, district);
-  const { loading: loadingPostalLookup, lookup: lookupPostalCode } = usePostalCodeLookup();
+  const { stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state);
 
   const handleSaveAddress = () => {
-    dispatch(updateAddress({ country, state, district, city, postalCode, addressLine1, addressLine2 }));
+    dispatch(updateAddress({ country, state, district: '', city, postalCode, addressLine1, addressLine2 }));
     showAlert('Address Saved', 'Your address has been updated successfully.');
-  };
-
-  const handleLookupPincode = () => {
-    if (!postalCode || postalCode.trim().length < 4) {
-      showAlert('Enter Postal Code', 'Please enter a valid postal code to look up.');
-      return;
-    }
-    lookupPostalCode(postalCode.trim())
-      .unwrap()
-      .then((result) => {
-        const match = result?.results?.[0];
-        if (!match) {
-          showAlert('Not Found', 'No address found for that postal code.');
-          return;
-        }
-        if (match.stateName) setStateVal(match.stateName);
-        if (match.districtName) setDistrict(match.districtName);
-        if (match.cityName) setCity(match.cityName);
-      })
-      .catch((error) => {
-        showAlert('Lookup Failed', error?.message || 'Could not look up that postal code. Please try again.');
-      });
   };
 
   return (
@@ -118,78 +90,68 @@ export default function ProfileAddress({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.sectionCard}>
-          <SelectField
-            label="Country of Residence"
-            value={country}
-            placeholder="Select Country"
-            options={countryNames}
-            onSelect={setCountry}
-            loading={loadingCountries}
-          />
-          {countriesFailed && (
-            <TouchableOpacity onPress={retryCountries}>
-              <Text style={styles.retryText}>Couldn't load countries. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-          <SelectField
-            label="State"
-            value={state}
-            placeholder="Select State"
-            options={stateNames}
-            onSelect={(v) => { setStateVal(v); setDistrict(''); setCity(''); }}
-            loading={loadingStates}
-          />
-          {statesFailed && (
-            <TouchableOpacity onPress={retryStates}>
-              <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-          <SelectField
-            label="District"
-            value={district}
-            placeholder="Select District"
-            options={districtNames}
-            onSelect={(v) => { setDistrict(v); setCity(''); }}
-            loading={loadingDistricts}
-          />
-          {districtsFailed && (
-            <TouchableOpacity onPress={retryDistricts}>
-              <Text style={styles.retryText}>Couldn't load districts. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-          <SelectField
-            label="City"
-            value={city}
-            placeholder="Select City"
-            options={cityNames}
-            onSelect={setCity}
-            loading={loadingCities}
-            disabled={!district}
-          />
-          {citiesFailed && (
-            <TouchableOpacity onPress={retryCities}>
-              <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
+            {/* Info banner */}
+            <View style={styles.banner}>
+              <Icon name="info-outline" size={16} color="#64748B" style={{ marginTop: 1 }} />
+              <Text style={styles.bannerText}>
+                Your address in India — where services and correspondence are directed. Your country of residence abroad is set under the NRI & Membership tab.
+              </Text>
+            </View>
 
-          <Text style={styles.inputLabel}>Postal Code</Text>
-          <View style={styles.pincodeRow}>
-            <TextInput style={[styles.input, styles.pincodeInput]} value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" placeholderTextColor="#94A3B8" />
-            <TouchableOpacity style={styles.lookupBtn} onPress={handleLookupPincode} disabled={loadingPostalLookup}>
-              {loadingPostalLookup ? <ActivityIndicator size="small" color="#1E3A8A" /> : <Text style={styles.lookupBtnText}>Find</Text>}
+            {/* Country (fixed to India) */}
+            <Text style={styles.inputLabel}>Country</Text>
+            <View style={[styles.selectBox, styles.readOnlyBox]}>
+              <Text style={styles.selectText}>{country}</Text>
+            </View>
+
+            {/* State + City */}
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <SelectField
+                  label="State"
+                  value={state}
+                  placeholder="Select state..."
+                  options={stateNames}
+                  onSelect={(v) => { setStateVal(v); setCity(''); }}
+                  loading={loadingStates}
+                />
+              </View>
+              <View style={styles.col}>
+                <SelectField
+                  label="City"
+                  value={city}
+                  placeholder={state ? 'Select city...' : 'Select state first...'}
+                  options={cityNames}
+                  onSelect={setCity}
+                  loading={loadingCities}
+                  disabled={!state}
+                />
+              </View>
+            </View>
+            {statesFailed && (
+              <TouchableOpacity onPress={retryStates}>
+                <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
+              </TouchableOpacity>
+            )}
+            {citiesFailed && (
+              <TouchableOpacity onPress={retryCities}>
+                <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.inputLabel}>Pincode</Text>
+            <TextInput style={styles.input} value={postalCode} onChangeText={setPostalCode} keyboardType="number-pad" placeholderTextColor="#94A3B8" />
+
+            <Text style={styles.inputLabel}>Address Line 1</Text>
+            <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholderTextColor="#94A3B8" />
+
+            <Text style={styles.inputLabel}>Address Line 2</Text>
+            <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholderTextColor="#94A3B8" />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAddress}>
+              <Text style={styles.saveBtnText}>Save Address</Text>
             </TouchableOpacity>
           </View>
-
-          <Text style={styles.inputLabel}>Address Line 1</Text>
-          <TextInput style={styles.input} value={addressLine1} onChangeText={setAddressLine1} placeholderTextColor="#94A3B8" />
-
-          <Text style={styles.inputLabel}>Address Line 2</Text>
-          <TextInput style={styles.input} value={addressLine2} onChangeText={setAddressLine2} placeholderTextColor="#94A3B8" />
-
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveAddress}>
-            <Text style={styles.saveBtnText}>Save Address</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
       </KeyboardAvoidingView>
       <AppAlert {...alertProps} />
@@ -206,19 +168,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 24, elevation: 4, 
     borderWidth: 1, borderColor: '#E0E7FF' 
   },
+  banner: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, marginBottom: 4 },
+  bannerText: { flex: 1, fontSize: 12, color: '#64748B', lineHeight: 17 },
   inputLabel: { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8, marginTop: 12 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52, fontSize: 16, color: '#0F172A' },
-  pincodeRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  pincodeInput: { flex: 1 },
-  lookupBtn: { height: 52, minWidth: 80, borderRadius: 16, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  lookupBtnText: { color: '#1E3A8A', fontSize: 16, fontWeight: '600' },
+  row: { flexDirection: 'row', gap: 12 },
+  col: { flex: 1 },
   fieldWrap: { gap: 0 },
   selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52 },
   selectBoxDisabled: { backgroundColor: '#F1F5F9' },
+  readOnlyBox: { backgroundColor: '#F1F5F9' },
   selectText: { fontSize: 16, color: '#0F172A', flex: 1 },
   placeholderText: { color: '#94A3B8' },
   retryText: { fontSize: 13, color: '#DC2626', marginTop: 8, marginBottom: 4 },
-  saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginTop: 24, alignSelf: 'flex-start', paddingHorizontal: 40 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%', paddingBottom: 32, paddingTop: 12 },

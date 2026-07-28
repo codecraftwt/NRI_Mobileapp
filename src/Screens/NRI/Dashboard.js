@@ -115,10 +115,9 @@ function Dashboard({ navigation }) {
   };
 
   const quickActions = [
-    { id: 'sos', name: 'SOS', icon: 'error-outline', color: '#EF4444' },
     { id: 'new', name: 'New Request', icon: 'description', color: '#F97316' },
     { id: 'track', name: 'Track Visit', icon: 'place', color: '#3B82F6' },
-    { id: 'chat', name: 'Chat RM', icon: 'chat-bubble-outline', color: '#10B981' },
+    { id: 'support', name: 'Support', icon: 'support-agent', color: '#10B981' },
   ];
 
   const popularServicesList = [
@@ -211,6 +210,7 @@ function Dashboard({ navigation }) {
               <TouchableOpacity key={action.id} style={styles.quickActionItem} onPress={() => {
                 if (action.id === 'new') navigation.navigate('Services');
                 if (action.id === 'track') navigation.navigate('Requests');
+                if (action.id === 'support') navigation.navigate('GeneralSupport');
               }}>
                 <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
                   <Icon name={action.icon} size={24} color={action.color} />
@@ -443,7 +443,8 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 28,
     marginBottom: 32,
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 6 },

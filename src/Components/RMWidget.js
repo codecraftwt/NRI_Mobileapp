@@ -14,6 +14,12 @@ function RMWidget({ rm }) {
         <View style={styles.info}>
           <Text style={styles.title}>YOUR RELATIONSHIP MANAGER</Text>
           <Text style={styles.name}>{rm.name}</Text>
+          {!!rm.phone && (
+            <View style={styles.phoneRow}>
+              <Icon name="headset-mic" size={13} color="#E2E8F0" />
+              <Text style={styles.phone}>{rm.phone}</Text>
+            </View>
+          )}
         </View>
       </View>
       
@@ -71,10 +77,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  name: { 
-    fontSize: 16, 
-    fontFamily: typography.h2.fontFamily, 
-    color: '#FFFFFF' 
+  name: {
+    fontSize: 16,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF'
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  phone: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#CBD5E1',
   },
   actions: {
     flexDirection: 'row',
