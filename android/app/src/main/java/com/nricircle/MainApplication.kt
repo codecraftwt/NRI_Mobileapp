@@ -1,4 +1,4 @@
-package com.nriapp
+package com.nricircle
 
 import android.app.Application
 import com.facebook.react.PackageList

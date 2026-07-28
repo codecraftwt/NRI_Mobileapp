@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "349281994979",
-    "project_id": "nriapp-ca85f",
-    "storage_bucket": "nriapp-ca85f.firebasestorage.app"
+    "project_number": "286519602397",
+    "project_id": "nri-circle",
+    "storage_bucket": "nri-circle.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:349281994979:android:b760801a90c7c082a71dd6",
+        "mobilesdk_app_id": "1:286519602397:android:7b89e1024a7257d41a3f34",
         "android_client_info": {
-          "package_name": "com.nriapp"
+          "package_name": "com.nricircle"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyA9DvFtF6s_eWbEN6QJLtJDUIGfENiVYTc"
+          "current_key": "AIzaSyBInVabsTLggYkAtxOKdXbmhbXC8SPxQQA"
         }
       ],
       "services": {
