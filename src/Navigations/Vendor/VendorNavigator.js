@@ -214,8 +214,8 @@ function VendorTabNavigator() {
         options={({ route }) => {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'DashboardMain';
           return {
-            tabBarIconName: 'dashboard',
-            tabBarLabel: 'Dashboard',
+            tabBarIconName: 'home',
+            tabBarLabel: 'Home',
             tabBarStyle: focusedRouteName === 'DashboardMain' ? {} : { display: 'none' },
           };
         }}

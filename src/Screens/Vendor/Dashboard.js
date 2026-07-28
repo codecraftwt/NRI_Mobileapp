@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, StatusBar, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
@@ -15,6 +15,10 @@ const QUICK_ACTIONS = [
   { id: 'support', name: 'Support', icon: 'support-agent', color: '#10B981' },
   { id: 'documents', name: 'Documents', icon: 'folder-shared', color: '#1E3A8A' },
 ];
+
+// Clear the (translucent) status bar, plus a little breathing room above the
+// vendor name — matches the vendor Profile header.
+const STATUS_BAR_HEIGHT = (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22;
 
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
 
@@ -97,21 +101,19 @@ function Dashboard({ navigation }) {
         <View style={styles.availCard}>
           <View style={styles.availLeft}>
             <View style={[styles.availDot, { backgroundColor: available ? '#22C55E' : '#F59E0B' }]} />
-            <View>
+            <View style={styles.availTextWrap}>
               <Text style={styles.availTitle}>{available ? 'Available for Jobs' : 'Unavailable'}</Text>
+              <Text style={styles.availHint}>{available ? 'Toggle off to go offline' : 'Toggle on to go online'}</Text>
             </View>
           </View>
-          <View style={styles.availRight}>
-            <Text style={styles.availHint}>{available ? 'Toggle off to go offline' : 'Toggle on to go online'}</Text>
-            <Switch
-              value={available}
-              onValueChange={handleToggleAvailable}
-              disabled={actionLoading}
-              trackColor={{ false: '#CBD5E1', true: '#22C55E' }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="#CBD5E1"
-            />
-          </View>
+          <Switch
+            value={available}
+            onValueChange={handleToggleAvailable}
+            disabled={actionLoading}
+            trackColor={{ false: '#CBD5E1', true: '#22C55E' }}
+            thumbColor="#FFFFFF"
+            ios_backgroundColor="#CBD5E1"
+          />
         </View>
       </View>
 
@@ -246,7 +248,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: 48,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 22,
     backgroundColor: '#20304C',
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 0,
     gap: 12,
   },
   userName: {
@@ -362,6 +364,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   availLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -372,20 +375,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#22C55E',
   },
+  availTextWrap: {
+    flex: 1,
+  },
   availTitle: {
     fontSize: 14,
     fontFamily: typography.labelMedium.fontFamily,
     color: '#FFFFFF',
   },
-  availRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   availHint: {
     fontSize: 11,
     fontFamily: typography.small.fontFamily,
     color: '#9FB0C9',
+    marginTop: 2,
   },
 
   creamBody: {

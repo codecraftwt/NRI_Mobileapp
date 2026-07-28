@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -19,6 +19,9 @@ const MENU_ITEMS = [
 ];
 
 const { height: H } = Dimensions.get('window');
+// Clear the (translucent) status bar, plus a little breathing room above the
+// "My Profile" title.
+const STATUS_BAR_HEIGHT = (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22;
 
 function Profile({ navigation }) {
   const dispatch = useDispatch();
@@ -51,9 +54,13 @@ function Profile({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Assert the translucent status bar this screen expects — without it,
+          returning from a subscreen (whose Header sets translucent) reverts to
+          the OS default for a frame and the header visibly grows then shrinks. */}
+      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       {/* Top Blue Header */}
       <View style={styles.topBlueBg}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <Text style={styles.screenTitle}>My Profile</Text>
         </View>
 
@@ -141,7 +148,7 @@ const styles = StyleSheet.create({
 
   topBlueBg: {
     backgroundColor: '#20304C',
-    paddingTop: 60,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 24,
     zIndex: 10,
   },

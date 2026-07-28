@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -275,7 +275,7 @@ function Support({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C' },
+  header: { paddingHorizontal: 24, paddingTop: (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22, paddingBottom: 16, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
 
