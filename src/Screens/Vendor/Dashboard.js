@@ -6,13 +6,8 @@ import { typography } from '../../theme';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useVendorRatings } from '../../Hooks/useVendorRatings';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useVendorDashboard } from '../../Hooks/useVendorDashboard';
 import { useNotifications } from '../../Hooks/useNotifications';
-
-const HEADER_STATS = [
-  { id: 'new', label: 'New Jobs', value: '2', icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
-  { id: 'today', label: 'Today', value: '2', icon: 'event', bg: '#EAF1FE', color: '#3B82F6' },
-  { id: 'done', label: 'Done (Dec)', value: '2', icon: 'check-circle-outline', bg: '#E5F6EC', color: '#10B981' },
-];
 
 const QUICK_ACTIONS = [
   { id: 'jobs', name: 'My Jobs', icon: 'work', color: '#3B82F6' },
@@ -21,16 +16,25 @@ const QUICK_ACTIONS = [
   { id: 'documents', name: 'Documents', icon: 'folder-shared', color: '#1E3A8A' },
 ];
 
-const RECENT_JOBS = [
-  { id: '1', ticket: 'NRI-2026-00009', service: 'Scheduled Home Visits by Care Executive', location: 'Kolhapur, Maharashtra', status: 'Completed' },
-  { id: '2', ticket: 'NRI-2026-00008', service: 'Medicine Reminder Coordination', location: 'Kolhapur, Maharashtra', status: 'Completed' },
-];
+const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
+
+// Pill colours for a recent-job's status, matching the My Jobs list.
+function jobStatusColors(status) {
+  switch (status) {
+    case 'Completed': return { bg: '#D1FAE5', text: '#059669' };
+    case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C' };
+    case 'New': return { bg: '#DBEAFE', text: '#1D4ED8' };
+    case 'Assigned': return { bg: '#FEF9C3', text: '#CA8A04' };
+    default: return { bg: '#F1F5F9', text: '#64748B' };
+  }
+}
 
 function Dashboard({ navigation }) {
   const [available, setAvailable] = useState(true);
   const user = useSelector(state => state.user.user);
   const { summary } = useVendorRatings();
   const { profile, actionLoading, updateAvailability } = useVendorProfile();
+  const { counts, pendingPayout, recentJobs, vendorStatus, loading: dashboardLoading } = useVendorDashboard();
   const { unreadCount, fetch: fetchNotifications } = useNotifications();
   const { showAlert, alertProps } = useAppAlert();
 
@@ -38,9 +42,16 @@ function Dashboard({ navigation }) {
   useEffect(() => { fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const vendorName = profile?.businessName || user?.name || 'Vendor';
-  // Prefer the customer-facing average; fall back to the overall/composite score.
-  const ratingValue = summary?.avgCustomerRating ?? summary?.overallScore ?? null;
-  const standing = summary?.standing || 'Account in good standing';
+  // Prefer the customer-facing average; fall back to the overall/composite score,
+  // then the dashboard payload's own rating.
+  const ratingValue = summary?.avgCustomerRating ?? summary?.overallScore ?? vendorStatus?.rating ?? null;
+  const standing = summary?.standing || vendorStatus?.standing || 'Account in good standing';
+
+  const headerStats = [
+    { id: 'to_accept', label: 'To Accept', value: counts?.toAccept ?? 0, icon: 'work-outline', bg: '#FEECEC', color: '#EF4444' },
+    { id: 'in_progress', label: 'In Progress', value: counts?.inProgress ?? 0, icon: 'timelapse', bg: '#EAF1FE', color: '#3B82F6' },
+    { id: 'done', label: 'Completed', value: counts?.completed ?? 0, icon: 'check-circle-outline', bg: '#E5F6EC', color: '#10B981' },
+  ];
 
   // Reflect the saved availability from the profile.
   useEffect(() => {
@@ -114,17 +125,29 @@ function Dashboard({ navigation }) {
 
           {/* Header Stat Strip */}
           <View style={styles.headerStatStrip}>
-            {HEADER_STATS.map((stat, index) => (
+            {headerStats.map((stat, index) => (
               <View
                 key={stat.id}
-                style={[styles.headerStatCard, { backgroundColor: stat.bg }, index < HEADER_STATS.length - 1 && { marginRight: 12 }]}
+                style={[styles.headerStatCard, { backgroundColor: stat.bg }, index < headerStats.length - 1 && { marginRight: 12 }]}
               >
                 <Icon name={stat.icon} size={20} color={stat.color} />
-                <Text style={styles.headerStatValue}>{stat.value}</Text>
+                <Text style={styles.headerStatValue}>{String(stat.value)}</Text>
                 <Text style={styles.headerStatLabel}>{stat.label}</Text>
               </View>
             ))}
           </View>
+
+          {/* Pending Payout */}
+          <TouchableOpacity style={styles.payoutCard} onPress={() => navigation.navigate('Earnings')} activeOpacity={0.85}>
+            <View style={styles.payoutIconBg}>
+              <Icon name="account-balance-wallet" size={22} color="#D94625" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.payoutLabel}>Pending Payout</Text>
+              <Text style={styles.payoutValue}>{formatInr(pendingPayout)}</Text>
+            </View>
+            <Icon name="chevron-right" size={22} color="#94A3B8" />
+          </TouchableOpacity>
 
           {/* Quick Actions Unified Card */}
           <View style={styles.quickActionsCard}>
@@ -157,29 +180,38 @@ function Dashboard({ navigation }) {
             </View>
 
             <View style={styles.cardBlock}>
-              {RECENT_JOBS.map((job, index) => (
-                <TouchableOpacity
-                  key={job.id}
-                  style={[styles.ticketItem, index < RECENT_JOBS.length - 1 && styles.borderBottom]}
-                  onPress={() => navigation.navigate('JobDetail', { ticketId: job.id })}
-                  activeOpacity={0.6}
-                >
-                  <View style={styles.ticketIconBgWrapper}>
-                    <View style={[styles.ticketIconBg, { backgroundColor: '#D1FAE5' }]}>
-                      <Icon name="assignment-turned-in" size={22} color="#059669" />
-                    </View>
-                  </View>
-                  <View style={styles.ticketDetails}>
-                    <Text style={styles.ticketName} numberOfLines={1}>{job.service}</Text>
-                    <Text style={styles.ticketSub} numberOfLines={1}>{job.ticket} · {job.location}</Text>
-                  </View>
-                  <View style={styles.ticketStatusWrap}>
-                    <View style={[styles.statusPill, { backgroundColor: '#D1FAE5' }]}>
-                      <Text style={[styles.statusPillText, { color: '#059669' }]}>{job.status}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {dashboardLoading && recentJobs.length === 0 ? (
+                <Text style={styles.recentEmptyText}>Loading recent jobs...</Text>
+              ) : recentJobs.length === 0 ? (
+                <Text style={styles.recentEmptyText}>No recent jobs yet.</Text>
+              ) : (
+                recentJobs.slice(0, 3).map((job) => {
+                  const sc = jobStatusColors(job.status);
+                  return (
+                    <TouchableOpacity
+                      key={job.id}
+                      style={styles.ticketItem}
+                      onPress={() => navigation.navigate('JobDetail', { ticketId: job.id, status: job.status })}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.ticketIconBgWrapper}>
+                        <View style={[styles.ticketIconBg, { backgroundColor: sc.bg }]}>
+                          <Icon name="assignment-turned-in" size={22} color={sc.text} />
+                        </View>
+                      </View>
+                      <View style={styles.ticketDetails}>
+                        <Text style={styles.ticketName} numberOfLines={1}>{job.service}</Text>
+                        <Text style={styles.ticketSub} numberOfLines={1}>{job.ticket} · {job.location}</Text>
+                      </View>
+                      <View style={styles.ticketStatusWrap}>
+                        <View style={[styles.statusPill, { backgroundColor: sc.bg }]}>
+                          <Text style={[styles.statusPillText, { color: sc.text }]}>{job.status}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
           </View>
 
@@ -462,6 +494,35 @@ const styles = StyleSheet.create({
   statIconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   statLabel: { fontSize: 12, color: '#64748B', marginBottom: 4 },
   statValue: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+
+  payoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  payoutIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(217, 70, 37, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  payoutLabel: { fontSize: 12, color: '#64748B', marginBottom: 2 },
+  payoutValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+
+  recentEmptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 20 },
 
   cardBlock: {
     gap: 16,

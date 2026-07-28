@@ -4,7 +4,6 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
@@ -12,10 +11,10 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
 function getStatusStyle(status) {
   switch ((status || '').toLowerCase()) {
-    case 'verified': return { bg: colors.successBackground, text: colors.success };
-    case 'pending': return { bg: colors.warningBackground, text: colors.warning };
+    case 'verified': return { bg: '#DCFCE7', text: '#16A34A' };
+    case 'pending': return { bg: '#FEF3C7', text: '#D97706' };
     case 'rejected': return { bg: '#FEE2E2', text: '#DC2626' };
-    default: return { bg: colors.surfaceSecondary, text: colors.textSecondary };
+    default: return { bg: '#F1F5F9', text: '#64748B' };
   }
 }
 
@@ -107,59 +106,75 @@ function Documents({ navigation }) {
     <View style={styles.container}>
       <Header navigation={navigation} title="Documents / KYC" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {documents.length === 0 ? (
-          <Text style={styles.emptyText}>No documents uploaded yet.</Text>
-        ) : (
-          documents.map(doc => {
-            const st = getStatusStyle(doc.status);
-            return (
-              <View key={doc.id} style={styles.docCard}>
-                <View style={styles.docIconWrap}>
-                  <Icon name="description" size={22} color={colors.accent} />
-                </View>
-                <View style={styles.docInfo}>
-                  <Text style={styles.docName} numberOfLines={1}>{typeLabel(doc.documentType)}</Text>
-                  <View style={[styles.statusPill, { backgroundColor: st.bg }]}>
-                    <Text style={[styles.statusPillText, { color: st.text }]}>{doc.status || 'Pending'}</Text>
-                  </View>
-                  {!!doc.rejectionReason && <Text style={styles.rejectionText}>{doc.rejectionReason}</Text>}
-                </View>
-                <TouchableOpacity onPress={() => handleDelete(doc)} disabled={actionLoading} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Icon name="delete-outline" size={22} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
-            );
-          })
-        )}
 
-        <View style={styles.uploadCard}>
+        {/* Uploaded documents */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Your Documents</Text>
+          <Text style={styles.cardSub}>Uploaded documents and their verification status.</Text>
+
+          {documents.length === 0 ? (
+            <Text style={styles.emptyText}>No documents uploaded yet.</Text>
+          ) : (
+            documents.map((doc, i) => {
+              const st = getStatusStyle(doc.status);
+              return (
+                <View key={doc.id} style={[styles.docRow, i < documents.length - 1 && styles.docRowBorder]}>
+                  <View style={styles.docIconWrap}>
+                    <Icon name="description" size={22} color="#D94625" />
+                  </View>
+                  <View style={styles.docInfo}>
+                    <Text style={styles.docName} numberOfLines={1}>{typeLabel(doc.documentType)}</Text>
+                    <View style={[styles.statusPill, { backgroundColor: st.bg }]}>
+                      <Text style={[styles.statusPillText, { color: st.text }]}>{doc.status || 'Pending'}</Text>
+                    </View>
+                    {!!doc.rejectionReason && <Text style={styles.rejectionText}>{doc.rejectionReason}</Text>}
+                  </View>
+                  <TouchableOpacity onPress={() => handleDelete(doc)} disabled={actionLoading} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icon name="delete-outline" size={22} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* Upload a document */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Upload a document</Text>
+
           <TouchableOpacity style={styles.select} onPress={() => setShowTypes(v => !v)} activeOpacity={0.7} disabled={documentTypesLoading}>
             <Text style={[styles.selectText, !documentType && styles.selectPlaceholder]}>
               {documentType ? typeLabel(documentType) : (documentTypesLoading ? 'Loading types...' : 'Document type...')}
             </Text>
             {documentTypesLoading
-              ? <ActivityIndicator size="small" color={colors.textSecondary} />
-              : <Icon name={showTypes ? 'expand-less' : 'expand-more'} size={22} color={colors.textSecondary} />}
+              ? <ActivityIndicator size="small" color="#94A3B8" />
+              : <Icon name={showTypes ? 'expand-less' : 'expand-more'} size={22} color="#94A3B8" />}
           </TouchableOpacity>
           {showTypes && (
             <View style={styles.dropdown}>
               {documentTypes.length === 0 ? (
-                <Text style={[styles.dropdownItemText, { padding: 14, color: colors.textPlaceholder }]}>No document types available.</Text>
+                <Text style={[styles.dropdownItemText, { padding: 14, color: '#94A3B8' }]}>No document types available.</Text>
               ) : (
-                documentTypes.map(t => (
-                  <TouchableOpacity key={t.value} style={styles.dropdownItem} onPress={() => { setDocumentType(t.value); setShowTypes(false); }}>
+                documentTypes.map((t, i) => (
+                  <TouchableOpacity
+                    key={t.value}
+                    style={[styles.dropdownItem, i < documentTypes.length - 1 && styles.dropdownItemBorder]}
+                    onPress={() => { setDocumentType(t.value); setShowTypes(false); }}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.dropdownItemText}>{t.label}</Text>
                   </TouchableOpacity>
                 ))
               )}
             </View>
           )}
-          <TouchableOpacity style={[styles.uploadBtn, actionLoading && styles.uploadBtnDisabled]} onPress={handleUpload} disabled={actionLoading} activeOpacity={0.8}>
+
+          <TouchableOpacity style={[styles.uploadBtn, actionLoading && styles.btnDisabled]} onPress={handleUpload} disabled={actionLoading} activeOpacity={0.8}>
             {actionLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
+              <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Icon name="file-upload" size={18} color={colors.primary} />
+                <Icon name="file-upload" size={18} color="#FFFFFF" />
                 <Text style={styles.uploadBtnText}>Upload document</Text>
               </>
             )}
@@ -173,40 +188,47 @@ function Documents({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 16, gap: 16 },
 
-  emptyText: { ...typography.body, color: colors.textPlaceholder, textAlign: 'center', paddingVertical: 12 },
-
-  docCard: {
-    backgroundColor: colors.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3,
+  card: {
+    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
-  docIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.amberBackground, justifyContent: 'center', alignItems: 'center' },
+  cardTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  cardSub: { fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 8 },
+
+  emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 16 },
+
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
+  docRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  docIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(217, 70, 37, 0.1)', justifyContent: 'center', alignItems: 'center' },
   docInfo: { flex: 1, gap: 6 },
-  docName: { ...typography.h4, fontSize: 15, color: colors.textPrimary },
+  docName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   statusPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  statusPillText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
+  statusPillText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, textTransform: 'capitalize' },
   rejectionText: { fontSize: 12, color: '#DC2626' },
 
-  uploadCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
   select: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 13,
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 13,
   },
-  selectText: { ...typography.body, color: colors.textPrimary },
-  selectPlaceholder: { color: colors.textPlaceholder },
-  dropdown: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: 'hidden', marginTop: -6 },
-  dropdownItem: { paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
-  dropdownItemText: { ...typography.body, color: colors.textPrimary },
+  selectText: { fontSize: 14, color: '#0F172A' },
+  selectPlaceholder: { color: '#94A3B8' },
+  dropdown: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, overflow: 'hidden', marginTop: 8 },
+  dropdownItem: { paddingHorizontal: 14, paddingVertical: 13 },
+  dropdownItemBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dropdownItemText: { fontSize: 14, color: '#0F172A' },
+
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    borderWidth: 1.5, borderColor: colors.primaryLight, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 15,
+    backgroundColor: '#D94625', borderRadius: 12, paddingVertical: 14, marginTop: 16,
   },
-  uploadBtnDisabled: { opacity: 0.6 },
-  uploadBtnText: { ...typography.labelMedium, color: colors.primary },
-  hint: { ...typography.small, color: colors.textPlaceholder, textAlign: 'center' },
+  btnDisabled: { opacity: 0.6 },
+  uploadBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+  hint: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 12 },
 });
 
 export default Documents;

@@ -12,6 +12,7 @@ import Earnings from '../../Screens/Vendor/Earnings';
 import PayoutDetail from '../../Screens/Vendor/PayoutDetail';
 import Ratings from '../../Screens/Vendor/Ratings';
 import Support from '../../Screens/Vendor/Support';
+import Disputes from '../../Screens/Vendor/Disputes';
 import Profile from '../../Screens/Vendor/Profile';
 
 import JobDetail from '../../Screens/Vendor/JobDetail';
@@ -64,6 +65,7 @@ function SupportStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="SupportMain" component={Support} />
+      <Stack.Screen name="Disputes" component={Disputes} />
       <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
     </Stack.Navigator>
   );

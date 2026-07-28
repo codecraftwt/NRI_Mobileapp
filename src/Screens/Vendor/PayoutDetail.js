@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -48,11 +48,12 @@ function PayoutDetail({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
+      <StatusBar translucent={false} backgroundColor="#20304C" barStyle="light-content" />
       <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
-        <Icon name="arrow-back-ios" size={18} color="#20304C" style={{ marginLeft: 6 }} />
+        <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>Payout Detail</Text>
-      <View style={{ width: 40 }} />
+      <Text style={styles.headerTitle} numberOfLines={1}>Payout Detail</Text>
+      <View style={{ width: 44 }} />
     </View>
   );
 
@@ -150,17 +151,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
 
   headerContainer: {
-    backgroundColor: '#FDFBF7',
+    backgroundColor: '#20304C',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: 50, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 4,
   },
   headerBackBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF',
+    width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2,
   },
-  headerTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#1E293B' },
+  headerTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', flex: 1, textAlign: 'center' },
 
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
   stateText: { fontSize: 14, color: '#64748B', textAlign: 'center' },

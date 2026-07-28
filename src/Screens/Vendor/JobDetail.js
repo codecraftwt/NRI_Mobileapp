@@ -234,6 +234,13 @@ function JobDetail({ route, navigation }) {
     );
   };
 
+  const handleGetDirections = () => {
+    const query = encodeURIComponent([job.address.line, job.address.city].filter(Boolean).join(', '));
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
+      showAlert('Could Not Open Maps', 'Unable to open a maps app on this device.')
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -291,16 +298,14 @@ function JobDetail({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Summary Header Card */}
         <View style={styles.card}>
-          <View style={styles.summaryTop}>
-            <Text style={styles.summaryTicket}>{job.ticket}</Text>
-            <View style={styles.summaryBadges}>
-              <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                <View style={[styles.statusDot, { backgroundColor: statusStyle.text }]} />
-                <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>{job.status}</Text>
-              </View>
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityBadgeText}>{job.priority}</Text>
-              </View>
+          <Text style={styles.summaryTicket}>{job.ticket}</Text>
+          <View style={styles.summaryBadges}>
+            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusStyle.text }]} />
+              <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>{job.status}</Text>
+            </View>
+            <View style={styles.priorityBadge}>
+              <Text style={styles.priorityBadgeText}>{job.priority}</Text>
             </View>
           </View>
 
@@ -332,11 +337,19 @@ function JobDetail({ route, navigation }) {
 
           <View style={styles.detailBlock}>
             <Text style={styles.infoLabel}>Customer</Text>
-            <Text style={styles.infoValueBold}>{job.customer.name}</Text>
-            <TouchableOpacity style={styles.phoneRow} onPress={handleCallCustomer} activeOpacity={0.7}>
-              <Icon name="call" size={14} color="#2563EB" />
-              <Text style={styles.phoneText}>{job.customer.phone}</Text>
-            </TouchableOpacity>
+            <View style={styles.customerInfo}>
+              <View style={styles.customerAvatar}>
+                <Text style={styles.customerInitial}>{(job.customer.name || '?').charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.customerName}>{job.customer.name}</Text>
+                <Text style={styles.customerPhone}>{job.customer.phone}</Text>
+              </View>
+              <TouchableOpacity style={styles.callBtn} onPress={handleCallCustomer} activeOpacity={0.8}>
+                <Icon name="call" size={16} color="#FFFFFF" />
+                <Text style={styles.callBtnText}>Call</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.detailBlock}>
@@ -671,32 +684,42 @@ function JobDetail({ route, navigation }) {
         </View>
 
         <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Icon name="timeline" size={18} color="#64748B" />
-            <Text style={styles.sectionTitle}>Timeline</Text>
+          <View style={styles.timelineHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Icon name="timeline" size={18} color="#64748B" />
+              <Text style={styles.sectionTitle}>Timeline</Text>
+            </View>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>Live</Text>
+            </View>
           </View>
           <View style={styles.timelineWrapper}>
             {job.timeline.map((event, idx) => {
-              const isLast = idx === job.timeline.length - 1;
               const eventStyle = getStatusStyle(event.status);
+              const isFirst = idx === 0;
               return (
                 <View key={idx} style={styles.timelineRow}>
                   <View style={styles.timelineDotCol}>
-                    <View style={[styles.timelineDot, isLast && styles.timelineDotActive, isLast && { backgroundColor: eventStyle.text }]} />
-                    {!isLast && <View style={styles.timelineLine} />}
+                    <View style={[styles.timelineDotRing, isFirst && styles.timelineDotRingActive]} />
+                    <View style={styles.timelineLine} />
                   </View>
-                  <View style={styles.timelineContent}>
-                    <View style={styles.timelineTopRow}>
-                      <View style={[styles.timelineBadge, { backgroundColor: eventStyle.bg }]}>
-                        <Text style={[styles.timelineBadgeText, { color: eventStyle.text }]}>{event.status}</Text>
-                      </View>
-                      <Text style={styles.timelineDate}>{event.date}</Text>
+                  <View style={styles.timelineCard}>
+                    <View style={styles.timelineCardTop}>
+                      <Text style={[styles.timelineStatus, { color: eventStyle.text }]}>{(event.status || 'Update').toUpperCase()}</Text>
+                      <Text style={styles.timelineTime}>{event.date}</Text>
                     </View>
-                    <Text style={styles.timelineNote}>{event.note}</Text>
+                    <Text style={styles.timelineTitle}>{event.note || 'Status updated'}</Text>
                   </View>
                 </View>
               );
             })}
+            <View style={styles.timelineRow}>
+              <View style={styles.timelineDotCol}>
+                <View style={styles.timelineDotMuted} />
+              </View>
+              <Text style={styles.timelinePlaceholder}>Further updates will appear here…</Text>
+            </View>
           </View>
         </View>
 
@@ -779,6 +802,17 @@ const styles = StyleSheet.create({
   addressLine: { fontSize: 14, fontWeight: '600', color: '#0F172A', lineHeight: 20 },
   addressCity: { fontSize: 13, color: '#64748B', marginTop: 2 },
 
+  callBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#059669', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 9,
+  },
+  callBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  directionsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8,
+    borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  directionsText: { fontSize: 13, fontWeight: '700', color: '#2563EB' },
+
   addonItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   addonText: { fontSize: 13, color: '#475569', flex: 1 },
 
@@ -857,25 +891,27 @@ const styles = StyleSheet.create({
   reportContent: { fontSize: 14, color: '#334155', lineHeight: 20 },
   reportTime: { fontSize: 12, color: '#94A3B8' },
 
-  timelineWrapper: { marginTop: 4, paddingLeft: 4 },
-  timelineRow: { flexDirection: 'row', gap: 16 },
-  timelineDotCol: { alignItems: 'center', width: 16 },
-  timelineDot: {
-    width: 12, height: 12, borderRadius: 6, backgroundColor: '#E2E8F0', marginTop: 6,
-  },
-  timelineDotActive: { width: 14, height: 14, borderRadius: 7, marginTop: 5 },
-  timelineLine: { flex: 1, width: 2, backgroundColor: '#F1F5F9', marginTop: 4, marginBottom: -4 },
-  timelineContent: { flex: 1, paddingBottom: 20, gap: 4 },
-  timelineBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  timelineBadgeText: { fontSize: 12, fontWeight: '700' },
-  timelineTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  timelineDate: { fontSize: 12, color: '#94A3B8' },
-  timelineNote: { fontSize: 13, color: '#475569', marginTop: 4 },
+  timelineHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' },
+  liveText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  timelineWrapper: { marginTop: 4 },
+  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineDotCol: { alignItems: 'center', width: 18 },
+  timelineDotRing: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 4 },
+  timelineDotRingActive: { borderColor: '#F97316' },
+  timelineDotMuted: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 2 },
+  timelineLine: { flex: 1, width: 0, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#CBD5E1', marginVertical: 2, minHeight: 16 },
+  timelineCard: { flex: 1, backgroundColor: '#EFF4FF', borderRadius: 12, padding: 14, marginBottom: 16 },
+  timelineCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  timelineStatus: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', textTransform: 'uppercase' },
+  timelineTime: { fontSize: 11, color: '#64748B' },
+  timelineTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700', marginTop: 6 },
+  timelinePlaceholder: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', flex: 1, marginTop: 2 },
 
   // Summary header card
-  summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  summaryTicket: { fontSize: 18, fontWeight: '800', color: '#1E293B', flexShrink: 1 },
-  summaryBadges: { flexDirection: 'row', gap: 8, flexShrink: 0 },
+  summaryTicket: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
+  summaryBadges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignSelf: 'flex-start' },
   serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryService: { fontSize: 14, color: '#475569', flex: 1, lineHeight: 20 },
   summaryDivider: { height: 1, backgroundColor: '#F1F5F9' },

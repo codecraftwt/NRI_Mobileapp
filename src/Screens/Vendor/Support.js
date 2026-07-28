@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
@@ -25,12 +26,24 @@ function formatDate(iso) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function Support() {
-  const [page, setPage] = useState(1);
+function Support({ navigation }) {
   const {
     disputes, meta, loading, failed, retry, fetchPage,
     raiseLoading, raise,
-  } = useVendorSupport(page);
+  } = useVendorSupport(1);
+
+  // Only the two most recent disputes are shown here; the rest live on the
+  // full "My Disputes" page (View All).
+  const visibleDisputes = disputes.slice(0, 2);
+
+  // Re-fetch the first page whenever this screen regains focus — the full
+  // disputes page shares the same slice and may have paged forward.
+  useFocusEffect(
+    useCallback(() => {
+      fetchPage(1);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   // Jobs for the "Related Job" typeahead (GET /vendor/jobs?search=). No status
   // filter — a vendor can dispute a completed job's payment, not just active ones.
@@ -58,11 +71,6 @@ function Support() {
     fetchJobs({ search: text.trim() || undefined, page: 1 });
   };
 
-  const goToPage = (p) => {
-    setPage(p);
-    fetchPage(p);
-  };
-
   const handleSubmit = async () => {
     if (!issue.trim()) {
       showAlert('Describe the issue', 'Please explain what went wrong with this job or payment.');
@@ -87,7 +95,7 @@ function Support() {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Support</Text>
-        <Text style={styles.headerSub}>Raise and track payout or account disputes</Text>
+        {/* <Text style={styles.headerSub}>Raise and track payout or account disputes</Text> */}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -153,88 +161,69 @@ function Support() {
         </View>
 
         {/* My Disputes */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="gavel" size={20} color="#3B82F6" />
-            <Text style={styles.cardTitle}>My Disputes</Text>
+        <View style={styles.disputesSection}>
+          <View style={styles.disputesHeader}>
+            <View style={styles.mdHeaderLeft}>
+              <Icon name="gavel" size={20} color="#3B82F6" />
+              <Text style={styles.cardTitle}>My Disputes</Text>
+            </View>
+            {!failed && meta.total > 2 && (
+              <TouchableOpacity style={styles.viewAllBtn} onPress={() => navigation.navigate('Disputes')} activeOpacity={0.7}>
+                <Text style={styles.viewAllText}>View All</Text>
+                <Icon name="chevron-right" size={18} color="#D94625" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {loading ? (
-            <View style={styles.emptyState}>
+          {loading && disputes.length === 0 ? (
+            <View style={[styles.stateCard, styles.emptyState]}>
               <ActivityIndicator size="small" color="#D94625" />
               <Text style={styles.emptyText}>Loading disputes...</Text>
             </View>
           ) : failed ? (
-            <TouchableOpacity style={styles.emptyState} onPress={retry} activeOpacity={0.7}>
+            <TouchableOpacity style={[styles.stateCard, styles.emptyState]} onPress={retry} activeOpacity={0.7}>
               <Icon name="refresh" size={26} color="#DC2626" />
               <Text style={[styles.emptyText, { color: '#DC2626' }]}>Couldn't load disputes. Tap to retry.</Text>
             </TouchableOpacity>
           ) : disputes.length === 0 ? (
-            <View style={styles.emptyState}>
+            <View style={[styles.stateCard, styles.emptyState]}>
               <Icon name="inbox" size={28} color="#CBD5E1" />
               <Text style={styles.emptyText}>No disputes raised yet.</Text>
             </View>
           ) : (
-            <>
-              {disputes.map((d, index) => {
-                const pill = getStatusPill(d.status);
-                return (
-                  <View key={d.id ?? index} style={[styles.disputeRow, index < disputes.length - 1 && styles.rowBorder]}>
-                    <View style={styles.disputeTop}>
-                      <View style={styles.jobWrap}>
-                        <View style={styles.indexBadge}><Text style={styles.indexText}>{index + 1}</Text></View>
-                        <Text style={styles.jobText}>{d.job}</Text>
-                      </View>
-                      <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-                        <Text style={[styles.statusPillText, { color: pill.text }]}>{d.statusLabel}</Text>
-                      </View>
+            visibleDisputes.map((d, index) => {
+              const pill = getStatusPill(d.status);
+              return (
+                <View key={d.id ?? index} style={styles.disputeCard}>
+                  <View style={styles.disputeTop}>
+                    <View style={styles.jobWrap}>
+                      <View style={styles.indexBadge}><Text style={styles.indexText}>{index + 1}</Text></View>
+                      <Text style={styles.jobText}>{d.job}</Text>
                     </View>
-
-                    <Text style={styles.issueText}>{d.issue}</Text>
-
-                    <View style={styles.metaGrid}>
-                      <View style={styles.metaItem}>
-                        <Text style={styles.metaLabel}>Amount</Text>
-                        <Text style={styles.metaValue}>{d.amount != null ? `₹${d.amount.toFixed(2)}` : '—'}</Text>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <Text style={styles.metaLabel}>Resolution</Text>
-                        <Text style={styles.metaValue}>{d.resolution || '—'}</Text>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <Text style={styles.metaLabel}>Raised</Text>
-                        <Text style={styles.metaValue}>{formatDate(d.raisedAt)}</Text>
-                      </View>
+                    <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+                      <Text style={[styles.statusPillText, { color: pill.text }]}>{d.statusLabel}</Text>
                     </View>
                   </View>
-                );
-              })}
 
-              <View style={styles.paginationRow}>
-                <Text style={styles.entriesText}>
-                  {meta.total} {meta.total === 1 ? 'entry' : 'entries'}
-                </Text>
-                {meta.lastPage > 1 && (
-                  <View style={styles.pager}>
-                    <TouchableOpacity
-                      style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}
-                      onPress={() => goToPage(page - 1)}
-                      disabled={page <= 1}
-                    >
-                      <Icon name="chevron-left" size={20} color={page <= 1 ? '#CBD5E1' : '#2563EB'} />
-                    </TouchableOpacity>
-                    <Text style={styles.pageIndicator}>{meta.currentPage} / {meta.lastPage}</Text>
-                    <TouchableOpacity
-                      style={[styles.pageBtn, page >= meta.lastPage && styles.pageBtnDisabled]}
-                      onPress={() => goToPage(page + 1)}
-                      disabled={page >= meta.lastPage}
-                    >
-                      <Icon name="chevron-right" size={20} color={page >= meta.lastPage ? '#CBD5E1' : '#2563EB'} />
-                    </TouchableOpacity>
+                  <Text style={styles.issueText}>{d.issue}</Text>
+
+                  <View style={styles.metaGrid}>
+                    <View style={styles.metaItem}>
+                      <Text style={styles.metaLabel}>Amount</Text>
+                      <Text style={styles.metaValue}>{d.amount != null ? `₹${d.amount.toFixed(2)}` : '—'}</Text>
+                    </View>
+                    <View style={styles.metaItem}>
+                      <Text style={styles.metaLabel}>Resolution</Text>
+                      <Text style={styles.metaValue}>{d.resolution || '—'}</Text>
+                    </View>
+                    <View style={styles.metaItem}>
+                      <Text style={styles.metaLabel}>Raised</Text>
+                      <Text style={styles.metaValue}>{formatDate(d.raisedAt)}</Text>
+                    </View>
                   </View>
-                )}
-              </View>
-            </>
+                </View>
+              );
+            })
           )}
         </View>
 
@@ -331,13 +320,26 @@ const styles = StyleSheet.create({
   submitBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
   footerNote: { fontSize: 12, color: '#94A3B8', marginTop: 14, lineHeight: 18, textAlign: 'center' },
 
-  disputeRow: { paddingBottom: 14, marginBottom: 14 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  disputesSection: { gap: 12 },
+  disputesHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  mdHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  viewAllText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#D94625' },
+
+  stateCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
+  },
+  disputeCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
+  },
   disputeTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  jobWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  jobWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
   indexBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   indexText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
-  jobText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#1E293B' },
+  jobText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#1E293B', flex: 1 },
   statusPill: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12 },
   statusPillText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily },
 
@@ -347,13 +349,6 @@ const styles = StyleSheet.create({
   metaItem: { flex: 1 },
   metaLabel: { fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.3 },
   metaValue: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginTop: 3 },
-
-  paginationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  entriesText: { fontSize: 12, color: '#94A3B8' },
-  pager: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pageBtn: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE', justifyContent: 'center', alignItems: 'center' },
-  pageBtnDisabled: { borderColor: '#E2E8F0' },
-  pageIndicator: { fontSize: 13, color: '#64748B' },
 
   emptyState: { alignItems: 'center', gap: 8, paddingVertical: 22 },
   emptyText: { fontSize: 13, color: '#94A3B8' },
