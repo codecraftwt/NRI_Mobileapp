@@ -1460,8 +1460,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 16,
+    paddingTop: 56,
+    paddingBottom: 10,
     gap: 12, // space between the back button and the title
   },
   headerBackBtn: {

@@ -45,12 +45,12 @@ export const loginUser = createAsyncThunk(
   'user/login',
   async ({ login, password }, { rejectWithValue }) => {
     try {
-      const fcmToken = await getFcmToken();
+      // const fcmToken = await getFcmToken();
       return await authApi.login({
         login,
         password,
         deviceName: getDeviceName(),
-        fcmToken,
+        // fcmToken,
       });
     } catch (error) {
       return rejectWithValue(error);

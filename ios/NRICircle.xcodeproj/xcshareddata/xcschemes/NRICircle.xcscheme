@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "NRIApp.app"
-               BlueprintName = "NRIApp"
-               ReferencedContainer = "container:NRIApp.xcodeproj">
+               BuildableName = "NRICircle.app"
+               BlueprintName = "NRICircle"
+               ReferencedContainer = "container:NRICircle.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "NRIAppTests.xctest"
-               BlueprintName = "NRIAppTests"
-               ReferencedContainer = "container:NRIApp.xcodeproj">
+               BuildableName = "NRICircleTests.xctest"
+               BlueprintName = "NRICircleTests"
+               ReferencedContainer = "container:NRICircle.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "NRIApp.app"
-            BlueprintName = "NRIApp"
-            ReferencedContainer = "container:NRIApp.xcodeproj">
+            BuildableName = "NRICircle.app"
+            BlueprintName = "NRICircle"
+            ReferencedContainer = "container:NRICircle.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "NRIApp.app"
-            BlueprintName = "NRIApp"
-            ReferencedContainer = "container:NRIApp.xcodeproj">
+            BuildableName = "NRICircle.app"
+            BlueprintName = "NRICircle"
+            ReferencedContainer = "container:NRICircle.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

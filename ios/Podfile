@@ -15,22 +15,16 @@ platform :ios, min_ios_version_supported
 
 prepare_react_native_project!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# Required for Firebase Swift pods
+use_modular_headers!
 
-target 'NRIApp' do
-  # Required for React Native Firebase
-  use_frameworks! :linkage => :static
-  $RNFirebaseAsStaticFramework = true
-
+target 'NRICircle' do
   config = use_native_modules!
 
   use_react_native!(
     :path => config[:reactNativePath],
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    :app_path => "#{Pod::Config.instance.installation_root}/..",
+    :hermes_enabled => true
   )
 
   post_install do |installer|
@@ -39,5 +33,12 @@ target 'NRIApp' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    # Fix Xcode 26 + React Native Firebase non-modular header issue
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+    end
   end
 end
