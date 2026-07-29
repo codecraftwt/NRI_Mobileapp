@@ -3,15 +3,11 @@ import { StyleSheet, Text, View, TouchableOpacity, StatusBar } from 'react-nativ
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { spacing } from '../theme/spacing';
+import { spacing, STATUS_BAR_HEIGHT } from '../theme/spacing';
 
-// Match the main tab screens (Services/Requests/MyMembership etc.), which use a
-// fixed paddingTop of 50 with a ~96px total header height. Using fixed
-// constants (NOT the async useSafeAreaInsets() hook, which returns 0 on the
-// first frame after a transition then updates) keeps every header the exact
-// same height as the main screens and flicker-free on navigation.
-const HEADER_PADDING_TOP = 50;
-const HEADER_HEIGHT = 96;
+const HEADER_PADDING_TOP = STATUS_BAR_HEIGHT;
+const HEADER_CONTENT_HEIGHT = 46;
+const HEADER_HEIGHT = STATUS_BAR_HEIGHT + HEADER_CONTENT_HEIGHT;
 
 function Header({ navigation, title, showBack, isTabRoot }) {
   const isDashboard = !showBack && !isTabRoot && !title;

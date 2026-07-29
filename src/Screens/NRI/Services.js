@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useStates } from '../../Hooks/useStates';
@@ -282,7 +283,7 @@ function Services({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingTop: 50,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 15,
     paddingHorizontal: 20,
     backgroundColor: '#20304C',

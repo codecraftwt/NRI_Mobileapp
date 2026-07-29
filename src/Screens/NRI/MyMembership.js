@@ -6,6 +6,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { useMembership } from '../../Hooks/useMembership';
 import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 import { usePlans } from '../../Hooks/usePlans';
@@ -388,9 +389,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 15,
-    backgroundColor: '#20304C', // Dark blue status bar & header
+    backgroundColor: '#20304C',
   },
   headerTitle: {
     fontSize: 24,

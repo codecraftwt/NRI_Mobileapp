@@ -6,6 +6,7 @@ import Header from '../../Components/Header';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
 import { useReports } from '../../Hooks/useReports';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
 // Ticket amounts (total, base, add-ons, surcharge, discount) are USD, same as
 // the booking flow — format with $ instead of the old ₹.
@@ -486,7 +487,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 16,
   },
   headerBackBtn: {

@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
 const SETTINGS_ITEMS = [
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit details', icon: 'person-outline', route: 'ProfilePersonal' },
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 56,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 12,
     backgroundColor: '#FDFBF7',
     gap: 16,

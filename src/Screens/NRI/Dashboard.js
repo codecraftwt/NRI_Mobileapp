@@ -7,7 +7,7 @@ import RMWidget from '../../Components/RMWidget';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useDashboard } from '../../Hooks/useDashboard';
 import { usePlans } from '../../Hooks/usePlans';
-import { lightColors as colors, typography, spacing, radius } from '../../theme';
+import { lightColors as colors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: 48,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#20304C',

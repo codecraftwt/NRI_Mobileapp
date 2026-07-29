@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { logoutUser } from '../Redux/slices/userSlice';
 import { lightColors as baseColors } from '../theme/colors';
+import { STATUS_BAR_HEIGHT } from '../theme/spacing';
 
 const colors = {
   ...baseColors,
@@ -29,10 +30,10 @@ function OnboardingTopBar({ navigation, onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 50, paddingBottom: 12, backgroundColor: 'transparent' },
+  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 12, backgroundColor: 'transparent' },
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   brandText: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', letterSpacing: -0.5 },
-  backBtn: { padding: 4, position: 'absolute', left: 16, top: 50, zIndex: 10 },
+  backBtn: { padding: 4, position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10 },
 });
 
 export default OnboardingTopBar;

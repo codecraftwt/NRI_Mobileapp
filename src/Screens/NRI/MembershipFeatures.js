@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
 const FEATURE_ICONS = {
   'parent-care-visits': 'favorite',
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 16,
     backgroundColor: '#20304C',
     gap: 16,

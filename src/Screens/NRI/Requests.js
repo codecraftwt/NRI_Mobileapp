@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMyTickets } from '../../Hooks/useMyTickets';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
 const TABS = ['All', 'New', 'Assigned', 'Completed'];
 
@@ -209,7 +210,7 @@ function Requests({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: 50, paddingBottom: 15, backgroundColor: '#20304C' },
+  header: { paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 15, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   tabsContainer: { paddingTop: 20, paddingBottom: 12 },
   tabsScroll: { paddingHorizontal: 20, gap: 12 },

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography } from '../../theme';
+import { typography, STATUS_BAR_HEIGHT } from '../../theme';
 
 const EXPLORE_ACTIONS = [
   { id: 'support', name: 'Support', icon: 'support-agent', color: '#10B981' },
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#20304C' },
 
   blueHeader: {
-    paddingTop: 48,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#20304C',

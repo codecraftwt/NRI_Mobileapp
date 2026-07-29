@@ -23,6 +23,7 @@ import { getWallet } from '../../Api/walletApi';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -1460,9 +1461,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 56,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 10,
-    gap: 12, // space between the back button and the title
+    gap: 12,
   },
   headerBackBtn: {
     width: 44,

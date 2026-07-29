@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography } from '../../theme';
+import { typography, STATUS_BAR_HEIGHT } from '../../theme';
 
 function ServicesCatalog({ navigation }) {
   const categories = [
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 20,
     backgroundColor: '#FDFBF7',
   },

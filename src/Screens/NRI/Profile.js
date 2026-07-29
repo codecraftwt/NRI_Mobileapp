@@ -8,6 +8,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser } from '../../Redux/slices/userSlice';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useToast } from '../../context/ToastContext';
@@ -311,7 +312,7 @@ const styles = StyleSheet.create({
   
   topBlueBg: {
     backgroundColor: '#20304C',
-    paddingTop: 60,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 24,
     zIndex: 10,
   },
