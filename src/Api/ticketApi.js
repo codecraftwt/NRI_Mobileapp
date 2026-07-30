@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
 import { mapReport } from './reportApi';
 import { extractDocumentList, mapRequiredDocument } from './serviceSubscriptionApi';
 import { mapSupportTicket, mapSupportReply } from './supportTicketApi';
@@ -11,7 +11,6 @@ export async function getTicketRequiredDocuments(serviceIds = []) {
     const response = await apiClient.get('/customer/tickets/required-documents', {
       params: { service_ids: serviceIds },
     });
-    if (__DEV__) console.log('[tickets/required-documents] raw response:', JSON.stringify(response.data));
     return extractDocumentList(response.data).map(mapRequiredDocument);
   } catch (error) {
     throw normalizeApiError(error);
@@ -23,13 +22,10 @@ export async function getTicketRequiredDocuments(serviceIds = []) {
 // required-document id: { [docId]: { uri, name, type } }.
 export async function addTicketDocuments(ticketId, documents) {
   try {
-    const formData = new FormData();
-    Object.entries(documents || {}).forEach(([docId, file]) => {
-      if (file) formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
-    });
-    const response = await apiClient.post(`/customer/tickets/${ticketId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const uploadFiles = Object.entries(documents || {})
+      .filter(([, file]) => !!file)
+      .map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type }));
+    const response = await postMultipart(`/customer/tickets/${ticketId}/documents`, {}, uploadFiles);
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
@@ -110,7 +106,6 @@ export async function getTicketQuote({ serviceId, extraServices, addons, stateId
       urgency,
       coupon_code: couponCode || undefined,
     });
-    if (__DEV__) console.log('[tickets/quote] raw response:', JSON.stringify(response.data));
     return mapQuote(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);
@@ -216,28 +211,26 @@ export async function createTicket({
     let response;
 
     if (hasFiles) {
-      const formData = new FormData();
-      formData.append('service_id', serviceId);
-      (extraServices || []).forEach(id => formData.append('extra_services[]', id));
-      (addons || []).forEach(id => formData.append('addons[]', id));
-      if (couponCode) formData.append('coupon_code', couponCode);
-      if (familyMemberId) formData.append('family_member_id', familyMemberId);
-      if (propertyId) formData.append('property_id', propertyId);
-      formData.append('state_id', stateId);
-      if (cityId) formData.append('city_id', cityId);
-      if (talukaId) formData.append('taluka_id', talukaId);
-      formData.append('address', address);
-      formData.append('urgency', urgency);
-      if (preferredDate) formData.append('preferred_date', preferredDate);
-      if (customerNotes) formData.append('customer_notes', customerNotes);
-      (files || []).forEach(f => formData.append('attachments[]', { uri: f.uri, name: f.name, type: f.type || 'application/octet-stream' }));
-      docEntries.forEach(([docId, file]) => {
-        formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
-      });
-
-      response = await apiClient.post('/customer/tickets', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const fields = {
+        service_id: serviceId,
+        'extra_services[]': extraServices || [],
+        'addons[]': addons || [],
+        coupon_code: couponCode || undefined,
+        family_member_id: familyMemberId || undefined,
+        property_id: propertyId || undefined,
+        state_id: stateId,
+        city_id: cityId || undefined,
+        taluka_id: talukaId || undefined,
+        address,
+        urgency,
+        preferred_date: preferredDate || undefined,
+        customer_notes: customerNotes || undefined,
+      };
+      const uploadFiles = [
+        ...(files || []).map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type })),
+        ...docEntries.map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type })),
+      ];
+      response = await postMultipart('/customer/tickets', fields, uploadFiles);
     } else {
       response = await apiClient.post('/customer/tickets', {
         service_id: serviceId,

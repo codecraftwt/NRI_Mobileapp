@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, PermissionsAndroid, Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
@@ -57,16 +58,17 @@ function Documents({ navigation }) {
     }
     if (!(await requestPermission())) return;
     try {
-      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false, copyTo: 'cachesDirectory' });
+      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       const picked = results[0];
       if (!picked) return;
       if (picked.size && picked.size > MAX_SIZE_BYTES) {
         showAlert('File Too Large', 'Please choose a file under 5 MB.');
         return;
       }
+      const [local] = await resolveLocalCopies([picked]);
       await uploadDocument({
         documentType,
-        file: { uri: picked.fileCopyUri || picked.uri, name: picked.name, type: picked.type },
+        file: { uri: local.uri, name: picked.name, type: picked.type },
       }).unwrap();
       setDocumentType('');
       showAlert('Uploaded', 'Document uploaded — pending verification.');

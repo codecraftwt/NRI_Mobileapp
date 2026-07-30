@@ -15,6 +15,7 @@ import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
@@ -99,13 +100,13 @@ function UploadDocument({ navigation }) {
       const [res] = await pick({
         type: [docTypes.pdf, docTypes.images],
         allowMultiSelection: false,
-        copyTo: 'cachesDirectory',
       });
       if (res.size && res.size > 10 * 1024 * 1024) {
         showAlert('File too large', 'Please choose a file under 10 MB.');
         return;
       }
-      setFile({ name: res.name, uri: res.fileCopyUri || res.uri, type: res.type, size: res.size });
+      const [local] = await resolveLocalCopies([res]);
+      setFile({ name: res.name, uri: local.uri, type: res.type, size: res.size });
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       showAlert('Error', 'Could not select the file. Please try again.');

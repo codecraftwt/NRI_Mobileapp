@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, MULTIPART } from './client';
 
 function mapAttachment(raw) {
   return {
@@ -105,9 +105,7 @@ export async function uploadAttachment(propertyId, { type, label, file }) {
     formData.append('type', type);
     if (label) formData.append('label', label);
     formData.append('file', file);
-    const response = await apiClient.post(`/customer/properties/${propertyId}/attachments`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.post(`/customer/properties/${propertyId}/attachments`, formData, MULTIPART);
     return mapAttachment(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

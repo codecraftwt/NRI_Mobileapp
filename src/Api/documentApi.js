@@ -1,4 +1,4 @@
-import apiClient, { API_BASE_URL, normalizeApiError } from './client';
+import apiClient, { API_BASE_URL, normalizeApiError, MULTIPART } from './client';
 
 function mapDocument(raw) {
   return {
@@ -33,9 +33,7 @@ export async function uploadDocument({ documentType, documentName, file, expiryD
     if (expiryDate) formData.append('expiry_date', expiryDate);
     if (sharedWithRm) formData.append('shared_with_rm', '1');
     if (notes) formData.append('notes', notes);
-    const response = await apiClient.post('/customer/documents', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.post('/customer/documents', formData, MULTIPART);
     return mapDocument(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

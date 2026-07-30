@@ -18,6 +18,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import { getWallet } from '../../Api/walletApi';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -360,12 +361,26 @@ function CreateTicket({ route, navigation }) {
   const localGst = Math.round(localSubtotal * GST_RATE * 100) / 100;
   const localTotal = localSubtotal + localGst;
 
-  // Service line items for the server-quote view. Some quotes come back with an
-  // empty `lines` array (only totals + GST), which would hide the service
-  // price — fall back to the selected base services so price + GST always show.
+  // Service line items for the server-quote view. The service list itself
+  // carries no price and the quote's `lines` array frequently comes back empty
+  // — in that case the authoritative base charge is the quote's `customer_price`
+  // (quote.customerPrice). Show it as a single service-charge row so the charge
+  // is always visible instead of collapsing into the GST line. Only fall back to
+  // the (usually price-less) selected services when the backend gives real lines.
+  const quoteBaseCharge = Number(quote?.customerPrice ?? localBasePrice ?? 0);
   const quoteLines = quote?.lines?.length
     ? quote.lines
-    : selectedBaseServicesList.map(s => ({ serviceId: s.id, name: s.name, customerPrice: s.pricing?.customerPrice || 0 }));
+    : (quoteBaseCharge > 0
+        ? [{
+            serviceId: primaryBaseServiceId || 'base',
+            name: selectedBaseServicesList.length === 1
+              ? selectedBaseServicesList[0].name
+              : selectedBaseServicesList.length > 1
+                ? 'Services'
+                : selectedService?.name || 'Service charge',
+            customerPrice: quoteBaseCharge,
+          }]
+        : []);
 
   // The live backend bakes GST into total_amount and often returns
   // gst_amount / gst_rate as null on the quote — so GST didn't render and the
@@ -388,11 +403,13 @@ function CreateTicket({ route, navigation }) {
   const quoteGstRate = quote?.gstRate != null
     ? quote.gstRate
     : (quotePreGst > 0 ? effectiveQuoteGst / quotePreGst : GST_RATE);
-  // Always keep Total = subtotal + the GST we actually display, so the rows on
-  // screen add up. When the backend baked GST into total_amount, effectiveQuoteGst
-  // equals (total − subtotal), so this reproduces the backend total exactly;
-  // when it didn't, this adds the estimated GST on top consistently.
-  const quoteTotal = quotePreGst + effectiveQuoteGst;
+  // Total comes straight from the backend quote (total_amount) when present, so
+  // it always matches what the customer is actually charged; the service +
+  // add-ons + surcharge − discount + GST rows above are built to add up to it.
+  // Only fall back to the reconstructed sum when the quote returned no total.
+  const quoteTotal = Number(quote?.totalAmount) > 0
+    ? Number(quote.totalAmount)
+    : quotePreGst + effectiveQuoteGst;
 
   // --- Recurring subscription selection ---
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
@@ -567,7 +584,6 @@ function CreateTicket({ route, navigation }) {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf],
         allowMultiSelection: true,
-        copyTo: 'cachesDirectory',
       });
 
       const remainingSlots = MAX_FILES - files.length;
@@ -578,9 +594,10 @@ function CreateTicket({ route, navigation }) {
       const accepted = candidates.filter(f => !f.size || f.size <= MAX_FILE_SIZE_BYTES);
 
       if (accepted.length > 0) {
+        const localized = await resolveLocalCopies(accepted);
         setFiles(prev => [
           ...prev,
-          ...accepted.map(f => ({ name: f.name, uri: f.fileCopyUri || f.uri, type: f.type, size: f.size })),
+          ...localized.map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size })),
         ]);
       }
 
@@ -607,7 +624,6 @@ function CreateTicket({ route, navigation }) {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf],
         allowMultiSelection: false,
-        copyTo: 'cachesDirectory',
       });
       const picked = results[0];
       if (!picked) return;
@@ -615,9 +631,10 @@ function CreateTicket({ route, navigation }) {
         Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
         return;
       }
+      const [local] = await resolveLocalCopies([picked]);
       setDocumentFiles(prev => ({
         ...prev,
-        [docId]: { name: picked.name, uri: picked.fileCopyUri || picked.uri, type: picked.type, size: picked.size },
+        [docId]: { name: picked.name, uri: local.uri, type: picked.type, size: picked.size },
       }));
     } catch (err) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;

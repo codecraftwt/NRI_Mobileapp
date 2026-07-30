@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, MULTIPART } from './client';
 
 // Recurring per-service subscriptions (Service.allows_recurring). A single
 // subscription can bundle several services that share one billing interval.
@@ -63,7 +63,6 @@ export async function getRequiredDocuments(serviceIds = []) {
     const response = await apiClient.get('/customer/service-subscriptions/required-documents', {
       params: { service_ids: serviceIds },
     });
-    if (__DEV__) console.log('[required-documents] raw response:', JSON.stringify(response.data));
     return extractDocumentList(response.data).map(mapRequiredDocument);
   } catch (error) {
     throw normalizeApiError(error);
@@ -106,9 +105,7 @@ export async function createServiceSubscription({
       docEntries.forEach(([docId, file]) => {
         formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
       });
-      response = await apiClient.post('/customer/service-subscriptions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      response = await apiClient.post('/customer/service-subscriptions', formData, MULTIPART);
     } else {
       response = await apiClient.post('/customer/service-subscriptions', {
         service_ids: serviceIds,
@@ -143,9 +140,7 @@ export async function addSubscriptionDocuments(subscriptionId, documents) {
     Object.entries(documents || {}).forEach(([docId, file]) => {
       if (file) formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
     });
-    const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/documents`, formData, MULTIPART);
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

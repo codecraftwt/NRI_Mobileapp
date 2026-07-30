@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
@@ -87,14 +88,13 @@ function JobDetail({ route, navigation }) {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf, docTypes.video],
         allowMultiSelection: true,
-        copyTo: 'cachesDirectory',
       });
       const tooMany = results.length > remaining;
       const candidates = results.slice(0, remaining);
       const oversized = candidates.filter(f => f.size && f.size > MAX_MEDIA_SIZE_BYTES);
-      const accepted = candidates
-        .filter(f => !f.size || f.size <= MAX_MEDIA_SIZE_BYTES)
-        .map(f => ({ name: f.name, uri: f.fileCopyUri || f.uri, type: f.type, size: f.size }));
+      const accepted = (await resolveLocalCopies(
+        candidates.filter(f => !f.size || f.size <= MAX_MEDIA_SIZE_BYTES),
+      )).map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size }));
       if (oversized.length > 0) {
         showAlert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 25 MB.`);
       } else if (tooMany) {

@@ -9,6 +9,7 @@ import { syncDeviceToken } from './src/Redux/slices/userSlice';
 import { ToastProvider } from './src/context/ToastContext';
 import AppNavigator from './src/Navigations/AppNavigator';
 import { navigationRef } from './src/Navigations/navigationRef';
+import NetworkStatusBanner from './src/Components/NetworkStatusBanner';
 import {
   requestUserPermission,
   listenTokenRefresh,
@@ -76,6 +77,7 @@ function App() {
               <NavigationContainer ref={navigationRef}>
                 <AppNavigator />
               </NavigationContainer>
+              <NetworkStatusBanner />
             </ToastProvider>
         </SafeAreaProvider>
       </PersistGate>

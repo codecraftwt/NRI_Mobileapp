@@ -18,6 +18,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, spacing, radius } from '../../theme';
@@ -219,15 +220,15 @@ function AttachmentsCard({ propertyId }) {
       const [result] = await pick({
         type: [docTypes.images, docTypes.pdf],
         allowMultiSelection: false,
-        copyTo: 'cachesDirectory',
       });
       if (!result) return;
       if (result.size && result.size > 10 * 1024 * 1024) {
         showAlert('File Too Large', 'Attachments must be 10 MB or smaller.');
         return;
       }
+      const [local] = await resolveLocalCopies([result]);
       const file = {
-        uri: result.fileCopyUri || result.uri,
+        uri: local.uri,
         name: result.name,
         type: result.type || 'application/octet-stream',
       };
@@ -371,16 +372,17 @@ function PendingAttachmentsCard({ files, onAdd, onRemove }) {
     const allowed = await requestFilePermission(showAlert);
     if (!allowed) return;
     try {
-      const [result] = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false, copyTo: 'cachesDirectory' });
+      const [result] = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       if (!result) return;
       if (result.size && result.size > 10 * 1024 * 1024) {
         showAlert('File Too Large', 'Attachments must be 10 MB or smaller.');
         return;
       }
+      const [local] = await resolveLocalCopies([result]);
       onAdd({
         kind: 'document',
         label: label.trim(),
-        file: { uri: result.fileCopyUri || result.uri, name: result.name, type: result.type || 'application/octet-stream' },
+        file: { uri: local.uri, name: result.name, type: result.type || 'application/octet-stream' },
       });
       setLabel('');
     } catch (err) {

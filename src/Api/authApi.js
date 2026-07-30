@@ -131,7 +131,6 @@ export async function register(payload) {
 export async function login(payload) {
   try {
     const response = await apiClient.post('/auth/login', toLoginRequestBody(payload));
-    if (__DEV__) console.log('[auth/login] user payload:', JSON.stringify(response.data?.data?.user || response.data?.user));
     return mapAuthResponse(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);
@@ -229,7 +228,6 @@ export async function uploadProfilePhoto(file) {
         return data;
       },
     });
-    if (__DEV__) console.log('[auth/profile/photo] response:', JSON.stringify(response.data));
     const data = response.data?.data || response.data || {};
     return { photoUrl: extractPhotoUrl(data), message: response.data?.message };
   } catch (error) {
