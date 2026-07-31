@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal } from 'react-native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
+import { selectCartCount } from '../../Redux/slices/cartSlice';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
-import { useStates } from '../../Hooks/useStates';
-import { useCities } from '../../Hooks/useCities';
+import { useServiceGroups } from '../../Hooks/useServiceGroups';
+import { getServiceGroups } from '../../Api/catalogApi';
+import LocationPickerModal from '../../Components/LocationPickerModal';
 
 const categoryDetails = {
   // Original Mappings
@@ -42,381 +43,354 @@ const categoryDetails = {
   'Annual India Visit Planning': { icon: 'card-travel', color: '#EC4899', desc: 'Itinerary planning, stay & transport...' },
 };
 
-// Labelled select that opens a searchable bottom-sheet list of options.
-function LocationSelect({ label, value, placeholder, options, disabled, loading, onSelect }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+const detailsFor = (name) =>
+  categoryDetails[name] || { icon: 'category', color: '#64748B', desc: 'Explore this service category...' };
 
-  const close = () => { setOpen(false); setQuery(''); };
-  const filtered = query.trim()
-    ? options.filter(o => o.toLowerCase().includes(query.trim().toLowerCase()))
-    : options;
+// Sentinel + display option for the "All Categories" filter (fetches every
+// service across categories rather than one category's list).
+const ALL_CAT = '__all__';
+const allOption = { id: '__all__', name: '__all__', displayName: 'All Categories', icon: 'grid-view', color: '#20304C' };
 
-  return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={styles.selectLabel}>{label}</Text>
-      <TouchableOpacity
-        style={[styles.selectBox, (disabled || loading) && styles.selectBoxDisabled]}
-        disabled={disabled || loading}
-        onPress={() => setOpen(true)}
-        activeOpacity={0.7}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <>
-            <Text style={[styles.selectText, !value && styles.selectPlaceholder]} numberOfLines={1}>
-              {value || placeholder}
-            </Text>
-            <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
-          </>
-        )}
-      </TouchableOpacity>
+const priceValue = (p) => (p ? (p.customerPrice ?? p.recurringPrice ?? null) : null);
+const priceText = (p) => {
+  if (!p) return '—';
+  if (p.isQuoted) return 'On quote';
+  const v = priceValue(p);
+  return v != null ? `$${Number(v).toFixed(2)}` : '—';
+};
+const durationText = (p) => {
+  if (!p) return '';
+  if (p.turnaroundLabel) return p.turnaroundLabel;
+  if (p.turnaroundHours != null) return `${p.turnaroundHours} hrs`;
+  return '';
+};
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={close}>
-          {/* Stop the overlay's onPress from closing when tapping inside the sheet. */}
-          <TouchableOpacity style={styles.modalSheet} activeOpacity={1} onPress={() => {}}>
-            <Text style={styles.modalTitle}>{label}</Text>
-            <View style={styles.modalSearchBox}>
-              <Icon name="search" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder={`Search ${label.toLowerCase()}...`}
-                placeholderTextColor="#94A3B8"
-                value={query}
-                onChangeText={setQuery}
-                autoCorrect={false}
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Icon name="close" size={18} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
-            </View>
-            <FlatList
-              data={filtered}
-              keyExtractor={(item) => item}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); close(); }}>
-                  <Text style={styles.modalOptionText}>{item}</Text>
-                  {item === value && <Icon name="check" size={18} color={colors.primary} />}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={<Text style={styles.modalEmpty}>No matches found.</Text>}
-            />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-  );
-}
-
-function Services({ navigation }) {
-  const dispatch = useDispatch();
-  const { categories, loading } = useServiceCategories();
+function Services({ navigation, route }) {
+  const { categories, loading: loadingCats } = useServiceCategories();
   const [search, setSearch] = useState('');
+  const [activeCatName, setActiveCatName] = useState(ALL_CAT); // default: All Categories
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false); // location picker
 
-  // Saved (persisted) service location — set once, reused for every category.
+  // Opened from the service detail's "Set your location to add" — auto-open the
+  // PIN-code picker here, then clear the flag so it doesn't re-fire.
+  useEffect(() => {
+    if (route?.params?.openLocation) {
+      setModalOpen(true);
+      navigation.setParams({ openLocation: undefined });
+    }
+  }, [route?.params?.openLocation, navigation]);
+
+  const cartCount = useSelector(selectCartCount);
+  const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
 
-  // Location modal state. `pendingCategory` holds the category to open once a
-  // location is chosen (null when the modal is just editing the saved location).
-  const [modalOpen, setModalOpen] = useState(false);
-  const [pendingCategory, setPendingCategory] = useState(null);
-  const [selectedState, setSelectedState] = useState('');
-  const [selectedCity, setSelectedCity] = useState('');
+  const displayCategories = categories.map(c => ({ ...c, ...detailsFor(c.name), displayName: detailsFor(c.name).displayName || c.name }));
+  // "All Categories" first, then every category.
+  const filterOptions = [allOption, ...displayCategories];
 
-  const { stateNames, loading: loadingStates } = useStates();
-  const { cities, cityNames, loading: loadingCities } = useCities(selectedState);
-  const cityId = selectedCity ? cities.find(c => c.name === selectedCity)?.id : null;
-  const canSubmit = !!(selectedState && selectedCity && cityId);
+  const isAll = activeCatName === ALL_CAT;
+  const activeCategory = displayCategories.find(c => c.name === activeCatName) || null;
 
-  const goToServices = (cat, loc) => navigation.navigate('ServiceDetail', {
-    category: cat,
-    stateName: loc.stateName,
-    cityName: loc.cityName,
-    cityId: loc.cityId,
-  });
+  // Per-category services (one category's list). Inactive when "All" is picked
+  // (no matching categoryId → hook stays idle).
+  const { oneTime, recurring, loading: loadingServices } = useServiceGroups(
+    isAll ? '' : activeCatName,
+    savedLocation?.stateName || '',
+    savedLocation?.cityId || null,
+  );
 
-  // Open the modal — prefilled with the saved location so it can be tweaked.
-  const openLocationModal = (cat) => {
-    setSelectedState(savedLocation?.stateName || '');
-    setSelectedCity(savedLocation?.cityName || '');
-    setPendingCategory(cat || null);
-    setModalOpen(true);
+  // All-services list — bound to /services with no category_id (returns every
+  // service, grouped), fetched when "All Categories" is active.
+  const [allServices, setAllServices] = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+  useEffect(() => {
+    if (!isAll) return;
+    let cancelled = false;
+    setAllLoading(true);
+    getServiceGroups({ cityId: savedLocation?.cityId || null })
+      .then(({ oneTime: ot, recurring: rc }) => {
+        if (cancelled) return;
+        const s = new Set();
+        setAllServices([...ot, ...rc].filter(x => (s.has(x.id) ? false : s.add(x.id))));
+      })
+      .catch(() => { if (!cancelled) setAllServices([]); })
+      .finally(() => { if (!cancelled) setAllLoading(false); });
+    return () => { cancelled = true; };
+  }, [isAll, savedLocation?.cityId]);
+
+  const catSeen = new Set();
+  const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
+  const q = search.toLowerCase().trim();
+  const services = (isAll ? allServices : catServices).filter(s => s.name.toLowerCase().includes(q));
+  const listLoading = loadingCats || (isAll ? allLoading : loadingServices);
+
+  // The category a card belongs to — its own category in "All" mode, otherwise
+  // the active one. Drives the card's icon/color/label and the detail screen.
+  const catForService = (s) => {
+    if (!isAll) return activeCategory;
+    const nm = s.category?.name;
+    return { id: s.category?.id, name: nm, ...detailsFor(nm), displayName: nm || 'Service' };
   };
 
-  const closeLocationModal = () => { setModalOpen(false); setPendingCategory(null); };
+  const openService = (service) => navigation.navigate('GuestServiceInfo', { service, category: catForService(service) });
 
-  // Category tap: go straight through with the saved location; only ask when
-  // none is saved yet.
-  const handleCategoryPress = (cat) => {
-    if (hasLocation) {
-      goToServices(cat, savedLocation);
-    } else {
-      openLocationModal(cat);
-    }
-  };
+  const pickCategory = (name) => { setActiveCatName(name); setFilterOpen(false); };
 
-  const handleSubmitLocation = () => {
-    if (!canSubmit) return;
-    const loc = { stateName: selectedState, cityName: selectedCity, cityId };
-    dispatch(setServiceLocation(loc)); // persist for next time
-    const cat = pendingCategory;
-    closeLocationModal();
-    if (cat) goToServices(cat, loc); // came from a category tap → continue
-  };
-
-  const displayCategories = categories.map(c => {
-    const details = categoryDetails[c.name] || { icon: 'category', color: '#64748B', desc: 'Explore this service category...' };
-    return { ...c, ...details, displayName: details.displayName || c.name };
-  });
-
-  const filteredCategories = displayCategories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+  // Reset the filter back to "All Categories" (show every service) and clear search.
+  const resetFilter = () => { setActiveCatName(ALL_CAT); setSearch(''); setFilterOpen(false); };
 
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>All Services</Text>
-      </View>
-      <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-        <View style={styles.searchBox}>
-          <Icon name="search" size={20} color="#64748B" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search services..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>All Services</Text>
+          <TouchableOpacity style={styles.locChip} activeOpacity={0.7} onPress={() => setModalOpen(true)}>
+            <Icon name="place" size={14} color="#FCD9C8" />
+            <Text style={styles.locChipText} numberOfLines={1}>
+              {hasLocation ? `${savedLocation.cityName}, ${savedLocation.stateName}` : 'Set your location'}
+            </Text>
+            <Icon name="keyboard-arrow-down" size={16} color="#FCD9C8" />
+          </TouchableOpacity>
         </View>
+        {!isAuthenticated && (
+          <TouchableOpacity style={styles.signInBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Login')}>
+            <Icon name="login" size={16} color="#FFFFFF" />
+            <Text style={styles.signInText}>Sign In</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.cartBtn} activeOpacity={0.8} onPress={() => navigation.navigate('Cart')}>
+          <Icon name="shopping-cart" size={22} color="#FFFFFF" />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {loading ? (
+        {/* Promo banner */}
+        <View style={styles.banner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Trusted help,{'\n'}near your family</Text>
+            <Text style={styles.bannerSub}>Verified local vendors · Photo proof · RM support</Text>
+          </View>
+          <View style={styles.bannerIcon}>
+            <Icon name="verified-user" size={30} color="#FFFFFF" />
+          </View>
+        </View>
+
+        {/* Search + filter */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Icon name="search" size={20} color="#64748B" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search services..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+          </View>
+          <TouchableOpacity style={styles.filterBtn} activeOpacity={0.85} onPress={() => setFilterOpen(true)}>
+            <Icon name="tune" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Category filter chips (All Categories first) */}
+        {!loadingCats && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+          >
+            {filterOptions.map(c => {
+              const active = c.name === activeCatName;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.chip, active && styles.chipActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setActiveCatName(c.name)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{c.displayName}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Service cards grid */}
+        {listLoading ? (
+          <View style={styles.loadingBox}><ActivityIndicator size="large" color={colors.primary} /></View>
+        ) : services.length === 0 ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={colors.primary} />
+            <Icon name="search-off" size={40} color="#CBD5E1" />
+            <Text style={styles.emptyText}>No services found in {isAll ? 'any category' : (activeCategory?.displayName || 'this category')}.</Text>
           </View>
         ) : (
-          <View style={styles.list}>
-            {filteredCategories.map((cat, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.card}
-                activeOpacity={0.7}
-                onPress={() => handleCategoryPress(cat)}
-              >
-                <View style={[styles.iconBox, { backgroundColor: cat.color + '15' }]}>
-                  <Icon name={cat.icon} size={24} color={cat.color} />
-                </View>
-                <View style={styles.textContainer}>
-                  <Text style={styles.title}>{cat.displayName}</Text>
-                  <Text style={styles.desc} numberOfLines={1}>{cat.desc}</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            ))}
+          <View style={styles.grid}>
+            {services.map(s => {
+              const dur = durationText(s.pricing);
+              const cardCat = catForService(s);
+              return (
+                <TouchableOpacity key={s.id} style={styles.card} activeOpacity={0.85} onPress={() => openService(s)}>
+                  <View style={[styles.cardImage, { backgroundColor: (cardCat?.color || '#64748B') + '15' }]}>
+                    <Icon name={cardCat?.icon || 'category'} size={40} color={cardCat?.color || '#64748B'} />
+                  </View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
+                    <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
+                    <View style={styles.cardMetaRow}>
+                      <Text style={styles.cardPrice}>{priceText(s.pricing)}</Text>
+                      {!!dur && (
+                        <View style={styles.cardDurationChip}>
+                          <Icon name="schedule" size={11} color="#94A3B8" />
+                          <Text style={styles.cardDuration}>{dur}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
 
-      {/* Location modal — from a category tap (first time) or the banner */}
-      <Modal
-        visible={modalOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={closeLocationModal}
-      >
-        <View style={styles.locOverlay}>
-          <View style={styles.locSheet}>
-            <View style={styles.locHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.locTitle}>Select Location</Text>
-                <Text style={styles.locSubtitle} numberOfLines={1}>
-                  {pendingCategory
-                    ? `Where do you need ${pendingCategory.displayName}?`
-                    : 'Choose the state & city for your services.'}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={closeLocationModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Icon name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
+      {/* Filter sheet — main categories */}
+      <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+        <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)}>
+          <TouchableOpacity style={styles.filterSheet} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.filterHandle} />
+            <View style={styles.filterHeaderRow}>
+              <Text style={styles.filterTitle}>Filter by category</Text>
             </View>
-
-            <LocationSelect
-              label="State"
-              value={selectedState}
-              placeholder="Select state"
-              options={stateNames}
-              loading={loadingStates}
-              onSelect={(name) => { setSelectedState(name); setSelectedCity(''); }}
-            />
-            <LocationSelect
-              label="City"
-              value={selectedCity}
-              placeholder={selectedState ? 'Select city' : 'Select state first'}
-              options={cityNames}
-              disabled={!selectedState}
-              loading={!!selectedState && loadingCities}
-              onSelect={setSelectedCity}
-            />
-
-            <TouchableOpacity
-              style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
-              onPress={handleSubmitLocation}
-              disabled={!canSubmit}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.submitBtnText}>{pendingCategory ? 'Submit' : 'Save Location'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {filterOptions.map(c => {
+                const active = c.name === activeCatName;
+                return (
+                  <TouchableOpacity key={c.id} style={styles.filterRow} activeOpacity={0.7} onPress={() => pickCategory(c.name)}>
+                    <View style={[styles.filterIcon, { backgroundColor: c.color + '15' }]}>
+                      <Icon name={c.icon} size={20} color={c.color} />
+                    </View>
+                    <Text style={[styles.filterRowText, active && { color: '#D94625', fontFamily: typography.h4.fontFamily }]}>{c.displayName}</Text>
+                    {active && <Icon name="check-circle" size={20} color="#D94625" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
+
+      <LocationPickerModal
+        visible={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Select Location"
+        subtitle="Enter your PIN code to find your city."
+      />
     </View>
   );
 }
 
+const CARD_GAP = 14;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 15,
     paddingHorizontal: 20,
     backgroundColor: '#20304C',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontFamily: typography.h2.fontFamily,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
+  headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  locChip: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, alignSelf: 'flex-start', maxWidth: '90%' },
+  locChipText: { fontSize: 12, color: '#FCD9C8', fontFamily: typography.labelMedium.fontFamily },
+  signInBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, height: 40, paddingHorizontal: 14,
+    borderRadius: 20, backgroundColor: '#D94625', marginRight: 10,
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
+  signInText: { color: '#FFFFFF', fontSize: 13, fontFamily: typography.h4.fontFamily },
+  cartBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  cartBadge: {
+    position: 'absolute', top: 4, right: 4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    backgroundColor: '#D94625', justifyContent: 'center', alignItems: 'center',
   },
+  cartBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+
+  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+
+  banner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#A64416', borderRadius: 20, padding: 18, marginBottom: 18,
+  },
+  bannerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', lineHeight: 26 },
+  bannerSub: { fontSize: 12, color: '#FCD9C8', marginTop: 6, fontFamily: typography.labelMedium.fontFamily },
+  bannerIcon: {
+    width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center', marginLeft: 12,
+  },
+
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 52,
-    marginBottom: 4,
-    shadowColor: '#A64416',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#A64416',
-    gap: 12,
+    flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16,
+    paddingHorizontal: 16, height: 52, borderWidth: 1, borderColor: '#A64416', gap: 12,
+    shadowColor: '#A64416', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 3,
   },
-  searchInput: {
-    flex: 1,
-    ...typography.body,
-    height: '100%',
-    color: '#1E293B',
+  searchInput: { flex: 1, ...typography.body, height: '100%', color: '#1E293B' },
+  filterBtn: {
+    width: 52, height: 52, borderRadius: 16, backgroundColor: '#20304C',
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4,
   },
 
-  locBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 12, marginTop: 12,
+  chipsRow: { gap: 10, paddingRight: 8, paddingBottom: 18 },
+  chip: {
+    paddingHorizontal: 18, height: 38, borderRadius: 19, justifyContent: 'center',
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F1F5F9',
   },
-  locBannerLabel: { fontSize: 11, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
-  locBannerValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, marginTop: 1 },
-  locBannerAction: { fontSize: 13, color: '#D94625', fontFamily: typography.h4.fontFamily },
+  chipActive: { backgroundColor: '#D94625', borderColor: '#D94625' },
+  chipText: { fontSize: 13, color: '#64748B', fontFamily: typography.labelMedium.fontFamily },
+  chipTextActive: { color: '#FFFFFF' },
 
-  list: { gap: 16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    alignItems: 'center',
-    gap: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
+    width: '48%', marginBottom: CARD_GAP, backgroundColor: '#FFFFFF', borderRadius: 20,
+    borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden',
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 3,
   },
-  iconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: 4,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  desc: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  loadingBox: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
+  cardImage: { height: 110, justifyContent: 'center', alignItems: 'center' },
+  cardBody: { padding: 12, gap: 3 },
+  cardName: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
+  cardCat: { fontSize: 11, color: '#94A3B8' },
+  cardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  cardPrice: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#D94625' },
+  cardDurationChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  cardDuration: { fontSize: 10, color: '#94A3B8' },
 
-  // Location modal
-  locOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
-  locSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 32,
-  },
-  locHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
-  locTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
-  locSubtitle: { fontSize: 13, color: '#64748B', marginTop: 2 },
+  loadingBox: { paddingVertical: 50, alignItems: 'center', gap: 10 },
+  emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center' },
 
-  selectLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', marginBottom: 6 },
-  selectBox: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
-    paddingHorizontal: 12, height: 50,
+  // Filter sheet
+  filterOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  filterSheet: {
+    backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, maxHeight: '75%',
   },
-  selectBoxDisabled: { opacity: 0.5 },
-  selectText: { flex: 1, fontSize: 14, color: '#0F172A' },
-  selectPlaceholder: { color: '#94A3B8' },
-
-  submitBtn: {
-    backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8,
-  },
-  submitBtnDisabled: { backgroundColor: '#CBD5E1' },
-  submitBtnText: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
-
-  // Option bottom-sheet (state/city lists)
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, maxHeight: '70%' },
-  modalTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 12 },
-  modalSearchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
-    paddingHorizontal: 12, height: 44, marginBottom: 8,
-  },
-  modalSearchInput: { flex: 1, fontSize: 14, color: '#0F172A', padding: 0 },
-  modalOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  modalOptionText: { fontSize: 15, color: '#0F172A' },
-  modalEmpty: { fontSize: 14, color: '#94A3B8', textAlign: 'center', paddingVertical: 24 },
+  filterHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1', alignSelf: 'center', marginBottom: 14 },
+  filterHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  filterTitle: { fontSize: 17, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  filterReset: { fontSize: 14, color: '#D94625', fontFamily: typography.h4.fontFamily },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  filterIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  filterRowText: { flex: 1, fontSize: 15, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily },
 });
 
 export default Services;

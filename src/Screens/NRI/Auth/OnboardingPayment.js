@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, PermissionsAndroid, Linking, Alert } from 'react-native';
+import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../../Utils/localFileCopy';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -8,8 +10,15 @@ import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
+import { clearCart, selectCartItems, selectCartSubtotal } from '../../../Redux/slices/cartSlice';
+import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
+import { useFamilyMembers } from '../../../Hooks/useFamilyMembers';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
+import { useStates } from '../../../Hooks/useStates';
+import { useCities } from '../../../Hooks/useCities';
+import { useTalukas } from '../../../Hooks/useTalukas';
+import { usePriorities } from '../../../Hooks/usePriorities';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 
 const C = {
@@ -22,6 +31,7 @@ const colors = C;
 const { width: W, height: H } = Dimensions.get('window');
 
 const GST_RATE = 0.18;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function toAmount(value) {
   const amount = Number(value);
@@ -42,10 +52,92 @@ function convertPlanAmountToUsd(amount, plan) {
   return sourceAmount;
 }
 
+// A single required-document row with a "Choose File" picker + preview pill.
+function DocumentUploadField({ document, file, onChoose, onRemove }) {
+  return (
+    <View style={styles.docUploadWrap}>
+      <Text style={styles.fieldLabel}>
+        {document.name}{document.required ? <Text style={styles.required}> *</Text> : null}
+      </Text>
+      {!!document.description && <Text style={styles.fieldHint}>{document.description}</Text>}
+      <View style={styles.docInputRow}>
+        <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
+          <Icon name="attach-file" size={16} color={C.primary} />
+          <Text style={styles.docChooseBtnText}>Choose File</Text>
+        </TouchableOpacity>
+        <Text style={styles.docFileName} numberOfLines={1}>{file ? file.name : 'No file chosen'}</Text>
+      </View>
+      {!!file && (
+        <View style={styles.filePill}>
+          <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color={C.primary} />
+          <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
+          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="close" size={16} color="#9CA3AF" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Relations offered for a cart service request (who the service is for).
+// Matches the family member API's `relationship` enum — same list the ticket
+// booking form (CreateTicket) offers.
+const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+
+// Labelled select that opens a centered, searchable list of options — used by
+// the cart service-request form (State / City / Taluka / Relation / Priority).
+function FormSelect({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={styles.fieldLabel}>{label}{required ? ' *' : ''}</Text>
+      <TouchableOpacity
+        style={[styles.selectBox, (disabled || loading) && styles.selectBoxDisabled]}
+        disabled={disabled || loading}
+        onPress={() => setOpen(true)}
+        activeOpacity={0.7}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={C.primary} />
+        ) : (
+          <>
+            <Text style={[styles.selectText, !value && styles.selectPlaceholder]} numberOfLines={1}>
+              {value || placeholder}
+            </Text>
+            <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
+          </>
+        )}
+      </TouchableOpacity>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+        <TouchableOpacity style={styles.selectOverlay} activeOpacity={1} onPress={close}>
+          <View style={styles.selectSheet}>
+            <Text style={styles.selectSheetTitle}>{label}</Text>
+            <FlatList
+              data={options}
+              keyExtractor={(item) => item}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.selectOption} onPress={() => { onSelect(item); close(); }}>
+                  <Text style={styles.selectOptionText}>{item}</Text>
+                  {item === value && <Icon name="check" size={18} color={C.primary} />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={<Text style={styles.selectEmpty}>No options available.</Text>}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
 function OnboardingPayment({ route, navigation }) {
   const { profile } = route.params || {};
   const dispatch = useDispatch();
-  const user = useSelector(state => state.user.user);
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
   const {
@@ -54,9 +146,72 @@ function OnboardingPayment({ route, navigation }) {
     checkoutLoading, checkout, verifyLoading, verifyPayment,
   } = useMembershipCheckout();
 
+  // Cart-driven purchase path. When the user reached this step from the cart
+  // (or a direct service purchase), Step 2 also collects the service-request
+  // details and bills the selected services alongside the membership. With an
+  // empty cart this is a plain membership registration — unchanged.
+  const cartItems = useSelector(selectCartItems);
+  const servicesSubtotal = useSelector(selectCartSubtotal);
+  const fromCart = cartItems.length > 0;
+
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [submitting, setSubmitting] = useState(false);
+  // Two-step sub-flow for the cart path: 'details' (who/where + documents) then
+  // 'summary' (order summary + payment). Plain membership skips straight to summary.
+  const [step, setStep] = useState('details');
+  const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
+
+  // "Who / Where — for your cart's service requests" form. Location prefilled
+  // from the first cart item (the city the services were priced for).
+  const firstItem = cartItems[0] || {};
+  const [reqForm, setReqForm] = useState({
+    // Left blank on purpose — this is the NRI's family member (who the service
+    // is for), not the account holder, so it must be entered manually.
+    fullName: '',
+    relation: '',
+    property: 'Not applicable',
+    state: firstItem.stateName || '',
+    city: firstItem.cityName || '',
+    taluka: '',
+    address: '',
+    pincode: '',
+    preferredAt: '',
+    priority: '',
+    notes: '',
+  });
+  const setField = (key, val) => setReqForm(prev => ({ ...prev, [key]: val }));
+
+  const { stateNames, states } = useStates();
+  const { cityNames, cities } = useCities(reqForm.state);
+  const { talukaNames, talukas } = useTalukas(null, reqForm.city);
+  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
+  const { priorities } = usePriorities();
+  const priorityLabelOf = (p) => `${p.name} — ${toAmount(p.surcharge) > 0 ? formatUsd(p.surcharge) : 'Free'}`;
+  const priorityLabels = priorities.map(priorityLabelOf);
+  const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
+  const prioritySurcharge = fromCart ? toAmount(selectedPriority?.surcharge) : 0;
+
+  // Default the Priority field to the standard/default tier once tiers load.
+  useEffect(() => {
+    if (fromCart && !reqForm.priority && priorities.length) {
+      const def = priorities.find(p => p.isDefault) || priorities[0];
+      if (def) setField('priority', priorityLabelOf(def));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromCart, priorities]);
+
+  // Required documents for the selected (cart) services — displayed on this
+  // step so the customer knows what to prepare. Fetched from the same endpoint
+  // the ticket booking form uses. (User is authenticated by this step.)
+  const requiredDocuments = useSelector(state => state.ticketBooking.requiredDocuments);
+  const cartServiceIdsKey = cartItems.map(i => i.serviceId).join(',');
+  useEffect(() => {
+    if (fromCart) {
+      dispatch(fetchTicketRequiredDocuments(cartItems.map(i => i.serviceId)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromCart, cartServiceIdsKey]);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
   // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
   const [checkoutSession, setCheckoutSession] = useState(null);
@@ -78,7 +233,15 @@ function OnboardingPayment({ route, navigation }) {
   const planDiscount = convertPlanAmountToUsd(couponResult?.discount, plan);
   const taxableAmount = Math.max(0, basePrice - planDiscount);
   const gstAmount = Math.round(taxableAmount * GST_RATE * 100) / 100;
-  const amountPayable = taxableAmount + gstAmount;
+  const membershipPayable = taxableAmount + gstAmount;
+
+  // Selected services (cart) billed together with the membership in one payment.
+  // Services subtotal + the chosen priority tier's flat surcharge, then GST on
+  // the combined base — same order the ticket booking estimate uses.
+  const servicesBase = servicesSubtotal + prioritySurcharge;
+  const servicesGst = Math.round(servicesBase * GST_RATE * 100) / 100;
+  const servicesPayable = servicesBase + servicesGst;
+  const amountPayable = membershipPayable + (fromCart ? servicesPayable : 0);
 
   const handleApplyPlanCoupon = () => {
     if (!planCouponCode.trim()) return;
@@ -116,9 +279,98 @@ function OnboardingPayment({ route, navigation }) {
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
-  // Activates the membership locally and moves on to the welcome screen once
-  // the gateway payment (Stripe or PayPal) is confirmed.
-  const finishUp = () => {
+  // Required-document upload (Android needs media/storage permission first).
+  const requestFilePermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const permission = Platform.Version >= 33
+      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
+    if (await PermissionsAndroid.check(permission)) return true;
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Allow Photo & Document Access',
+      message: 'NRI Circle needs access to your photos and documents so you can attach them.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      Alert.alert('Permission Required', 'Enable photo & document access from app settings to attach files.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
+    }
+    return false;
+  };
+
+  const handleChooseDocument = async (docId) => {
+    if (!(await requestFilePermission())) return;
+    try {
+      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
+      const picked = results[0];
+      if (!picked) return;
+      if (picked.size && picked.size > MAX_FILE_SIZE_BYTES) {
+        Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
+        return;
+      }
+      const [local] = await resolveLocalCopies([picked]);
+      setDocumentFiles(prev => ({ ...prev, [docId]: { name: picked.name, uri: local.uri, type: picked.type, size: picked.size } }));
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      Alert.alert('Error', 'Could not select the file. Please try again.');
+    }
+  };
+
+  const handleRemoveDocument = (docId) => {
+    setDocumentFiles(prev => { const next = { ...prev }; delete next[docId]; return next; });
+  };
+
+  // The ticket API only accepts an existing family_member_id, not raw
+  // name/relation — reuse a matching saved member if one exists, otherwise
+  // create one from what was entered on the Who/Where form.
+  const resolveFamilyMemberId = async () => {
+    const name = reqForm.fullName.trim();
+    const relationship = reqForm.relation.toLowerCase();
+    if (!name || !relationship) return undefined;
+    const existing = familyMembers.find(
+      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
+    );
+    if (existing) return existing.id;
+    const created = await createFamilyMember({ name, relationship }).unwrap();
+    return created.id;
+  };
+
+  // Once payment is done, turn each cart service into an actual service request
+  // (POST /customer/tickets) using the Who/Where form details, so it shows up
+  // in the customer's Requests tab on the dashboard. Reuses the same booking
+  // API the in-app CreateTicket screen uses.
+  const submitCartServiceRequests = async () => {
+    const stateId = states.find(s => s.name === reqForm.state)?.id;
+    const cityId = cities.find(c => c.name === reqForm.city)?.id || cartItems[0]?.cityId || null;
+    const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
+    const address = reqForm.pincode.trim()
+      ? `${reqForm.address.trim()} - ${reqForm.pincode.trim()}`
+      : reqForm.address.trim();
+    const familyMemberId = await resolveFamilyMemberId();
+    const urgency = selectedPriority?.slug || 'standard';
+
+    // Each selected service becomes its own request (mirrors the web + the
+    // "each service becomes its own request" note on the form).
+    for (const item of cartItems) {
+      await dispatch(submitTicket({
+        serviceId: item.serviceId,
+        familyMemberId,
+        stateId,
+        cityId,
+        talukaId,
+        address,
+        urgency,
+        customerNotes: reqForm.notes || undefined,
+        documents: documentFiles,
+      })).unwrap();
+    }
+  };
+
+  // Activates the membership locally, creates the cart's service requests, then
+  // moves on to the welcome screen once the gateway payment is confirmed.
+  const finishUp = async () => {
     dispatch(updateProfile({
       countryOfResidence: profile?.countryOfResidence,
       stateProvince: profile?.stateProvince,
@@ -143,7 +395,26 @@ function OnboardingPayment({ route, navigation }) {
       igst: gstAmount,
       total: amountPayable,
     }));
-    navigation.replace('OnboardingWelcome', { plan });
+
+    // Create the service requests BEFORE clearing the cart. A failure here
+    // shouldn't strand the user on a paid-but-blank screen — the membership is
+    // already active, so surface the error but still continue to the dashboard.
+    if (fromCart) {
+      try {
+        await submitCartServiceRequests();
+      } catch (error) {
+        showAlert(
+          'Requests Not Created',
+          error?.message || "Your membership is active, but we couldn't create your service requests. You can add them from Services.",
+          'error',
+        );
+      }
+      dispatch(clearCart());
+    }
+
+    // Tell the welcome screen whether service requests were created, so it can
+    // send the user to the Requests (tracking) tab instead of the dashboard.
+    navigation.replace('OnboardingWelcome', { plan, hasServiceRequests: fromCart });
   };
 
   const handlePay = async () => {
@@ -168,7 +439,7 @@ function OnboardingPayment({ route, navigation }) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
         // Wallet credits / free plan covered the full amount — nothing to pay.
-        finishUp();
+        await finishUp();
       }
     } catch (error) {
       showAlert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
@@ -185,7 +456,7 @@ function OnboardingPayment({ route, navigation }) {
     setSubmitting(true);
     try {
       await verifyPayment({ paymentId, sessionId }).unwrap();
-      finishUp();
+      await finishUp();
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
     } finally {
@@ -197,6 +468,34 @@ function OnboardingPayment({ route, navigation }) {
     setCheckoutSession(null);
     setSubmitting(false);
   };
+
+  // Validate the required Who/Where fields + required documents before moving
+  // to payment; show a popup listing anything still missing.
+  const handleContinueToPayment = () => {
+    const missing = [];
+    if (!reqForm.fullName.trim()) missing.push('Full Name');
+    if (!reqForm.relation) missing.push('Relation');
+    if (!reqForm.state) missing.push('State');
+    if (!reqForm.city) missing.push('City / District');
+    if (!reqForm.address.trim()) missing.push('Full Address');
+    if (!reqForm.pincode.trim()) missing.push('PIN Code');
+    if (!reqForm.priority) missing.push('Priority');
+    const missingDocs = requiredDocuments.filter(d => d.required && !documentFiles[d.id]).map(d => d.name);
+
+    if (missing.length || missingDocs.length) {
+      const parts = [];
+      if (missing.length) parts.push(`Please fill: ${missing.join(', ')}.`);
+      if (missingDocs.length) parts.push(`Please upload: ${missingDocs.join(', ')}.`);
+      showAlert('Missing Details', parts.join('\n\n'), 'error');
+      return;
+    }
+    setStep('summary');
+  };
+
+  // Cart path splits Step 2 into: details (who/where + documents) → summary
+  // (order + payment). Plain membership shows the summary directly.
+  const showDetails = fromCart && step === 'details';
+  const showSummary = !fromCart || step === 'summary';
 
   return (
     <View style={styles.container}>
@@ -211,7 +510,90 @@ function OnboardingPayment({ route, navigation }) {
         <Text style={styles.title}>Complete your purchase</Text>
         <Text style={styles.subtitle}>Review your selection and choose how you'd like to pay.</Text>
 
-        {plansLoading ? (
+        {/* Two-step indicator (cart path only) */}
+        {fromCart && (
+          <View style={styles.subStepsRow}>
+            <View style={[styles.subStep, showDetails && styles.subStepActive]}>
+              <Text style={[styles.subStepText, showDetails && styles.subStepTextActive]}>1 · Details & Documents</Text>
+            </View>
+            <View style={[styles.subStep, showSummary && styles.subStepActive]}>
+              <Text style={[styles.subStepText, showSummary && styles.subStepTextActive]}>2 · Order & Payment</Text>
+            </View>
+          </View>
+        )}
+
+        {showDetails && (
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <Icon name="place" size={16} color={C.primary} />
+              <Text style={styles.cardHeaderText}>Who / Where — for your cart's service requests</Text>
+            </View>
+
+            <Text style={styles.fieldLabel}>Full Name *</Text>
+            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
+
+            <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
+
+            <FormSelect label="Property (optional)" value={reqForm.property} placeholder="Not applicable" options={['Not applicable']} onSelect={v => setField('property', v)} />
+
+            <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
+
+            <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
+
+            <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
+
+            <Text style={styles.fieldLabel}>Full Address *</Text>
+            <TextInput style={[styles.input, styles.inputMultiline]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={reqForm.address} onChangeText={t => setField('address', t)} />
+
+            <Text style={styles.fieldLabel}>PIN Code *</Text>
+            <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
+
+            <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
+            <TextInput style={styles.input} placeholder="dd-mm-yyyy --:--" placeholderTextColor="#94A3B8" value={reqForm.preferredAt} onChangeText={t => setField('preferredAt', t)} />
+
+            <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+
+            <Text style={styles.fieldLabel}>Additional Notes</Text>
+            <TextInput style={[styles.input, styles.inputMultiline]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={reqForm.notes} onChangeText={t => setField('notes', t)} />
+
+            <Text style={styles.fieldHint}>Each service becomes its own request, priced from real vendor rates for this address — updated live as you fill this in.</Text>
+          </View>
+        )}
+
+        {showDetails && requiredDocuments.length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <Icon name="folder-open" size={16} color={C.primary} />
+              <Text style={styles.cardHeaderText}>Required Documents</Text>
+            </View>
+            <Text style={styles.gatewayIntro}>Upload the documents needed for your selected services.</Text>
+            {requiredDocuments.map((doc) => (
+              <DocumentUploadField
+                key={String(doc.id)}
+                document={doc}
+                file={documentFiles[doc.id]}
+                onChoose={() => handleChooseDocument(doc.id)}
+                onRemove={() => handleRemoveDocument(doc.id)}
+              />
+            ))}
+          </View>
+        )}
+
+        {showDetails && (
+          <TouchableOpacity style={styles.continueBtn} onPress={handleContinueToPayment} activeOpacity={0.9}>
+            <Text style={styles.continueBtnText}>Continue to Payment</Text>
+            <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+
+        {showSummary && fromCart && (
+          <TouchableOpacity style={styles.backToDetails} onPress={() => setStep('details')} activeOpacity={0.7}>
+            <Icon name="arrow-back" size={16} color={C.primary} />
+            <Text style={styles.backToDetailsText}>Back to details & documents</Text>
+          </TouchableOpacity>
+        )}
+
+        {showSummary && (plansLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color={C.primary} />
             <Text style={styles.loadingText}>Loading your plan…</Text>
@@ -248,15 +630,56 @@ function OnboardingPayment({ route, navigation }) {
                 </View>
               )}
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>GST (18%)</Text>
+                <Text style={styles.rowLabel}>{fromCart ? 'Membership GST (18%)' : 'GST (18%)'}</Text>
                 <Text style={styles.rowValue}>{formatUsd(gstAmount)}</Text>
               </View>
+
+              {fromCart && (
+                <>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Membership Total</Text>
+                    <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(membershipPayable)}</Text>
+                  </View>
+
+                  <View style={styles.divider} />
+                  <View style={styles.servicesChip}>
+                    <Icon name="shopping-cart" size={13} color={C.accent} />
+                    <Text style={styles.servicesChipText}>Services ({cartItems.length})</Text>
+                  </View>
+                  {cartItems.map((it) => (
+                    <View key={it.serviceId} style={styles.row}>
+                      <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
+                      <Text style={styles.rowValue}>{formatUsd(it.price)}</Text>
+                    </View>
+                  ))}
+                  {prioritySurcharge > 0 && (
+                    <View style={styles.row}>
+                      <Text style={styles.rowLabel}>Priority ({selectedPriority?.name})</Text>
+                      <Text style={styles.rowValue}>+{formatUsd(prioritySurcharge)}</Text>
+                    </View>
+                  )}
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Services GST (18%)</Text>
+                    <Text style={styles.rowValue}>{formatUsd(servicesGst)}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
+                    <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(servicesPayable)}</Text>
+                  </View>
+                </>
+              )}
 
               <View style={styles.divider} />
               <View style={styles.row}>
                 <Text style={styles.amountPayableLabel}>Amount Payable</Text>
                 <Text style={styles.amountPayableValue}>{formatUsd(amountPayable)}</Text>
               </View>
+              {fromCart && (
+                <Text style={styles.combinedNote}>
+                  Included in the amount payable above — services are paid together with your
+                  membership in this one payment.
+                </Text>
+              )}
 
               <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
               <View style={styles.couponRow}>
@@ -322,7 +745,7 @@ function OnboardingPayment({ route, navigation }) {
               </View>
             </View>
           </>
-        )}
+        ))}
       </ScrollView>
 
       <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
@@ -412,6 +835,64 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
   amountPayableLabel: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
   amountPayableValue: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: colors.primary },
+  rowLabelStrong: { color: '#1E293B', fontFamily: 'Montserrat-SemiBold' },
+  rowValueStrong: { fontFamily: 'Montserrat-Bold' },
+  servicesChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.accent + '15', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
+  servicesChipText: { fontSize: 13, color: colors.accent, fontFamily: 'Montserrat-Bold' },
+  combinedNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17, marginTop: 8 },
+
+  // Two-step sub-flow indicator
+  subStepsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  subStep: { flex: 1, borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: '#F1F5F9', alignItems: 'center' },
+  subStepActive: { backgroundColor: colors.primary + '15' },
+  subStepText: { fontSize: 11.5, fontFamily: 'Montserrat-SemiBold', color: '#94A3B8' },
+  subStepTextActive: { color: colors.primary },
+
+  continueBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.accent, height: 56, borderRadius: radius.full, marginTop: 4,
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5,
+  },
+  continueBtnText: { color: '#FFFFFF', fontSize: 16, fontFamily: 'Montserrat-Bold' },
+  backToDetails: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
+  backToDetailsText: { fontSize: 13, color: colors.primary, fontFamily: 'Montserrat-SemiBold' },
+
+  // Document upload rows
+  docUploadWrap: { marginTop: 14 },
+  docInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  docChooseBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E2E8F0',
+    borderRadius: radius.lg, paddingHorizontal: 14, height: 44, backgroundColor: '#F8FAFC',
+  },
+  docChooseBtnText: { fontSize: 13, fontFamily: 'Montserrat-SemiBold', color: colors.primary },
+  docFileName: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#94A3B8' },
+  filePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary + '10',
+    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8,
+  },
+  filePillText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#1E293B' },
+
+  // Required documents list
+  docRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  docName: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
+  docDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 2, lineHeight: 17 },
+  required: { color: colors.error },
+
+  // Cart service-request form fields
+  fieldLabel: { fontSize: 13, fontFamily: 'Montserrat-Bold', color: colors.primary, marginBottom: 6, marginTop: 2, letterSpacing: 0.2 },
+  fieldHint: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17, marginTop: 4 },
+  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, fontFamily: 'Poppins-Regular', marginBottom: 14 },
+  inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
+  selectBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 14, height: 48 },
+  selectBoxDisabled: { opacity: 0.5 },
+  selectText: { flex: 1, fontSize: 14, color: '#1E293B', fontFamily: 'Poppins-Regular' },
+  selectPlaceholder: { color: '#94A3B8' },
+  selectOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', paddingHorizontal: 24 },
+  selectSheet: { backgroundColor: '#fff', borderRadius: radius.xl, maxHeight: '60%', paddingVertical: 16 },
+  selectSheetTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  selectOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  selectOptionText: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#1E293B' },
+  selectEmpty: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#94A3B8', padding: 20, textAlign: 'center' },
   couponLabel: { fontSize: 11, color: '#94A3B8', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
   couponRow: { flexDirection: 'row', gap: 8 },
   couponInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 48, color: '#1E293B', fontSize: 14, fontFamily: 'Poppins-Regular' },

@@ -12,9 +12,16 @@ function mapCountry(raw) {
   };
 }
 
-export async function getCountries() {
+// GET /geo/countries → { id, name, iso2, phone_code, currency_code,
+// currency_symbol, flag_emoji } per country. Doubles as the dial-code source
+// for phone/WhatsApp flag pickers (phone_code + flag_emoji). Pass
+// `excludeIndia` to request the India-excluded list web onboarding uses — an
+// NRI never resides in India.
+export async function getCountries({ excludeIndia = false } = {}) {
   try {
-    const response = await apiClient.get('/geo/countries');
+    const params = {};
+    if (excludeIndia) params.exclude_india = 1;
+    const response = await apiClient.get('/geo/countries', { params });
     const list = response.data?.data || response.data || [];
     return list.map(mapCountry);
   } catch (error) {
@@ -111,7 +118,11 @@ function mapPostalCode(raw) {
   return {
     id: raw.id,
     code: raw.code ?? raw.pincode ?? raw.postal_code,
-    stateId: raw.state_id ?? raw.state?.id ?? null,
+    areaName: raw.area_name ?? raw.area ?? null,
+    // The state only comes back as an id nested on the city (`city.state_id`);
+    // there's no state name in the payload — callers resolve it from the
+    // cached states list. Still accept a flat/relation state if sent.
+    stateId: raw.state_id ?? raw.state?.id ?? raw.city?.state_id ?? null,
     stateName: raw.state?.name ?? raw.state_name ?? null,
     districtId: raw.district_id ?? raw.district?.id ?? null,
     districtName: raw.district?.name ?? raw.district_name ?? null,

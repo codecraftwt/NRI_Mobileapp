@@ -164,11 +164,89 @@ function AutocompleteField({ label, required, value, onChangeText, placeholder, 
   );
 }
 
+// Phone / WhatsApp field with a tappable flag + dial-code picker. The flag
+// button opens a searchable country list (name or code); picking one bubbles
+// up via onSelectCountry. The number itself is submitted as plain free text —
+// the picker only prefills the +code prefix.
+function PhoneField({ label, required, optional, value, onChangeText, placeholder, selectedCountry, countries, onSelectCountry, hint }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? countries.filter(c => c.name.toLowerCase().includes(q) || String(c.phoneCode || '').includes(q.replace('+', '')))
+    : countries;
+
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.inputLabel}>
+        {label}
+        {required ? <Text style={styles.required}> *</Text> : null}
+        {optional ? <Text style={styles.optional}> (optional)</Text> : null}
+      </Text>
+      <View style={styles.phoneRow}>
+        <TouchableOpacity style={styles.flagBtn} activeOpacity={0.7} onPress={() => { setQuery(''); setOpen(true); }}>
+          <Text style={styles.flagEmoji}>{selectedCountry?.flagEmoji || '🌐'}</Text>
+          <Text style={styles.dialCode}>{selectedCountry?.phoneCode ? `+${selectedCountry.phoneCode}` : '+'}</Text>
+          <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
+        </TouchableOpacity>
+        <TextInput
+          style={styles.phoneInput}
+          placeholder={placeholder}
+          placeholderTextColor="#94A3B8"
+          keyboardType="phone-pad"
+          value={value}
+          onChangeText={onChangeText}
+        />
+      </View>
+      {hint && <Text style={styles.hint}>{hint}</Text>}
+
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setOpen(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Select Country Code</Text>
+            <View style={styles.searchWrap}>
+              <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search country or code..."
+                placeholderTextColor="#94A3B8"
+                value={query}
+                onChangeText={setQuery}
+              />
+            </View>
+            <FlatList
+              data={filtered}
+              keyExtractor={item => String(item.id ?? item.isoCode ?? item.name)}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const active = selectedCountry?.isoCode === item.isoCode;
+                return (
+                  <TouchableOpacity style={styles.modalOption} onPress={() => { onSelectCountry(item); setOpen(false); }}>
+                    <View style={styles.codeOptionLeft}>
+                      <Text style={styles.flagEmoji}>{item.flagEmoji || '🌐'}</Text>
+                      <Text style={[styles.modalOptionText, active && { color: C.primary, fontFamily: 'Poppins-Bold' }]} numberOfLines={1}>{item.name}</Text>
+                    </View>
+                    <Text style={styles.codeOptionDial}>{item.phoneCode ? `+${item.phoneCode}` : ''}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={<Text style={styles.emptyText}>No matches found.</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 function OnboardingProfile({ navigation }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(state => state.user.user);
-  const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
+  const { countries, countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const [country, setCountry] = useState(user?.countryOfResidence || '');
   const [stateProvince, setStateProvince] = useState(user?.stateProvince || '');
@@ -177,6 +255,14 @@ function OnboardingProfile({ navigation }) {
   const [phone, setPhone] = useState(user?.phone || '');
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '');
   const [submitting, setSubmitting] = useState(false);
+  // Each dial-code picker tracks its own country (by iso2). Until the user taps
+  // a field's flag, it falls back to the Country of Residence selection below.
+  const [phoneIso, setPhoneIso] = useState('');
+  const [whatsappIso, setWhatsappIso] = useState('');
+
+  const residenceCountry = countries.find(c => c.name === country) || null;
+  const phoneCountry = countries.find(c => c.isoCode === phoneIso) || residenceCountry;
+  const whatsappCountry = countries.find(c => c.isoCode === whatsappIso) || residenceCountry;
 
   const {
     stateNames: intlStateNames,
@@ -195,6 +281,24 @@ function OnboardingProfile({ navigation }) {
     setCountry(value);
     setStateProvince('');
     setCity('');
+    // Default both dial-code fields to the residence country's code — but only
+    // prefill fields the user hasn't typed into yet (never overwrite input).
+    const c = countries.find(x => x.name === value);
+    if (c?.phoneCode) {
+      if (!phone.trim()) setPhone(`+${c.phoneCode} `);
+      if (!whatsapp.trim()) setWhatsapp(`+${c.phoneCode} `);
+    }
+  };
+
+  // Flag tapped on the Phone / WhatsApp field: remember that field's country
+  // and prefill its dial code only when the field is still empty.
+  const handlePhoneCountry = (c) => {
+    setPhoneIso(c.isoCode);
+    if (!phone.trim() && c.phoneCode) setPhone(`+${c.phoneCode} `);
+  };
+  const handleWhatsappCountry = (c) => {
+    setWhatsappIso(c.isoCode);
+    if (!whatsapp.trim() && c.phoneCode) setWhatsapp(`+${c.phoneCode} `);
   };
 
   const handleContinue = async () => {
@@ -244,7 +348,8 @@ function OnboardingProfile({ navigation }) {
           dispatch(logoutUser());
           let root = navigation;
           while (root.getParent()) root = root.getParent();
-          root.reset({ index: 0, routes: [{ name: 'Login' }] });
+          // Back to the app's first screen (onboarding), not the Login page.
+          root.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
         },
       },
     ]);
@@ -341,13 +446,29 @@ function OnboardingProfile({ navigation }) {
           )}
           <Text style={styles.hint}>We'll try to match you with a Relationship Manager from this state.</Text>
 
-          <Text style={styles.inputLabel}>Phone Number<Text style={styles.required}> *</Text></Text>
-          <TextInput style={styles.input} placeholder="+1 555 000 0000" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-          <Text style={styles.hint}>Include your country code so we can reach you abroad.</Text>
+          <PhoneField
+            label="Phone Number"
+            required
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="555 000 0000"
+            selectedCountry={phoneCountry}
+            countries={countries}
+            onSelectCountry={handlePhoneCountry}
+            hint="Tap the flag to pick your dialing code — we'll reach you on this number abroad."
+          />
 
-          <Text style={styles.inputLabel}>WhatsApp Number <Text style={styles.optional}>(optional)</Text></Text>
-          <TextInput style={styles.input} placeholder="+1 555 000 0000" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={whatsapp} onChangeText={setWhatsapp} />
-          <Text style={styles.hint}>Only if it's different from your phone number above.</Text>
+          <PhoneField
+            label="WhatsApp Number"
+            optional
+            value={whatsapp}
+            onChangeText={setWhatsapp}
+            placeholder="555 000 0000"
+            selectedCountry={whatsappCountry}
+            countries={countries}
+            onSelectCountry={handleWhatsappCountry}
+            hint="Only if it's different from your phone number above."
+          />
 
           <TouchableOpacity style={[styles.ctaBtn, submitting && styles.ctaBtnDisabled]} onPress={handleContinue} disabled={submitting}>
             {submitting ? (
@@ -388,6 +509,13 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.surface, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 56, color: '#1E293B', fontSize: 15, fontFamily: 'Poppins-Regular', shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   selectBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, height: 56, shadowColor: colors.primaryLight, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   selectBoxDisabled: { backgroundColor: '#F1F5F9' },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flagBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 56, paddingHorizontal: 12, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, backgroundColor: colors.surface },
+  flagEmoji: { fontSize: 20 },
+  dialCode: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B' },
+  phoneInput: { flex: 1, height: 56, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', backgroundColor: colors.surface },
+  codeOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 },
+  codeOptionDial: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#64748B' },
   selectText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', flex: 1 },
   placeholderText: { color: '#94A3B8' },
   retryText: { fontSize: 12, color: colors.error, fontWeight: '600', marginTop: 6 },

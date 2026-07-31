@@ -54,7 +54,7 @@ function Onboarding({ navigation }) {
       
       {/* Skip Button Row */}
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.topBtn}>
+        <TouchableOpacity onPress={() => navigation.replace('GuestHome')} style={styles.topBtn}>
           <Text style={[styles.skipText, { color: C.primary }]}>Skip</Text>
         </TouchableOpacity>
       </View>
@@ -124,7 +124,7 @@ function Onboarding({ navigation }) {
         <TouchableOpacity 
           style={[styles.ctaBtn, { backgroundColor: C.accent, shadowColor: C.accent }]}
           onPress={() => {
-             navigation.navigate('Login');
+             navigation.replace('GuestHome');
           }}
         >
           <Text style={styles.ctaText}>

@@ -5,9 +5,9 @@ import * as geoApi from '../../Api/geoApi';
 // than re-fetched by every screen that needs a country selector.
 export const fetchCountries = createAsyncThunk(
   'geo/fetchCountries',
-  async (_, { rejectWithValue }) => {
+  async (arg, { rejectWithValue }) => {
     try {
-      return await geoApi.getCountries();
+      return await geoApi.getCountries(arg || {});
     } catch (error) {
       return rejectWithValue(error);
     }

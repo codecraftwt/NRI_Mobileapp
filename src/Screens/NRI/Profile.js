@@ -165,7 +165,9 @@ function Profile({ navigation }) {
           dispatch(logoutUser());
           let root = navigation;
           while (root.getParent()) root = root.getParent();
-          root.reset({ index: 0, routes: [{ name: 'Login' }] });
+          // Return to the app's first screen (welcome/onboarding → guest
+          // browse), not the Login page.
+          root.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
         },
       },
     ]);

@@ -31,6 +31,7 @@ import vendorEarningsReducer from './slices/vendorEarningsSlice';
 import vendorDashboardReducer from './slices/vendorDashboardSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
 import serviceLocationReducer from './slices/serviceLocationSlice';
+import cartReducer from './slices/cartSlice';
 import notificationsReducer from './slices/notificationsSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
@@ -41,7 +42,7 @@ const persistConfig = {
   storage: AsyncStorage,
   // `onboarding` must persist AND survive the auth reset below so mid-onboarding
   // sign-outs resume the wizard rather than landing on the dashboard.
-  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation'],
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation', 'cart'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);
@@ -96,6 +97,7 @@ const appReducer = combineReducers({
   vendorDashboard: vendorDashboardReducer,
   serviceSubscription: serviceSubscriptionReducer,
   serviceLocation: serviceLocationReducer,
+  cart: cartReducer,
   notifications: notificationsReducer,
   onboarding: onboardingReducer,
 });
@@ -109,7 +111,9 @@ const rootReducer = (state, action) => {
     // slice as normal. Don't carry `_persist` here — the outer persistReducer
     // owns that key; passing it into combineReducers triggers an
     // "unexpected key" warning.
-    state = { onboarding: state?.onboarding };
+    // `cart` is likewise preserved so a guest who fills a cart and then signs
+    // in / registers at checkout keeps their selections ("your cart is saved").
+    state = { onboarding: state?.onboarding, cart: state?.cart };
   }
   return appReducer(state, action);
 };

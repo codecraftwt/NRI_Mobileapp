@@ -5,7 +5,11 @@ import { fetchCountries } from '../Redux/slices/geoSlice';
 // Fetches the country list once per app session (cached in geoSlice) and
 // exposes it in the flat string-array shape the app's SelectField components
 // expect, plus loading/error state for the caller to render around it.
-export function useCountries() {
+// `excludeIndia` requests the India-excluded list (default true — every caller
+// is an NRI "country of residence" / dial-code context where India doesn't
+// apply). Full country objects (incl. phoneCode + flagEmoji) drive the
+// dial-code flag pickers; `countryNames` feeds the plain name selectors.
+export function useCountries({ excludeIndia = true } = {}) {
   const dispatch = useDispatch();
   const countries = useSelector(state => state.geo.countries);
   const status = useSelector(state => state.geo.countriesStatus);
@@ -13,9 +17,9 @@ export function useCountries() {
 
   useEffect(() => {
     if (status === 'idle') {
-      dispatch(fetchCountries());
+      dispatch(fetchCountries({ excludeIndia }));
     }
-  }, [status, dispatch]);
+  }, [status, dispatch, excludeIndia]);
 
   return {
     countries,
@@ -23,6 +27,6 @@ export function useCountries() {
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    retry: () => dispatch(fetchCountries()),
+    retry: () => dispatch(fetchCountries({ excludeIndia })),
   };
 }

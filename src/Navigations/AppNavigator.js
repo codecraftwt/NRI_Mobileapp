@@ -58,6 +58,12 @@ import ServicesCatalog from '../Screens/NRI/ServicesCatalog';
 import ServiceDetail from '../Screens/NRI/ServiceDetail';
 import BookingSummary from '../Screens/NRI/BookingSummary';
 
+// Import Guest Browse + Cart Flow Screens
+import ExploreServices from '../Screens/NRI/ExploreServices';
+import ServiceList from '../Screens/NRI/ServiceList';
+import ServiceInfo from '../Screens/NRI/ServiceInfo';
+import Cart from '../Screens/NRI/Cart';
+
 // Import Ticket Screens
 import CreateTicket from '../Screens/NRI/CreateTicket';
 import TicketDetail from '../Screens/NRI/TicketDetail';
@@ -80,6 +86,23 @@ import RMNavigator from './RM/RMNavigator';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Guest browse + cart flow — the app's landing experience for a not-yet-signed-in
+// user. Services (categories) → ServiceList (services in a category) →
+// ServiceInfo (single service detail) → Cart. Sign In / Register (root screens)
+// are reached from the Cart, after which the existing authenticated app takes
+// over. No login is required to reach the Cart.
+function GuestStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ExploreServices" component={ExploreServices} />
+      <Stack.Screen name="GuestServices" component={Services} />
+      <Stack.Screen name="GuestServiceList" component={ServiceList} />
+      <Stack.Screen name="GuestServiceInfo" component={ServiceInfo} />
+      <Stack.Screen name="Cart" component={Cart} />
+    </Stack.Navigator>
+  );
+}
 
 // Stack for Services Booking Flow
 function ServicesStack() {
@@ -391,6 +414,9 @@ export default function AppNavigator() {
       <Stack.Screen name="OnboardingProfile" component={OnboardingProfile} />
       <Stack.Screen name="OnboardingPayment" component={OnboardingPayment} />
       <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcome} />
+
+      {/* Guest Browse + Cart Flow — the landing experience after onboarding */}
+      <Stack.Screen name="GuestHome" component={GuestStack} />
 
       {/* Authenticated Application */}
       <Stack.Screen name="AppHome" component={MainTabNavigator} />

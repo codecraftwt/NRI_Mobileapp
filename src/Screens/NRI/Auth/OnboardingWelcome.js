@@ -25,8 +25,15 @@ const NEXT_STEPS = [
 ];
 
 function OnboardingWelcome({ route, navigation }) {
-  const { plan } = route.params || {};
+  const { plan, hasServiceRequests } = route.params || {};
   const dispatch = useDispatch();
+
+  // When services were purchased, land on the Requests (tracking) tab so the
+  // new requests are visible; otherwise the dashboard, as before.
+  const enterApp = () => {
+    if (hasServiceRequests) navigation.replace('AppHome', { screen: 'Requests' });
+    else navigation.replace('AppHome');
+  };
   // Select a STABLE primitive key, not the whole user object — the effect
   // below mutates the user (updateProfile/setOnboarded), so depending on the
   // object would re-run it every render and hit "Maximum update depth".
@@ -73,8 +80,8 @@ function OnboardingWelcome({ route, navigation }) {
             </View>
           ))}
 
-          <TouchableOpacity style={styles.ctaBtn} onPress={() => navigation.replace('AppHome')}>
-            <Text style={styles.ctaText}>Go to my Dashboard</Text>
+          <TouchableOpacity style={styles.ctaBtn} onPress={enterApp}>
+            <Text style={styles.ctaText}>{hasServiceRequests ? 'Track my Services' : 'Go to my Dashboard'}</Text>
             <Icon name="arrow-forward" size={18} color="white" />
           </TouchableOpacity>
         </View>
