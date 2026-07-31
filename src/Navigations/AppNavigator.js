@@ -149,6 +149,10 @@ function MainServicesStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ServicesMain" component={Services} />
+      {/* New grid → detail → cart browse flow (shared with the guest stack). */}
+      <Stack.Screen name="GuestServiceList" component={ServiceList} />
+      <Stack.Screen name="GuestServiceInfo" component={ServiceInfo} />
+      <Stack.Screen name="Cart" component={Cart} />
       <Stack.Screen name="ServiceDetail" component={ServiceDetail} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />

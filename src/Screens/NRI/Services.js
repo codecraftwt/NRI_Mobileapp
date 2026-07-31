@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
@@ -83,6 +83,18 @@ function Services({ navigation, route }) {
 
   const cartCount = useSelector(selectCartCount);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+
+  // Promo banner: gently animate the background between two light peach shades.
+  const bannerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(bannerAnim, { toValue: 1, duration: 2600, useNativeDriver: false }),
+      Animated.timing(bannerAnim, { toValue: 0, duration: 2600, useNativeDriver: false }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [bannerAnim]);
+  const bannerBg = bannerAnim.interpolate({ inputRange: [0, 1], outputRange: ['#FFF1E8', '#FBDCC7'] });
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
@@ -174,15 +186,15 @@ function Services({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Promo banner */}
-        <View style={styles.banner}>
+        <Animated.View style={[styles.banner, { backgroundColor: bannerBg }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>Trusted help,{'\n'}near your family</Text>
             <Text style={styles.bannerSub}>Verified local vendors · Photo proof · RM support</Text>
           </View>
           <View style={styles.bannerIcon}>
-            <Icon name="verified-user" size={30} color="#FFFFFF" />
+            <Icon name="verified-user" size={30} color="#D94625" />
           </View>
-        </View>
+        </Animated.View>
 
         {/* Search + filter */}
         <View style={styles.searchRow}>
@@ -239,9 +251,13 @@ function Services({ navigation, route }) {
               const cardCat = catForService(s);
               return (
                 <TouchableOpacity key={s.id} style={styles.card} activeOpacity={0.85} onPress={() => openService(s)}>
-                  <View style={[styles.cardImage, { backgroundColor: (cardCat?.color || '#64748B') + '15' }]}>
-                    <Icon name={cardCat?.icon || 'category'} size={40} color={cardCat?.color || '#64748B'} />
-                  </View>
+                  {s.imageUrl ? (
+                    <Image source={{ uri: s.imageUrl }} style={styles.cardImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.cardImage, styles.cardImageFallback, { backgroundColor: (cardCat?.color || '#64748B') + '15' }]}>
+                      <Icon name={cardCat?.icon || 'category'} size={40} color={cardCat?.color || '#64748B'} />
+                    </View>
+                  )}
                   <View style={styles.cardBody}>
                     <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
                     <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
@@ -329,12 +345,13 @@ const styles = StyleSheet.create({
 
   banner: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#A64416', borderRadius: 20, padding: 18, marginBottom: 18,
+    borderRadius: 20, padding: 18, marginBottom: 18,
+    borderWidth: 1, borderColor: '#F6D3BE',
   },
-  bannerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', lineHeight: 26 },
-  bannerSub: { fontSize: 12, color: '#FCD9C8', marginTop: 6, fontFamily: typography.labelMedium.fontFamily },
+  bannerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#7A2E12', lineHeight: 26 },
+  bannerSub: { fontSize: 12, color: '#A65A3A', marginTop: 6, fontFamily: typography.labelMedium.fontFamily },
   bannerIcon: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(217,70,37,0.12)',
     justifyContent: 'center', alignItems: 'center', marginLeft: 12,
   },
 
@@ -366,7 +383,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 3,
   },
-  cardImage: { height: 110, justifyContent: 'center', alignItems: 'center' },
+  cardImage: { width: '100%', height: 110, backgroundColor: '#F1F5F9' },
+  cardImageFallback: { justifyContent: 'center', alignItems: 'center' },
   cardBody: { padding: 12, gap: 3 },
   cardName: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
   cardCat: { fontSize: 11, color: '#94A3B8' },

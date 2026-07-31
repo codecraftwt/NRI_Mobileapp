@@ -95,6 +95,7 @@ function mapService(raw) {
     allowsSingleUse: raw.allows_single_use,
     allowsRecurring: raw.allows_recurring,
     allowsEmergency: raw.allows_emergency,
+    imageUrl: raw.image_url || raw.image || null,
     category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon } : null,
     pricing: mapPricing(raw.pricing),
   };

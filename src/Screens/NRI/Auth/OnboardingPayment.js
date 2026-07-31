@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, PermissionsAndroid, Linking, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, PermissionsAndroid, Linking, Alert, Image } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import RNBlobUtil from 'react-native-blob-util';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../../Utils/localFileCopy';
 import { useDispatch, useSelector } from 'react-redux';
@@ -19,7 +21,7 @@ import { useStates } from '../../../Hooks/useStates';
 import { useCities } from '../../../Hooks/useCities';
 import { useTalukas } from '../../../Hooks/useTalukas';
 import { usePriorities } from '../../../Hooks/usePriorities';
-import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
+import { lightColors as baseColors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../../theme';
 
 const C = {
   ...baseColors,
@@ -53,7 +55,7 @@ function convertPlanAmountToUsd(amount, plan) {
 }
 
 // A single required-document row with a "Choose File" picker + preview pill.
-function DocumentUploadField({ document, file, onChoose, onRemove }) {
+function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
   return (
     <View style={styles.docUploadWrap}>
       <Text style={styles.fieldLabel}>
@@ -63,7 +65,7 @@ function DocumentUploadField({ document, file, onChoose, onRemove }) {
       <View style={styles.docInputRow}>
         <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
           <Icon name="attach-file" size={16} color={C.primary} />
-          <Text style={styles.docChooseBtnText}>Choose File</Text>
+          <Text style={styles.docChooseBtnText}>{file ? 'Replace' : 'Choose File'}</Text>
         </TouchableOpacity>
         <Text style={styles.docFileName} numberOfLines={1}>{file ? file.name : 'No file chosen'}</Text>
       </View>
@@ -71,6 +73,10 @@ function DocumentUploadField({ document, file, onChoose, onRemove }) {
         <View style={styles.filePill}>
           <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color={C.primary} />
           <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
+          <TouchableOpacity onPress={onView} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.filePillView}>
+            <Icon name="visibility" size={16} color={C.primary} />
+            <Text style={styles.filePillViewText}>View</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="close" size={16} color="#9CA3AF" />
           </TouchableOpacity>
@@ -161,6 +167,11 @@ function OnboardingPayment({ route, navigation }) {
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
   const [step, setStep] = useState('details');
   const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
+  // Preferred date/time picker state.
+  const [preferredDate, setPreferredDate] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [pendingDate, setPendingDate] = useState(null);
 
   // "Who / Where — for your cart's service requests" form. Location prefilled
   // from the first cart item (the city the services were priced for).
@@ -322,6 +333,44 @@ function OnboardingPayment({ route, navigation }) {
     setDocumentFiles(prev => { const next = { ...prev }; delete next[docId]; return next; });
   };
 
+  // View an uploaded document: images preview in-app; PDFs/others open in the
+  // device document viewer.
+  const [previewImage, setPreviewImage] = useState(null);
+  const handleViewDocument = (file) => {
+    if (!file?.uri) return;
+    const isImage = (file.type || '').startsWith('image') || /\.(png|jpe?g|gif|webp|heic)$/i.test(file.name || '');
+    if (isImage) { setPreviewImage(file); return; }
+    const path = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+    const opening = Platform.OS === 'ios'
+      ? RNBlobUtil.ios.previewDocument(path)
+      : RNBlobUtil.android.actionViewIntent(path, file.type || 'application/pdf');
+    Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
+  };
+
+  // Preferred date/time. Android can't do a one-step datetime picker, so pick
+  // the date first then chain the time picker; iOS does both in one spinner.
+  const handleDateChange = (event, selected) => {
+    setShowDatePicker(false);
+    if (event.type === 'dismissed' || !selected) return;
+    if (Platform.OS === 'android') {
+      setPendingDate(selected);
+      setShowTimePicker(true);
+    } else {
+      setPreferredDate(selected);
+    }
+  };
+  const handleTimeChange = (event, selected) => {
+    setShowTimePicker(false);
+    if (event.type === 'dismissed' || !selected || !pendingDate) { setPendingDate(null); return; }
+    const combined = new Date(pendingDate);
+    combined.setHours(selected.getHours(), selected.getMinutes());
+    setPreferredDate(combined);
+    setPendingDate(null);
+  };
+  const formattedPreferred = preferredDate
+    ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+
   // The ticket API only accepts an existing family_member_id, not raw
   // name/relation — reuse a matching saved member if one exists, otherwise
   // create one from what was entered on the Who/Where form.
@@ -350,6 +399,7 @@ function OnboardingPayment({ route, navigation }) {
       : reqForm.address.trim();
     const familyMemberId = await resolveFamilyMemberId();
     const urgency = selectedPriority?.slug || 'standard';
+    const preferred = preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined;
 
     // Each selected service becomes its own request (mirrors the web + the
     // "each service becomes its own request" note on the form).
@@ -362,6 +412,7 @@ function OnboardingPayment({ route, navigation }) {
         talukaId,
         address,
         urgency,
+        preferredDate: preferred,
         customerNotes: reqForm.notes || undefined,
         documents: documentFiles,
       })).unwrap();
@@ -549,7 +600,28 @@ function OnboardingPayment({ route, navigation }) {
             <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
 
             <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
-            <TextInput style={styles.input} placeholder="dd-mm-yyyy --:--" placeholderTextColor="#94A3B8" value={reqForm.preferredAt} onChangeText={t => setField('preferredAt', t)} />
+            <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
+              <Text style={[styles.selectText, !formattedPreferred && styles.selectPlaceholder]}>
+                {formattedPreferred || 'dd-mm-yyyy --:--'}
+              </Text>
+              <Icon name="event" size={18} color="#64748B" />
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={preferredDate || new Date()}
+                mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleDateChange}
+              />
+            )}
+            {showTimePicker && (
+              <DateTimePicker
+                value={pendingDate || preferredDate || new Date()}
+                mode="time"
+                display="default"
+                onChange={handleTimeChange}
+              />
+            )}
 
             <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
 
@@ -574,6 +646,7 @@ function OnboardingPayment({ route, navigation }) {
                 file={documentFiles[doc.id]}
                 onChoose={() => handleChooseDocument(doc.id)}
                 onRemove={() => handleRemoveDocument(doc.id)}
+                onView={() => handleViewDocument(documentFiles[doc.id])}
               />
             ))}
           </View>
@@ -806,6 +879,19 @@ function OnboardingPayment({ route, navigation }) {
         onCancel={handleCheckoutCancel}
         title="Secure Payment"
       />
+
+      {/* In-app image preview */}
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={styles.previewOverlay}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewName} numberOfLines={1}>{previewImage?.name}</Text>
+            <TouchableOpacity onPress={() => setPreviewImage(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {!!previewImage && <Image source={{ uri: previewImage.uri }} style={styles.previewImage} resizeMode="contain" />}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -871,6 +957,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8,
   },
   filePillText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#1E293B' },
+  filePillView: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  filePillViewText: { fontSize: 12, color: C.primary, fontFamily: 'Montserrat-SemiBold' },
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: STATUS_BAR_HEIGHT, paddingHorizontal: 20, paddingBottom: 12 },
+  previewName: { flex: 1, fontSize: 14, color: '#FFFFFF', fontFamily: 'Montserrat-SemiBold' },
+  previewImage: { flex: 1, width: '100%' },
 
   // Required documents list
   docRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },

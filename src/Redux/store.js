@@ -42,7 +42,14 @@ const persistConfig = {
   storage: AsyncStorage,
   // `onboarding` must persist AND survive the auth reset below so mid-onboarding
   // sign-outs resume the wizard rather than landing on the dashboard.
-  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation', 'cart'],
+  // `serviceLocation` persists so a returning user keeps their chosen city and
+  // sees correct city-priced services (GET /services?...&state_id&city_id)
+  // instead of no-location base prices.
+  // `cart` is intentionally NOT persisted — a new/guest user (or one who just
+  // logged out) must start on the onboarding / All Services flow with an empty
+  // cart. It still survives the guest → register flow because that's the same
+  // running session (see CART_KEEP_TYPES); only a fresh app launch clears it.
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);
@@ -66,6 +73,15 @@ const RESET_ACTION_TYPES = new Set([
   logoutUser.fulfilled.type,
   login.type,
   logout.type,
+]);
+
+// The cart is kept across a sign-in / register (a guest's selections survive
+// into their new session — "your cart is saved"), but cleared on logout so the
+// next guest who reaches the "Let's Explore" screen starts with an empty cart.
+const CART_KEEP_TYPES = new Set([
+  loginUser.fulfilled.type,
+  registerUser.fulfilled.type,
+  login.type,
 ]);
 
 const appReducer = combineReducers({
@@ -111,9 +127,11 @@ const rootReducer = (state, action) => {
     // slice as normal. Don't carry `_persist` here — the outer persistReducer
     // owns that key; passing it into combineReducers triggers an
     // "unexpected key" warning.
-    // `cart` is likewise preserved so a guest who fills a cart and then signs
-    // in / registers at checkout keeps their selections ("your cart is saved").
-    state = { onboarding: state?.onboarding, cart: state?.cart };
+    // `cart` is preserved on sign-in / register (see CART_KEEP_TYPES) so a
+    // guest keeps their selections, but dropped on logout so the next guest
+    // starts fresh.
+    const keepCart = CART_KEEP_TYPES.has(action.type);
+    state = { onboarding: state?.onboarding, cart: keepCart ? state?.cart : undefined };
   }
   return appReducer(state, action);
 };

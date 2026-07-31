@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { removeFromCart, clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import SubmitRequest from './SubmitRequest';
 
 const GST_RATE = 0.18;
 // Annual NRI Circle membership that activates a guest's account before their
@@ -29,6 +30,12 @@ function Cart({ navigation }) {
   const items = useSelector(selectCartItems);
   const servicesTotal = useSelector(selectCartSubtotal);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+
+  // Signed-in members get the "Submit Request" checkout (create + pay for a
+  // service request). Guests keep the membership + sign-in/register cart below.
+  if (isAuthenticated) {
+    return <SubmitRequest navigation={navigation} />;
+  }
 
   const servicesGst = servicesTotal * GST_RATE;
   const membershipGst = isAuthenticated ? 0 : MEMBERSHIP_RATE * GST_RATE;

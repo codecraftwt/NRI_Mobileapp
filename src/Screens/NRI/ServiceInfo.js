@@ -69,10 +69,12 @@ function ServiceInfo({ route, navigation }) {
 
   const handleAdd = () => {
     if (!hasLocation) {
-      // Send the user back to the All Services screen and open the PIN-code
-      // picker there; once a city is chosen, services refetch and they can
-      // re-open this service to add it.
-      navigation.navigate('GuestServices', { openLocation: true });
+      // Navigate to the All Services screen and open the PIN-code picker there.
+      // Its route name differs per stack ('GuestServices' for guests,
+      // 'ServicesMain' when signed in) — find whichever is in the back stack.
+      const routes = navigation.getState().routes;
+      const target = routes.find(r => r.name === 'GuestServices' || r.name === 'ServicesMain') || routes[0];
+      navigation.navigate(target.name, { openLocation: true });
       return;
     }
     if (inCart) { navigation.navigate('Cart'); return; }
@@ -96,10 +98,8 @@ function ServiceInfo({ route, navigation }) {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Hero — image top bar (cart-2 style) */}
+      {/* Hero — top bar + centered circular image (demo-ss style) */}
       <View style={styles.hero}>
-        <Image source={require('../../Assets/images/onbgn1.png')} style={styles.heroImage} />
-        <View style={styles.heroOverlay} />
         <View style={styles.heroTopRow}>
           <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-back" size={22} color="#FFFFFF" />
@@ -111,6 +111,16 @@ function ServiceInfo({ route, navigation }) {
               <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>
             )}
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.heroImageWrap}>
+          {svc.imageUrl ? (
+            <Image source={{ uri: svc.imageUrl }} style={styles.heroCircle} />
+          ) : (
+            <View style={[styles.heroCircle, styles.heroCircleFallback]}>
+              <Icon name={category?.icon || 'home-repair-service'} size={56} color="rgba(255,255,255,0.6)" />
+            </View>
+          )}
         </View>
       </View>
 
@@ -182,19 +192,23 @@ function ServiceInfo({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   hero: {
-    height: STATUS_BAR_HEIGHT + 230,
+    height: STATUS_BAR_HEIGHT + 300,
     backgroundColor: '#20304C',
-    paddingTop: STATUS_BAR_HEIGHT - 12,
+    paddingTop: STATUS_BAR_HEIGHT - 20,
     paddingHorizontal: 16,
-    overflow: 'hidden',
   },
-  heroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', resizeMode: 'cover' },
-  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.4)' },
+  heroImageWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  heroCircle: {
+    width: 230, height: 230, borderRadius: 115,
+    borderWidth: 5, borderColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: '#2B3E5E', overflow: 'hidden', resizeMode: 'cover',
+  },
+  heroCircleFallback: { justifyContent: 'center', alignItems: 'center' },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroTitle: { flex: 1, textAlign: 'center', color: '#FFFFFF', fontSize: 16, fontFamily: typography.h4.fontFamily },
   heroIconBtn: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
   cartBadge: {

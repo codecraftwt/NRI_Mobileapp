@@ -12,16 +12,18 @@ import {
   Linking,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import RNBlobUtil from 'react-native-blob-util';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { typography, spacing, radius } from '../../theme';
+import { typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../theme';
 import { addProperty, updateProperty } from '../../Redux/slices/propertiesSlice';
 import { usePropertyDetail } from '../../Hooks/usePropertyDetail';
 import { useStates } from '../../Hooks/useStates';
@@ -169,6 +171,7 @@ async function requestCameraPermission(showAlert) {
 function AttachmentsCard({ propertyId }) {
   const [label, setLabel] = useState('');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
   const { detail, uploadingAttachment, uploadAttachment, removeAttachment } = usePropertyDetail();
   const attachments = detail?.id === propertyId ? detail.attachments : [];
   const { showAlert, alertProps } = useAppAlert();
@@ -244,6 +247,12 @@ function AttachmentsCard({ propertyId }) {
     }
   };
 
+  const handleView = (a) => {
+    if (!a.url) { showAlert('Not Available', 'This attachment has no viewable file.'); return; }
+    if (a.type === 'photo') { setPreviewImage({ uri: a.url, name: a.label || 'Photo' }); return; }
+    Linking.openURL(a.url).catch(() => showAlert('Could Not Open', 'This attachment could not be opened.'));
+  };
+
   const handleRemove = (attachmentId) => {
     showAlert('Remove Attachment', 'Are you sure you want to remove this attachment?', [
       { text: 'Cancel', style: 'cancel' },
@@ -271,8 +280,12 @@ function AttachmentsCard({ propertyId }) {
             <View key={a.id} style={styles.attachmentRow}>
               <Icon name={a.type === 'photo' ? 'image' : 'description'} size={18} color="#1E3A8A" />
               <Text style={styles.attachmentLabel} numberOfLines={1}>{a.label || (a.type === 'photo' ? 'Photo' : 'Document')}</Text>
+              <TouchableOpacity style={styles.viewChip} onPress={() => handleView(a)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="visibility" size={16} color="#1E3A8A" />
+                <Text style={styles.viewChipText}>View</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleRemove(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Icon name="delete-outline" size={18} color="#DC2626" />
+                <Icon name="delete-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
             </View>
           ))}
@@ -330,6 +343,19 @@ function AttachmentsCard({ propertyId }) {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* In-app image preview */}
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={styles.previewOverlay}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewName} numberOfLines={1}>{previewImage?.name || 'Photo'}</Text>
+            <TouchableOpacity onPress={() => setPreviewImage(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {!!previewImage && <Image source={{ uri: previewImage.uri }} style={styles.previewImage} resizeMode="contain" />}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -340,7 +366,22 @@ function AttachmentsCard({ propertyId }) {
 function PendingAttachmentsCard({ files, onAdd, onRemove }) {
   const [label, setLabel] = useState('');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
+
+  const handleView = (f) => {
+    const uri = f?.file?.uri;
+    if (!uri) return;
+    const isImage = f.kind === 'photo' || (f.file?.type || '').startsWith('image');
+    if (isImage) { setPreviewImage(f.file); return; }
+    // Local file:// docs can't be opened via Linking on Android — hand off to
+    // the device document viewer through blob-util (handles FileProvider).
+    const path = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+    const opening = Platform.OS === 'ios'
+      ? RNBlobUtil.ios.previewDocument(path)
+      : RNBlobUtil.android.actionViewIntent(path, f.file?.type || 'application/pdf');
+    Promise.resolve(opening).catch(() => showAlert('Could Not Open', 'No app is available to preview this document.'));
+  };
 
   const addFromPhotoResponse = (response) => {
     if (response.didCancel || response.errorCode) return;
@@ -403,6 +444,10 @@ function PendingAttachmentsCard({ files, onAdd, onRemove }) {
             <View key={f.localId} style={styles.attachmentRow}>
               <Icon name={f.kind === 'photo' ? 'image' : 'description'} size={18} color="#1E3A8A" />
               <Text style={styles.attachmentLabel} numberOfLines={1}>{f.label || f.file.name || (f.kind === 'photo' ? 'Photo' : 'Document')}</Text>
+              <TouchableOpacity style={styles.viewChip} onPress={() => handleView(f)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="visibility" size={16} color="#1E3A8A" />
+                <Text style={styles.viewChipText}>View</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => onRemove(f.localId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Icon name="delete-outline" size={18} color="#DC2626" />
               </TouchableOpacity>
@@ -462,6 +507,19 @@ function PendingAttachmentsCard({ files, onAdd, onRemove }) {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* In-app image preview */}
+      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
+        <View style={styles.previewOverlay}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewName} numberOfLines={1}>{previewImage?.name || 'Photo'}</Text>
+            <TouchableOpacity onPress={() => setPreviewImage(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {!!previewImage && <Image source={{ uri: previewImage.uri }} style={styles.previewImage} resizeMode="contain" />}
+        </View>
       </Modal>
     </View>
   );
@@ -712,13 +770,7 @@ function AddProperty({ navigation, route }) {
                     placeholder="e.g. 416008"
                     placeholderTextColor="#94A3B8"
                   />
-                  <TouchableOpacity style={styles.lookupBtn} onPress={handleLookupPincode} disabled={loadingPostalLookup}>
-                    {loadingPostalLookup ? (
-                      <ActivityIndicator size="small" color="#D94625" />
-                    ) : (
-                      <Text style={styles.lookupBtnText}>Find</Text>
-                    )}
-                  </TouchableOpacity>
+  
                 </View>
               </View>
 
@@ -974,6 +1026,13 @@ const styles = StyleSheet.create({
     borderTopColor: '#F1F5F9',
   },
   attachmentLabel: { flex: 1, ...typography.body, color: '#0F172A' },
+  viewChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#EEF2FF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  viewChipText: { fontSize: 12, color: '#1E3A8A', fontFamily: typography.labelMedium.fontFamily },
+
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: STATUS_BAR_HEIGHT, paddingHorizontal: 20, paddingBottom: 12 },
+  previewName: { flex: 1, fontSize: 14, color: '#FFFFFF', fontFamily: typography.labelMedium.fontFamily },
+  previewImage: { flex: 1, width: '100%' },
   attachBtn: {
     flexDirection: 'row',
     alignItems: 'center',
