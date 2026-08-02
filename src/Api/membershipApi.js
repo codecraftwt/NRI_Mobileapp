@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
 import { verifyPayment as verifyPaymentGeneric } from './paymentsApi';
 
 function mapUsage(raw) {
@@ -120,14 +120,51 @@ export async function validateMembershipCoupon({ code }) {
   }
 }
 
-export async function checkoutMembership({ gateway, couponCode, autoRenew, useWallet }) {
+export async function checkoutMembership({ 
+  gateway, couponCode, autoRenew, useWallet, combinedCart,
+  familyMemberName, familyMemberRelationship,
+  stateId, cityId, talukaId, address, pincode, urgency,
+  preferredDate, customerNotes, documents
+}) {
   try {
-    const response = await apiClient.post('/customer/membership/checkout', {
+    const payload = {
       gateway,
       coupon_code: couponCode || undefined,
-      auto_renew: !!autoRenew,
-      use_wallet: !!useWallet,
-    });
+      auto_renew: !!autoRenew ? 1 : 0,
+      use_wallet: !!useWallet ? 1 : 0,
+      combined_cart: combinedCart ? 1 : 0,
+      family_member_name: familyMemberName || undefined,
+      family_member_relationship: familyMemberRelationship || undefined,
+      state_id: stateId || undefined,
+      city_id: cityId || undefined,
+      taluka_id: talukaId || undefined,
+      address: address || undefined,
+      pincode: pincode || undefined,
+      urgency: urgency || undefined,
+      preferred_date: preferredDate || undefined,
+      customer_notes: customerNotes || undefined,
+    };
+    
+    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
+    let response;
+    
+    if (docEntries.length > 0) {
+      const uploadFiles = docEntries.map(([docId, file]) => ({
+        field: `documents[${docId}]`,
+        uri: file.uri,
+        name: file.name,
+        type: file.type
+      }));
+      response = await postMultipart('/customer/membership/checkout', payload, uploadFiles);
+    } else {
+      // Send JSON payload if no files are attached
+      response = await apiClient.post('/customer/membership/checkout', {
+        ...payload,
+        auto_renew: !!autoRenew,
+        use_wallet: !!useWallet,
+        combined_cart: combinedCart || undefined,
+      });
+    }
     const data = response.data?.data || {};
     return {
       paymentId: data.payment_id,

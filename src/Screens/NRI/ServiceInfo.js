@@ -6,6 +6,7 @@ import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { addToCart, selectCartCount, selectIsInCart } from '../../Redux/slices/cartSlice';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
+import { addCartItem } from '../../Api/cartApi';
 
 // Static, presentation-only copy shared by every service detail (matches the
 // approved design). The trust/process story is the same for all services —
@@ -49,6 +50,7 @@ function ServiceInfo({ route, navigation }) {
   const { service, category } = route.params;
   const dispatch = useDispatch();
   const cartCount = useSelector(selectCartCount);
+  const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
@@ -89,6 +91,10 @@ function ServiceInfo({ route, navigation }) {
       cityName: savedLocation.cityName,
       cityId: savedLocation.cityId,
     }));
+    
+    if (isAuthenticated) {
+      addCartItem(svc.id).catch(e => console.warn('Failed to sync cart item', e));
+    }
   };
 
   const ctaLabel = !hasLocation ? 'Set your location to add' : inCart ? 'Go to Cart' : 'Add to Cart';

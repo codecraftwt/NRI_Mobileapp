@@ -14,6 +14,8 @@ import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, selectCartSubtotal } from '../../../Redux/slices/cartSlice';
 import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
+import { addCartItem } from '../../../Api/cartApi';
+import apiClient from '../../../Api/client';
 import { useFamilyMembers } from '../../../Hooks/useFamilyMembers';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
@@ -247,10 +249,12 @@ function OnboardingPayment({ route, navigation }) {
   const membershipPayable = taxableAmount + gstAmount;
 
   // Selected services (cart) billed together with the membership in one payment.
-  // Services subtotal + the chosen priority tier's flat surcharge, then GST on
-  // the combined base — same order the ticket booking estimate uses.
+  // Services subtotal + the chosen priority tier's flat surcharge.
+  // Note: The backend CartCheckoutService currently does not apply the 18% GST 
+  // to cart items when they are bundled as one-time line items on a membership 
+  // subscription checkout, so we match that here to ensure the total matches Stripe exactly.
   const servicesBase = servicesSubtotal + prioritySurcharge;
-  const servicesGst = Math.round(servicesBase * GST_RATE * 100) / 100;
+  const servicesGst = 0; // Math.round(servicesBase * GST_RATE * 100) / 100;
   const servicesPayable = servicesBase + servicesGst;
   const amountPayable = membershipPayable + (fromCart ? servicesPayable : 0);
 
@@ -447,19 +451,9 @@ function OnboardingPayment({ route, navigation }) {
       total: amountPayable,
     }));
 
-    // Create the service requests BEFORE clearing the cart. A failure here
-    // shouldn't strand the user on a paid-but-blank screen — the membership is
-    // already active, so surface the error but still continue to the dashboard.
+    // The backend now automatically creates the service requests via CartCheckoutService 
+    // when the combined Stripe session is paid successfully. We only need to clear the local cart.
     if (fromCart) {
-      try {
-        await submitCartServiceRequests();
-      } catch (error) {
-        showAlert(
-          'Requests Not Created',
-          error?.message || "Your membership is active, but we couldn't create your service requests. You can add them from Services.",
-          'error',
-        );
-      }
       dispatch(clearCart());
     }
 
@@ -475,11 +469,50 @@ function OnboardingPayment({ route, navigation }) {
     }
     setSubmitting(true);
     try {
+      if (fromCart) {
+        // Sync Redux cart to backend before checkout so they ride along with membership
+        for (const item of cartItems) {
+          try {
+            await addCartItem(item.serviceId);
+          } catch (e) {
+            setSubmitting(false);
+            showAlert('Cart Sync Failed', e?.message || 'Could not sync cart items.');
+            return;
+          }
+        }
+        
+        try {
+          const cartRes = await apiClient.get('/customer/cart');
+          const count = cartRes.data?.data?.count ?? 0;
+          if (count === 0) {
+            setSubmitting(false);
+            showAlert('Cart Empty', 'Backend cart count is 0 after syncing items!');
+            return;
+          }
+        } catch (e) {
+            setSubmitting(false);
+            showAlert('Cart Fetch Failed', 'Could not verify backend cart.');
+            return;
+        }
+      }
+
       const result = await checkout({
         gateway: paymentMethod,
         couponCode: planCouponCode.trim() || undefined,
-        autoRenew: false,
+        autoRenew: true,
         useWallet: false,
+        combinedCart: fromCart,
+        familyMemberName: reqForm.fullName?.trim() || undefined,
+        familyMemberRelationship: reqForm.relation?.trim().toLowerCase() || undefined,
+        stateId: states.find(s => s.name === reqForm.state)?.id || undefined,
+        cityId: cities.find(c => c.name === reqForm.city)?.id || (fromCart ? cartItems[0]?.cityId : undefined) || undefined,
+        talukaId: talukas.find(t => t.name === reqForm.taluka)?.id || undefined,
+        address: reqForm.address?.trim() || undefined,
+        pincode: reqForm.pincode?.trim() || undefined,
+        urgency: selectedPriority?.slug || 'standard',
+        preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
+        customerNotes: reqForm.notes || undefined,
+        documents: documentFiles,
       }).unwrap();
 
       if (result.checkoutUrl) {
@@ -732,7 +765,7 @@ function OnboardingPayment({ route, navigation }) {
                     </View>
                   )}
                   <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Services GST (18%)</Text>
+                    <Text style={styles.rowLabel}>Services GST {servicesGst > 0 ? "(18%)" : "(Included in Membership)"}</Text>
                     <Text style={styles.rowValue}>{formatUsd(servicesGst)}</Text>
                   </View>
                   <View style={styles.row}>

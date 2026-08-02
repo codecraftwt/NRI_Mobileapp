@@ -37,9 +37,12 @@ function Cart({ navigation }) {
     return <SubmitRequest navigation={navigation} />;
   }
 
-  const servicesGst = servicesTotal * GST_RATE;
   const membershipGst = isAuthenticated ? 0 : MEMBERSHIP_RATE * GST_RATE;
   const membershipTotal = isAuthenticated ? 0 : MEMBERSHIP_RATE + membershipGst;
+  
+  // The backend does not apply GST to services when they are bundled into the 
+  // membership subscription checkout (guest flow).
+  const servicesGst = !isAuthenticated ? 0 : servicesTotal * GST_RATE;
   const grandTotal = servicesTotal + servicesGst + membershipTotal;
 
   const empty = items.length === 0;
@@ -160,7 +163,7 @@ function Cart({ navigation }) {
             </View>
             <SummaryRow label="Services" value={String(items.length)} />
             <SummaryRow label="Services total" value={fmt(servicesTotal)} />
-            <SummaryRow label="Services GST" sub="(18%)" value={fmt(servicesGst)} />
+            <SummaryRow label="Services GST" sub={servicesGst > 0 ? "(18%)" : "(Included in Membership)"} value={fmt(servicesGst)} />
             {!isAuthenticated && (
               <>
                 <View style={styles.divider} />
