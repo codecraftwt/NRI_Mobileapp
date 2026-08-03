@@ -7,6 +7,7 @@ const initialState = {
   stateName: null,
   cityName: null,
   cityId: null,
+  pincode: null,
 };
 
 const serviceLocationSlice = createSlice({
@@ -17,6 +18,7 @@ const serviceLocationSlice = createSlice({
       state.stateName = action.payload.stateName;
       state.cityName = action.payload.cityName;
       state.cityId = action.payload.cityId;
+      state.pincode = action.payload.pincode ?? null;
     },
     clearServiceLocation: () => initialState,
   },

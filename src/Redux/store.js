@@ -45,11 +45,13 @@ const persistConfig = {
   // `serviceLocation` persists so a returning user keeps their chosen city and
   // sees correct city-priced services (GET /services?...&state_id&city_id)
   // instead of no-location base prices.
-  // `cart` is intentionally NOT persisted — a new/guest user (or one who just
-  // logged out) must start on the onboarding / All Services flow with an empty
-  // cart. It still survives the guest → register flow because that's the same
-  // running session (see CART_KEEP_TYPES); only a fresh app launch clears it.
-  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation'],
+  // `cart` persists so a guest who added services and then registered keeps the
+  // cart+register (combined checkout) flow even if the app is reloaded/refreshed
+  // mid-onboarding — without persistence the cart rehydrates empty and Step 2
+  // falls back to a plain membership registration. It's still cleared on logout
+  // (the auth-identity reset drops it — see CART_KEEP_TYPES) and after a
+  // successful checkout (clearCart), so the next fresh guest starts empty.
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation', 'cart'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);

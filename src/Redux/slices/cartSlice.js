@@ -7,7 +7,7 @@ import { createSlice } from '@reduxjs/toolkit';
 // saved"). Line items are keyed by serviceId — adding the same service twice
 // is a no-op rather than a duplicate row.
 const initialState = {
-  items: [], // [{ serviceId, name, categoryName, price, currency, durationLabel, stateName, cityName, cityId }]
+  items: [], // [{ serviceId, name, categoryName, price, currency, durationLabel, stateName, cityName, cityId, pincode }]
 };
 
 const cartSlice = createSlice({

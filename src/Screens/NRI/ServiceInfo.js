@@ -90,6 +90,7 @@ function ServiceInfo({ route, navigation }) {
       stateName: savedLocation.stateName,
       cityName: savedLocation.cityName,
       cityId: savedLocation.cityId,
+      pincode: savedLocation.pincode,
     }));
     
     if (isAuthenticated) {

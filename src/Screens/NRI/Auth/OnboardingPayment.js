@@ -188,7 +188,9 @@ function OnboardingPayment({ route, navigation }) {
     city: firstItem.cityName || '',
     taluka: '',
     address: '',
-    pincode: '',
+    // Prefill the PIN code the guest picked when choosing services (carried on
+    // the cart item), so they don't re-enter it after registering.
+    pincode: firstItem.pincode || '',
     preferredAt: '',
     priority: '',
     notes: '',
@@ -644,6 +646,7 @@ function OnboardingPayment({ route, navigation }) {
                 value={preferredDate || new Date()}
                 mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
                 onChange={handleDateChange}
               />
             )}
