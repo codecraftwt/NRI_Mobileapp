@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image, ImageBackground } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -105,35 +105,39 @@ function ServiceInfo({ route, navigation }) {
   const ctaLabel = !hasLocation ? 'Set your location to add' : inCart ? 'Go to Cart' : 'Add to Cart';
   const ctaIcon = !hasLocation ? 'place' : inCart ? 'shopping-cart' : 'add-shopping-cart';
 
+  const renderTopRow = () => (
+    <View style={styles.heroTopRow}>
+      <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.goBack()}>
+        <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.heroBackIcon} />
+      </TouchableOpacity>
+      {/* <Text style={styles.heroTitle}>Details</Text> */}
+      <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('Cart')}>
+        <Icon name="shopping-cart" size={20} color="#FFFFFF" />
+        {cartCount > 0 && (
+          <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      {/* Hero — top bar + centered circular image (demo-ss style) */}
-      <View style={styles.hero}>
-        <View style={styles.heroTopRow}>
-          <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.heroBackIcon} />
-          </TouchableOpacity>
-          <Text style={styles.heroTitle}>Details</Text>
-          <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('Cart')}>
-            <Icon name="shopping-cart" size={20} color="#FFFFFF" />
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>
-            )}
-          </TouchableOpacity>
+      {/* Hero — top bar + full background image */}
+      {svc.imageUrl ? (
+        <ImageBackground source={{ uri: svc.imageUrl }} style={styles.hero} imageStyle={{ resizeMode: 'cover' }}>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' }} />
+          {renderTopRow()}
+        </ImageBackground>
+      ) : (
+        <View style={styles.hero}>
+          {renderTopRow()}
+          <View style={styles.heroImageWrap}>
+            <Icon name={category?.icon || 'home-repair-service'} size={80} color="rgba(255,255,255,0.3)" />
+          </View>
         </View>
-
-        <View style={styles.heroImageWrap}>
-          {svc.imageUrl ? (
-            <Image source={{ uri: svc.imageUrl }} style={styles.heroCircle} />
-          ) : (
-            <View style={[styles.heroCircle, styles.heroCircleFallback]}>
-              <Icon name={category?.icon || 'home-repair-service'} size={56} color="rgba(255,255,255,0.6)" />
-            </View>
-          )}
-        </View>
-      </View>
+      )}
 
       <ScrollView style={styles.sheet} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>{category.name.toUpperCase()}</Text>
@@ -219,7 +223,7 @@ const styles = StyleSheet.create({
   heroTitle: { flex: 1, textAlign: 'center', color: '#FFFFFF', fontSize: 16, fontFamily: typography.h4.fontFamily },
   heroIconBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center', alignItems: 'center',
   },
   // Nudge the iOS chevron so it sits optically centered (matches Header).
