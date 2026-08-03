@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { selectCartCount } from '../../Redux/slices/cartSlice';
+import { useCart } from '../../Hooks/useCart';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import LocationPickerModal from '../../Components/LocationPickerModal';
 
@@ -21,7 +21,7 @@ const priceLabel = (pricing) => {
 
 function ServiceList({ route, navigation }) {
   const { category } = route.params;
-  const cartCount = useSelector(selectCartCount);
+  const { count: cartCount } = useCart();
 
   // Saved location drives vendor-specific pricing/availability. Optional to
   // browse — without it the list shows catalog "starting from" prices.

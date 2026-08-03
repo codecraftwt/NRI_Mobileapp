@@ -6,7 +6,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { removeFromCart, clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { useCart } from '../../Hooks/useCart';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -109,6 +110,9 @@ function SummaryRow({ label, sub, value, strong }) {
 function SubmitRequest({ navigation }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
+  // Signed-in cart — removing a line also hits DELETE /customer/cart/items/{id}
+  // and refreshes the server count (useCart fetches it on mount).
+  const { remove: removeCartService } = useCart();
   const items = useSelector(selectCartItems);
   const servicesSubtotal = useSelector(selectCartSubtotal);
 
@@ -169,9 +173,6 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priorities]);
 
-  const servicesBase = servicesSubtotal + prioritySurcharge;
-  const gst = Math.round(servicesBase * GST_RATE * 100) / 100;
-  const total = servicesBase + gst;
   const loading = submitLoading || payLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
@@ -180,7 +181,7 @@ function SubmitRequest({ navigation }) {
   const quoteStateId = states.find(s => s.name === reqForm.state)?.id || null;
   const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || items[0]?.cityId || null;
   const quoteUrgency = selectedPriority?.slug || 'standard';
-  const quoteKey = `${serviceIdsKey}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
+  const quoteKey = `${serviceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
     if (!items.length || !quoteCityId) return;
     fetchQuote({
@@ -194,12 +195,21 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteKey]);
 
-  // Prefer the API quote; fall back to the local estimate until it loads.
-  const estAmount = quote?.customerPrice != null ? Number(quote.customerPrice) : servicesSubtotal;
+  // The quote API returns the address-specific pre-GST service amount,
+  // GST amount, and GST-inclusive total. Use it directly when available; fall
+  // back to splitting the cart's GST-inclusive total while the quote loads.
+  const hasQuoteTotal = Number(quote?.totalAmount || 0) > 0;
+  const selectedServicesTotal = servicesSubtotal;
   const estSurcharge = quote?.expressSurcharge != null ? Number(quote.expressSurcharge) : prioritySurcharge;
-  const estGst = quote?.gstAmount != null ? Number(quote.gstAmount) : gst;
-  const estTotal = quote?.totalAmount != null ? Number(quote.totalAmount) : total;
   const estDiscount = Number(quote?.discount || 0);
+  const fallbackTotal = Math.max(0, Math.round((selectedServicesTotal + estSurcharge - estDiscount) * 100) / 100);
+  const estTotal = hasQuoteTotal ? Number(quote.totalAmount) : fallbackTotal;
+  const estAmount = quote?.customerPrice != null
+    ? Number(quote.customerPrice)
+    : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100;
+  const estGst = quote?.gstAmount != null
+    ? Number(quote.gstAmount)
+    : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100);
 
   // Document upload
   const requestFilePermission = async () => {
@@ -425,7 +435,7 @@ function SubmitRequest({ navigation }) {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
                 <Text style={styles.itemPrice}>{fmt(it.price)}</Text>
-                <TouchableOpacity onPress={() => dispatch(removeFromCart(it.serviceId))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => removeCartService(it.serviceId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="delete-outline" size={20} color="#EF4444" />
                 </TouchableOpacity>
               </View>

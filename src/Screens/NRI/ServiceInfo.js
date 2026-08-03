@@ -1,12 +1,12 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image, ImageBackground } from 'react-native';
-import { useSelector, useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { addToCart, selectCartCount, selectIsInCart } from '../../Redux/slices/cartSlice';
+import { selectIsInCart } from '../../Redux/slices/cartSlice';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
-import { addCartItem } from '../../Api/cartApi';
+import { useCart } from '../../Hooks/useCart';
 import { useToast } from '../../context/ToastContext';
 
 // Static, presentation-only copy shared by every service detail (matches the
@@ -49,10 +49,9 @@ const durationLabel = (pricing) => {
 
 function ServiceInfo({ route, navigation }) {
   const { service, category } = route.params;
-  const dispatch = useDispatch();
   const { showToast } = useToast();
-  const cartCount = useSelector(selectCartCount);
-  const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  // Cart binds the server APIs when signed in; local-only for guests (onboarding).
+  const { count: cartCount, add: addServiceToCart } = useCart();
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
@@ -90,7 +89,9 @@ function ServiceInfo({ route, navigation }) {
       return;
     }
     if (inCart) { navigation.navigate('Cart'); return; }
-    dispatch(addToCart({
+    // Adds locally (display) and, when signed in, syncs to the server cart —
+    // the badge count then reflects the server response.
+    addServiceToCart({
       serviceId: svc.id,
       name: svc.name,
       categoryName: category.name,
@@ -101,13 +102,10 @@ function ServiceInfo({ route, navigation }) {
       cityName: savedLocation.cityName,
       cityId: savedLocation.cityId,
       pincode: savedLocation.pincode,
-    }));
+    });
 
-    showToast(`${svc.name} added to cart`, 'success');
-
-    if (isAuthenticated) {
-      addCartItem(svc.id).catch(e => console.warn('Failed to sync cart item', e));
-    }
+    const shortName = svc.name.length > 24 ? `${svc.name.slice(0, 24).trim()}…` : svc.name;
+    showToast(`${shortName} added to cart`, 'success');
   };
 
   const ctaDisabled = hasLocation && !canBook;

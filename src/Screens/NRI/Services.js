@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { selectCartCount } from '../../Redux/slices/cartSlice';
+import { useCart } from '../../Hooks/useCart';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { getServiceGroups } from '../../Api/catalogApi';
@@ -97,7 +97,7 @@ function Services({ navigation, route }) {
     }
   }, [route?.params?.openLocation, navigation]);
 
-  const cartCount = useSelector(selectCartCount);
+  const { count: cartCount } = useCart();
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
 
   // Promo banner: gently animate the background between two light peach shades.
