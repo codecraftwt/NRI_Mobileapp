@@ -28,6 +28,9 @@ function ServiceList({ route, navigation }) {
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
   const [locModalOpen, setLocModalOpen] = useState(false);
+  // Service tapped before a location was set — opened automatically after the
+  // user picks a location (so they don't bounce back here).
+  const [pendingService, setPendingService] = useState(null);
 
   const { oneTime, recurring, loading } = useServiceGroups(
     category.name,
@@ -35,12 +38,33 @@ function ServiceList({ route, navigation }) {
     savedLocation?.cityId || null,
   );
 
+  // Availability filtering only kicks in once a location is set: before that
+  // the user browses the FULL catalog ("starting from" prices). After a city is
+  // chosen we hide services with no vendor price there ("Not available in your
+  // area", i.e. customer_price + recurring_price both null). Price presence is
+  // used rather than the vendor_priced flags — those are null for services with
+  // no recurring option, which a flag check mis-read as available.
+  const isAvailable = (s) => {
+    const p = s.pricing;
+    if (!p || p.isQuoted) return true;
+    return (p.customerPrice ?? p.recurringPrice ?? null) != null;
+  };
+
   // Merge both buckets, de-duped by id — the single-service detail screen
   // handles one-time vs recurring for whichever the user opens.
   const seen = new Set();
-  const services = [...oneTime, ...recurring].filter(s => (seen.has(s.id) ? false : seen.add(s.id)));
+  const services = [...oneTime, ...recurring]
+    .filter(s => (seen.has(s.id) ? false : seen.add(s.id)))
+    .filter(s => !hasLocation || isAvailable(s));
 
   const openService = (service) => {
+    // Ask for a location first — the detail screen needs it to price/add the
+    // service. Resume into it once a location is saved (see onSaved below).
+    if (!hasLocation) {
+      setPendingService(service);
+      setLocModalOpen(true);
+      return;
+    }
     navigation.navigate('GuestServiceInfo', { service, category });
   };
 
@@ -64,7 +88,7 @@ function ServiceList({ route, navigation }) {
       </View>
 
       {/* Location banner — tap to set / change the city. */}
-      <TouchableOpacity style={styles.locBanner} activeOpacity={0.7} onPress={() => setLocModalOpen(true)}>
+      <TouchableOpacity style={styles.locBanner} activeOpacity={0.7} onPress={() => { setPendingService(null); setLocModalOpen(true); }}>
         <Icon name="place" size={18} color="#D94625" />
         <View style={{ flex: 1 }}>
           <Text style={styles.locBannerLabel}>Showing services for</Text>
@@ -99,8 +123,16 @@ function ServiceList({ route, navigation }) {
       <LocationPickerModal
         visible={locModalOpen}
         onClose={() => setLocModalOpen(false)}
-        title="Select Location"
-        subtitle="Enter your PIN code — services update to match your city."
+        onSaved={() => {
+          // Location saved — stay on this list (it re-filters to services
+          // available in the chosen city). Don't auto-open the tapped service.
+          setLocModalOpen(false);
+          setPendingService(null);
+        }}
+        title={pendingService ? 'Set Location to Continue' : 'Select Location'}
+        subtitle={pendingService
+          ? 'Enter your PIN code to view and book this service in your city.'
+          : 'Enter your PIN code — services update to match your city.'}
       />
     </View>
   );

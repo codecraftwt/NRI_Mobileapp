@@ -71,7 +71,15 @@ function ServiceInfo({ route, navigation }) {
   const inCart = useSelector(selectIsInCart(svc.id));
   const pricing = svc.pricing;
 
+  // Bookable in the chosen city only when there's a real vendor price (or it's
+  // an on-quote service). `customer_price: null` + `vendor_priced: false` means
+  // "Not available in your area" — adding it would put a $0 line in the cart and
+  // 422 at checkout, so the CTA is blocked (matches the list screen, which hides
+  // these entirely).
+  const canBook = !!pricing && (pricing.isQuoted || priceValue(pricing) != null);
+
   const handleAdd = () => {
+    if (hasLocation && !canBook) return;
     if (!hasLocation) {
       // Navigate to the All Services screen and open the PIN-code picker there.
       // Its route name differs per stack ('GuestServices' for guests,
@@ -102,8 +110,13 @@ function ServiceInfo({ route, navigation }) {
     }
   };
 
-  const ctaLabel = !hasLocation ? 'Set your location to add' : inCart ? 'Go to Cart' : 'Add to Cart';
-  const ctaIcon = !hasLocation ? 'place' : inCart ? 'shopping-cart' : 'add-shopping-cart';
+  const ctaDisabled = hasLocation && !canBook;
+  const ctaLabel = !hasLocation
+    ? 'Set your location to add'
+    : !canBook
+      ? 'Not available in your area'
+      : inCart ? 'Go to Cart' : 'Add to Cart';
+  const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCart ? 'shopping-cart' : 'add-shopping-cart';
 
   const renderTopRow = () => (
     <View style={styles.heroTopRow}>
@@ -195,7 +208,7 @@ function ServiceInfo({ route, navigation }) {
           <Text style={styles.bottomPrice}>{priceLabel(pricing)}</Text>
           <Text style={styles.bottomDuration}>{durationLabel(pricing)}</Text>
         </View>
-        <TouchableOpacity style={styles.cta} activeOpacity={0.85} onPress={handleAdd}>
+        <TouchableOpacity style={[styles.cta, ctaDisabled && styles.ctaDisabled]} activeOpacity={0.85} onPress={handleAdd} disabled={ctaDisabled}>
           <Icon name={ctaIcon} size={18} color="#FFFFFF" />
           <Text style={styles.ctaText}>{ctaLabel}</Text>
         </TouchableOpacity>
@@ -284,6 +297,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: '#F97316', borderRadius: 30, paddingHorizontal: 22, paddingVertical: 15,
   },
+  ctaDisabled: { backgroundColor: '#94A3B8' },
   ctaText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 });
 

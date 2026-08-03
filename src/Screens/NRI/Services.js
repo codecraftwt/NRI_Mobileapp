@@ -52,6 +52,19 @@ const ALL_CAT = '__all__';
 const allOption = { id: '__all__', name: '__all__', displayName: 'All Categories', icon: 'grid-view', color: '#20304C' };
 
 const priceValue = (p) => (p ? (p.customerPrice ?? p.recurringPrice ?? null) : null);
+
+// Bookable in the chosen city? Once a location is set, a service is available
+// only if it actually has a vendor price (one-time OR recurring) — or it's an
+// on-quote service. `customer_price: null` + `recurring_price: null` is the
+// "Not available in your area" case, so it's hidden. (Price presence is used
+// rather than the vendor_priced flags because those are null for services that
+// don't offer a recurring option, which the flag check mis-read as available.)
+// Only applied once a location is set (see below).
+const isServiceAvailable = (s) => {
+  const p = s.pricing;
+  if (!p || p.isQuoted) return true;
+  return priceValue(p) != null;
+};
 const priceText = (p) => {
   if (!p) return '—';
   if (p.isQuoted) return 'On quote';
@@ -71,6 +84,9 @@ function Services({ navigation, route }) {
   const [activeCatName, setActiveCatName] = useState(ALL_CAT); // default: All Categories
   const [filterOpen, setFilterOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false); // location picker
+  // Service the user tapped before a location was set — opened automatically
+  // once they pick a location, so they don't bounce back to this screen.
+  const [pendingService, setPendingService] = useState(null);
 
   // Opened from the service detail's "Set your location to add" — auto-open the
   // PIN-code picker here, then clear the flag so it doesn't re-fire.
@@ -141,7 +157,9 @@ function Services({ navigation, route }) {
   const catSeen = new Set();
   const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
   const q = search.toLowerCase().trim();
-  const services = (isAll ? allServices : catServices).filter(s => s.name.toLowerCase().includes(q));
+  const services = (isAll ? allServices : catServices)
+    .filter(s => s.name.toLowerCase().includes(q))
+    .filter(s => !hasLocation || isServiceAvailable(s));
   const listLoading = loadingCats || (isAll ? allLoading : loadingServices);
 
   // The category a card belongs to — its own category in "All" mode, otherwise
@@ -152,7 +170,18 @@ function Services({ navigation, route }) {
     return { id: s.category?.id, name: nm, ...detailsFor(nm), displayName: nm || 'Service' };
   };
 
-  const openService = (service) => navigation.navigate('GuestServiceInfo', { service, category: catForService(service) });
+  const openService = (service) => {
+    const target = { service, category: catForService(service) };
+    // Ask for a location first — without it the detail screen can't price or add
+    // the service, and would just send the user back here. Resume into the
+    // service once a location is saved (see onSaved below).
+    if (!hasLocation) {
+      setPendingService(target);
+      setModalOpen(true);
+      return;
+    }
+    navigation.navigate('GuestServiceInfo', target);
+  };
 
   const pickCategory = (name) => { setActiveCatName(name); setFilterOpen(false); };
 
@@ -167,7 +196,7 @@ function Services({ navigation, route }) {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>All Services</Text>
-          <TouchableOpacity style={styles.locChip} activeOpacity={0.7} onPress={() => setModalOpen(true)}>
+          <TouchableOpacity style={styles.locChip} activeOpacity={0.7} onPress={() => { setPendingService(null); setModalOpen(true); }}>
             <Icon name="place" size={14} color="#FCD9C8" />
             <Text style={styles.locChipText} numberOfLines={1}>
               {hasLocation ? `${savedLocation.cityName}, ${savedLocation.stateName}` : 'Set your location'}
@@ -316,8 +345,17 @@ function Services({ navigation, route }) {
       <LocationPickerModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
-        title="Select Location"
-        subtitle="Enter your PIN code to find your city."
+        onSaved={() => {
+          // Location saved — just close and stay on this list (it re-filters to
+          // the services available in the chosen city). Don't auto-open the
+          // tapped service; the user picks it again from the refreshed list.
+          setModalOpen(false);
+          setPendingService(null);
+        }}
+        title={pendingService ? 'Set Location to Continue' : 'Select Location'}
+        subtitle={pendingService
+          ? 'Enter your PIN code to see this service’s price and availability in your city.'
+          : 'Enter your PIN code to find your city.'}
       />
     </View>
   );
