@@ -16,10 +16,13 @@ function mapCartItem(raw) {
   const serviceId = raw.service_id ?? svc.id ?? raw.id;
   if (serviceId == null) return null;
   return {
+    cartItemId: raw.cart_item_id ?? raw.item_id ?? raw.id ?? null,
     serviceId,
     name: svc.name ?? raw.name ?? 'Service',
     categoryName,
     price: Number(price) || 0,
+    base: raw.base != null ? Number(raw.base) : null,
+    gstAmount: raw.gst_amount != null ? Number(raw.gst_amount) : null,
     currency: pricing.currency ?? raw.currency ?? 'USD',
     durationLabel: pricing.turnaround_label ?? svc.pricing?.turnaround_label ?? raw.duration ?? svc.duration ?? '',
     imageUrl: svc.image_url ?? raw.image_url ?? null,
@@ -61,6 +64,30 @@ export async function removeCartItem(serviceId) {
   try {
     const response = await apiClient.delete(`/customer/cart/items/${serviceId}`);
     return mapCart(response.data);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Clear selected services from the authenticated server cart. Backends differ
+// on whether DELETE expects the service id or the cart-line id, so try every
+// identifier we have for each row and then return the fresh server cart.
+export async function clearCartItems(itemsOrIds = []) {
+  try {
+    const candidates = (itemsOrIds || []).flatMap((item) => {
+      if (item == null) return [];
+      if (typeof item !== 'object') return [item];
+      return [item.serviceId, item.cartItemId, item.id].filter(id => id != null);
+    });
+    const uniqueIds = [...new Set(candidates.map(id => String(id)))];
+    for (const id of uniqueIds) {
+      try {
+        await apiClient.delete(`/customer/cart/items/${id}`);
+      } catch (e) {
+        // Keep trying the other possible identifier shapes.
+      }
+    }
+    return await getCart();
   } catch (error) {
     throw normalizeApiError(error);
   }

@@ -6,7 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { clearCart, clearServerCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
@@ -115,11 +115,14 @@ function SubmitRequest({ navigation }) {
   const { remove: removeCartService } = useCart();
   const items = useSelector(selectCartItems);
   const servicesSubtotal = useSelector(selectCartSubtotal);
+  const savedLocation = useSelector(s => s.serviceLocation);
 
   const [reqForm, setReqForm] = useState({
     fullName: '', relation: '', property: 'Not applicable',
-    state: items[0]?.stateName || '', city: items[0]?.cityName || '', taluka: '',
-    address: '', pincode: '', preferredAt: '', priority: '', notes: '',
+    state: items[0]?.stateName || savedLocation?.stateName || '',
+    city: items[0]?.cityName || savedLocation?.cityName || '',
+    taluka: '',
+    address: '', pincode: items[0]?.pincode || savedLocation?.pincode || '', preferredAt: '', priority: '', notes: '',
   });
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
   const [documentFiles, setDocumentFiles] = useState({});
@@ -173,13 +176,25 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priorities]);
 
+  useEffect(() => {
+    const stateName = items[0]?.stateName || savedLocation?.stateName || '';
+    const cityName = items[0]?.cityName || savedLocation?.cityName || '';
+    const pincode = items[0]?.pincode || savedLocation?.pincode || '';
+    setReqForm(prev => ({
+      ...prev,
+      state: prev.state || stateName,
+      city: prev.city || cityName,
+      pincode: prev.pincode || pincode,
+    }));
+  }, [items, savedLocation?.stateName, savedLocation?.cityName, savedLocation?.pincode]);
+
   const loading = submitLoading || payLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
   // server instead of computing them locally.
   const quoteStateId = states.find(s => s.name === reqForm.state)?.id || null;
-  const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || items[0]?.cityId || null;
+  const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || items[0]?.cityId || savedLocation?.cityId || null;
   const quoteUrgency = selectedPriority?.slug || 'standard';
   const quoteKey = `${serviceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
@@ -200,16 +215,18 @@ function SubmitRequest({ navigation }) {
   // back to splitting the cart's GST-inclusive total while the quote loads.
   const hasQuoteTotal = Number(quote?.totalAmount || 0) > 0;
   const selectedServicesTotal = servicesSubtotal;
+  const cartBaseTotal = items.reduce((sum, item) => sum + Number(item.base || 0), 0);
+  const cartGstTotal = items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
   const estSurcharge = quote?.expressSurcharge != null ? Number(quote.expressSurcharge) : prioritySurcharge;
   const estDiscount = Number(quote?.discount || 0);
   const fallbackTotal = Math.max(0, Math.round((selectedServicesTotal + estSurcharge - estDiscount) * 100) / 100);
   const estTotal = hasQuoteTotal ? Number(quote.totalAmount) : fallbackTotal;
   const estAmount = quote?.customerPrice != null
     ? Number(quote.customerPrice)
-    : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100;
+    : (cartBaseTotal > 0 ? cartBaseTotal : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100);
   const estGst = quote?.gstAmount != null
     ? Number(quote.gstAmount)
-    : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100);
+    : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100));
 
   // Document upload
   const requestFilePermission = async () => {
@@ -298,7 +315,15 @@ function SubmitRequest({ navigation }) {
     }
   };
 
-  const finishSuccess = () => {
+  const finishSuccess = async () => {
+    if (items.length) {
+      try {
+        await dispatch(clearServerCart(items)).unwrap();
+      } catch (e) {
+        // The request/payment succeeded; still clear local persisted cart so the
+        // checkout doesn't show completed services in this session.
+      }
+    }
     dispatch(clearCart());
     showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
       { text: 'Track my Request', onPress: () => navigation.navigate('Requests') },
@@ -356,10 +381,10 @@ function SubmitRequest({ navigation }) {
         if (pay.checkoutUrl) {
           setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId });
         } else {
-          finishSuccess();
+          await finishSuccess();
         }
       } else {
-        finishSuccess();
+        await finishSuccess();
       }
     } catch (error) {
       // Surface the backend's exact reason (401 unauthenticated, 422 validation
@@ -376,13 +401,23 @@ function SubmitRequest({ navigation }) {
     setCheckoutSession(null);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
-      finishSuccess();
+      await finishSuccess();
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify the payment yet. If charged, check Requests shortly.');
     }
   };
 
   const empty = items.length === 0;
+  const handleClearCart = async () => {
+    if (items.length) {
+      try {
+        await dispatch(clearServerCart(items)).unwrap();
+      } catch (e) {
+        // Local clear still removes the persisted cart immediately.
+      }
+    }
+    dispatch(clearCart());
+  };
 
   return (
     <View style={styles.container}>
@@ -398,7 +433,7 @@ function SubmitRequest({ navigation }) {
             <Text style={styles.headerSub}>{items.length} service{items.length === 1 ? '' : 's'} selected</Text>
           </View>
           {!empty && (
-            <TouchableOpacity style={styles.clearBtn} onPress={() => dispatch(clearCart())}>
+            <TouchableOpacity style={styles.clearBtn} onPress={handleClearCart}>
               <Icon name="delete-outline" size={16} color="#FFFFFF" />
               <Text style={styles.clearBtnText}>Clear</Text>
             </TouchableOpacity>

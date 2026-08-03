@@ -43,6 +43,14 @@ export const removeServerCartItem = createAsyncThunk('cart/removeServer', async 
   }
 });
 
+export const clearServerCart = createAsyncThunk('cart/clearServer', async (serviceIds, { rejectWithValue }) => {
+  try {
+    return await cartApi.clearCartItems(serviceIds);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
@@ -65,24 +73,37 @@ const cartSlice = createSlice({
       if (action.payload?.count != null) state.serverCount = action.payload.count;
     };
     builder
-      // GET returns the full server cart. Merge in anything added elsewhere
-      // (e.g. the web) that we don't already have locally, so it shows up in the
-      // app. Union (not replace) so an in-app add that's still syncing isn't
-      // dropped if this GET resolves first; local copies are kept as-is because
-      // in-app adds carry location + live pricing the server line may not echo.
+      // GET returns the full authoritative server cart for signed-in users.
+      // Replace the local display list with server rows so purchased/removed
+      // services do not survive from persisted Redux state, while preserving
+      // local location fields for matching rows because the cart API omits them.
       .addCase(fetchServerCart.fulfilled, (state, action) => {
         const serverItems = action.payload?.items || [];
-        const have = new Set(state.items.map(i => String(i.serviceId)));
-        serverItems.forEach((si) => {
-          if (!have.has(String(si.serviceId))) {
-            state.items.push(si);
-            have.add(String(si.serviceId));
+        const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
+        state.items = serverItems.map((si) => {
+          const key = String(si.serviceId);
+          const idx = indexById.get(key);
+          if (idx != null) {
+            const existing = state.items[idx];
+            return {
+              ...existing,
+              ...si,
+              stateName: existing.stateName ?? si.stateName,
+              cityName: existing.cityName ?? si.cityName,
+              cityId: existing.cityId ?? si.cityId,
+              pincode: existing.pincode ?? si.pincode,
+            };
           }
+          return si;
         });
         if (action.payload?.count != null) state.serverCount = action.payload.count;
       })
       .addCase(addServerCartItem.fulfilled, applyCount)
-      .addCase(removeServerCartItem.fulfilled, applyCount);
+      .addCase(removeServerCartItem.fulfilled, applyCount)
+      .addCase(clearServerCart.fulfilled, (state) => {
+        state.items = [];
+        state.serverCount = 0;
+      });
   },
 });
 
