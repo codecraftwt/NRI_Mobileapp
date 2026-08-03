@@ -35,6 +35,7 @@ import Family from '../Screens/NRI/Family';
 import Properties from '../Screens/NRI/Properties';
 import DocumentVault from '../Screens/NRI/DocumentVault';
 import BillingPayments from '../Screens/NRI/BillingPayments';
+import CustomPlanPayment from '../Screens/NRI/CustomPlanPayment';
 import AddonPackages from '../Screens/NRI/AddonPackages';
 import AddonSubscriptions from '../Screens/NRI/AddonSubscriptions';
 import ReportsMedia from '../Screens/NRI/ReportsMedia';
@@ -126,6 +127,7 @@ function DashboardStack() {
       <Stack.Screen name="Document Vault" component={DocumentVault} />
       <Stack.Screen name="UploadDocument" component={UploadDocument} />
       <Stack.Screen name="Billing & Payments" component={BillingPayments} />
+      <Stack.Screen name="CustomPlanPayment" component={CustomPlanPayment} />
       <Stack.Screen name="Add-on Packages" component={AddonPackages} />
       <Stack.Screen name="Reports & Media" component={ReportsMedia} />
       <Stack.Screen name="Annual Summary" component={AnnualSummary} />

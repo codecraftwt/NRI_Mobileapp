@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as supportTicketApi from '../../Api/supportTicketApi';
+import { DEFAULT_SUPPORT_CATEGORIES } from '../../Api/supportTicketApi';
 
 export const fetchSupportTickets = createAsyncThunk('supportTickets/fetchAll', async (params, { rejectWithValue }) => {
   try {
@@ -9,9 +10,9 @@ export const fetchSupportTickets = createAsyncThunk('supportTickets/fetchAll', a
   }
 });
 
-export const createSupportTicket = createAsyncThunk('supportTickets/create', async ({ subject, message, ticketId }, { rejectWithValue }) => {
+export const createSupportTicket = createAsyncThunk('supportTickets/create', async ({ subject, message, ticketId, category, stateId, cityId }, { rejectWithValue }) => {
   try {
-    return await supportTicketApi.createSupportTicket({ subject, message, ticketId });
+    return await supportTicketApi.createSupportTicket({ subject, message, ticketId, category, stateId, cityId });
   } catch (error) {
     return rejectWithValue(error);
   }
@@ -56,8 +57,19 @@ export const escalateSupportTicket = createAsyncThunk('supportTickets/escalate',
   }
 });
 
+export const acceptCustomPlan = createAsyncThunk('supportTickets/acceptPlan', async ({ ticketId, replyId }, { rejectWithValue }) => {
+  try {
+    return await supportTicketApi.acceptCustomPlan(ticketId, replyId);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   tickets: [],
+  // "Raise Ticket to" options; seeded so the picker is never empty, then
+  // refreshed from the list response.
+  categories: DEFAULT_SUPPORT_CATEGORIES,
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   status: 'idle',
   error: null,
@@ -75,6 +87,9 @@ const initialState = {
 
   escalateStatus: 'idle',
   escalateError: null,
+
+  acceptPlanStatus: 'idle',
+  acceptPlanError: null,
 };
 
 const supportTicketsSlice = createSlice({
@@ -96,6 +111,7 @@ const supportTicketsSlice = createSlice({
         state.status = 'succeeded';
         state.tickets = action.payload.tickets;
         state.meta = action.payload.meta;
+        if (action.payload.categories?.length) state.categories = action.payload.categories;
       })
       .addCase(fetchSupportTickets.rejected, (state, action) => {
         state.status = 'failed';
@@ -154,6 +170,17 @@ const supportTicketsSlice = createSlice({
       .addCase(escalateSupportTicket.rejected, (state, action) => {
         state.escalateStatus = 'failed';
         state.escalateError = action.payload;
+      })
+      .addCase(acceptCustomPlan.pending, (state) => {
+        state.acceptPlanStatus = 'loading';
+        state.acceptPlanError = null;
+      })
+      .addCase(acceptCustomPlan.fulfilled, (state) => {
+        state.acceptPlanStatus = 'succeeded';
+      })
+      .addCase(acceptCustomPlan.rejected, (state, action) => {
+        state.acceptPlanStatus = 'failed';
+        state.acceptPlanError = action.payload;
       });
   },
 });

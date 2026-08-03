@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useSupportTicketDetail } from '../../Hooks/useSupportTicketDetail';
+import { useBilling } from '../../Hooks/useBilling';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -24,12 +25,64 @@ function formatTime(dateStr) {
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatPrice(value) {
+  if (value == null || isNaN(Number(value))) return null;
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// The converted plan job's id (the payable 'ticket' in billing). Tolerant of
+// the field being a bare id or a nested object.
+function resolveJobId(job) {
+  if (job == null) return null;
+  if (typeof job === 'object') return job.id ?? job.ticket_id ?? job.ticketId ?? null;
+  return job;
+}
+
+// Whether the converted plan job carries a paid flag inline (fallback for when
+// the ticket payload itself says so); billing overview is the primary source.
+function isJobPaid(job) {
+  if (!job || typeof job !== 'object') return false;
+  if (job.is_paid != null) return !!job.is_paid;
+  if (job.isPaid != null) return !!job.isPaid;
+  if (job.paid != null) return !!job.paid;
+  const s = String(job.payment_status || job.status || '').toLowerCase();
+  return /\bpaid\b/.test(s);
+}
+
 function SupportTicketChat({ route, navigation }) {
   const { ticketId, createdTicketNumber } = route.params || {};
-  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading } = useSupportTicketDetail(ticketId);
+  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = useSupportTicketDetail(ticketId);
+  const { overview: billing, retry: refreshBilling } = useBilling();
   const [replyText, setReplyText] = useState('');
   const [showCreatedBanner, setShowCreatedBanner] = useState(!!createdTicketNumber);
+  // Which proposal reply is mid-accept, so only its button spins.
+  const [acceptingId, setAcceptingId] = useState(null);
+  // Proposal replies paid this session — the payment screen reports back the
+  // reply id on success so we hide "Pay Now" immediately, without depending on
+  // the refetched converted_ticket carrying a paid flag.
+  const [paidReplyIds, setPaidReplyIds] = useState(() => new Set());
   const user = useSelector(s => s.user.user);
+
+  // Paid ticket ids from the billing overview (is_paid === true) — the
+  // authoritative "has this plan been paid?" source.
+  const paidTicketIds = useMemo(() => {
+    const set = new Set();
+    (billing?.items || []).forEach(it => { if (it.type === 'ticket' && it.isPaid) set.add(String(it.id)); });
+    return set;
+  }, [billing]);
+
+  const paidReplyId = route.params?.paidReplyId;
+  useEffect(() => {
+    if (paidReplyId == null) return;
+    setPaidReplyIds(prev => {
+      if (prev.has(paidReplyId)) return prev;
+      const next = new Set(prev);
+      next.add(paidReplyId);
+      return next;
+    });
+    // Clear it so returning to this screen later doesn't re-apply a stale flag.
+    navigation.setParams({ paidReplyId: undefined });
+  }, [paidReplyId, navigation]);
 
   // A message sits on the right (like WhatsApp) when it's the customer's own.
   // Trust the mapped flag first, then fall back to matching the logged-in
@@ -44,6 +97,8 @@ function SupportTicketChat({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       if (ticketId) retry();
+      // Refresh billing too so a just-paid plan reflects immediately.
+      refreshBilling();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticketId])
   );
@@ -58,6 +113,46 @@ function SupportTicketChat({ route, navigation }) {
       Alert.alert('Could Not Send', error?.message || 'Please try again.');
       setReplyText(text);
     }
+  };
+
+  const handleAcceptPlan = (msg) => {
+    const priceLabel = formatPrice(msg.proposedPrice);
+    Alert.alert(
+      'Request This Plan',
+      `Accept this custom plan${priceLabel ? ` for ${priceLabel}` : ''}? This will convert it into a payable job.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request',
+          onPress: async () => {
+            setAcceptingId(msg.id);
+            try {
+              await acceptPlan(msg.id).unwrap();
+              await retry();
+              Alert.alert('Plan Accepted', 'Your custom plan has been created. You can now proceed to payment from your requests.');
+            } catch (error) {
+              Alert.alert('Could Not Accept Plan', error?.message || 'Please try again.');
+            } finally {
+              setAcceptingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Pay Now opens the invoice-settlement screen (charges summary + Stripe),
+  // which then launches the Stripe checkout. Only available once the plan is
+  // accepted, i.e. it has a payable converted job.
+  const handlePayNow = (msg) => {
+    const job = msg.convertedTicket;
+    const jobId = resolveJobId(job);
+    if (!jobId) {
+      Alert.alert('Not Ready', 'Please accept this plan first, then pay.');
+      return;
+    }
+    const ticketNumber = job && typeof job === 'object' ? (job.ticket_number || job.ticketNumber || null) : null;
+    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id });
   };
 
   const handleEscalate = () => {
@@ -138,6 +233,67 @@ function SupportTicketChat({ route, navigation }) {
 
           <View style={styles.messagesWrap}>
             {replies.map(msg => {
+              // A reply that carries a proposed price is a Custom Plan proposal —
+              // render it as a dedicated card with a "Request This Plan" action.
+              if (msg.proposedPrice != null) {
+                const priceLabel = formatPrice(msg.proposedPrice);
+                const accepted = !!msg.convertedTicket;
+                const jobId = resolveJobId(msg.convertedTicket);
+                const paid = isJobPaid(msg.convertedTicket)
+                  || paidReplyIds.has(msg.id)
+                  || (jobId != null && paidTicketIds.has(String(jobId)));
+                return (
+                  <View key={msg.id} style={styles.proposalCard}>
+                    <View style={styles.proposalHeader}>
+                      <Icon name="description" size={16} color="#15803D" />
+                      <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
+                    </View>
+                    <Text style={styles.proposalMeta}>
+                      {[msg.authorName, formatTime(msg.createdAt)].filter(Boolean).join(' · ')}
+                    </Text>
+                    {!!msg.message && <Text style={styles.proposalMessage}>{msg.message}</Text>}
+                    {!!priceLabel && (
+                      <View style={styles.proposalPriceRow}>
+                        <Text style={styles.proposalPriceLabel}>Proposed price</Text>
+                        <Text style={styles.proposalPriceValue}>{priceLabel}</Text>
+                      </View>
+                    )}
+                    <View style={styles.proposalActions}>
+                      {accepted ? (
+                        <>
+                          <View style={styles.proposalAcceptedPill}>
+                            <Icon name="check-circle" size={16} color="#15803D" />
+                            <Text style={styles.proposalAcceptedText}>Plan Accepted</Text>
+                          </View>
+                          {paid ? (
+                            <View style={styles.proposalPaidPill}>
+                              <Icon name="verified" size={16} color="#15803D" />
+                              <Text style={styles.proposalAcceptedText}>Paid</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity style={styles.payNowBtn} onPress={() => handlePayNow(msg)} activeOpacity={0.85}>
+                              <Icon name="payment" size={15} color="#15803D" />
+                              <Text style={styles.payNowBtnText}>Pay Now</Text>
+                            </TouchableOpacity>
+                          )}
+                        </>
+                      ) : msg.canAcceptPlan ? (
+                        <TouchableOpacity
+                          style={[styles.requestBtn, acceptingId === msg.id && styles.requestBtnDisabled]}
+                          onPress={() => handleAcceptPlan(msg)}
+                          disabled={acceptingId === msg.id}
+                          activeOpacity={0.85}
+                        >
+                          {acceptingId === msg.id
+                            ? <ActivityIndicator size="small" color="#FFFFFF" />
+                            : <Text style={styles.requestBtnText}>Request This Plan</Text>}
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              }
+
               const mine = isMine(msg);
               return (
                 <View key={msg.id} style={[styles.bubbleRow, mine && styles.bubbleRowMe]}>
@@ -233,6 +389,33 @@ const styles = StyleSheet.create({
   bubbleTextMe: { color: '#FFFFFF' },
   bubbleTime: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
   bubbleTimeMe: { color: 'rgba(255,255,255,0.7)' },
+
+  // Custom Plan proposal card (full-width, matches admin proposal UI)
+  proposalCard: {
+    alignSelf: 'stretch',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 14,
+    padding: 12,
+    gap: 5,
+  },
+  proposalHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  proposalTitle: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#15803D', fontWeight: '700' },
+  proposalMeta: { fontSize: 11, color: '#64748B' },
+  proposalMessage: { fontSize: 13, color: '#0F172A', lineHeight: 18 },
+  proposalPriceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 1 },
+  proposalPriceLabel: { fontSize: 11, color: '#64748B' },
+  proposalPriceValue: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#15803D', fontWeight: '700' },
+  proposalActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 3 },
+  requestBtn: { backgroundColor: '#15803D', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8, minWidth: 130, alignItems: 'center', justifyContent: 'center' },
+  requestBtnDisabled: { opacity: 0.6 },
+  requestBtnText: { color: '#FFFFFF', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1.5, borderColor: '#15803D', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
+  payNowBtnText: { color: '#15803D', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  proposalPaidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  proposalAcceptedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  proposalAcceptedText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },

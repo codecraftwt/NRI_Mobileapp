@@ -97,7 +97,12 @@ function Services({ navigation, route }) {
   const bannerBg = bannerAnim.interpolate({ inputRange: [0, 1], outputRange: ['#FFF1E8', '#FBDCC7'] });
 
   const savedLocation = useSelector(s => s.serviceLocation);
+  const geoStates = useSelector(s => s.geo.states);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
+  // Resolve the numeric state id from the saved state name — the /services API
+  // needs state_id (alongside city_id) to return state-specific pricing;
+  // without it some services come back with no price.
+  const stateId = savedLocation?.stateName ? geoStates.find(s => s.name === savedLocation.stateName)?.id || null : null;
 
   const displayCategories = categories.map(c => ({ ...c, ...detailsFor(c.name), displayName: detailsFor(c.name).displayName || c.name }));
   // "All Categories" first, then every category.
@@ -122,7 +127,7 @@ function Services({ navigation, route }) {
     if (!isAll) return;
     let cancelled = false;
     setAllLoading(true);
-    getServiceGroups({ cityId: savedLocation?.cityId || null })
+    getServiceGroups({ stateId: stateId || null, cityId: savedLocation?.cityId || null })
       .then(({ oneTime: ot, recurring: rc }) => {
         if (cancelled) return;
         const s = new Set();
@@ -131,7 +136,7 @@ function Services({ navigation, route }) {
       .catch(() => { if (!cancelled) setAllServices([]); })
       .finally(() => { if (!cancelled) setAllLoading(false); });
     return () => { cancelled = true; };
-  }, [isAll, savedLocation?.cityId]);
+  }, [isAll, stateId, savedLocation?.cityId]);
 
   const catSeen = new Set();
   const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
@@ -262,7 +267,11 @@ function Services({ navigation, route }) {
                     <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
                     <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
                     <View style={styles.cardMetaRow}>
-                      <Text style={styles.cardPrice}>{priceText(s.pricing)}</Text>
+                      {hasLocation ? (
+                        <Text style={styles.cardPrice}>{priceText(s.pricing)}</Text>
+                      ) : (
+                        <Text style={styles.cardPriceHint} numberOfLines={1}>Set location for price</Text>
+                      )}
                       {!!dur && (
                         <View style={styles.cardDurationChip}>
                           <Icon name="schedule" size={11} color="#94A3B8" />
@@ -390,6 +399,7 @@ const styles = StyleSheet.create({
   cardCat: { fontSize: 11, color: '#94A3B8' },
   cardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   cardPrice: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#D94625' },
+  cardPriceHint: { flex: 1, fontSize: 11, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
   cardDurationChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   cardDuration: { fontSize: 10, color: '#94A3B8' },
 

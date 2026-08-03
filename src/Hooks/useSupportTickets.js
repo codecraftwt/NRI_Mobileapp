@@ -5,6 +5,7 @@ import { fetchSupportTickets, createSupportTicket, resetCreateStatus } from '../
 export function useSupportTickets(page = 1) {
   const dispatch = useDispatch();
   const tickets = useSelector(state => state.supportTickets.tickets);
+  const categories = useSelector(state => state.supportTickets.categories);
   const meta = useSelector(state => state.supportTickets.meta);
   const status = useSelector(state => state.supportTickets.status);
   const error = useSelector(state => state.supportTickets.error);
@@ -18,6 +19,7 @@ export function useSupportTickets(page = 1) {
 
   return {
     tickets,
+    categories,
     meta,
     loading: status === 'loading',
     failed: status === 'failed',
@@ -27,7 +29,7 @@ export function useSupportTickets(page = 1) {
 
     createLoading: createStatus === 'loading',
     createError,
-    create: (subject, message, ticketId) => dispatch(createSupportTicket({ subject, message, ticketId })),
+    create: (payload) => dispatch(createSupportTicket(payload)),
     resetCreate: () => dispatch(resetCreateStatus()),
   };
 }

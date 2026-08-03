@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchSupportTicketDetail, replySupportTicket, escalateSupportTicket } from '../Redux/slices/supportTicketsSlice';
+import { fetchSupportTicketDetail, replySupportTicket, escalateSupportTicket, acceptCustomPlan } from '../Redux/slices/supportTicketsSlice';
 
 export function useSupportTicketDetail(ticketId) {
   const dispatch = useDispatch();
@@ -12,6 +12,8 @@ export function useSupportTicketDetail(ticketId) {
   const replyError = useSelector(state => state.supportTickets.replyError);
   const escalateStatus = useSelector(state => state.supportTickets.escalateStatus);
   const escalateError = useSelector(state => state.supportTickets.escalateError);
+  const acceptPlanStatus = useSelector(state => state.supportTickets.acceptPlanStatus);
+  const acceptPlanError = useSelector(state => state.supportTickets.acceptPlanError);
 
   useEffect(() => {
     if (ticketId) dispatch(fetchSupportTicketDetail(ticketId));
@@ -35,5 +37,9 @@ export function useSupportTicketDetail(ticketId) {
     escalateLoading: escalateStatus === 'loading',
     escalateError,
     escalate: () => dispatch(escalateSupportTicket(ticketId)),
+
+    acceptPlanLoading: acceptPlanStatus === 'loading',
+    acceptPlanError,
+    acceptPlan: (replyId) => dispatch(acceptCustomPlan({ ticketId, replyId })),
   };
 }

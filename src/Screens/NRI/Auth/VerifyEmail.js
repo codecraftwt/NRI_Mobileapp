@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { sendEmailOtp, verifyEmailOtp } from '../../../Redux/slices/userSlice';
@@ -31,6 +31,15 @@ function VerifyEmail({ route, navigation }) {
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const hasSentInitialCode = useRef(false);
+  const inputRef = useRef(null);
+
+  // iOS often ignores `autoFocus` during the screen-transition animation, so
+  // the keyboard never opens and the code can't be entered — focus the input
+  // explicitly once the screen has settled. (Tapping the boxes re-focuses too.)
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 450);
+    return () => clearTimeout(t);
+  }, []);
 
   // Send the first code as soon as this screen mounts, right after account creation.
   useEffect(() => {
@@ -99,7 +108,7 @@ function VerifyEmail({ route, navigation }) {
           </View>
 
           <View style={styles.otpWrapper}>
-            <View style={styles.otpContainer}>
+            <Pressable style={styles.otpContainer} onPress={() => inputRef.current?.focus()}>
               {[0, 1, 2, 3].map((index) => {
                 const isActive = otp.length === index;
                 const isFilled = otp.length > index;
@@ -120,15 +129,17 @@ function VerifyEmail({ route, navigation }) {
                 );
               })}
               <TextInput
+                ref={inputRef}
                 style={styles.hiddenInput}
                 keyboardType="number-pad"
                 maxLength={4}
                 value={otp}
                 onChangeText={(v) => { setOtp(v.replace(/\D/g, '')); if (error) setError(''); }}
                 caretHidden={true}
-                autoFocus={true}
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
               />
-            </View>
+            </Pressable>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
 
