@@ -381,7 +381,7 @@ function SubmitRequest({ navigation }) {
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.headerBack} onPress={() => (page === 'form' ? setPage('cart') : navigation.goBack())}>
-            <Icon name="arrow-back" size={22} color="#FFFFFF" />
+            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Submit Request</Text>
@@ -633,7 +633,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   headerCard: { backgroundColor: '#20304C', paddingTop: STATUS_BAR_HEIGHT - 8, paddingBottom: 18, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerBack: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  headerBack: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  // Nudge the iOS chevron so it sits optically centered (matches Header).
+  headerBackIcon: { marginLeft: 6 },
   headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
   clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },

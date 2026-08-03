@@ -20,8 +20,12 @@ export const ToastProvider = ({ children }) => {
   const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' }); // type: success | error
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTranslateY = useRef(new Animated.Value(20)).current;
+  // Track the pending hide timer so a rapid second toast can't be cut short by
+  // the previous one's timeout firing early.
+  const hideTimer = useRef(null);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = (message, type = 'success', duration = 3500) => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
     setToastConfig({ message, type });
     setToastVisible(true);
 
@@ -38,7 +42,7 @@ export const ToastProvider = ({ children }) => {
       }),
     ]).start();
 
-    setTimeout(() => {
+    hideTimer.current = setTimeout(() => {
       Animated.parallel([
         Animated.timing(toastOpacity, {
           toValue: 0,
@@ -53,7 +57,7 @@ export const ToastProvider = ({ children }) => {
       ]).start(() => {
         setToastVisible(false);
       });
-    }, 2500);
+    }, duration);
   };
 
   return (

@@ -76,7 +76,7 @@ function Notifications({ navigation }) {
         ) : items.length === 0 ? (
           <View style={styles.stateBox}>
             <Icon name="notifications-none" size={48} color="#CBD5E1" />
-            <Text style={styles.stateText}>You're all caught up.</Text>
+            <Text style={styles.emptyTitle}>No notifications yet</Text>
           </View>
         ) : (
           <View style={styles.listContainer}>
@@ -136,8 +136,9 @@ const styles = StyleSheet.create({
     color: '#D94625',
   },
 
-  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 80 },
-  stateText: { fontSize: 14, color: '#64748B', textAlign: 'center', paddingHorizontal: 30 },
+  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 80 },
+  emptyTitle: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 4 },
+  stateText: { fontSize: 14, color: '#64748B', textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 },
 
   listContainer: {
     backgroundColor: '#FFFFFF',

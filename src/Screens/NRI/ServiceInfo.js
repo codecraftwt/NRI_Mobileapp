@@ -7,6 +7,7 @@ import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { addToCart, selectCartCount, selectIsInCart } from '../../Redux/slices/cartSlice';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { addCartItem } from '../../Api/cartApi';
+import { useToast } from '../../context/ToastContext';
 
 // Static, presentation-only copy shared by every service detail (matches the
 // approved design). The trust/process story is the same for all services —
@@ -49,6 +50,7 @@ const durationLabel = (pricing) => {
 function ServiceInfo({ route, navigation }) {
   const { service, category } = route.params;
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const cartCount = useSelector(selectCartCount);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
 
@@ -92,7 +94,9 @@ function ServiceInfo({ route, navigation }) {
       cityId: savedLocation.cityId,
       pincode: savedLocation.pincode,
     }));
-    
+
+    showToast(`${svc.name} added to cart`, 'success');
+
     if (isAuthenticated) {
       addCartItem(svc.id).catch(e => console.warn('Failed to sync cart item', e));
     }
@@ -109,7 +113,7 @@ function ServiceInfo({ route, navigation }) {
       <View style={styles.hero}>
         <View style={styles.heroTopRow}>
           <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back" size={22} color="#FFFFFF" />
+            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.heroBackIcon} />
           </TouchableOpacity>
           <Text style={styles.heroTitle}>Details</Text>
           <TouchableOpacity style={styles.heroIconBtn} onPress={() => navigation.navigate('Cart')}>
@@ -214,10 +218,12 @@ const styles = StyleSheet.create({
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroTitle: { flex: 1, textAlign: 'center', color: '#FFFFFF', fontSize: 16, fontFamily: typography.h4.fontFamily },
   heroIconBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center', alignItems: 'center',
   },
+  // Nudge the iOS chevron so it sits optically centered (matches Header).
+  heroBackIcon: { marginLeft: 6 },
   cartBadge: {
     position: 'absolute', top: 2, right: 2,
     minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3,
