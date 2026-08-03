@@ -12,7 +12,7 @@ const colors = {
   accent: '#A64416',  // Chocolate
 };
 
-function OnboardingTopBar({ navigation, onBack }) {
+function OnboardingTopBar({ navigation, onBack, onLogout }) {
   return (
     <View style={styles.container}>
       {onBack ? (
@@ -25,6 +25,12 @@ function OnboardingTopBar({ navigation, onBack }) {
           <Text style={styles.brandText}>NRI <Text style={{ color: colors.primary }}>Circle</Text></Text>
         </View>
       )}
+      {onLogout && (
+        <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.7}>
+          <Icon name="logout" size={14} color={colors.accent} />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -34,6 +40,8 @@ const styles = StyleSheet.create({
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   brandText: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', letterSpacing: -0.5 },
   backBtn: { padding: 4, position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10 },
+  logoutBtn: { position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 12, backgroundColor: 'rgba(166,68,22,0.10)' },
+  logoutText: { fontSize: 11, fontFamily: 'Montserrat-Bold', color: colors.accent },
 });
 
 export default OnboardingTopBar;

@@ -10,6 +10,14 @@ export const fetchSupportTickets = createAsyncThunk('supportTickets/fetchAll', a
   }
 });
 
+export const fetchSupportCategories = createAsyncThunk('supportTickets/fetchCategories', async (_, { rejectWithValue }) => {
+  try {
+    return await supportTicketApi.getSupportTicketCategories();
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 export const createSupportTicket = createAsyncThunk('supportTickets/create', async ({ subject, message, ticketId, category, stateId, cityId }, { rejectWithValue }) => {
   try {
     return await supportTicketApi.createSupportTicket({ subject, message, ticketId, category, stateId, cityId });
@@ -68,8 +76,9 @@ export const acceptCustomPlan = createAsyncThunk('supportTickets/acceptPlan', as
 const initialState = {
   tickets: [],
   // "Raise Ticket to" options; seeded so the picker is never empty, then
-  // refreshed from the list response.
+  // replaced by the categories endpoint.
   categories: DEFAULT_SUPPORT_CATEGORIES,
+  categoriesStatus: 'idle',
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   status: 'idle',
   error: null,
@@ -111,7 +120,17 @@ const supportTicketsSlice = createSlice({
         state.status = 'succeeded';
         state.tickets = action.payload.tickets;
         state.meta = action.payload.meta;
-        if (action.payload.categories?.length) state.categories = action.payload.categories;
+      })
+      .addCase(fetchSupportCategories.pending, (state) => {
+        state.categoriesStatus = 'loading';
+      })
+      .addCase(fetchSupportCategories.fulfilled, (state, action) => {
+        state.categoriesStatus = 'succeeded';
+        if (action.payload?.length) state.categories = action.payload;
+      })
+      .addCase(fetchSupportCategories.rejected, (state) => {
+        // Keep the seeded defaults on failure.
+        state.categoriesStatus = 'failed';
       })
       .addCase(fetchSupportTickets.rejected, (state, action) => {
         state.status = 'failed';

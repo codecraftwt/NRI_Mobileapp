@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useSupportTickets } from '../../Hooks/useSupportTickets';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
@@ -68,6 +69,7 @@ function SelectField({ label, value, placeholder, options, disabled, loading, on
 
 function NewSupportTicket({ navigation }) {
   const { create, createLoading, resetCreate, categories } = useSupportTickets();
+  const { showAlert, alertProps } = useAppAlert();
   const [raiseTo, setRaiseTo] = useState(GENERAL_VALUE);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -101,9 +103,13 @@ function NewSupportTicket({ navigation }) {
         cityId: isCustomPlan ? cityId : undefined,
       }).unwrap();
       resetCreate();
-      navigation.replace('SupportTicketChat', { ticketId: result.ticket.id, createdTicketNumber: result.ticket.ticketNumber });
+      showAlert(
+        'Ticket Created',
+        `Your ${isCustomPlan ? 'custom plan request' : 'support ticket'} ${result.ticket.ticketNumber} has been created.`,
+        [{ text: 'OK', onPress: () => navigation.replace('SupportTicketChat', { ticketId: result.ticket.id, createdTicketNumber: result.ticket.ticketNumber }) }]
+      );
     } catch (error) {
-      Alert.alert('Could Not Create Ticket', error?.message || 'Please try again.');
+      showAlert('Could Not Create Ticket', error?.message || 'Please try again.');
     }
   };
 
@@ -210,6 +216,7 @@ function NewSupportTicket({ navigation }) {
           </View>
         </View>
       </ScrollView>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

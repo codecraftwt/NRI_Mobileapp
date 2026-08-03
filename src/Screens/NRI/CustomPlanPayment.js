@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { useBilling } from '../../Hooks/useBilling';
 import { typography } from '../../theme/typography';
@@ -17,6 +18,7 @@ function formatUsd(value) {
 function CustomPlanPayment({ route, navigation }) {
   const { jobId, ticketNumber, basePrice, replyId } = route.params || {};
   const { pay: payBill, verifyPayment } = useBilling();
+  const { showAlert, alertProps } = useAppAlert();
 
   // Return to the chat, flagging this proposal reply as paid so its "Pay Now"
   // button is removed. merge:true pops back to the existing chat instance.
@@ -38,7 +40,7 @@ function CustomPlanPayment({ route, navigation }) {
 
   const handlePay = async () => {
     if (!jobId) {
-      Alert.alert('Not Ready', 'This plan is not payable yet. Please try again in a moment.');
+      showAlert('Not Ready', 'This plan is not payable yet. Please try again in a moment.');
       return;
     }
     setPaying(true);
@@ -47,12 +49,12 @@ function CustomPlanPayment({ route, navigation }) {
       if (result.checkoutUrl) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
-        Alert.alert('Payment Successful', result.message || 'Your custom plan has been paid.', [
+        showAlert('Payment Successful', result.message || 'Your custom plan has been paid.', [
           { text: 'OK', onPress: goBackPaid },
         ]);
       }
     } catch (error) {
-      Alert.alert('Payment Failed', error?.message || 'Could not start payment. Please try again.');
+      showAlert('Payment Failed', error?.message || 'Could not start payment. Please try again.');
     } finally {
       setPaying(false);
     }
@@ -63,11 +65,11 @@ function CustomPlanPayment({ route, navigation }) {
     setCheckoutSession(null);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
-      Alert.alert('Payment Successful', 'Your custom plan has been paid.', [
+      showAlert('Payment Successful', 'Your custom plan has been paid.', [
         { text: 'OK', onPress: goBackPaid },
       ]);
     } catch (error) {
-      Alert.alert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
+      showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
     }
   };
 
@@ -162,6 +164,7 @@ function CustomPlanPayment({ route, navigation }) {
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}
       />
+      <AppAlert {...alertProps} />
     </View>
   );
 }

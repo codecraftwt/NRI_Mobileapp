@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useSupportTicketDetail } from '../../Hooks/useSupportTicketDetail';
 import { useBilling } from '../../Hooks/useBilling';
 import { lightColors as colors } from '../../theme/colors';
@@ -53,6 +54,7 @@ function SupportTicketChat({ route, navigation }) {
   const { ticketId, createdTicketNumber } = route.params || {};
   const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = useSupportTicketDetail(ticketId);
   const { overview: billing, retry: refreshBilling } = useBilling();
+  const { showAlert, alertProps } = useAppAlert();
   const [replyText, setReplyText] = useState('');
   const [showCreatedBanner, setShowCreatedBanner] = useState(!!createdTicketNumber);
   // Which proposal reply is mid-accept, so only its button spins.
@@ -110,14 +112,14 @@ function SupportTicketChat({ route, navigation }) {
     try {
       await sendReply(text).unwrap();
     } catch (error) {
-      Alert.alert('Could Not Send', error?.message || 'Please try again.');
+      showAlert('Could Not Send', error?.message || 'Please try again.');
       setReplyText(text);
     }
   };
 
   const handleAcceptPlan = (msg) => {
     const priceLabel = formatPrice(msg.proposedPrice);
-    Alert.alert(
+    showAlert(
       'Request This Plan',
       `Accept this custom plan${priceLabel ? ` for ${priceLabel}` : ''}? This will convert it into a payable job.`,
       [
@@ -129,9 +131,9 @@ function SupportTicketChat({ route, navigation }) {
             try {
               await acceptPlan(msg.id).unwrap();
               await retry();
-              Alert.alert('Plan Accepted', 'Your custom plan has been created. You can now proceed to payment from your requests.');
+              showAlert('Plan Accepted', 'Your custom plan has been created. You can now proceed to payment from your requests.');
             } catch (error) {
-              Alert.alert('Could Not Accept Plan', error?.message || 'Please try again.');
+              showAlert('Could Not Accept Plan', error?.message || 'Please try again.');
             } finally {
               setAcceptingId(null);
             }
@@ -148,7 +150,7 @@ function SupportTicketChat({ route, navigation }) {
     const job = msg.convertedTicket;
     const jobId = resolveJobId(job);
     if (!jobId) {
-      Alert.alert('Not Ready', 'Please accept this plan first, then pay.');
+      showAlert('Not Ready', 'Please accept this plan first, then pay.');
       return;
     }
     const ticketNumber = job && typeof job === 'object' ? (job.ticket_number || job.ticketNumber || null) : null;
@@ -156,7 +158,7 @@ function SupportTicketChat({ route, navigation }) {
   };
 
   const handleEscalate = () => {
-    Alert.alert(
+    showAlert(
       'Escalate to Admin',
       'This will notify our admin team that you need further help with this ticket. Continue?',
       [
@@ -167,9 +169,9 @@ function SupportTicketChat({ route, navigation }) {
           onPress: async () => {
             try {
               await escalate().unwrap();
-              Alert.alert('Escalated', 'Your ticket has been escalated to our admin team.');
+              showAlert('Escalated', 'Your ticket has been escalated to our admin team.');
             } catch (error) {
-              Alert.alert('Could Not Escalate', error?.message || 'Please try again.');
+              showAlert('Could Not Escalate', error?.message || 'Please try again.');
             }
           },
         },
@@ -223,12 +225,24 @@ function SupportTicketChat({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.threadHeaderRow}>
             <View style={styles.threadHeaderLeft}>
-              <Text style={styles.threadSubject} numberOfLines={1}>{ticket.subject}</Text>
-              <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-                <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket.statusLabel}</Text>
+              <View style={styles.threadTitleLine}>
+                <Text style={styles.threadSubject} numberOfLines={1}>{ticket.subject}</Text>
+                <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+                  <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket.statusLabel}</Text>
+                </View>
               </View>
+              <Text style={styles.threadDate}>{formatTime(ticket.createdAt)}</Text>
             </View>
-            <Text style={styles.threadDate}>{formatTime(ticket.createdAt)}</Text>
+            {!isClosed && ticket.status !== 'escalated' && (
+              <TouchableOpacity style={styles.escalateChip} onPress={handleEscalate} disabled={escalateLoading} activeOpacity={0.85}>
+                {escalateLoading ? <ActivityIndicator size="small" color="#DC2626" /> : (
+                  <>
+                    <Icon name="arrow-upward" size={14} color="#DC2626" />
+                    <Text style={styles.escalateChipText}>Escalate</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.messagesWrap}>
@@ -328,21 +342,8 @@ function SupportTicketChat({ route, navigation }) {
             </View>
           )}
         </View>
-
-        {!isClosed && ticket.status !== 'escalated' && (
-          <View style={styles.escalateCard}>
-            <Text style={styles.escalateText}>Not getting the help you need? Escalate this ticket to our admin team.</Text>
-            <TouchableOpacity style={[styles.escalateBtn, escalateLoading && styles.escalateBtnDisabled]} onPress={handleEscalate} disabled={escalateLoading}>
-              {escalateLoading ? <ActivityIndicator size="small" color="#DC2626" /> : (
-                <>
-                  <Icon name="arrow-upward" size={16} color="#DC2626" />
-                  <Text style={styles.escalateBtnText}>Escalate to Admin</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
+      <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -370,10 +371,13 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
-  threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  threadHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  threadHeaderLeft: { flex: 1, gap: 4 },
+  threadTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   threadSubject: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1 },
   threadDate: { fontSize: 11, color: '#94A3B8' },
+  escalateChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
+  escalateChipText: { color: '#DC2626', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 
@@ -422,24 +426,6 @@ const styles = StyleSheet.create({
   sendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D94625', borderRadius: 20, paddingHorizontal: 16, height: 44 },
   sendBtnDisabled: { opacity: 0.5 },
   sendBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
-
-  escalateCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 3,
-  },
-  escalateText: { fontSize: 13, color: '#334155', lineHeight: 20 },
-  escalateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 24, paddingVertical: 14 },
-  escalateBtnDisabled: { opacity: 0.6 },
-  escalateBtnText: { color: '#DC2626', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 });
 
 export default SupportTicketChat;

@@ -27,7 +27,6 @@ function Register({ navigation }) {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
@@ -50,8 +49,6 @@ function Register({ navigation }) {
     if (!name.trim()) errors.name = 'Full name is required.';
     if (!email.trim()) errors.email = 'Email address is required.';
     else if (!EMAIL_REGEX.test(email.trim())) errors.email = 'Enter a valid email address.';
-    if (!phone.trim()) errors.phone = 'Phone number is required.';
-    else if (phone.trim().replace(/\D/g, '').length < 7) errors.phone = 'Enter a valid phone number.';
     if (!password) errors.password = 'Password is required.';
     else if (password.length < 8) errors.password = 'Password must be at least 8 characters.';
     else if (!PASSWORD_NUMBER_REGEX.test(password)) errors.password = 'Password must include at least one number.';
@@ -72,7 +69,6 @@ function Register({ navigation }) {
     dispatch(registerUser({
       name: name.trim(),
       email: email.trim(),
-      phone: phone.trim(),
       password,
       passwordConfirmation: confirmPassword,
       referralCode: referralCode.trim() || undefined,
@@ -153,22 +149,6 @@ function Register({ navigation }) {
             />
           </View>
           {!!errorFor('email') && <Text style={styles.errorText}>{errorFor('email')}</Text>}
-
-          <Text style={styles.inputLabel}>Phone Number</Text>
-          <View style={[styles.inputWrap, errorFor('phone') && styles.inputWrapError]}>
-            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
-              <Icon name="phone-iphone" size={20} color={C.primary} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="+1 555 000 0000"
-              placeholderTextColor={C.textPlaceholder}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={(v) => { setPhone(v); clearError('phone'); }}
-            />
-          </View>
-          {!!errorFor('phone') && <Text style={styles.errorText}>{errorFor('phone')}</Text>}
 
           <Text style={styles.inputLabel}>Password</Text>
           <View style={[styles.inputWrap, errorFor('password') && styles.inputWrapError]}>

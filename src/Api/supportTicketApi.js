@@ -23,29 +23,18 @@ function normalizeCategory(raw) {
   return { value: String(value), label: String(label) };
 }
 
-// Pull the available "Raise Ticket to" categories out of the list response.
-// Prefers an explicit catalog (meta.categories / categories / filters), then
-// falls back to the distinct category/category_label pairs on the tickets
-// themselves, then to the guaranteed defaults — and always ensures both
-// defaults (general + custom_plan) are selectable.
-function extractSupportCategories(data, tickets) {
-  const source = data?.meta?.categories || data?.categories || data?.filters?.categories;
-  let list = [];
-  if (Array.isArray(source)) {
-    list = source.map(normalizeCategory).filter(Boolean);
-  } else if (source && typeof source === 'object') {
-    list = Object.entries(source).map(([value, label]) => ({ value, label: String(label) }));
+// GET /customer/support-tickets/categories — the authoritative "Raise Ticket
+// to" catalog (mirrors App\Enums\SupportTicketCategory). Not paginated; safe
+// to cache client-side. Falls back to the built-in defaults on any error.
+export async function getSupportTicketCategories() {
+  try {
+    const response = await apiClient.get('/customer/support-tickets/categories');
+    const list = response.data?.data || [];
+    const mapped = list.map(normalizeCategory).filter(Boolean);
+    return mapped.length ? mapped : [...DEFAULT_SUPPORT_CATEGORIES];
+  } catch (error) {
+    throw normalizeApiError(error);
   }
-  if (list.length === 0 && Array.isArray(tickets)) {
-    const seen = new Map();
-    tickets.forEach(t => { if (t.category && !seen.has(t.category)) seen.set(t.category, t.categoryLabel || t.category); });
-    list = [...seen].map(([value, label]) => ({ value, label }));
-  }
-  const result = list.length ? list : [...DEFAULT_SUPPORT_CATEGORIES];
-  DEFAULT_SUPPORT_CATEGORIES.forEach(d => {
-    if (!result.some(c => c.value === d.value)) result.push(d);
-  });
-  return result;
 }
 
 // Field names for GET list/detail responses aren't in the backend's OpenAPI
@@ -135,10 +124,8 @@ export async function getSupportTickets({ page } = {}) {
     if (page) params.page = page;
     const response = await apiClient.get('/customer/support-tickets', { params });
     const list = response.data?.data || [];
-    const tickets = list.map(mapSupportTicket);
     return {
-      tickets,
-      categories: extractSupportCategories(response.data, tickets),
+      tickets: list.map(mapSupportTicket),
       meta: {
         currentPage: response.data?.meta?.current_page ?? 1,
         lastPage: response.data?.meta?.last_page ?? 1,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { sendEmailOtp, verifyEmailOtp } from '../../../Redux/slices/userSlice';
@@ -27,19 +27,52 @@ function VerifyEmail({ route, navigation }) {
 
   const email = route.params?.email || user?.email || '';
 
-  const [otp, setOtp] = useState('');
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(0);
   const hasSentInitialCode = useRef(false);
-  const inputRef = useRef(null);
+  const inputs = useRef([]);
+
+  const otp = digits.join('');
 
   // iOS often ignores `autoFocus` during the screen-transition animation, so
-  // the keyboard never opens and the code can't be entered — focus the input
-  // explicitly once the screen has settled. (Tapping the boxes re-focuses too.)
+  // the keyboard never opens — focus the first box once the screen has settled.
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 450);
+    const t = setTimeout(() => inputs.current[0]?.focus(), 450);
     return () => clearTimeout(t);
   }, []);
+
+  // Each box is its own input: typing a digit advances to the next box, and a
+  // full code (autofill/paste) dropped into any box spreads across the rest.
+  const handleChange = (text, index) => {
+    const clean = text.replace(/\D/g, '');
+    if (error) setError('');
+
+    if (clean.length > 1) {
+      const arr = [...digits];
+      let i = index;
+      clean.slice(0, 4 - index).split('').forEach((ch) => { arr[i] = ch; i += 1; });
+      setDigits(arr);
+      inputs.current[Math.min(i, 3)]?.focus();
+      return;
+    }
+
+    const arr = [...digits];
+    arr[index] = clean;
+    setDigits(arr);
+    if (clean && index < 3) inputs.current[index + 1]?.focus();
+  };
+
+  // Backspace on an empty box jumps back and clears the previous one.
+  const handleKeyPress = (e, index) => {
+    if (e.nativeEvent.key === 'Backspace' && !digits[index] && index > 0) {
+      const arr = [...digits];
+      arr[index - 1] = '';
+      setDigits(arr);
+      inputs.current[index - 1]?.focus();
+    }
+  };
 
   // Send the first code as soon as this screen mounts, right after account creation.
   useEffect(() => {
@@ -108,38 +141,32 @@ function VerifyEmail({ route, navigation }) {
           </View>
 
           <View style={styles.otpWrapper}>
-            <Pressable style={styles.otpContainer} onPress={() => inputRef.current?.focus()}>
-              {[0, 1, 2, 3].map((index) => {
-                const isActive = otp.length === index;
-                const isFilled = otp.length > index;
-                return (
-                  <View 
-                    key={index} 
-                    style={[
-                      styles.otpBox, 
-                      isActive && styles.otpBoxActive,
-                      isFilled && styles.otpBoxFilled,
-                      !!error && styles.otpBoxError
-                    ]}
-                  >
-                    <Text style={styles.otpText}>
-                      {otp[index] || ''}
-                    </Text>
-                  </View>
-                );
-              })}
-              <TextInput
-                ref={inputRef}
-                style={styles.hiddenInput}
-                keyboardType="number-pad"
-                maxLength={4}
-                value={otp}
-                onChangeText={(v) => { setOtp(v.replace(/\D/g, '')); if (error) setError(''); }}
-                caretHidden={true}
-                textContentType="oneTimeCode"
-                autoComplete="one-time-code"
-              />
-            </Pressable>
+            <View style={styles.otpContainer}>
+              {[0, 1, 2, 3].map((index) => (
+                <TextInput
+                  key={index}
+                  ref={(el) => { inputs.current[index] = el; }}
+                  style={[
+                    styles.otpBox,
+                    focusedIndex === index && styles.otpBoxActive,
+                    !!digits[index] && styles.otpBoxFilled,
+                    !!error && styles.otpBoxError,
+                  ]}
+                  keyboardType="number-pad"
+                  maxLength={index === 0 ? 4 : 1}
+                  value={digits[index]}
+                  onChangeText={(t) => handleChange(t, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  onFocus={() => setFocusedIndex(index)}
+                  onBlur={() => setFocusedIndex(-1)}
+                  textAlign="center"
+                  returnKeyType="done"
+                  selectionColor={C.primary}
+                  textContentType={index === 0 ? 'oneTimeCode' : 'none'}
+                  autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                />
+              ))}
+            </View>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
           </View>
 
@@ -246,10 +273,12 @@ const styles = StyleSheet.create({
     height: 75,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    fontSize: 28,
+    fontFamily: 'Montserrat-Bold',
+    color: '#1E293B',
+    padding: 0,
     elevation: 2,
     shadowColor: '#94A3B8',
     shadowOffset: { width: 0, height: 2 },
@@ -273,17 +302,6 @@ const styles = StyleSheet.create({
   otpBoxError: {
     borderColor: '#EF4444',
     backgroundColor: '#FEF2F2',
-  },
-  otpText: {
-    fontSize: 28,
-    fontFamily: 'Montserrat-Bold',
-    color: '#1E293B',
-  },
-  hiddenInput: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    opacity: 0,
   },
   errorText: {
     fontSize: 13,
