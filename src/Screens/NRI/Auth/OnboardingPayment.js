@@ -160,6 +160,7 @@ function OnboardingPayment({ route, navigation }) {
   // empty cart this is a plain membership registration — unchanged.
   const cartItems = useSelector(selectCartItems);
   const servicesSubtotal = useSelector(selectCartSubtotal);
+  const savedLocation = useSelector(s => s.serviceLocation);
   const fromCart = cartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
@@ -184,13 +185,13 @@ function OnboardingPayment({ route, navigation }) {
     fullName: '',
     relation: '',
     property: 'Not applicable',
-    state: firstItem.stateName || '',
-    city: firstItem.cityName || '',
+    state: firstItem.stateName || savedLocation?.stateName || '',
+    city: firstItem.cityName || savedLocation?.cityName || '',
     taluka: '',
     address: '',
     // Prefill the PIN code the guest picked when choosing services (carried on
     // the cart item), so they don't re-enter it after registering.
-    pincode: firstItem.pincode || '',
+    pincode: firstItem.pincode || savedLocation?.pincode || '',
     preferredAt: '',
     priority: '',
     notes: '',
@@ -206,6 +207,18 @@ function OnboardingPayment({ route, navigation }) {
   const priorityLabels = priorities.map(priorityLabelOf);
   const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
   const prioritySurcharge = fromCart ? toAmount(selectedPriority?.surcharge) : 0;
+
+  useEffect(() => {
+    const stateName = firstItem.stateName || savedLocation?.stateName || '';
+    const cityName = firstItem.cityName || savedLocation?.cityName || '';
+    const pincode = firstItem.pincode || savedLocation?.pincode || '';
+    setReqForm(prev => ({
+      ...prev,
+      state: prev.state || stateName,
+      city: prev.city || cityName,
+      pincode: prev.pincode || pincode,
+    }));
+  }, [firstItem.stateName, firstItem.cityName, firstItem.pincode, savedLocation?.stateName, savedLocation?.cityName, savedLocation?.pincode]);
 
   // Default the Priority field to the standard/default tier once tiers load.
   useEffect(() => {
@@ -398,7 +411,7 @@ function OnboardingPayment({ route, navigation }) {
   // API the in-app CreateTicket screen uses.
   const submitCartServiceRequests = async () => {
     const stateId = states.find(s => s.name === reqForm.state)?.id;
-    const cityId = cities.find(c => c.name === reqForm.city)?.id || cartItems[0]?.cityId || null;
+    const cityId = cities.find(c => c.name === reqForm.city)?.id || cartItems[0]?.cityId || savedLocation?.cityId || null;
     const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
     const address = reqForm.pincode.trim()
       ? `${reqForm.address.trim()} - ${reqForm.pincode.trim()}`
@@ -507,7 +520,7 @@ function OnboardingPayment({ route, navigation }) {
         familyMemberName: reqForm.fullName?.trim() || undefined,
         familyMemberRelationship: reqForm.relation?.trim().toLowerCase() || undefined,
         stateId: states.find(s => s.name === reqForm.state)?.id || undefined,
-        cityId: cities.find(c => c.name === reqForm.city)?.id || (fromCart ? cartItems[0]?.cityId : undefined) || undefined,
+        cityId: cities.find(c => c.name === reqForm.city)?.id || (fromCart ? (cartItems[0]?.cityId || savedLocation?.cityId) : undefined) || undefined,
         talukaId: talukas.find(t => t.name === reqForm.taluka)?.id || undefined,
         address: reqForm.address?.trim() || undefined,
         pincode: reqForm.pincode?.trim() || undefined,

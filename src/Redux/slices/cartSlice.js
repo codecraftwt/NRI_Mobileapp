@@ -19,9 +19,19 @@ const initialState = {
 // Authenticated-only server cart thunks. These never run for guests (the
 // useCart hook gates them behind isAuthenticated), so the onboarding flow is
 // untouched.
-export const fetchServerCart = createAsyncThunk('cart/fetchServer', async (_, { rejectWithValue }) => {
+export const fetchServerCart = createAsyncThunk('cart/fetchServer', async (_, { getState, rejectWithValue }) => {
   try {
-    return await cartApi.getCart();
+    const state = getState();
+    const result = await cartApi.getCart();
+    const user = state.user?.user || {};
+    const userId = user.id ?? user.email ?? null;
+    const onboardingRecord = userId != null ? state.onboarding?.completedByUser?.[userId] : undefined;
+    const onboardingIncomplete = onboardingRecord === false || user.onboarded === false;
+    const hasCarriedGuestCart = (state.cart?.items || []).length > 0 && (state.cart?.serverCount || 0) === 0;
+    return {
+      ...result,
+      preserveLocalOnEmpty: result.items.length === 0 && hasCarriedGuestCart && onboardingIncomplete,
+    };
   } catch (error) {
     return rejectWithValue(error);
   }
@@ -79,6 +89,10 @@ const cartSlice = createSlice({
       // local location fields for matching rows because the cart API omits them.
       .addCase(fetchServerCart.fulfilled, (state, action) => {
         const serverItems = action.payload?.items || [];
+        if (action.payload?.preserveLocalOnEmpty) {
+          state.serverCount = action.payload?.count ?? 0;
+          return;
+        }
         const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
         state.items = serverItems.map((si) => {
           const key = String(si.serviceId);
