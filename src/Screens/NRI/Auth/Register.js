@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerUser } from '../../../Redux/slices/userSlice';
@@ -102,15 +102,8 @@ function Register({ navigation }) {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.headerSection}>
-            {/* Enhanced Concentric Logo Design */}
             <View style={styles.logoCenterWrap}>
-              <View style={styles.logoOuterRing}>
-                <View style={styles.logoInnerRing}>
-                  <View style={[styles.iconContainer, { backgroundColor: C.surface }]}>
-                    <Icon name="public" size={32} color={C.primary} />
-                  </View>
-                </View>
-              </View>
+              <Image source={require('../../../Assets/images/logo.png')} style={styles.logoImage} />
               <Text style={styles.brandText}>NRI <Text style={{ color: C.primary }}>Circle</Text></Text>
             </View>
 
@@ -269,35 +262,19 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
 
-  // Concentric Logo Design
+  // Logo Design
   logoCenterWrap: {
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  logoOuterRing: {
-    width: 96,
-    height: 96,
+  logoImage: {
+    width: 72,
+    height: 72,
     borderRadius: radius.full,
-    backgroundColor: C.primaryLight + '10',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  logoInnerRing: {
-    width: 78,
-    height: 78,
-    borderRadius: radius.full,
-    backgroundColor: C.primaryLight + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 14,
     elevation: 10,
+    shadowColor: C.primaryLight,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 15,
@@ -342,7 +319,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: radius['2xl'],
     paddingHorizontal: spacing.sm,
-    height: 64,
+    height: 60,
     elevation: 8,
     shadowColor: C.primaryLight,
     shadowOffset: { width: 0, height: 10 },

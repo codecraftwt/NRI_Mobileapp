@@ -150,7 +150,7 @@ function OnboardingPayment({ route, navigation }) {
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
   const {
     coupons, couponsLoading, fetchCoupons,
-    couponResult, couponLoading, validateCoupon,
+    couponResult, couponLoading, validateCoupon, clearCoupon,
     checkoutLoading, checkout, verifyLoading, verifyPayment,
   } = useMembershipCheckout();
 
@@ -164,7 +164,7 @@ function OnboardingPayment({ route, navigation }) {
   const fromCart = cartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  const paymentMethod = 'stripe';
   const [submitting, setSubmitting] = useState(false);
   // Two-step sub-flow for the cart path: 'details' (who/where + documents) then
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
@@ -241,7 +241,7 @@ function OnboardingPayment({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCart, cartServiceIdsKey]);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
-  // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
+  // { url, paymentId } while the hosted Stripe checkout WebView is open.
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
 
@@ -279,11 +279,21 @@ function OnboardingPayment({ route, navigation }) {
       .unwrap()
       .then((result) => {
         const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`, 'success');
+        showAlert('Coupon Applied', `Code ${result.code} applied `, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
       });
+  };
+
+  const handleCouponTextChange = (text) => {
+    if (couponResult) clearCoupon();
+    setPlanCouponCode(text);
+  };
+
+  const handleRemovePlanCoupon = () => {
+    clearCoupon();
+    setPlanCouponCode('');
   };
 
   const handleViewCoupons = () => {
@@ -300,7 +310,7 @@ function OnboardingPayment({ route, navigation }) {
       .unwrap()
       .then((result) => {
         const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(finalAmount)}.`, 'success');
+        showAlert('Coupon Applied', `Code ${result.code} applied`, 'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
@@ -531,7 +541,7 @@ function OnboardingPayment({ route, navigation }) {
       }).unwrap();
 
       if (result.checkoutUrl) {
-        // Stripe / PayPal — both return a hosted checkout_url. Open it in an
+        // Stripe returns a hosted checkout_url. Open it in an
         // in-app WebView; the payment is confirmed in handleCheckoutSuccess
         // once the gateway redirects back to the success_url with a session_id
         // (see StripeCheckoutModal).
@@ -547,7 +557,7 @@ function OnboardingPayment({ route, navigation }) {
     }
   };
 
-  // The hosted page (Stripe/PayPal) redirected back with a session_id — confirm
+  // The hosted Stripe page redirected back with a session_id — confirm
   // it with the backend, which is what actually activates the membership.
   const handleCheckoutSuccess = async (sessionId) => {
     const paymentId = checkoutSession?.paymentId;
@@ -805,9 +815,19 @@ function OnboardingPayment({ route, navigation }) {
 
               <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
               <View style={styles.couponRow}>
-                <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={setPlanCouponCode} />
-                <TouchableOpacity style={styles.applyBtn} onPress={handleApplyPlanCoupon} disabled={couponLoading}>
-                  {couponLoading ? <ActivityIndicator size="small" color={C.primary} /> : <Text style={styles.applyBtnText}>Apply</Text>}
+                <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
+                <TouchableOpacity
+                  style={styles.applyBtn}
+                  onPress={couponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
+                  disabled={couponLoading}
+                >
+                  {couponLoading ? (
+                    <ActivityIndicator size="small" color={C.primary} />
+                  ) : (
+                    <Text style={styles.applyBtnText}>
+                      {couponResult ? 'Remove' : 'Apply'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
               <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
@@ -822,24 +842,15 @@ function OnboardingPayment({ route, navigation }) {
                 <Icon name="mark-email-read" size={16} color={C.primary} />
                 <Text style={styles.cardHeaderText}>Payment Details</Text>
               </View>
-              <Text style={styles.gatewayIntro}>Select your preferred international payment gateway below:</Text>
+              <Text style={styles.gatewayIntro}>Pay securely with card:</Text>
 
-              <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'stripe' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('stripe')}>
+              <TouchableOpacity style={[styles.gatewayRow, styles.gatewayRowActive]} activeOpacity={0.8}>
                 <Icon name="credit-card" size={22} color={paymentMethod === 'stripe' ? C.primary : '#64748B'} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.gatewayName}>Card (Stripe)</Text>
                   <Text style={styles.gatewayDesc}>Accepts major cards (Visa, Mastercard, Amex)</Text>
                 </View>
                 <View style={[styles.radio, paymentMethod === 'stripe' && styles.radioActive]} />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'paypal' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('paypal')}>
-                <Icon name="account-balance-wallet" size={22} color={paymentMethod === 'paypal' ? C.primary : '#64748B'} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.gatewayName}>PayPal</Text>
-                  <Text style={styles.gatewayDesc}>Pay with your PayPal account or card</Text>
-                </View>
-                <View style={[styles.radio, paymentMethod === 'paypal' && styles.radioActive]} />
               </TouchableOpacity>
 
               {loading ? (

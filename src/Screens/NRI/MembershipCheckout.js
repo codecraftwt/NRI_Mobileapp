@@ -108,7 +108,7 @@ function MembershipCheckout({ navigation, route }) {
     validateCoupon({ planId: selectedPlanId, code: planCouponCode.trim() })
       .unwrap()
       .then((result) => {
-        showAlert('Coupon Applied', `Code ${result.code} applied — final amount ${formatUsd(result.finalAmount)}.`, 'success');
+        showAlert('Coupon Applied',  'success');
       })
       .catch((error) => {
         showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');

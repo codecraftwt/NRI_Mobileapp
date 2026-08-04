@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Platform, PermissionsAndroid, Linking, Alert, Image } from 'react-native';
 import RNBlobUtil from 'react-native-blob-util';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -129,10 +129,12 @@ function SubmitRequest({ navigation }) {
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
   const [documentFiles, setDocumentFiles] = useState({});
   const [pincodeLocation, setPincodeLocation] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  const paymentMethod = 'stripe';
   const [couponCode, setCouponCode] = useState('');
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [goServicesOnAlertClose, setGoServicesOnAlertClose] = useState(false);
+  const [submissionInProgress, setSubmissionInProgress] = useState(false);
+  const submissionLockRef = useRef(false);
   // Page 1: 'cart' (selected services + estimated price). Page 2: 'form' — the
   // two-step request form ('details' → 'payment').
   const [page, setPage] = useState('cart');
@@ -232,7 +234,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submitLoading || payLoading || verifyLoading;
+  const loading = submissionInProgress || submitLoading || payLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
@@ -385,7 +387,7 @@ function SubmitRequest({ navigation }) {
     alertProps.onRequestClose?.();
     if (goServicesOnAlertClose) {
       setGoServicesOnAlertClose(false);
-      navigation.navigate('Services');
+      navigation.navigate('Services', { screen: 'ServicesMain' });
     }
   };
 
@@ -414,8 +416,11 @@ function SubmitRequest({ navigation }) {
   const handleContinue = () => { if (validateDetails()) setStep('payment'); };
 
   const handleSubmit = async () => {
+    if (loading || submissionLockRef.current) return;
     if (!validateDetails()) { setStep('details'); return; }
 
+    submissionLockRef.current = true;
+    setSubmissionInProgress(true);
     try {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
@@ -439,6 +444,8 @@ function SubmitRequest({ navigation }) {
         const pay = await payForTicket({ ticketId: result.ticket.id, gateway: paymentMethod }).unwrap();
         if (pay.checkoutUrl) {
           setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
         } else {
           await finishSuccess();
         }
@@ -452,17 +459,23 @@ function SubmitRequest({ navigation }) {
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
         || 'Could not submit your request. Please try again.';
       showAlert('Submission Failed', msg);
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
     }
   };
 
   const handleCheckoutSuccess = async (sessionId) => {
     const session = checkoutSession;
     setCheckoutSession(null);
+    submissionLockRef.current = true;
+    setSubmissionInProgress(true);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
       await finishSuccess();
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify the payment yet. If charged, check Requests shortly.');
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
     }
   };
 
@@ -685,15 +698,10 @@ function SubmitRequest({ navigation }) {
             <TextInput style={styles.input} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={setCouponCode} />
 
             <Text style={styles.fieldLabel}>Payment Method</Text>
-            <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'stripe' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('stripe')}>
+            <TouchableOpacity style={[styles.gatewayRow, styles.gatewayRowActive]} activeOpacity={0.8}>
               <Icon name="credit-card" size={20} color={paymentMethod === 'stripe' ? '#20304C' : '#64748B'} />
               <View style={{ flex: 1 }}><Text style={styles.gatewayName}>Card (Stripe)</Text><Text style={styles.gatewayDesc}>Visa, Mastercard, Amex, Apple & Google Pay</Text></View>
               <View style={[styles.radio, paymentMethod === 'stripe' && styles.radioActive]} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.gatewayRow, paymentMethod === 'paypal' && styles.gatewayRowActive]} onPress={() => setPaymentMethod('paypal')}>
-              <Icon name="account-balance-wallet" size={20} color={paymentMethod === 'paypal' ? '#20304C' : '#64748B'} />
-              <View style={{ flex: 1 }}><Text style={styles.gatewayName}>PayPal</Text><Text style={styles.gatewayDesc}>Pay with your PayPal account</Text></View>
-              <View style={[styles.radio, paymentMethod === 'paypal' && styles.radioActive]} />
             </TouchableOpacity>
 
             {/* Order summary — from the quote API */}
