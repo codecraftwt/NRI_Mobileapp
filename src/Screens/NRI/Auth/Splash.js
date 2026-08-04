@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   StatusBar,
   StyleSheet,
   Text,
@@ -15,7 +16,7 @@ import { fetchCurrentUser } from '../../../Redux/slices/userSlice';
 import { selectAuthenticatedRoute } from '../../../Redux/slices/onboardingSlice';
 import { store } from '../../../Redux/store';
 import { lightColors } from '../../../theme/colors';
-import { spacing, radius } from '../../../theme';
+import { spacing } from '../../../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -95,7 +96,7 @@ export default function Splash({ navigation }) {
       ]),
       Animated.timing(footerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [bgOpacity, contentOpacity, contentY, footerOpacity, iconOpacity, iconScale, slide1, slide2]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,7 +130,7 @@ export default function Splash({ navigation }) {
       <View style={styles.center}>
         <Animated.View style={{ opacity: iconOpacity, transform: [{ scale: iconScale }], alignItems: 'center', marginBottom: spacing.xl }}>
           <View style={[styles.iconContainer, { backgroundColor: C.surface, shadowColor: C.primary }]}>
-            <Icon name="public" size={46} color={C.primary} />
+            <Image source={require('../../../Assets/images/logo.png')} style={styles.logoImage} resizeMode="contain" />
           </View>
         </Animated.View>
 
@@ -215,15 +216,20 @@ const styles = StyleSheet.create({
     marginTop: -H * 0.05,
   },
   iconContainer: {
-    width: 84,
-    height: 84,
-    borderRadius: 24,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 12,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 16,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   contentContainer: {
     alignItems: 'center',

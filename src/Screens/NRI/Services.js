@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
@@ -97,8 +98,19 @@ function Services({ navigation, route }) {
     }
   }, [route?.params?.openLocation, navigation]);
 
-  const { count: cartCount } = useCart();
+  const { count: cartCount, refresh: refreshCart } = useCart();
+  const refreshCartRef = useRef(refreshCart);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+
+  useEffect(() => {
+    refreshCartRef.current = refreshCart;
+  }, [refreshCart]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshCartRef.current?.();
+    }, [])
+  );
 
   // Promo banner: gently animate the background between two light peach shades.
   const bannerAnim = useRef(new Animated.Value(0)).current;
