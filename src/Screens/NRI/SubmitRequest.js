@@ -14,8 +14,10 @@ import { useTalukas } from '../../Hooks/useTalukas';
 import { usePriorities } from '../../Hooks/usePriorities';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
+import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 
@@ -126,9 +128,11 @@ function SubmitRequest({ navigation }) {
   });
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
   const [documentFiles, setDocumentFiles] = useState({});
+  const [pincodeLocation, setPincodeLocation] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   const [couponCode, setCouponCode] = useState('');
   const [checkoutSession, setCheckoutSession] = useState(null);
+  const [goServicesOnAlertClose, setGoServicesOnAlertClose] = useState(false);
   // Page 1: 'cart' (selected services + estimated price). Page 2: 'form' — the
   // two-step request form ('details' → 'payment').
   const [page, setPage] = useState('cart');
@@ -144,6 +148,7 @@ function SubmitRequest({ navigation }) {
   const { talukaNames, talukas } = useTalukas(null, reqForm.city);
   const { priorities } = usePriorities();
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
+  const { loading: pincodeLoading, lookup: lookupPincode } = usePostalCodeLookup();
   const {
     requiredDocuments, fetchRequiredDocuments,
     quote, quoteLoading, fetchQuote,
@@ -188,13 +193,52 @@ function SubmitRequest({ navigation }) {
     }));
   }, [items, savedLocation?.stateName, savedLocation?.cityName, savedLocation?.pincode]);
 
+  useEffect(() => {
+    const code = reqForm.pincode.trim();
+    if (code.length !== 6) {
+      setPincodeLocation(null);
+      return;
+    }
+
+    lookupPincode(code)
+      .unwrap()
+      .then((result) => {
+        const match = result?.results?.[0];
+        if (!match) {
+          setPincodeLocation(null);
+          return;
+        }
+        const stateName = match.stateName || states.find(s => s.id === match.stateId)?.name || '';
+        setPincodeLocation({
+          code,
+          stateName,
+          cityName: match.cityName || '',
+          cityId: match.cityId || null,
+          talukaName: match.talukaName || '',
+        });
+        if (stateName) setField('state', stateName);
+        if (match.cityName) setField('city', match.cityName);
+        if (match.talukaName) setField('taluka', match.talukaName);
+        if (stateName && match.cityName && match.cityId) {
+          dispatch(setServiceLocation({
+            stateName,
+            cityName: match.cityName,
+            cityId: match.cityId,
+            pincode: code,
+          }));
+        }
+      })
+      .catch(() => setPincodeLocation(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reqForm.pincode]);
+
   const loading = submitLoading || payLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
   // server instead of computing them locally.
   const quoteStateId = states.find(s => s.name === reqForm.state)?.id || null;
-  const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || items[0]?.cityId || savedLocation?.cityId || null;
+  const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
   const quoteUrgency = selectedPriority?.slug || 'standard';
   const quoteKey = `${serviceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
@@ -325,9 +369,24 @@ function SubmitRequest({ navigation }) {
       }
     }
     dispatch(clearCart());
+    setGoServicesOnAlertClose(true);
     showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
-      { text: 'Track my Request', onPress: () => navigation.navigate('Requests') },
+      {
+        text: 'Track my Request',
+        onPress: () => {
+          setGoServicesOnAlertClose(false);
+          navigation.navigate('Requests');
+        },
+      },
     ]);
+  };
+
+  const handleAlertRequestClose = () => {
+    alertProps.onRequestClose?.();
+    if (goServicesOnAlertClose) {
+      setGoServicesOnAlertClose(false);
+      navigation.navigate('Services');
+    }
   };
 
   // Validate the Who/Where fields + required documents (step 1). Returns false
@@ -359,7 +418,7 @@ function SubmitRequest({ navigation }) {
 
     try {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
-      const cityId = cities.find(c => c.name === reqForm.city)?.id || items[0]?.cityId || null;
+      const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
       const address = reqForm.pincode.trim() ? `${reqForm.address.trim()} - ${reqForm.pincode.trim()}` : reqForm.address.trim();
       const familyMemberId = await resolveFamilyMemberId();
@@ -538,7 +597,23 @@ function SubmitRequest({ navigation }) {
             <TextInput style={[styles.input, styles.inputMultiline]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={reqForm.address} onChangeText={t => setField('address', t)} />
 
             <Text style={styles.fieldLabel}>PIN Code *</Text>
-            <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
+            <View style={styles.pincodeRow}>
+              <TextInput
+                style={[styles.input, styles.pincodeInput]}
+                placeholder="e.g. 416002"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={reqForm.pincode}
+                onChangeText={t => setField('pincode', t.replace(/[^0-9]/g, ''))}
+              />
+              {pincodeLoading && <ActivityIndicator size="small" color="#D94625" />}
+            </View>
+            {!!pincodeLocation?.cityName && (
+              <Text style={styles.pincodeHint}>
+                {pincodeLocation.cityName}{pincodeLocation.stateName ? `, ${pincodeLocation.stateName}` : ''}
+              </Text>
+            )}
 
             <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
             <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
@@ -669,7 +744,7 @@ function SubmitRequest({ navigation }) {
         </View>
       </Modal>
 
-      <AppAlert {...alertProps} />
+      <AppAlert {...alertProps} onRequestClose={handleAlertRequestClose} />
     </View>
   );
 }
@@ -724,6 +799,9 @@ const styles = StyleSheet.create({
   fieldHint: { fontSize: 11.5, color: '#94A3B8', lineHeight: 17, marginBottom: 2 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, marginBottom: 14 },
   inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
+  pincodeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pincodeInput: { flex: 1 },
+  pincodeHint: { fontSize: 12, color: '#10B981', marginTop: -8, marginBottom: 12 },
 
   selectBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48 },
   selectBoxDisabled: { opacity: 0.5 },
