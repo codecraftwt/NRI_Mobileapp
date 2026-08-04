@@ -79,6 +79,7 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
   const membershipExpiry = (membershipRaw && typeof membershipRaw === 'object' ? membershipRaw.expires_at : null) || customer.membership_expiry || null;
   const relationshipManager = data?.rm ?? customer.rm ?? customer.relationship_manager;
   const roles = Array.isArray(apiUser.roles) ? apiUser.roles : null;
+  const emailVerified = resolveEmailVerified(apiUser, customer, data);
 
   const user = {
     id: apiUser.id,
@@ -86,6 +87,10 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     name: apiUser.name,
     email: apiUser.email,
     phone: apiUser.phone || '',
+    // Email verification state (marked by POST /auth/otp/verify). Only set when
+    // the backend reports it, so the app can detect an unverified account and
+    // route it back to VerifyEmail before onboarding resumes.
+    emailVerified,
     // Persist the saved profile photo across sessions — the upload sets this in
     // Redux, but on re-login the user is rebuilt from here, so it must be read
     // back from the auth payload (checked on both the user and customer object).
@@ -117,6 +122,23 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
   }
 
   return { token: data?.token, user };
+}
+
+function resolveEmailVerified(...sources) {
+  for (const source of sources) {
+    if (!source) continue;
+    const direct = source.email_verified ?? source.emailVerified ?? source.is_email_verified ?? source.isEmailVerified;
+    if (typeof direct === 'boolean') return direct;
+    if (direct === 1 || direct === '1') return true;
+    if (direct === 0 || direct === '0') return false;
+    if (typeof direct === 'string' && direct.toLowerCase() === 'true') return true;
+    if (typeof direct === 'string' && direct.toLowerCase() === 'false') return false;
+
+    if (source.email_verified_at !== undefined || source.emailVerifiedAt !== undefined) {
+      return !!(source.email_verified_at || source.emailVerifiedAt);
+    }
+  }
+  return undefined;
 }
 
 export async function register(payload) {

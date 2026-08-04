@@ -468,6 +468,10 @@ const userSlice = createSlice({
       })
       .addCase(verifyEmailOtp.fulfilled, (state) => {
         state.otpVerifyStatus = 'succeeded';
+        // The backend marks the email verified on this call — reflect it
+        // locally so any subsequent route checks don't send the user back to
+        // VerifyEmail.
+        if (state.user) state.user.emailVerified = true;
       })
       .addCase(verifyEmailOtp.rejected, (state, action) => {
         state.otpVerifyStatus = 'failed';

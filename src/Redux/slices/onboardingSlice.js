@@ -38,19 +38,33 @@ const onboardingSlice = createSlice({
 });
 
 // Route to send an authenticated user to after login/splash resolves. Prefers
-// the persistent per-user record; when there's no local onboarding history at
-// all (a pre-existing account signing in on this device for the first time),
-// falls back to the user slice's `onboarded` flag.
+// the persistent per-user record (written when registration/completion happened
+// on THIS device). When there's no local history — an account registered on
+// another device or the web — it falls back to server-derived state instead of
+// guessing: the onboarding wizard always ends with a membership purchase, so a
+// user with no membership was left mid-flow and must resume the wizard rather
+// than being dropped onto the dashboard.
 export function selectOnboardingRoute(state) {
   const user = state.user.user;
   const userId = onboardingUserKey(user);
   if (userId == null) return 'AppHome';
 
+  // Email must be verified before onboarding can proceed (the backend marks it
+  // on POST /auth/otp/verify). When the payload says the account is unverified,
+  // route to VerifyEmail — its OTP send/verify calls are token-authenticated,
+  // so they work on the logged-in user's own email. Once verified it replaces
+  // itself with the wizard step below.
+  if (user?.emailVerified === false) return 'VerifyEmail';
+
   const record = state.onboarding.completedByUser[userId];
-  if (record === undefined) {
-    return user?.onboarded === false ? 'OnboardingProfile' : 'AppHome';
-  }
-  return record ? 'AppHome' : 'OnboardingProfile';
+  if (record !== undefined) return record ? 'AppHome' : 'OnboardingProfile';
+
+  // No local record. Only trust an explicitly-false `onboarded` flag (the flag
+  // is otherwise a client-side guess that defaults to `true`); the definitive
+  // server-side signal is an active/purchased membership.
+  if (user?.onboarded === false) return 'OnboardingProfile';
+  const membership = user?.membership;
+  return membership && membership !== 'None' ? 'AppHome' : 'OnboardingProfile';
 }
 
 // Root route for an authenticated user, accounting for account role FIRST —
