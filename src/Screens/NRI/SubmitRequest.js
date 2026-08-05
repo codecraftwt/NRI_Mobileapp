@@ -20,6 +20,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
+import { useToast } from '../../context/ToastContext';
 
 const GST_RATE = 0.18;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -112,6 +113,7 @@ function SummaryRow({ label, sub, value, strong }) {
 function SubmitRequest({ navigation }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
   // Signed-in cart — removing a line also hits DELETE /customer/cart/items/{id}
   // and refreshes the server count (useCart fetches it on mount).
   const { remove: removeCartService } = useCart();
@@ -480,15 +482,12 @@ function SubmitRequest({ navigation }) {
   };
 
   const empty = items.length === 0;
-  const handleClearCart = async () => {
-    if (items.length) {
-      try {
-        await dispatch(clearServerCart(items)).unwrap();
-      } catch (e) {
-        // Local clear still removes the persisted cart immediately.
-      }
-    }
+  const handleClearCart = () => {
+    // Optimistic: clear the local cart immediately so the UI responds instantly;
+    // the server delete syncs in the background (like the per-item remove).
+    if (items.length) dispatch(clearServerCart(items));
     dispatch(clearCart());
+    showToast('Cart cleared', 'success');
   };
 
   return (
@@ -542,7 +541,7 @@ function SubmitRequest({ navigation }) {
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
                 <Text style={styles.itemPrice}>{fmt(it.price)}</Text>
-                <TouchableOpacity onPress={() => removeCartService(it.serviceId)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => { removeCartService(it.serviceId); showToast('Service removed from cart', 'success'); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="delete-outline" size={20} color="#EF4444" />
                 </TouchableOpacity>
               </View>

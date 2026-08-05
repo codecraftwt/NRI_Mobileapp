@@ -70,23 +70,26 @@ export async function removeCartItem(serviceId) {
 }
 
 // Clear selected services from the authenticated server cart. Backends differ
-// on whether DELETE expects the service id or the cart-line id, so try every
-// identifier we have for each row and then return the fresh server cart.
+// on whether DELETE expects the service id or the cart-line id, so for each row
+// try the identifiers in order and stop at the first that succeeds. Rows are
+// deleted in parallel so clearing a multi-item cart is a single round-trip.
 export async function clearCartItems(itemsOrIds = []) {
   try {
-    const candidates = (itemsOrIds || []).flatMap((item) => {
-      if (item == null) return [];
-      if (typeof item !== 'object') return [item];
-      return [item.serviceId, item.cartItemId, item.id].filter(id => id != null);
-    });
-    const uniqueIds = [...new Set(candidates.map(id => String(id)))];
-    for (const id of uniqueIds) {
-      try {
-        await apiClient.delete(`/customer/cart/items/${id}`);
-      } catch (e) {
-        // Keep trying the other possible identifier shapes.
+    const deleteRow = async (item) => {
+      if (item == null) return;
+      const ids = typeof item !== 'object'
+        ? [item]
+        : [item.serviceId, item.cartItemId, item.id].filter(id => id != null);
+      for (const id of ids) {
+        try {
+          await apiClient.delete(`/customer/cart/items/${id}`);
+          return; // first identifier that works wins — skip the fallbacks.
+        } catch (e) {
+          // Try the next possible identifier shape.
+        }
       }
-    }
+    };
+    await Promise.all((itemsOrIds || []).map(deleteRow));
     return await getCart();
   } catch (error) {
     throw normalizeApiError(error);

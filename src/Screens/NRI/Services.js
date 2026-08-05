@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -141,7 +141,7 @@ function Services({ navigation, route }) {
 
   // Per-category services (one category's list). Inactive when "All" is picked
   // (no matching categoryId → hook stays idle).
-  const { oneTime, recurring, loading: loadingServices } = useServiceGroups(
+  const { oneTime, recurring, loading: loadingServices, retry: retryCategory } = useServiceGroups(
     isAll ? '' : activeCatName,
     savedLocation?.stateName || '',
     savedLocation?.cityId || null,
@@ -151,20 +151,38 @@ function Services({ navigation, route }) {
   // service, grouped), fetched when "All Categories" is active.
   const [allServices, setAllServices] = useState([]);
   const [allLoading, setAllLoading] = useState(false);
+  // Reusable loader so both the auto-fetch effect and pull-to-refresh use one
+  // code path; returns the promise so refresh can await it.
+  const loadAllServices = useCallback(() => {
+    setAllLoading(true);
+    return getServiceGroups({ stateId: stateId || null, cityId: savedLocation?.cityId || null })
+      .then(({ oneTime: ot, recurring: rc }) => {
+        const seen = new Set();
+        setAllServices([...ot, ...rc].filter(x => (seen.has(x.id) ? false : seen.add(x.id))));
+      })
+      .catch(() => setAllServices([]))
+      .finally(() => setAllLoading(false));
+  }, [stateId, savedLocation?.cityId]);
   useEffect(() => {
     if (!isAll) return;
-    let cancelled = false;
-    setAllLoading(true);
-    getServiceGroups({ stateId: stateId || null, cityId: savedLocation?.cityId || null })
-      .then(({ oneTime: ot, recurring: rc }) => {
-        if (cancelled) return;
-        const s = new Set();
-        setAllServices([...ot, ...rc].filter(x => (s.has(x.id) ? false : s.add(x.id))));
-      })
-      .catch(() => { if (!cancelled) setAllServices([]); })
-      .finally(() => { if (!cancelled) setAllLoading(false); });
-    return () => { cancelled = true; };
-  }, [isAll, stateId, savedLocation?.cityId]);
+    loadAllServices();
+  }, [isAll, loadAllServices]);
+
+  // Pull-to-refresh: re-fetch the server cart count (so a just-added service
+  // reflects in the badge without leaving the screen) and reload the visible
+  // service list.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refreshCartRef.current?.(),
+        isAll ? loadAllServices() : Promise.resolve(retryCategory?.()),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [isAll, loadAllServices, retryCategory]);
 
   const catSeen = new Set();
   const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
@@ -230,7 +248,15 @@ function Services({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          // Hide the top spinner while the list loader below is already showing,
+          // so a refresh never renders two loaders at once.
+          <RefreshControl refreshing={refreshing && !listLoading} onRefresh={onRefresh} tintColor="#D94625" colors={['#D94625']} />
+        }
+      >
         {/* Promo banner */}
         <Animated.View style={[styles.banner, { backgroundColor: bannerBg }]}>
           <View style={{ flex: 1 }}>
