@@ -1,7 +1,14 @@
 import React from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useDispatch, useSelector } from 'react-redux';
+import { logoutUser } from '../../Redux/slices/userSlice';
 import { typography } from '../../theme/typography';
+
+// Two-letter initials for the avatar, derived from the RM's own name.
+function initialsFor(name) {
+  return (name || 'RM').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+}
 
 const MENU = [
   { id: 'personal', label: 'Personal Information', icon: 'person-outline', color: '#3B82F6' },
@@ -13,6 +20,22 @@ const MENU = [
 ];
 
 function Profile({ navigation }) {
+  const dispatch = useDispatch();
+  const user = useSelector(state => state.user.user);
+
+  const name = user?.name || 'Relationship Manager';
+  const email = user?.email || '';
+
+  // Best-effort: revoke the token server-side (POST /auth/logout) and clear the
+  // local session, then send the RM back to the shared sign-in screen. The
+  // thunk clears local state even if the revoke call fails, so navigate
+  // regardless of the result.
+  const handleLogout = () => {
+    dispatch(logoutUser()).finally(() => {
+      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+    });
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
@@ -24,10 +47,10 @@ function Profile({ navigation }) {
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>RE</Text>
+            <Text style={styles.avatarText}>{initialsFor(name)}</Text>
           </View>
-          <Text style={styles.name}>Relationship Manager</Text>
-          <Text style={styles.email}>rm@nricircle.com</Text>
+          <Text style={styles.name}>{name}</Text>
+          {!!email && <Text style={styles.email}>{email}</Text>}
           <View style={styles.rolePill}>
             <Icon name="verified-user" size={14} color="#059669" />
             <Text style={styles.roleText}>Relationship Manager</Text>
@@ -70,7 +93,7 @@ function Profile({ navigation }) {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Login' }] })}>
+        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
           <Icon name="logout" size={20} color="#DC2626" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>

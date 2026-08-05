@@ -1,104 +1,308 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, TextInput, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { useRmRequests } from '../../Hooks/RM/useRmRequests';
 
-const MOCK_TICKETS = [
-  { id: '1', ticket: 'NRI-2026-00011', customer: 'akanksha', service: 'Scheduled Home Visits by Care Executive', sla: 'Overdue 6 days', overdue: true, status: 'In Progress' },
-  { id: '2', ticket: 'NRI-2026-00012', customer: 'akanksha', service: 'Scheduled Home Visits by Care Executive', sla: 'Overdue 6 days', overdue: true, status: 'Assigned' },
-  { id: '3', ticket: 'NRI-2026-00010', customer: 'Pradnya', service: 'Medicine Reminder Coordination', sla: 'Due in 2 days', overdue: false, status: 'In Progress' },
-  { id: '4', ticket: 'NRI-2026-00009', customer: 'Test', service: 'Document Notarization Assistance', sla: 'Resolved', overdue: false, status: 'Resolved' },
+const norm = (s) => String(s || '').toLowerCase();
+
+// Status filter options (shown as getStatusPill pills in the filter sheet).
+const STATUS_OPTIONS = [
+  { key: 'all', label: 'All Statuses' },
+  { key: 'new', label: 'New' },
+  { key: 'assigned', label: 'Assigned' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'overdue', label: 'Overdue' },
 ];
 
+function statusLabel(s) {
+  return norm(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function getStatusPill(status) {
-  switch (status) {
-    case 'Resolved': return { bg: '#D1FAE5', text: '#059669' };
-    case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C' };
-    case 'Assigned': return { bg: '#DBEAFE', text: '#2563EB' };
+  switch (norm(status)) {
+    case 'resolved': case 'completed': return { bg: '#D1FAE5', text: '#3bbf95' };
+    case 'in_progress': case 'in progress': return { bg: '#FFEDD5', text: '#C2410C' };
+    case 'assigned': return { bg: '#DBEAFE', text: '#4f6595' };
+    case 'new': return { bg: '#EEF2FF', text: '#6768cb' };
+    case 'overdue': return { bg: '#FEE2E2', text: '#DC2626' };
     default: return { bg: '#F3F4F6', text: '#4B5563' };
   }
 }
 
+// A ticket is overdue when it's not done and its SLA deadline has passed.
+function isOverdue(t) {
+  const s = norm(t.status);
+  if (s === 'resolved' || s === 'completed') return false;
+  return !!t.overdue || (!!t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now());
+}
+
+// Windowed page numbers around the current page (e.g. [1,2,3]).
+function pageWindow(current, last, size = 3) {
+  let start = Math.max(1, current - Math.floor(size / 2));
+  const end = Math.min(last, start + size - 1);
+  start = Math.max(1, end - size + 1);
+  const arr = [];
+  for (let i = start; i <= end; i++) arr.push(i);
+  return arr;
+}
+
+// Short date for the card header band, e.g. "24/09/2024".
+function dateShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+// SLA countdown label from the deadline + overdue flag.
+function slaLabel(deadline, overdue, status) {
+  const s = norm(status);
+  if (s === 'resolved' || s === 'completed') return 'Resolved';
+  if (!deadline) return overdue ? 'Overdue' : null;
+  const diff = new Date(deadline).getTime() - Date.now();
+  const days = Math.round(Math.abs(diff) / 86400000);
+  const isOverdue = overdue || diff < 0;
+  if (isOverdue) return days <= 0 ? 'Overdue' : `Overdue ${days}d`;
+  return days <= 0 ? 'Due today' : `Due in ${days}d`;
+}
+
 function Tickets({ navigation }) {
-  const [activeTab, setActiveTab] = useState('All');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterVisible, setFilterVisible] = useState(false);
+  const { requests, loading, meta, fetchPage } = useRmRequests();
 
-  const tabs = [
-    { key: 'All', label: 'All' },
-    { key: 'Assigned', label: 'Assigned' },
-    { key: 'In Progress', label: 'In Progress' },
-    { key: 'Resolved', label: 'Resolved' },
-  ];
+  const currentPage = meta?.currentPage || 1;
+  const lastPage = meta?.lastPage || 1;
+  const perPage = meta?.perPage || requests.length || 0;
+  const total = meta?.total || 0;
+  const from = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
+  const to = Math.min(currentPage * perPage, total);
 
-  const getCount = (key) => key === 'All' ? MOCK_TICKETS.length : MOCK_TICKETS.filter(t => t.status === key).length;
-  const filtered = MOCK_TICKETS.filter(t => activeTab === 'All' || t.status === activeTab);
+  const goToPage = (p) => {
+    if (loading || p < 1 || p > lastPage || p === currentPage) return;
+    fetchPage(p);
+  };
+
+  const matchesStatus = (t) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'overdue') return isOverdue(t);
+    const s = norm(t.status);
+    if (statusFilter === 'completed') return s === 'completed' || s === 'resolved';
+    return s === statusFilter;
+  };
+
+  const matchesSearch = (t) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (t.customer || '').toLowerCase().includes(q) || (t.ticket || '').toLowerCase().includes(q);
+  };
+
+  const filtered = requests.filter(t => matchesStatus(t) && matchesSearch(t));
+  const activeStatusLabel = STATUS_OPTIONS.find(o => o.key === statusFilter)?.label;
 
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tickets</Text>
-        <Text style={styles.headerSub}>Requests raised by your customers</Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Tickets</Text>
+            <Text style={styles.headerSub}>Requests raised by your customers</Text>
+          </View>
+          {total > 0 && (
+            <View style={styles.headerCount}>
+              <Icon name="confirmation-number" size={15} color="#FDE68A" />
+              <Text style={styles.headerCountText}>{total}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      <View style={styles.tabsContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
-          {tabs.map(tab => {
-            const isActive = activeTab === tab.key;
-            return (
-              <TouchableOpacity key={tab.key} style={[styles.tab, isActive && styles.tabActive]} onPress={() => setActiveTab(tab.key)} activeOpacity={0.7}>
-                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
-                <View style={[styles.tabCount, isActive && styles.tabCountActive]}>
-                  <Text style={[styles.tabCountText, isActive && styles.tabCountTextActive]}>{getCount(tab.key)}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <Icon name="search" size={20} color="#94A3B8" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search customer or ticket no..."
+            placeholderTextColor="#94A3B8"
+            value={search}
+            onChangeText={setSearch}
+            returnKeyType="search"
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.filterBtn, statusFilter !== 'all' && styles.filterBtnActive]}
+          onPress={() => setFilterVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="tune" size={22} color={statusFilter !== 'all' ? '#FFFFFF' : '#20304C'} />
+          {statusFilter !== 'all' && <View style={styles.filterDot} />}
+        </TouchableOpacity>
       </View>
+
+      {/* Active status filter chip */}
+      {statusFilter !== 'all' && (
+        <View style={styles.activeFilterRow}>
+          <View style={[styles.activeFilterChip, { backgroundColor: getStatusPill(statusFilter).bg }]}>
+            <Text style={[styles.activeFilterText, { color: getStatusPill(statusFilter).text }]}>{activeStatusLabel}</Text>
+            <TouchableOpacity onPress={() => setStatusFilter('all')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={14} color={getStatusPill(statusFilter).text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filtered.length === 0 ? (
+        {loading && requests.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color="#20304C" />
+          </View>
+        ) : filtered.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="confirmation-number" size={48} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>No Tickets Found</Text>
           </View>
         ) : (
-          filtered.map((t, idx) => {
+          filtered.map((t) => {
             const pill = getStatusPill(t.status);
+            const resolved = norm(t.status) === 'resolved' || norm(t.status) === 'completed';
+            const sla = slaLabel(t.slaDeadline, t.overdue, t.status);
+            // Only show the SLA badge for on-track pending tickets — not for
+            // resolved/completed or overdue ones.
+            const showSla = !!sla && !resolved && !isOverdue(t);
             return (
               <TouchableOpacity
                 key={t.id}
                 style={styles.card}
-                activeOpacity={0.7}
+                activeOpacity={0.85}
                 onPress={() => navigation.navigate('TicketDetail', { ticketId: t.id })}
               >
-                <View style={styles.cardTopRow}>
-                  <View style={styles.rowNumWrap}><Text style={styles.rowNum}>{idx + 1}</Text></View>
-                  <View style={styles.ticketInfo}>
-                    <Text style={styles.ticketNumber}>{t.ticket}</Text>
-                    <Text style={styles.serviceName} numberOfLines={2}>{t.service}</Text>
-                  </View>
-                  <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-                    <Text style={[styles.statusPillText, { color: pill.text }]}>{t.status}</Text>
-                  </View>
+                {/* Colored header band */}
+                <View style={[styles.cardHeader, { backgroundColor: pill.text }]}>
+                  <Text style={styles.cardHeaderCode}>{t.ticket}</Text>
+                  <Text style={styles.cardHeaderDate}>{dateShort(t.createdAt)}</Text>
                 </View>
 
-                <View style={styles.cardDivider} />
-
-                <View style={styles.cardActionRow}>
-                  <View style={styles.detailItem}>
-                    <Icon name="person" size={14} color="#94A3B8" />
-                    <Text style={styles.detailText}>{t.customer}</Text>
+                {/* Body */}
+                <View style={styles.cardBody}>
+                  <View style={styles.cardBodyTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardSubtitle} numberOfLines={1}>{t.customer || 'Customer'}</Text>
+                      <Text style={styles.cardTitle} numberOfLines={2}>{t.service}</Text>
+                    </View>
+                    <View style={[styles.statusChip, { backgroundColor: pill.bg }]}>
+                      <Text style={[styles.statusChipText, { color: pill.text }]}>{statusLabel(t.status)}</Text>
+                    </View>
                   </View>
-                  <View style={[styles.slaPill, { backgroundColor: t.overdue ? '#FEE2E2' : '#D1FAE5' }]}>
-                    <Text style={[styles.slaText, { color: t.overdue ? '#DC2626' : '#059669' }]}>{t.sla}</Text>
+
+                  <View style={styles.cardBodyBottom}>
+                    {showSla ? (
+                      <View style={styles.dueWrap}>
+                        <Icon name="schedule" size={14} color="#059669" />
+                        <Text style={styles.dueText}>{sla}</Text>
+                      </View>
+                    ) : <View />}
+                    <TouchableOpacity
+                      style={styles.viewBtn}
+                      activeOpacity={0.85}
+                      onPress={() => navigation.navigate('TicketDetail', { ticketId: t.id })}
+                    >
+                      <Text style={styles.viewBtnText}>View Detail</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </TouchableOpacity>
             );
           })
         )}
+
+        {/* Pagination */}
+        {!!meta && total > 0 && requests.length > 0 && (
+          <View style={styles.pagination}>
+            <Text style={styles.pageInfo}>Showing {from} to {to} of {total} results</Text>
+            {lastPage > 1 && (
+              <View style={styles.pageRow}>
+                <TouchableOpacity
+                  style={[styles.pageBtn, currentPage <= 1 && styles.pageBtnDisabled]}
+                  onPress={() => goToPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="chevron-left" size={18} color={currentPage <= 1 ? '#CBD5E1' : '#475569'} />
+                </TouchableOpacity>
+
+                {pageWindow(currentPage, lastPage).map(p => {
+                  const active = p === currentPage;
+                  return (
+                    <TouchableOpacity
+                      key={p}
+                      style={[styles.pageNum, active && styles.pageNumActive]}
+                      onPress={() => goToPage(p)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.pageNumText, active && styles.pageNumTextActive]}>{p}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={[styles.pageBtn, currentPage >= lastPage && styles.pageBtnDisabled]}
+                  onPress={() => goToPage(currentPage + 1)}
+                  disabled={currentPage >= lastPage}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="chevron-right" size={18} color={currentPage >= lastPage ? '#CBD5E1' : '#475569'} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
+
+      {/* Filter sheet */}
+      <Modal visible={filterVisible} transparent animationType="slide" onRequestClose={() => setFilterVisible(false)}>
+        <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => setFilterVisible(false)}>
+          <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Filter by Status</Text>
+              {statusFilter !== 'all' && (
+                <TouchableOpacity onPress={() => { setStatusFilter('all'); setFilterVisible(false); }}>
+                  <Text style={styles.sheetReset}>Reset</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {STATUS_OPTIONS.map(opt => {
+              const active = statusFilter === opt.key;
+              const pill = opt.key === 'all' ? { bg: '#F1F5F9', text: '#475569' } : getStatusPill(opt.key);
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.filterOption, active && styles.filterOptionActive]}
+                  onPress={() => { setStatusFilter(opt.key); setFilterVisible(false); }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.filterOptionLeft}>
+                    <View style={[styles.filterDotColor, { backgroundColor: pill.text }]} />
+                    <Text style={styles.filterOptionLabel}>{opt.label}</Text>
+                  </View>
+                  {active && <Icon name="check-circle" size={20} color="#20304C" />}
+                </TouchableOpacity>
+              );
+            })}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -106,44 +310,69 @@ function Tickets({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
+  headerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
+  headerCountText: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
 
-  tabsContainer: { paddingTop: 20, paddingBottom: 12 },
-  tabsScroll: { paddingHorizontal: 20, gap: 12 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
-  tabActive: { backgroundColor: '#D94625', borderColor: '#D94625' },
-  tabText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-  tabTextActive: { color: '#FFFFFF' },
-  tabCount: { backgroundColor: '#F1F5F9', borderRadius: 10, minWidth: 22, height: 22, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
-  tabCountActive: { backgroundColor: 'rgba(255,255,255,0.3)' },
-  tabCountText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
-  tabCountTextActive: { color: '#FFFFFF' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
+  searchInput: { flex: 1, fontSize: 14, color: '#1E293B', padding: 0 },
+  filterBtn: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' },
+  filterBtnActive: { backgroundColor: '#20304C', borderColor: '#20304C' },
+  filterDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#D94625' },
+
+  activeFilterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 4, paddingTop: 4 },
+  activeFilterChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  activeFilterText: { fontSize: 12, fontWeight: '700' },
+
+  // Filter bottom sheet
+  sheetOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 36 },
+  sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', marginBottom: 16 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  sheetTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  sheetReset: { fontSize: 13, fontWeight: '700', color: '#D94625' },
+  filterOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, marginBottom: 6, borderWidth: 1, borderColor: 'transparent' },
+  filterOptionActive: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+  filterOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  filterDotColor: { width: 10, height: 10, borderRadius: 5 },
+  filterOptionLabel: { fontSize: 15, fontWeight: '600', color: '#334155' },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 12 },
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden',
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
-  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  rowNumWrap: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  rowNum: { fontSize: 12, fontWeight: '700', color: '#64748B' },
-  ticketInfo: { flex: 1, gap: 4 },
-  ticketNumber: { fontSize: 15, fontWeight: '700', color: '#1E293B', fontFamily: typography.labelMedium?.fontFamily },
-  serviceName: { fontSize: 13, color: '#475569', lineHeight: 18 },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, alignSelf: 'flex-start' },
-  statusPillText: { fontSize: 11, fontWeight: '700' },
-
-  cardDivider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 12 },
-  cardActionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailText: { fontSize: 13, color: '#475569', fontWeight: '600' },
-  slaPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  slaText: { fontSize: 11, fontWeight: '700' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9 },
+  cardHeaderCode: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
+  cardHeaderDate: { fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+  cardBody: { padding: 14 },
+  cardBodyTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardSubtitle: { fontSize: 11, color: '#94A3B8', marginBottom: 2 },
+  cardTitle: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#1E293B', lineHeight: 20 },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  statusChipText: { fontSize: 10, fontWeight: '700' },
+  cardBodyBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  dueWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  dueText: { fontSize: 12, fontWeight: '700', color: '#059669' },
+  viewBtn: { backgroundColor: '#577099', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
+  viewBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+
+  pagination: { alignItems: 'center', gap: 12, marginTop: 8, paddingTop: 8 },
+  pageInfo: { fontSize: 13, color: '#64748B' },
+  pageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pageBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+  pageBtnDisabled: { backgroundColor: '#F8FAFC' },
+  pageNum: { minWidth: 36, height: 36, borderRadius: 18, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+  pageNumActive: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
+  pageNumText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+  pageNumTextActive: { color: '#FFFFFF' },
 });
 
 export default Tickets;

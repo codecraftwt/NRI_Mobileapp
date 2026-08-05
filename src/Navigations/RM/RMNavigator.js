@@ -1,10 +1,10 @@
 import React from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography } from '../../theme';
 
 import Dashboard from '../../Screens/RM/Dashboard';
 import MyCustomers from '../../Screens/RM/MyCustomers';
@@ -16,6 +16,8 @@ import Planner from '../../Screens/RM/Planner';
 import Renewals from '../../Screens/RM/Renewals';
 import Upsell from '../../Screens/RM/Upsell';
 import Escalations from '../../Screens/RM/Escalations';
+import Reports from '../../Screens/RM/Reports';
+import SupportChat from '../../Screens/RM/SupportChat';
 import Profile from '../../Screens/RM/Profile';
 
 const Stack = createStackNavigator();
@@ -34,6 +36,8 @@ function DashboardStack() {
       <Stack.Screen name="Renewals" component={Renewals} />
       <Stack.Screen name="Upsell" component={Upsell} />
       <Stack.Screen name="Escalations" component={Escalations} />
+      <Stack.Screen name="Reports" component={Reports} />
+      <Stack.Screen name="RMSupportChat" component={SupportChat} />
     </Stack.Navigator>
   );
 }
@@ -44,6 +48,7 @@ function CustomersStack() {
       <Stack.Screen name="MyCustomersMain" component={MyCustomers} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="RMSupportChat" component={SupportChat} />
     </Stack.Navigator>
   );
 }
@@ -53,14 +58,7 @@ function TicketsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="TicketsMain" component={Tickets} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
-    </Stack.Navigator>
-  );
-}
-
-function PlannerStack() {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="PlannerMain" component={Planner} />
+      <Stack.Screen name="RMSupportChat" component={SupportChat} />
     </Stack.Navigator>
   );
 }
@@ -78,11 +76,119 @@ function ProfileStack() {
   );
 }
 
-function CustomTabLabel({ label, focused, color }) {
+function CustomTabBar({ state, descriptors, navigation }) {
+  const focusedRoute = state.routes[state.index];
+  const { options } = descriptors[focusedRoute.key];
+  const tabBarStyle = options.tabBarStyle;
+
+  // Edge-to-edge (Android 15/16 SDK 35+) forces the app under the system nav
+  // bar — pad the bottom by the safe-area inset so the tab bar isn't clipped.
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 12);
+
+  const [layouts, setLayouts] = React.useState([]);
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const pillWidth = React.useRef(new Animated.Value(0)).current;
+
+  const handleLayout = (e, index) => {
+    const { x, width } = e.nativeEvent.layout;
+    setLayouts(prev => {
+      const newLayouts = [...prev];
+      if (!newLayouts[index] || newLayouts[index].x !== x || newLayouts[index].width !== width) {
+        newLayouts[index] = { x, width };
+        return newLayouts;
+      }
+      return prev;
+    });
+  };
+
+  const isLayoutReady = layouts.filter(Boolean).length === state.routes.length;
+
+  React.useEffect(() => {
+    if (isLayoutReady && layouts[state.index]) {
+      Animated.parallel([
+        Animated.spring(translateX, {
+          toValue: layouts[state.index].x,
+          useNativeDriver: false,
+        }),
+        Animated.spring(pillWidth, {
+          toValue: layouts[state.index].width,
+          useNativeDriver: false,
+        })
+      ]).start();
+    }
+  }, [state.index, layouts, isLayoutReady]);
+
+  if (tabBarStyle && tabBarStyle.display === 'none') {
+    return null;
+  }
+
   return (
-    <View style={{ alignItems: 'center', paddingBottom: 4 }}>
-      <Text style={[styles.tabLabel, { color, paddingBottom: 0 }]}>{label}</Text>
-      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: focused ? color : 'transparent', marginTop: 2 }} />
+    <View style={[styles.floatingTabBar, { paddingBottom: bottomInset }]}>
+      {isLayoutReady && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 12,
+            bottom: bottomInset,
+            backgroundColor: '#A64416',
+            borderRadius: 30,
+            width: pillWidth,
+            transform: [{ translateX }],
+          }}
+        />
+      )}
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+        const iconName = options.tabBarIconName || 'circle';
+        const label = options.tabBarLabel || route.name;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name, route.params);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({
+            type: 'tabLongPress',
+            target: route.key,
+          });
+        };
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            onLayout={(e) => handleLayout(e, index)}
+            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel}
+            testID={options.tabBarTestID}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            activeOpacity={0.8}
+            style={styles.tabItem}
+          >
+            <Icon
+              name={iconName}
+              size={24}
+              color={isFocused ? '#FFFFFF' : '#94A3B8'}
+            />
+            {isFocused && (
+              <Text style={styles.tabLabelFocused} numberOfLines={1}>
+                {label}
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -90,12 +196,8 @@ function CustomTabLabel({ label, focused, color }) {
 function RMTabNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#A64416',
-        tabBarInactiveTintColor: '#94A3B8',
-      }}
+      tabBar={props => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen
         name="Dashboard"
@@ -103,9 +205,9 @@ function RMTabNavigator() {
         options={({ route }) => {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'DashboardMain';
           return {
-            tabBarIcon: ({ color, size }) => <Icon name="dashboard" size={size} color={color} />,
-            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Dashboard" focused={focused} color={color} />,
-            tabBarStyle: focusedRouteName === 'DashboardMain' ? styles.tabBar : { display: 'none' },
+            tabBarIconName: 'home',
+            tabBarLabel: 'Home',
+            tabBarStyle: focusedRouteName === 'DashboardMain' ? {} : { display: 'none' },
           };
         }}
       />
@@ -115,9 +217,9 @@ function RMTabNavigator() {
         options={({ route }) => {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'MyCustomersMain';
           return {
-            tabBarIcon: ({ color, size }) => <Icon name="groups" size={size} color={color} />,
-            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Customers" focused={focused} color={color} />,
-            tabBarStyle: focusedRouteName === 'MyCustomersMain' ? styles.tabBar : { display: 'none' },
+            tabBarIconName: 'groups',
+            tabBarLabel: 'Customers',
+            tabBarStyle: focusedRouteName === 'MyCustomersMain' ? {} : { display: 'none' },
           };
         }}
       />
@@ -127,21 +229,9 @@ function RMTabNavigator() {
         options={({ route }) => {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'TicketsMain';
           return {
-            tabBarIcon: ({ color, size }) => <Icon name="confirmation-number" size={size} color={color} />,
-            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Tickets" focused={focused} color={color} />,
-            tabBarStyle: focusedRouteName === 'TicketsMain' ? styles.tabBar : { display: 'none' },
-          };
-        }}
-      />
-      <Tab.Screen
-        name="PlannerTab"
-        component={PlannerStack}
-        options={({ route }) => {
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'PlannerMain';
-          return {
-            tabBarIcon: ({ color, size }) => <Icon name="event" size={size} color={color} />,
-            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Planner" focused={focused} color={color} />,
-            tabBarStyle: focusedRouteName === 'PlannerMain' ? styles.tabBar : { display: 'none' },
+            tabBarIconName: 'confirmation-number',
+            tabBarLabel: 'Tickets',
+            tabBarStyle: focusedRouteName === 'TicketsMain' ? {} : { display: 'none' },
           };
         }}
       />
@@ -151,9 +241,9 @@ function RMTabNavigator() {
         options={({ route }) => {
           const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'ProfileMain';
           return {
-            tabBarIcon: ({ color, size }) => <Icon name="person-outline" size={size} color={color} />,
-            tabBarLabel: ({ focused, color }) => <CustomTabLabel label="Profile" focused={focused} color={color} />,
-            tabBarStyle: focusedRouteName === 'ProfileMain' ? styles.tabBar : { display: 'none' },
+            tabBarIconName: 'person-outline',
+            tabBarLabel: 'Profile',
+            tabBarStyle: focusedRouteName === 'ProfileMain' ? {} : { display: 'none' },
           };
         }}
       />
@@ -162,20 +252,34 @@ function RMTabNavigator() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
+  floatingTabBar: {
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 10,
   },
-  tabLabel: {
-    ...typography.tiny,
-    fontFamily: typography.labelMedium.fontFamily,
-    paddingBottom: 4,
+  tabItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+  },
+  tabLabelFocused: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+    marginLeft: 8,
   },
 });
 

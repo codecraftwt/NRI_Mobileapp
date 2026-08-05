@@ -1,30 +1,42 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { useRmCustomerDetail } from '../../Hooks/RM/useRmCustomerDetail';
 
-const PROFILE_INFO = [
-  { label: 'NRI Country', value: 'United States' },
-  { label: 'NRI City', value: 'Acalanes Ridge' },
-  { label: 'Language', value: 'EN' },
-  { label: 'Timezone', value: 'Asia/Kolkata' },
-  { label: 'Referral Code', value: '7LPWKZK8', accent: true },
-  { label: 'Referred By', value: '—' },
-  { label: 'Assigned RM', value: 'Relationship Manager' },
-];
+const norm = (s) => String(s || '').toLowerCase();
+const statusText = (s) => norm(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-const FAMILY_MEMBERS = [
-  { id: '1', name: 'abc', relation: 'Parent', phone: '—', location: '—' },
-];
+function statusPill(status) {
+  switch (norm(status)) {
+    case 'resolved': case 'completed': return { bg: '#D1FAE5', text: '#059669' };
+    case 'in_progress': return { bg: '#FFEDD5', text: '#C2410C' };
+    case 'assigned': return { bg: '#DBEAFE', text: '#2563EB' };
+    case 'new': return { bg: '#EEF2FF', text: '#6366F1' };
+    default: return { bg: '#F3F4F6', text: '#4B5563' };
+  }
+}
 
-const PROPERTIES = [];
-const DOCUMENTS = [];
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 function CustomerDetail({ navigation, route }) {
-  const name = route?.params?.name || 'Test';
-  const email = route?.params?.email || 'veratol241@jobraux.com';
-  const phone = route?.params?.phone || '9898989898';
-  const initials = name.trim().slice(0, 2).toUpperCase();
+  const customerId = route?.params?.customerId;
+  const { detail, loading, failed, error, refresh } = useRmCustomerDetail(customerId);
+
+  const c = detail;
+  const initials = (c?.name || route?.params?.name || '?').trim().slice(0, 2).toUpperCase();
+
+  const profileRows = c ? [
+    c.nriCountry && { label: 'NRI Country', value: c.nriCountry },
+    c.nriCity && { label: 'NRI City', value: c.nriCity },
+    c.language && { label: 'Language', value: String(c.language).toUpperCase() },
+    c.timezone && { label: 'Timezone', value: c.timezone },
+  ].filter(Boolean) : [];
 
   return (
     <View style={styles.container}>
@@ -39,88 +51,152 @@ function CustomerDetail({ navigation, route }) {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.contactLine}>{email}</Text>
-          <Text style={styles.contactLine}>{phone}</Text>
-
-          <View style={styles.divider} />
-
-          {PROFILE_INFO.map((item, idx) => (
-            <View key={item.label} style={[styles.kvRow, idx < PROFILE_INFO.length - 1 && styles.kvBorder]}>
-              <Text style={styles.kvLabel}>{item.label}</Text>
-              <Text style={[styles.kvValue, item.accent && styles.kvAccent]} numberOfLines={1}>{item.value}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Wallet Balance */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Wallet Balance</Text>
-          <Text style={styles.walletAmount}>₹0.00</Text>
-        </View>
-
-        {/* Active Membership */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Active Membership</Text>
-          <View style={styles.membershipRow}>
-            <View style={styles.membershipIconBg}>
-              <Icon name="card-membership" size={22} color="#059669" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.membershipName}>Membership</Text>
-              <Text style={styles.membershipMeta}>Expires: 24 Jul 2027</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Family Members */}
-        <View style={styles.card}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.cardTitle}>Family Members</Text>
-            <View style={styles.countBadge}><Text style={styles.countText}>{FAMILY_MEMBERS.length}</Text></View>
-          </View>
-
-          {FAMILY_MEMBERS.length === 0 ? (
-            <EmptyState icon="group-off" text="No family members added." />
-          ) : (
-            FAMILY_MEMBERS.map((m) => (
-              <View key={m.id} style={styles.memberRow}>
-                <View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{m.name.charAt(0).toUpperCase()}</Text></View>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.memberTopRow}>
-                    <Text style={styles.memberName}>{m.name}</Text>
-                    <View style={styles.relationPill}><Text style={styles.relationText}>{m.relation}</Text></View>
-                  </View>
-                  <View style={styles.memberMetaRow}>
-                    <View style={styles.metaItem}>
-                      <Icon name="phone" size={13} color="#94A3B8" />
-                      <Text style={styles.memberMeta}>{m.phone}</Text>
-                    </View>
-                    <View style={styles.metaItem}>
-                      <Icon name="location-on" size={13} color="#94A3B8" />
-                      <Text style={styles.memberMeta}>{m.location}</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.memberActions}>
-                  <TouchableOpacity style={[styles.iconBtn, { borderColor: '#BFDBFE' }]} activeOpacity={0.7}>
-                    <Icon name="edit" size={16} color="#2563EB" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.iconBtn, { borderColor: '#FCA5A5' }]} activeOpacity={0.7}>
-                    <Icon name="delete-outline" size={16} color="#DC2626" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))
+      {loading && !c ? (
+        <View style={styles.centerFill}><ActivityIndicator size="large" color="#20304C" /></View>
+      ) : failed && !c ? (
+        <View style={styles.centerFill}>
+          <Icon name="error-outline" size={44} color="#CBD5E1" />
+          <Text style={styles.errorText}>{error?.status === 403 ? 'This customer is assigned to another RM.' : (error?.message || 'Could not load this customer.')}</Text>
+          {error?.status !== 403 && (
+            <TouchableOpacity style={styles.retryBtn} onPress={refresh}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
           )}
         </View>
+      ) : c ? (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-      </ScrollView>
+          {/* Profile Card */}
+          <View style={styles.profileCard}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
+            <Text style={styles.name}>{c.name}</Text>
+            {!!c.email && <Text style={styles.contactLine}>{c.email}</Text>}
+            {!!c.phone && <Text style={styles.contactLine}>{c.phone}</Text>}
+
+            {profileRows.length > 0 && <View style={styles.divider} />}
+            {profileRows.map((item, idx) => (
+              <View key={item.label} style={[styles.kvRow, idx < profileRows.length - 1 && styles.kvBorder]}>
+                <Text style={styles.kvLabel}>{item.label}</Text>
+                <Text style={styles.kvValue} numberOfLines={1}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Active Membership */}
+          {!!c.membership && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Active Membership</Text>
+              <View style={styles.membershipRow}>
+                <View style={styles.membershipIconBg}>
+                  <Icon name="card-membership" size={22} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.membershipName}>{c.membership.name || 'Membership'}</Text>
+                  {!!c.membership.expiresAt && <Text style={styles.membershipMeta}>Expires: {fmtDate(c.membership.expiresAt)}</Text>}
+                </View>
+                {!!c.membership.status && (
+                  <View style={[styles.pill, { backgroundColor: '#D1FAE5' }]}>
+                    <Text style={[styles.pillText, { color: '#059669' }]}>{statusText(c.membership.status)}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Family Members */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.cardTitle}>Family Members</Text>
+              <View style={styles.countBadge}><Text style={styles.countText}>{c.familyMembers.length}</Text></View>
+            </View>
+            {c.familyMembers.length === 0 ? (
+              <EmptyState icon="group-off" text="No family members added." />
+            ) : (
+              c.familyMembers.map((m, i) => (
+                <View key={m.id} style={[styles.memberRow, i < c.familyMembers.length - 1 && styles.itemBorder]}>
+                  <View style={styles.memberAvatar}><Text style={styles.memberAvatarText}>{(m.name || '?').charAt(0).toUpperCase()}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.memberTopRow}>
+                      <Text style={styles.memberName}>{m.name}</Text>
+                      {!!m.relationship && <View style={styles.relationPill}><Text style={styles.relationText}>{m.relationship}</Text></View>}
+                    </View>
+                    <View style={styles.memberMetaRow}>
+                      <View style={styles.metaItem}>
+                        <Icon name="phone" size={13} color="#94A3B8" />
+                        <Text style={styles.memberMeta}>{m.phone || '—'}</Text>
+                      </View>
+                      {!!m.healthNotes && (
+                        <View style={styles.metaItem}>
+                          <Icon name="medical-services" size={13} color="#94A3B8" />
+                          <Text style={styles.memberMeta} numberOfLines={1}>{m.healthNotes}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Properties */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.cardTitle}>Properties</Text>
+              <View style={styles.countBadge}><Text style={styles.countText}>{c.properties.length}</Text></View>
+            </View>
+            {c.properties.length === 0 ? (
+              <EmptyState icon="home-work" text="No properties added." />
+            ) : (
+              c.properties.map((p, i) => (
+                <View key={p.id} style={[styles.memberRow, i < c.properties.length - 1 && styles.itemBorder]}>
+                  <View style={[styles.memberAvatar, { backgroundColor: '#EEF2FF' }]}><Icon name="home" size={18} color="#6366F1" /></View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.memberTopRow}>
+                      <Text style={styles.memberName}>{p.nickname}</Text>
+                      {!!p.type && <View style={styles.relationPill}><Text style={styles.relationText}>{p.type}</Text></View>}
+                    </View>
+                    {!!p.address && <Text style={styles.memberMeta} numberOfLines={2}>{p.address}</Text>}
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Recent Requests */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.cardTitle}>Recent Requests</Text>
+              <View style={styles.countBadge}><Text style={styles.countText}>{c.recentRequests.length}</Text></View>
+            </View>
+            {c.recentRequests.length === 0 ? (
+              <EmptyState icon="assignment" text="No requests yet." />
+            ) : (
+              c.recentRequests.map((r, i) => {
+                const pill = statusPill(r.status);
+                return (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={[styles.reqRow, i < c.recentRequests.length - 1 && styles.itemBorder]}
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('TicketDetail', { ticketId: r.id })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reqTicket}>{r.ticket}</Text>
+                      <Text style={styles.reqService} numberOfLines={1}>{r.service}</Text>
+                      {!!r.createdAt && <Text style={styles.reqDate}>{fmtDate(r.createdAt)}</Text>}
+                    </View>
+                    <View style={[styles.pill, { backgroundColor: pill.bg }]}>
+                      <Text style={[styles.pillText, { color: pill.text }]}>{statusText(r.status)}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color="#CBD5E1" />
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+
+        </ScrollView>
+      ) : null}
     </View>
   );
 }
@@ -139,8 +215,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, backgroundColor: '#20304C' },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#FFFFFF' },
-  commLogBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)', borderRadius: 18, paddingHorizontal: 12, paddingVertical: 7 },
-  commLogText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+
+  centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
+  errorText: { fontSize: 14, color: '#64748B', textAlign: 'center' },
+  retryBtn: { backgroundColor: '#20304C', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12 },
+  retryText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 
   scrollContent: { paddingHorizontal: 16, paddingBottom: 60, paddingTop: 16, gap: 16 },
 
@@ -166,10 +245,8 @@ const styles = StyleSheet.create({
   kvBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   kvLabel: { fontSize: 13, color: '#64748B' },
   kvValue: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1, textAlign: 'right' },
-  kvAccent: { color: '#D94625' },
 
   cardTitle: { fontSize: 15, fontFamily: typography.sectionTitle.fontFamily, color: '#0F172A' },
-  walletAmount: { fontSize: 30, fontFamily: typography.h2.fontFamily, color: '#059669', textAlign: 'center', marginTop: 14 },
 
   membershipRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 14 },
   membershipIconBg: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' },
@@ -180,7 +257,8 @@ const styles = StyleSheet.create({
   countBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 7, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' },
   countText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#6366F1' },
 
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 14 },
+  itemBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   memberAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   memberAvatarText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#475569' },
   memberTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -188,10 +266,16 @@ const styles = StyleSheet.create({
   relationPill: { backgroundColor: '#EEF2FF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   relationText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#6366F1' },
   memberMetaRow: { flexDirection: 'row', gap: 16, marginTop: 4 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   memberMeta: { fontSize: 12, color: '#94A3B8' },
-  memberActions: { flexDirection: 'row', gap: 8 },
-  iconBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+
+  reqRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
+  reqTicket: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#1E293B' },
+  reqService: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  reqDate: { fontSize: 11, color: '#94A3B8', marginTop: 3 },
+
+  pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  pillText: { fontSize: 11, fontWeight: '700' },
 
   emptyState: { alignItems: 'center', gap: 8, paddingVertical: 22 },
   emptyText: { fontSize: 13, color: '#94A3B8' },

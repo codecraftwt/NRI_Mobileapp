@@ -1,29 +1,81 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { useRmEscalations } from '../../Hooks/RM/useRmEscalations';
 
-const MOCK = [
-  { id: '1', ticket: 'NRI-2026-00012', customer: 'akanksha', issue: 'SLA breached — no executive assigned', priority: 'Critical', raised: '2 days ago', status: 'Open' },
-  { id: '2', ticket: 'NRI-2026-00007', customer: 'Pradnya', issue: 'Customer dissatisfied with visit quality', priority: 'High', raised: '5 days ago', status: 'In Review' },
-  { id: '3', ticket: 'NRI-2026-00004', customer: 'Test', issue: 'Delayed report submission', priority: 'Medium', raised: '1 week ago', status: 'Resolved' },
-];
+const norm = (s) => String(s || '').toLowerCase();
 
 function priorityBadge(p) {
-  if (p === 'Critical') return { bg: '#FEE2E2', color: '#DC2626' };
-  if (p === 'High') return { bg: '#FFEDD5', color: '#C2410C' };
-  return { bg: '#FEF3C7', color: '#CA8A04' };
+  switch (norm(p)) {
+    case 'critical': return { bg: '#FEE2E2', color: '#DC2626' };
+    case 'high': return { bg: '#FFEDD5', color: '#C2410C' };
+    default: return { bg: '#FEF3C7', color: '#CA8A04' };
+  }
 }
 function statusBadge(s) {
-  if (s === 'Resolved') return { bg: '#D1FAE5', color: '#059669' };
-  if (s === 'In Review') return { bg: '#DBEAFE', color: '#2563EB' };
-  return { bg: '#FEE2E2', color: '#DC2626' };
+  switch (norm(s)) {
+    case 'resolved': case 'closed': return { bg: '#D1FAE5', color: '#059669' };
+    case 'in review': case 'in_review': case 'in progress': case 'in_progress': return { bg: '#DBEAFE', color: '#2563EB' };
+    default: return { bg: '#FEE2E2', color: '#DC2626' };
+  }
+}
+function label(s) {
+  return norm(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Windowed page numbers around the current page (e.g. [1,2,3]).
+function pageWindow(current, last, size = 3) {
+  let start = Math.max(1, current - Math.floor(size / 2));
+  const end = Math.min(last, start + size - 1);
+  start = Math.max(1, end - size + 1);
+  const arr = [];
+  for (let i = start; i <= end; i++) arr.push(i);
+  return arr;
+}
+
+// Relative "x days ago" from an ISO timestamp.
+function ago(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff)) return '';
+  const day = 86400000;
+  if (diff < day) return 'Today';
+  const days = Math.round(diff / day);
+  if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+  const weeks = Math.round(days / 7);
+  if (weeks < 5) return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+  const months = Math.round(days / 30);
+  return `${months} month${months > 1 ? 's' : ''} ago`;
 }
 
 function Escalations({ navigation }) {
   const [activeTab, setActiveTab] = useState('All');
+  const { escalations, loading, meta, fetchPage } = useRmEscalations();
   const tabs = ['All', 'Open', 'In Review', 'Resolved'];
-  const filtered = MOCK.filter(e => activeTab === 'All' || e.status === activeTab);
+
+  const currentPage = meta?.currentPage || 1;
+  const lastPage = meta?.lastPage || 1;
+  const perPage = meta?.perPage || escalations.length || 0;
+  const total = meta?.total || 0;
+  const from = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
+  const to = Math.min(currentPage * perPage, total);
+
+  const goToPage = (p) => {
+    if (loading || p < 1 || p > lastPage || p === currentPage) return;
+    fetchPage(p);
+  };
+
+  const tabMatch = (tab, e) => {
+    if (tab === 'All') return true;
+    const s = norm(e.status);
+    if (tab === 'Open') return s === 'open' || s === 'raised' || s === 'pending';
+    if (tab === 'In Review') return s === 'in review' || s === 'in_review' || s === 'in progress' || s === 'in_progress';
+    if (tab === 'Resolved') return s === 'resolved' || s === 'closed';
+    return true;
+  };
+
+  const filtered = escalations.filter(e => tabMatch(activeTab, e));
 
   return (
     <View style={styles.container}>
@@ -50,45 +102,99 @@ function Escalations({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filtered.map(e => {
-          const p = priorityBadge(e.priority);
-          const s = statusBadge(e.status);
-          return (
-            <TouchableOpacity key={e.id} style={styles.card} activeOpacity={0.7} onPress={() => navigation.navigate('TicketDetail', { ticketId: e.id })}>
-              <View style={styles.cardTop}>
-                <View style={[styles.alertIcon, { backgroundColor: p.bg }]}>
-                  <Icon name="priority-high" size={20} color={p.color} />
+        {loading && escalations.length === 0 ? (
+          <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="verified" size={44} color="#CBD5E1" />
+            <Text style={styles.emptyText}>No escalations to show.</Text>
+          </View>
+        ) : (
+          filtered.map(e => {
+            const p = priorityBadge(e.priority);
+            const s = statusBadge(e.status);
+            return (
+              <TouchableOpacity
+                key={e.id}
+                style={styles.card}
+                activeOpacity={0.7}
+                disabled={e.ticketId == null}
+                onPress={() => e.ticketId != null && navigation.navigate('TicketDetail', { ticketId: e.ticketId })}
+              >
+                <View style={styles.cardTop}>
+                  <View style={[styles.alertIcon, { backgroundColor: p.bg }]}>
+                    <Icon name="priority-high" size={20} color={p.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.ticket}>{e.ticket || 'Request'}</Text>
+                    <Text style={styles.issue} numberOfLines={2}>{e.reason}</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ticket}>{e.ticket}</Text>
-                  <Text style={styles.issue} numberOfLines={2}>{e.issue}</Text>
-                </View>
-              </View>
 
-              <View style={styles.divider} />
+                <View style={styles.divider} />
 
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <Icon name="person" size={14} color="#94A3B8" />
-                  <Text style={styles.metaText}>{e.customer}</Text>
+                <View style={styles.metaRow}>
+                  {!!e.customer && (
+                    <View style={styles.metaItem}>
+                      <Icon name="person" size={14} color="#94A3B8" />
+                      <Text style={styles.metaText}>{e.customer}</Text>
+                    </View>
+                  )}
+                  {!!e.createdAt && (
+                    <View style={styles.metaItem}>
+                      <Icon name="schedule" size={14} color="#94A3B8" />
+                      <Text style={styles.metaText}>{ago(e.createdAt)}</Text>
+                    </View>
+                  )}
                 </View>
-                <View style={styles.metaItem}>
-                  <Icon name="schedule" size={14} color="#94A3B8" />
-                  <Text style={styles.metaText}>{e.raised}</Text>
-                </View>
-              </View>
 
-              <View style={styles.badgeRow}>
-                <View style={[styles.badge, { backgroundColor: p.bg }]}>
-                  <Text style={[styles.badgeText, { color: p.color }]}>{e.priority}</Text>
+                <View style={styles.badgeRow}>
+                  {!!e.priority && (
+                    <View style={[styles.badge, { backgroundColor: p.bg }]}>
+                      <Text style={[styles.badgeText, { color: p.color }]}>{label(e.priority)}</Text>
+                    </View>
+                  )}
+                  <View style={[styles.badge, { backgroundColor: s.bg }]}>
+                    <Text style={[styles.badgeText, { color: s.color }]}>{e.statusLabel || label(e.status)}</Text>
+                  </View>
                 </View>
-                <View style={[styles.badge, { backgroundColor: s.bg }]}>
-                  <Text style={[styles.badgeText, { color: s.color }]}>{e.status}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+              </TouchableOpacity>
+            );
+          })
+        )}
+
+        {/* Pagination */}
+        {!!meta && total > 0 && lastPage > 1 && (
+          <View style={styles.pagination}>
+            <Text style={styles.pageInfo}>Showing {from} to {to} of {total} results</Text>
+            <View style={styles.pageRow}>
+              <TouchableOpacity
+                style={[styles.pageBtn, currentPage <= 1 && styles.pageBtnDisabled]}
+                onPress={() => goToPage(currentPage - 1)}
+                disabled={currentPage <= 1}
+                activeOpacity={0.7}
+              >
+                <Icon name="chevron-left" size={18} color={currentPage <= 1 ? '#CBD5E1' : '#475569'} />
+              </TouchableOpacity>
+              {pageWindow(currentPage, lastPage).map(p => {
+                const active = p === currentPage;
+                return (
+                  <TouchableOpacity key={p} style={[styles.pageNum, active && styles.pageNumActive]} onPress={() => goToPage(p)} activeOpacity={0.7}>
+                    <Text style={[styles.pageNumText, active && styles.pageNumTextActive]}>{p}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                style={[styles.pageBtn, currentPage >= lastPage && styles.pageBtnDisabled]}
+                onPress={() => goToPage(currentPage + 1)}
+                disabled={currentPage >= lastPage}
+                activeOpacity={0.7}
+              >
+                <Icon name="chevron-right" size={18} color={currentPage >= lastPage ? '#CBD5E1' : '#475569'} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -120,6 +226,19 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   badgeText: { fontSize: 11, fontWeight: '700' },
+
+  emptyState: { paddingVertical: 70, alignItems: 'center', gap: 12 },
+  emptyText: { fontSize: 15, color: '#94A3B8' },
+
+  pagination: { alignItems: 'center', gap: 12, marginTop: 8, paddingTop: 8 },
+  pageInfo: { fontSize: 13, color: '#64748B' },
+  pageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pageBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+  pageBtnDisabled: { backgroundColor: '#F8FAFC' },
+  pageNum: { minWidth: 36, height: 36, borderRadius: 18, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+  pageNumActive: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
+  pageNumText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+  pageNumTextActive: { color: '#FFFFFF' },
 });
 
 export default Escalations;

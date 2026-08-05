@@ -29,6 +29,15 @@ import vendorJobsReducer from './slices/vendorJobsSlice';
 import vendorProfileReducer from './slices/vendorProfileSlice';
 import vendorEarningsReducer from './slices/vendorEarningsSlice';
 import vendorDashboardReducer from './slices/vendorDashboardSlice';
+import rmDashboardReducer from './slices/rmDashboardSlice';
+import rmRequestsReducer from './slices/rmRequestsSlice';
+import rmRequestDetailReducer from './slices/rmRequestDetailSlice';
+import rmEscalationsReducer from './slices/rmEscalationsSlice';
+import rmReportsReducer from './slices/rmReportsSlice';
+import rmCustomersReducer from './slices/rmCustomersSlice';
+import rmCustomerDetailReducer from './slices/rmCustomerDetailSlice';
+import rmPlannerReducer from './slices/rmPlannerSlice';
+import rmUpsellReducer from './slices/rmUpsellSlice';
 import serviceSubscriptionReducer from './slices/serviceSubscriptionSlice';
 import serviceLocationReducer from './slices/serviceLocationSlice';
 import cartReducer from './slices/cartSlice';
@@ -113,6 +122,15 @@ const appReducer = combineReducers({
   vendorProfile: vendorProfileReducer,
   vendorEarnings: vendorEarningsReducer,
   vendorDashboard: vendorDashboardReducer,
+  rmDashboard: rmDashboardReducer,
+  rmRequests: rmRequestsReducer,
+  rmRequestDetail: rmRequestDetailReducer,
+  rmEscalations: rmEscalationsReducer,
+  rmReports: rmReportsReducer,
+  rmCustomers: rmCustomersReducer,
+  rmCustomerDetail: rmCustomerDetailReducer,
+  rmPlanner: rmPlannerReducer,
+  rmUpsell: rmUpsellReducer,
   serviceSubscription: serviceSubscriptionReducer,
   serviceLocation: serviceLocationReducer,
   cart: cartReducer,
