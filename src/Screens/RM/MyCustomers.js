@@ -1,34 +1,16 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, StatusBar, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, StatusBar, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useRmCustomers } from '../../Hooks/RM/useRmCustomers';
 
-// Windowed page numbers around the current page (e.g. [1,2,3]).
-function pageWindow(current, last, size = 3) {
-  let start = Math.max(1, current - Math.floor(size / 2));
-  const end = Math.min(last, start + size - 1);
-  start = Math.max(1, end - size + 1);
-  const arr = [];
-  for (let i = start; i <= end; i++) arr.push(i);
-  return arr;
-}
+// Windowed page numbers logic removed as we use infinite scroll now
 
 function MyCustomers({ navigation }) {
   const [search, setSearch] = useState('');
-  const { customers, loading, meta, fetchPage } = useRmCustomers(search);
+  const { customers, loading, meta, fetchNextPage } = useRmCustomers(search);
 
-  const currentPage = meta?.currentPage || 1;
-  const lastPage = meta?.lastPage || 1;
-  const perPage = meta?.perPage || customers.length || 0;
   const total = meta?.total || 0;
-  const from = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
-  const to = Math.min(currentPage * perPage, total);
-
-  const goToPage = (p) => {
-    if (loading || p < 1 || p > lastPage || p === currentPage) return;
-    fetchPage(p);
-  };
 
   return (
     <View style={styles.container}>
@@ -67,82 +49,84 @@ function MyCustomers({ navigation }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {loading && customers.length === 0 ? (
-          <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
-        ) : customers.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="people-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No Customers Found</Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.grid}>
-              {customers.map(cust => (
-                <TouchableOpacity
-                  key={cust.id}
-                  style={styles.card}
-                  activeOpacity={0.85}
-                  onPress={() => navigation.navigate('CustomerDetail', { customerId: cust.id, name: cust.name })}
-                >
-                  <View style={styles.cardTopRow}>
-                    <Text style={styles.name} numberOfLines={1}>{cust.name}</Text>
-                    {cust.openRequests > 0 && (
-                      <View style={styles.openBadge}>
-                        <Text style={styles.openBadgeText}>{cust.openRequests}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {!!cust.email && <Text style={styles.sub} numberOfLines={1}>{cust.email}</Text>}
-
-                  <View style={styles.metaRow}>
-                    <Icon name={cust.location ? 'location-on' : 'phone'} size={12} color="#94A3B8" />
-                    <Text style={styles.metaText} numberOfLines={1}>{cust.location || cust.phone || '—'}</Text>
-                  </View>
-
-                  {!!cust.membership && (
-                    <Text style={styles.membership} numberOfLines={1}>{cust.membership}</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+      <FlatList
+        data={customers}
+        keyExtractor={c => String(c.id)}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onEndReached={fetchNextPage}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="people-outline" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No Customers Found</Text>
             </View>
+          )
+        }
+        ListFooterComponent={
+          loading && customers.length > 0 ? (
+            <View style={{ paddingVertical: 16 }}><ActivityIndicator size="small" color="#20304C" /></View>
+          ) : null
+        }
+        renderItem={({ item: cust }) => {
+          const initials = (cust.name || 'C').substring(0, 2).toUpperCase();
+          const membershipColor = cust.membership?.toLowerCase() === 'essential' ? '#0284C7' : '#B45309';
+          const membershipBg = cust.membership?.toLowerCase() === 'essential' ? '#E0F2FE' : '#FEF3E7';
 
-            {/* Pagination */}
-            {!!meta && total > 0 && lastPage > 1 && (
-              <View style={styles.pagination}>
-                <Text style={styles.pageInfo}>Showing {from} to {to} of {total} results</Text>
-                <View style={styles.pageRow}>
-                  <TouchableOpacity
-                    style={[styles.pageBtn, currentPage <= 1 && styles.pageBtnDisabled]}
-                    onPress={() => goToPage(currentPage - 1)}
-                    disabled={currentPage <= 1}
-                    activeOpacity={0.7}
-                  >
-                    <Icon name="chevron-left" size={18} color={currentPage <= 1 ? '#CBD5E1' : '#475569'} />
-                  </TouchableOpacity>
-                  {pageWindow(currentPage, lastPage).map(p => {
-                    const active = p === currentPage;
-                    return (
-                      <TouchableOpacity key={p} style={[styles.pageNum, active && styles.pageNumActive]} onPress={() => goToPage(p)} activeOpacity={0.7}>
-                        <Text style={[styles.pageNumText, active && styles.pageNumTextActive]}>{p}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                  <TouchableOpacity
-                    style={[styles.pageBtn, currentPage >= lastPage && styles.pageBtnDisabled]}
-                    onPress={() => goToPage(currentPage + 1)}
-                    disabled={currentPage >= lastPage}
-                    activeOpacity={0.7}
-                  >
-                    <Icon name="chevron-right" size={18} color={currentPage >= lastPage ? '#CBD5E1' : '#475569'} />
-                  </TouchableOpacity>
+          return (
+            <TouchableOpacity
+              style={styles.listItem}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('CustomerDetail', { customerId: cust.id, name: cust.name })}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+
+              <View style={styles.listItemBody}>
+                <View style={styles.cardTopRow}>
+                  <Text style={styles.name} numberOfLines={1}>{cust.name}</Text>
+                </View>
+
+                {!!cust.email && <Text style={styles.sub} numberOfLines={1}>{cust.email}</Text>}
+
+                <View style={styles.metaRow}>
+                  {!!cust.location && (
+                    <View style={styles.metaItem}>
+                      <Icon name="location-on" size={13} color="#94A3B8" />
+                      <Text style={styles.metaText} numberOfLines={1}>{cust.location}</Text>
+                    </View>
+                  )}
+                  {!!cust.phone && !cust.location && (
+                    <View style={styles.metaItem}>
+                      <Icon name="phone" size={13} color="#94A3B8" />
+                      <Text style={styles.metaText} numberOfLines={1}>{cust.phone}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
-            )}
-          </>
-        )}
-      </ScrollView>
+
+              <View style={styles.listItemRight}>
+                {cust.openRequests > 0 && (
+                  <View style={styles.openBadge}>
+                    <Icon name="error-outline" size={12} color="#DC2626" />
+                    <Text style={styles.openBadgeText}>{cust.openRequests}</Text>
+                  </View>
+                )}
+
+                {!!cust.membership && (
+                  <View style={[styles.membershipPill, { backgroundColor: membershipBg }]}>
+                    <Text style={[styles.membershipText, { color: membershipColor }]} numberOfLines={1}>{cust.membership}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
     </View>
   );
 }
@@ -150,8 +134,7 @@ function MyCustomers({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 42, backgroundColor: '#20304C',
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+    paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C',
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
@@ -161,8 +144,7 @@ const styles = StyleSheet.create({
   headerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   headerCountText: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
 
-  // Floats up so it overlaps the header's rounded bottom edge.
-  searchWrap: { paddingHorizontal: 20, marginTop: -26, marginBottom: 8, zIndex: 5 },
+  searchWrap: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8, zIndex: 5 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 14, height: 52,
@@ -171,35 +153,34 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: '#0F172A', fontFamily: typography.body.fontFamily, padding: 0 },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: {
-    width: '48%', marginBottom: 14, padding: 14,
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 12 },
+  listItem: {
+    width: '100%', padding: 16,
     backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+    flexDirection: 'row', alignItems: 'center',
   },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 22 },
-  name: { flex: 1, fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  sub: { fontSize: 11, color: '#64748B', marginTop: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
-  metaText: { fontSize: 11, color: '#94A3B8', flex: 1 },
-  membership: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#b45936', marginTop: 10 },
-  openBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: '#FEF3E7', alignItems: 'center', justifyContent: 'center' },
-  openBadgeText: { fontSize: 10, fontWeight: '700', color: '#C2410C' },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  avatarText: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#475569', fontWeight: 'bold' },
+  listItemBody: { flex: 1, paddingRight: 10 },
+  listItemRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 10 },
+  
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1 },
+  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: '#FEE2E2', borderRadius: 12 },
+  openBadgeText: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
+  
+  sub: { fontSize: 13, color: '#64748B', marginTop: 3 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 12, color: '#94A3B8' },
+  
+  membershipPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  membershipText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, fontWeight: '600' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
-
-  pagination: { alignItems: 'center', gap: 12, marginTop: 8, paddingTop: 8 },
-  pageInfo: { fontSize: 13, color: '#64748B' },
-  pageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pageBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  pageBtnDisabled: { backgroundColor: '#F8FAFC' },
-  pageNum: { minWidth: 36, height: 36, borderRadius: 18, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  pageNumActive: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
-  pageNumText: { fontSize: 13, fontWeight: '700', color: '#475569' },
-  pageNumTextActive: { color: '#FFFFFF' },
 });
 
 export default MyCustomers;

@@ -186,38 +186,34 @@ function Tickets({ navigation }) {
                 activeOpacity={0.85}
                 onPress={() => navigation.navigate('TicketDetail', { ticketId: t.id })}
               >
-                {/* Colored header band */}
-                <View style={[styles.cardHeader, { backgroundColor: pill.text }]}>
-                  <Text style={styles.cardHeaderCode}>{t.ticket}</Text>
-                  <Text style={styles.cardHeaderDate}>{dateShort(t.createdAt)}</Text>
-                </View>
-
-                {/* Body */}
-                <View style={styles.cardBody}>
-                  <View style={styles.cardBodyTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardSubtitle} numberOfLines={1}>{t.customer || 'Customer'}</Text>
-                      <Text style={styles.cardTitle} numberOfLines={2}>{t.service}</Text>
+                <View style={styles.cardContent}>
+                  <View style={styles.cardLeft}>
+                    <View style={styles.ticketNumRow}>
+                      <Icon name="receipt-long" size={14} color="#64748B" />
+                      <Text style={styles.ticketNumText}>{t.ticket}</Text>
+                      <Text style={styles.dateText}>• {dateShort(t.createdAt)}</Text>
                     </View>
+
+                    <Text style={styles.cardTitle} numberOfLines={2}>{t.service}</Text>
+
+                    <View style={styles.customerRow}>
+                      <Icon name="person-outline" size={14} color="#94A3B8" />
+                      <Text style={styles.customerText} numberOfLines={1}>{t.customer || 'Customer'}</Text>
+                    </View>
+
+                    {showSla && (
+                      <View style={styles.dueWrap}>
+                        <Icon name="schedule" size={12} color="#B45309" />
+                        <Text style={styles.dueText}>{sla}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.cardRight}>
                     <View style={[styles.statusChip, { backgroundColor: pill.bg }]}>
                       <Text style={[styles.statusChipText, { color: pill.text }]}>{statusLabel(t.status)}</Text>
                     </View>
-                  </View>
-
-                  <View style={styles.cardBodyBottom}>
-                    {showSla ? (
-                      <View style={styles.dueWrap}>
-                        <Icon name="schedule" size={14} color="#059669" />
-                        <Text style={styles.dueText}>{sla}</Text>
-                      </View>
-                    ) : <View />}
-                    <TouchableOpacity
-                      style={styles.viewBtn}
-                      activeOpacity={0.85}
-                      onPress={() => navigation.navigate('TicketDetail', { ticketId: t.id })}
-                    >
-                      <Text style={styles.viewBtnText}>View Detail</Text>
-                    </TouchableOpacity>
+                    <Icon name="chevron-right" size={20} color="#CBD5E1" />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -312,9 +308,18 @@ const styles = StyleSheet.create({
   headerCountText: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
 
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 14, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFFFFF', borderRadius: 16, paddingHorizontal: 14, height: 52,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#1E293B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 6,
+  },
   searchInput: { flex: 1, fontSize: 14, color: '#1E293B', padding: 0 },
-  filterBtn: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' },
+  filterBtn: {
+    width: 52, height: 52, borderRadius: 16, backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#1E293B', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 6,
+  },
   filterBtnActive: { backgroundColor: '#20304C', borderColor: '#20304C' },
 
   activeFilterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 4, paddingTop: 4 },
@@ -335,24 +340,29 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 12 },
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden',
+    backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+    padding: 16,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9 },
-  cardHeaderCode: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
-  cardHeaderDate: { fontSize: 11.5, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
-  cardBody: { padding: 14 },
-  cardBodyTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cardSubtitle: { fontSize: 11, color: '#94A3B8', marginBottom: 2 },
-  cardTitle: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#1E293B', lineHeight: 20 },
+  cardContent: { flexDirection: 'row', alignItems: 'center' },
+  cardLeft: { flex: 1, paddingRight: 12 },
+  cardRight: { alignItems: 'flex-end', justifyContent: 'space-between', height: 70 },
+
+  ticketNumRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
+  ticketNumText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+  dateText: { fontSize: 12, color: '#94A3B8' },
+
+  cardTitle: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginBottom: 8, lineHeight: 22 },
+
+  customerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  customerText: { fontSize: 13, color: '#475569' },
+
   statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusChipText: { fontSize: 10, fontWeight: '700' },
-  cardBodyBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  dueWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dueText: { fontSize: 12, fontWeight: '700', color: '#059669' },
-  viewBtn: { backgroundColor: '#577099', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
-  viewBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  statusChipText: { fontSize: 11, fontWeight: '700' },
+
+  dueWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, backgroundColor: '#FEF3E7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  dueText: { fontSize: 11, fontWeight: '700', color: '#B45309' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

@@ -13,11 +13,11 @@ function pick(...vals) {
 export function mapRequest(raw = {}) {
   return {
     id: raw.id,
-    ticket: raw.ticket_number || raw.ticket || '',
+    ticket: raw.ticket_number || raw.ticket?.ticket_number || (typeof raw.ticket === 'string' ? raw.ticket : '') || '',
     status: raw.status || '',
     urgency: raw.urgency || raw.priority || null,
-    service: raw.service?.name || raw.service_name || 'Service Request',
-    customer: raw.customer_name || raw.customer?.name || raw.customer || '',
+    service: raw.service?.name || raw.service_name || (typeof raw.service === 'string' ? raw.service : '') || 'Service Request',
+    customer: raw.customer_name || raw.customer?.name || (typeof raw.customer === 'string' ? raw.customer : '') || '',
     slaDeadline: raw.sla_deadline || null,
     overdue: !!raw.overdue,
     createdAt: raw.created_at || null,
@@ -51,8 +51,8 @@ function mapEscalation(raw = {}, index = 0) {
   return {
     id: String(raw.id ?? index),
     ticketId: raw.ticket_id ?? raw.request_id ?? raw.ticket?.id ?? null,
-    ticket: raw.ticket_number || raw.ticket?.ticket_number || raw.ticket || '',
-    customer: raw.customer_name || raw.customer?.name || '',
+    ticket: raw.ticket_number || raw.ticket?.ticket_number || (typeof raw.ticket === 'string' ? raw.ticket : '') || '',
+    customer: raw.customer_name || raw.customer?.name || (typeof raw.customer === 'string' ? raw.customer : '') || '',
     reason: raw.reason || raw.issue || raw.note || '',
     escalatedTo: raw.escalated_to_name || raw.escalated_to?.name || raw.escalated_to || null,
     level: raw.level || raw.escalation_level || null,

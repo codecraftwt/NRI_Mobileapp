@@ -16,13 +16,19 @@ export function useRmCustomers(search = '') {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
+  const fetchNextPage = () => {
+    if (status !== 'loading' && meta && meta.currentPage < meta.lastPage) {
+      dispatch(fetchRmCustomers({ search: search.trim() || undefined, page: meta.currentPage + 1 }));
+    }
+  };
+
   return {
     customers,
     meta,
     loading: status === 'loading',
     failed: status === 'failed',
     error,
-    fetchPage: (p) => dispatch(fetchRmCustomers({ search: search.trim() || undefined, page: p })),
+    fetchNextPage,
     refresh: () => dispatch(fetchRmCustomers({ search: search.trim() || undefined })),
   };
 }
