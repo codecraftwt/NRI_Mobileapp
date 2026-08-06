@@ -4,6 +4,7 @@ import {
   addToCart,
   removeFromCart,
   fetchServerCart,
+  mergeGuestCart,
   addServerCartItem,
   removeServerCartItem,
   selectCartItems,
@@ -23,15 +24,27 @@ export function useCart({ autoFetch = true } = {}) {
   const isAuthenticated = useSelector((s) => s.user?.isAuthenticated);
   const items = useSelector(selectCartItems);
   const serverCount = useSelector(selectServerCartCount);
+  const guestMergeStatus = useSelector((s) => s.cart.guestMergeStatus);
+  // A guest cart carried into a signed-in session: local items exist but the
+  // server cart is still empty, so they were never uploaded.
+  const hasUnsyncedGuestCart = items.length > 0 && serverCount === 0;
 
   const count = isAuthenticated ? serverCount : items.length;
 
-  // Fetch the authoritative server cart once when a signed-in user lands on a
-  // cart-aware screen, so the badge count is accurate on entry.
+  // On the guest→authenticated transition, push the onboarding cart to the
+  // backend (mergeGuestCart) the first time a signed-in user lands on a
+  // cart-aware screen, so the services added while onboarding show up in the
+  // server cart. Otherwise just fetch the authoritative cart so the badge count
+  // is accurate on entry.
   useEffect(() => {
-    if (autoFetch && isAuthenticated) dispatch(fetchServerCart());
+    if (!autoFetch || !isAuthenticated) return;
+    if (hasUnsyncedGuestCart && guestMergeStatus === 'idle') {
+      dispatch(mergeGuestCart());
+    } else if (!hasUnsyncedGuestCart && guestMergeStatus !== 'loading') {
+      dispatch(fetchServerCart());
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFetch, isAuthenticated]);
+  }, [autoFetch, isAuthenticated, hasUnsyncedGuestCart, guestMergeStatus]);
 
   const add = (item) => {
     // Local add drives the display list in both flows.

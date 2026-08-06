@@ -14,7 +14,34 @@ import * as cartApi from '../../Api/cartApi';
 const initialState = {
   items: [], // [{ serviceId, name, categoryName, price, currency, durationLabel, stateName, cityName, cityId, pincode }]
   serverCount: 0,
+  // Tracks the one-time guest→authenticated cart sync (see mergeGuestCart). It
+  // stays 'idle' for a guest (the cart is preserved across sign-in by the store
+  // reset), flips to 'loading'/'succeeded' the first time a signed-in session
+  // uploads the guest cart, so useCart never re-runs the merge on later mounts.
+  guestMergeStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
 };
+
+// Adopt the authoritative server cart rows into the local display list while
+// keeping the location fields (stateName/cityName/cityId/pincode) the guest
+// chose — the cart API omits those, so a plain replace would lose them.
+function mergeServerIntoLocal(state, serverItems) {
+  const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
+  state.items = serverItems.map((si) => {
+    const idx = indexById.get(String(si.serviceId));
+    if (idx != null) {
+      const existing = state.items[idx];
+      return {
+        ...existing,
+        ...si,
+        stateName: existing.stateName ?? si.stateName,
+        cityName: existing.cityName ?? si.cityName,
+        cityId: existing.cityId ?? si.cityId,
+        pincode: existing.pincode ?? si.pincode,
+      };
+    }
+    return si;
+  });
+}
 
 // Authenticated-only server cart thunks. These never run for guests (the
 // useCart hook gates them behind isAuthenticated), so the onboarding flow is
@@ -32,6 +59,30 @@ export const fetchServerCart = createAsyncThunk('cart/fetchServer', async (_, { 
       ...result,
       preserveLocalOnEmpty: result.items.length === 0 && hasCarriedGuestCart && onboardingIncomplete,
     };
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+// One-time guest→authenticated sync: push every service the guest added while
+// onboarding (the local `items`) to the backend cart, then return the
+// authoritative server cart. Adding a service that's already in the server cart
+// is a no-op (the cart is keyed by service), so this is safe to run once per
+// sign-in. Individual add failures are swallowed so one bad row can't abort the
+// whole merge — the final GET reflects whatever made it in.
+export const mergeGuestCart = createAsyncThunk('cart/mergeGuest', async (_, { getState, rejectWithValue }) => {
+  try {
+    const localItems = getState().cart?.items || [];
+    for (const item of localItems) {
+      if (item?.serviceId != null) {
+        try {
+          await cartApi.addCartItem(item.serviceId);
+        } catch (e) {
+          // Keep syncing the rest; the closing GET reports the real state.
+        }
+      }
+    }
+    return await cartApi.getCart();
   } catch (error) {
     return rejectWithValue(error);
   }
@@ -93,24 +144,23 @@ const cartSlice = createSlice({
           state.serverCount = action.payload?.count ?? 0;
           return;
         }
-        const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
-        state.items = serverItems.map((si) => {
-          const key = String(si.serviceId);
-          const idx = indexById.get(key);
-          if (idx != null) {
-            const existing = state.items[idx];
-            return {
-              ...existing,
-              ...si,
-              stateName: existing.stateName ?? si.stateName,
-              cityName: existing.cityName ?? si.cityName,
-              cityId: existing.cityId ?? si.cityId,
-              pincode: existing.pincode ?? si.pincode,
-            };
-          }
-          return si;
-        });
+        mergeServerIntoLocal(state, serverItems);
         if (action.payload?.count != null) state.serverCount = action.payload.count;
+      })
+      // Guest cart uploaded on sign-in — adopt the merged server cart. If the
+      // server came back empty (every push failed), keep the local guest items
+      // so nothing the user selected is lost.
+      .addCase(mergeGuestCart.pending, (state) => {
+        state.guestMergeStatus = 'loading';
+      })
+      .addCase(mergeGuestCart.fulfilled, (state, action) => {
+        state.guestMergeStatus = 'succeeded';
+        const serverItems = action.payload?.items || [];
+        if (serverItems.length > 0) mergeServerIntoLocal(state, serverItems);
+        if (action.payload?.count != null) state.serverCount = action.payload.count;
+      })
+      .addCase(mergeGuestCart.rejected, (state) => {
+        state.guestMergeStatus = 'failed';
       })
       .addCase(addServerCartItem.fulfilled, applyCount)
       .addCase(removeServerCartItem.fulfilled, applyCount)

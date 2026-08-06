@@ -108,7 +108,6 @@ function Cart({ navigation }) {
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                <Text style={styles.itemPrice}>{fmt(it.price)}</Text>
                 <TouchableOpacity onPress={() => dispatch(removeFromCart(it.serviceId))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="delete-outline" size={20} color="#EF4444" />
                 </TouchableOpacity>

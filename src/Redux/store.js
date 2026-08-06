@@ -88,11 +88,19 @@ const RESET_ACTION_TYPES = new Set([
 
 // The cart is kept across a sign-in / register (a guest's selections survive
 // into their new session — "your cart is saved"), but cleared on logout so the
-// next guest who reaches the "Let's Explore" screen starts with an empty cart.
+// next guest starts fresh. (The chosen service location is handled separately
+// below — see the logout handling in rootReducer.)
 const CART_KEEP_TYPES = new Set([
   loginUser.fulfilled.type,
   registerUser.fulfilled.type,
   login.type,
+]);
+
+// Logout actions — the only auth changes where the sticky service location may
+// need to be dropped (see rootReducer).
+const LOGOUT_ACTION_TYPES = new Set([
+  logoutUser.fulfilled.type,
+  logout.type,
 ]);
 
 const appReducer = combineReducers({
@@ -151,7 +159,60 @@ const rootReducer = (state, action) => {
     // guest keeps their selections, but dropped on logout so the next guest
     // starts fresh.
     const keepCart = CART_KEEP_TYPES.has(action.type);
-    state = { onboarding: state?.onboarding, cart: keepCart ? state?.cart : undefined };
+
+    // serviceLocation handling. `savedByUser` (each member's remembered city,
+    // see serviceLocationSlice) is ALWAYS carried through an auth change so it
+    // can be restored on that user's next login — there's no backend endpoint
+    // for the service pincode/city, so this map is what "saves the location
+    // under the account". The ACTIVE location is kept on sign-in / register
+    // (carried into the new session); on logout it's dropped (the onboarding
+    // All Services screen clears it for a fresh guest anyway), but a *completed*
+    // member's active location is first snapshotted under their user id so
+    // logging back in restores it. A user who logs out while STILL ONBOARDING
+    // is an abandoned guest — nothing is remembered for them.
+    const prevLocation = state?.serviceLocation || {};
+    const savedByUser = prevLocation.savedByUser || {};
+    let nextServiceLocation;
+    if (LOGOUT_ACTION_TYPES.has(action.type)) {
+      const user = state?.user?.user;
+      const userId = user?.id ?? user?.email ?? null;
+      const record = userId != null ? state?.onboarding?.completedByUser?.[userId] : undefined;
+      const membership = user?.membership;
+      const hasActiveMembership = !!(membership && membership !== 'None');
+      // "Onboarding complete" mirrors selectOnboardingRoute (the same signal
+      // that decides dashboard-vs-wizard): the per-user record wins when
+      // present; otherwise the user must NOT be flagged onboarded:false AND must
+      // hold an active membership (the wizard always ends with a membership
+      // purchase). It can't rely on `onboarded` alone — login defaults that to
+      // `true` for accounts with no local history, so a member-less account
+      // routed into the wizard would wrongly look complete.
+      const onboardingComplete = record !== undefined
+        ? record === true
+        : (user?.onboarded !== false && hasActiveMembership);
+      const nextSaved = onboardingComplete && userId != null
+        ? {
+            ...savedByUser,
+            [userId]: {
+              stateName: prevLocation.stateName ?? null,
+              cityName: prevLocation.cityName ?? null,
+              cityId: prevLocation.cityId ?? null,
+              pincode: prevLocation.pincode ?? null,
+            },
+          }
+        : savedByUser;
+      nextServiceLocation = { stateName: null, cityName: null, cityId: null, pincode: null, savedByUser: nextSaved };
+    } else {
+      // Sign-in / register: keep the active location + the saved map; the slice
+      // then restores this user's remembered city over the active fields if one
+      // exists (loginUser/registerUser/login extraReducers).
+      nextServiceLocation = state?.serviceLocation;
+    }
+
+    state = {
+      onboarding: state?.onboarding,
+      cart: keepCart ? state?.cart : undefined,
+      serviceLocation: nextServiceLocation,
+    };
   }
   return appReducer(state, action);
 };

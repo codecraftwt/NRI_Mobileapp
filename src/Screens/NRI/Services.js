@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { clearServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -100,7 +101,20 @@ function Services({ navigation, route }) {
 
   const { count: cartCount, refresh: refreshCart } = useCart();
   const refreshCartRef = useRef(refreshCart);
+  const dispatch = useDispatch();
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+
+  // Fresh-guest reset: this same screen backs both the onboarding "All Services"
+  // (GuestServices) and the signed-in Services tab. When an UNauthenticated
+  // guest first lands here, wipe any leftover service location so they start
+  // with no city ("Set your location"). Runs once on mount only (not on focus),
+  // so a guest who then picks a city can still visit the Cart and come back
+  // without losing it. Signed-in members are never touched — their city stays
+  // sticky across sessions.
+  useEffect(() => {
+    if (!isAuthenticated) dispatch(clearServiceLocation());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     refreshCartRef.current = refreshCart;
