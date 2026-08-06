@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -64,6 +64,7 @@ function SupportTicketChat({ route, navigation }) {
   // the refetched converted_ticket carrying a paid flag.
   const [paidReplyIds, setPaidReplyIds] = useState(() => new Set());
   const user = useSelector(s => s.user.user);
+  const scrollRef = useRef(null);
 
   // Paid ticket ids from the billing overview (is_paid === true) — the
   // authoritative "has this plan been paid?" source.
@@ -212,16 +213,18 @@ function SupportTicketChat({ route, navigation }) {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Header navigation={navigation} title={ticket.ticketNumber} showBack />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {showCreatedBanner && (
+      {showCreatedBanner && (
+        <View style={styles.bannerWrap}>
           <View style={styles.createdBanner}>
             <Text style={styles.createdBannerText}>Support ticket {createdTicketNumber} created.</Text>
             <TouchableOpacity onPress={() => setShowCreatedBanner(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Icon name="close" size={18} color="#059669" />
             </TouchableOpacity>
           </View>
-        )}
+        </View>
+      )}
 
+      <View style={styles.chatWrap}>
         <View style={styles.card}>
           <View style={styles.threadHeaderRow}>
             <View style={styles.threadHeaderLeft}>
@@ -245,7 +248,14 @@ function SupportTicketChat({ route, navigation }) {
             )}
           </View>
 
-          <View style={styles.messagesWrap}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.messagesScroll}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          >
             {replies.map(msg => {
               // A reply that carries a proposed price is a Custom Plan proposal —
               // render it as a dedicated card with a "Request This Plan" action.
@@ -319,7 +329,7 @@ function SupportTicketChat({ route, navigation }) {
                 </View>
               );
             })}
-          </View>
+          </ScrollView>
 
           {!isClosed && (
             <View style={styles.replyRow}>
@@ -342,7 +352,7 @@ function SupportTicketChat({ route, navigation }) {
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
       <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
@@ -358,11 +368,16 @@ const styles = StyleSheet.create({
   createdBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#D1FAE5', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12 },
   createdBannerText: { fontSize: 13, color: '#059669', fontWeight: '600', flex: 1, paddingRight: 8 },
 
+  // The card hugs its content and grows with the conversation; maxHeight caps it
+  // to the available space, after which the messages area scrolls (flexShrink)
+  // while the header and reply bar stay fixed.
+  chatWrap: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
+  bannerWrap: { paddingHorizontal: 20, paddingTop: 12 },
   card: {
+    maxHeight: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 16,
-    gap: 16,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     shadowColor: '#64748B',
@@ -381,12 +396,13 @@ const styles = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 
-  messagesWrap: { gap: 12 },
+  messagesScroll: { flexShrink: 1, marginTop: 14 },
+  messagesContent: { gap: 12, paddingBottom: 4 },
   bubbleRow: { maxWidth: '85%', alignSelf: 'flex-start' },
   bubbleRowMe: { alignSelf: 'flex-end' },
   bubble: { borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10 },
   bubbleSupport: { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4 },
-  bubbleMe: { backgroundColor: '#1D4ED8', borderBottomRightRadius: 4 },
+  bubbleMe: { backgroundColor: '#20304C', borderBottomRightRadius: 4 },
   bubbleAuthor: { fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 2 },
   bubbleAuthorMe: { color: 'rgba(255,255,255,0.85)' },
   bubbleText: { fontSize: 14, color: '#0F172A' },
@@ -421,7 +437,7 @@ const styles = StyleSheet.create({
   proposalAcceptedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   proposalAcceptedText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
-  replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },
   sendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D94625', borderRadius: 20, paddingHorizontal: 16, height: 44 },
   sendBtnDisabled: { opacity: 0.5 },

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -63,6 +63,7 @@ function SupportTicketDetail({ route, navigation }) {
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusPickerVisible, setStatusPickerVisible] = useState(false);
+  const scrollRef = useRef(null);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -229,112 +230,123 @@ function SupportTicketDetail({ route, navigation }) {
         })}
       </View>
 
-      {/* ---------- CHAT ---------- */}
+      {/* ---------- CHAT (NRI card style — messages scroll, composer fixed) ---------- */}
       {tab === 'chat' ? (
-        <>
-          {/* Compact context strip */}
-          <View style={styles.chatContextBar}>
-            <Text style={styles.chatContextSubject} numberOfLines={1}>{ticket?.subject || 'Support request'}</Text>
-            <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-              <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket?.statusLabel}</Text>
+        <View style={styles.chatWrap}>
+          <View style={styles.chatCard}>
+            {/* Thread header */}
+            <View style={styles.threadHeaderRow}>
+              <View style={styles.threadHeaderLeft}>
+                <Text style={styles.threadSubject} numberOfLines={1}>{ticket?.subject || 'Support request'}</Text>
+                <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+                  <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket?.statusLabel}</Text>
+                </View>
+              </View>
+              {!!ticket?.createdAt && <Text style={styles.threadDate}>{formatTime(ticket.createdAt)}</Text>}
             </View>
-          </View>
 
-          <ScrollView contentContainerStyle={styles.chatContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {replies.length === 0 ? (
-              <View style={styles.emptyThread}>
-                <Icon name="forum" size={30} color="#CBD5E1" />
-                <Text style={styles.emptyText}>No replies yet. Send the first response below.</Text>
+            {/* Messages (only this area scrolls) */}
+            <ScrollView
+              ref={scrollRef}
+              style={styles.messagesScroll}
+              contentContainerStyle={styles.messagesContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            >
+              {replies.length === 0 ? (
+                <Text style={styles.noMsgText}>No messages yet. Send the first response below.</Text>
+              ) : (
+                replies.map(msg => {
+                  // Custom Plan proposal — a full-width card with the proposed price
+                  // and (once the customer accepts) the converted job number.
+                  if (msg.proposedPrice != null) {
+                    const priceLabel = formatPrice(msg.proposedPrice);
+                    return (
+                      <View key={msg.id} style={styles.proposalCard}>
+                        <View style={styles.proposalTopRow}>
+                          <View style={styles.proposalHeadLeft}>
+                            <Icon name="description" size={16} color="#15803D" />
+                            <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
+                          </View>
+                          {!!priceLabel && <Text style={styles.proposalPrice}>{priceLabel}</Text>}
+                        </View>
+                        <Text style={styles.proposalMeta}>{[msg.authorName, formatTime(msg.createdAt)].filter(Boolean).join(' · ')}</Text>
+                        {!!msg.message && <Text style={styles.proposalMessage}>{msg.message}</Text>}
+                        {msg.convertedTicketNumber ? (
+                          <View style={styles.acceptedPill}>
+                            <Icon name="check-circle" size={14} color="#15803D" />
+                            <Text style={styles.acceptedText}>Accepted — Job {msg.convertedTicketNumber}</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.awaitingPill}>
+                            <Icon name="hourglass-empty" size={13} color="#C2410C" />
+                            <Text style={styles.awaitingText}>Awaiting customer acceptance</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  }
+
+                  // Internal staff-only note — distinct amber card, hidden from customer.
+                  if (msg.isInternal) {
+                    return (
+                      <View key={msg.id} style={styles.internalCard}>
+                        <View style={styles.internalHeadRow}>
+                          <Icon name="lock" size={13} color="#B45309" />
+                          <Text style={styles.internalHeadText}>Internal note · {msg.authorName || 'Staff'}</Text>
+                        </View>
+                        <Text style={styles.internalMessage}>{msg.message}</Text>
+                        <Text style={styles.internalTime}>{formatTime(msg.createdAt)}</Text>
+                      </View>
+                    );
+                  }
+
+                  const mine = isMine(msg);
+                  return (
+                    <View key={msg.id} style={[styles.bubbleRow, mine && styles.bubbleRowMe]}>
+                      <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleSupport]}>
+                        {!!msg.authorName && <Text style={[styles.bubbleAuthor, mine && styles.bubbleAuthorMe]}>{msg.authorName}</Text>}
+                        <Text style={[styles.bubbleText, mine && styles.bubbleTextMe]}>{msg.message}</Text>
+                        <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMe]}>{formatTime(msg.createdAt)}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+
+            {/* Reply / closed note — fixed at the bottom of the card */}
+            {isClosed ? (
+              <View style={styles.closedNote}>
+                <Icon name="lock" size={14} color="#059669" />
+                <Text style={styles.closedNoteText}>This ticket is resolved and closed for replies.</Text>
               </View>
             ) : (
-              replies.map(msg => {
-                // Custom Plan proposal — a full-width card with the proposed price
-                // and (once the customer accepts) the converted job number.
-                if (msg.proposedPrice != null) {
-                  const priceLabel = formatPrice(msg.proposedPrice);
-                  return (
-                    <View key={msg.id} style={styles.proposalCard}>
-                      <View style={styles.proposalTopRow}>
-                        <View style={styles.proposalHeadLeft}>
-                          <Icon name="description" size={16} color="#15803D" />
-                          <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
-                        </View>
-                        {!!priceLabel && <Text style={styles.proposalPrice}>{priceLabel}</Text>}
-                      </View>
-                      <Text style={styles.proposalMeta}>{[msg.authorName, formatTime(msg.createdAt)].filter(Boolean).join(' · ')}</Text>
-                      {!!msg.message && <Text style={styles.proposalMessage}>{msg.message}</Text>}
-                      {msg.convertedTicketNumber ? (
-                        <View style={styles.acceptedPill}>
-                          <Icon name="check-circle" size={14} color="#15803D" />
-                          <Text style={styles.acceptedText}>Accepted — Job {msg.convertedTicketNumber}</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.awaitingPill}>
-                          <Icon name="hourglass-empty" size={13} color="#C2410C" />
-                          <Text style={styles.awaitingText}>Awaiting customer acceptance</Text>
-                        </View>
-                      )}
-                    </View>
-                  );
-                }
-
-                // Internal staff-only note — distinct amber card, hidden from customer.
-                if (msg.isInternal) {
-                  return (
-                    <View key={msg.id} style={styles.internalCard}>
-                      <View style={styles.internalHeadRow}>
-                        <Icon name="lock" size={13} color="#B45309" />
-                        <Text style={styles.internalHeadText}>Internal note · {msg.authorName || 'Staff'}</Text>
-                      </View>
-                      <Text style={styles.internalMessage}>{msg.message}</Text>
-                      <Text style={styles.internalTime}>{formatTime(msg.createdAt)}</Text>
-                    </View>
-                  );
-                }
-
-                const mine = isMine(msg);
-                return (
-                  <View key={msg.id} style={[styles.bubbleRow, mine && styles.bubbleRowMe]}>
-                    <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleSupport]}>
-                      {!!msg.authorName && <Text style={[styles.bubbleAuthor, mine && styles.bubbleAuthorMe]}>{msg.authorName}</Text>}
-                      <Text style={[styles.bubbleText, mine && styles.bubbleTextMe]}>{msg.message}</Text>
-                      <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMe]}>{formatTime(msg.createdAt)}</Text>
-                    </View>
+              <View style={styles.cardComposer}>
+                <TouchableOpacity style={styles.internalToggle} onPress={() => setInternalNote(v => !v)} activeOpacity={0.7}>
+                  <View style={[styles.checkbox, internalNote && styles.checkboxOn]}>
+                    {internalNote && <Icon name="check" size={12} color="#FFFFFF" />}
                   </View>
-                );
-              })
-            )}
-          </ScrollView>
-
-          {isClosed ? (
-            <View style={styles.closedBar}>
-              <Icon name="lock" size={15} color="#059669" />
-              <Text style={styles.closedBarText}>This ticket is resolved and closed for replies.</Text>
-            </View>
-          ) : (
-            <View style={styles.composer}>
-              <TouchableOpacity style={styles.internalToggle} onPress={() => setInternalNote(v => !v)} activeOpacity={0.7}>
-                <View style={[styles.checkbox, internalNote && styles.checkboxOn]}>
-                  {internalNote && <Icon name="check" size={12} color="#FFFFFF" />}
-                </View>
-                <Text style={styles.internalToggleText}>Internal note (staff only, hidden from customer)</Text>
-              </TouchableOpacity>
-              <View style={styles.replyRow}>
-                <TextInput
-                  style={[styles.replyInput, internalNote && styles.replyInputInternal]}
-                  placeholder={internalNote ? 'Add an internal note...' : 'Type a reply to the customer...'}
-                  placeholderTextColor="#94A3B8"
-                  multiline
-                  value={replyText}
-                  onChangeText={setReplyText}
-                />
-                <TouchableOpacity style={[styles.sendBtn, internalNote && styles.sendBtnInternal, (!replyText.trim() || sending) && styles.sendBtnDisabled]} onPress={handleSend} disabled={!replyText.trim() || sending}>
-                  {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
+                  <Text style={styles.internalToggleText}>Internal note (staff only, hidden from customer)</Text>
                 </TouchableOpacity>
+                <View style={styles.replyRow}>
+                  <TextInput
+                    style={[styles.replyInput, internalNote && styles.replyInputInternal]}
+                    placeholder={internalNote ? 'Add an internal note...' : 'Type a reply to the customer...'}
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                    value={replyText}
+                    onChangeText={setReplyText}
+                  />
+                  <TouchableOpacity style={[styles.sendBtn, internalNote && styles.sendBtnInternal, (!replyText.trim() || sending) && styles.sendBtnDisabled]} onPress={handleSend} disabled={!replyText.trim() || sending}>
+                    {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-        </>
+            )}
+          </View>
+        </View>
       ) : (
         /* ---------- DETAILS ---------- */
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -513,11 +525,25 @@ const styles = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 
-  // Chat tab
-  chatContextBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9' },
-  chatContextSubject: { flex: 1, fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
-  chatContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16, gap: 12 },
-  emptyThread: { alignItems: 'center', gap: 8, paddingVertical: 40 },
+  // Chat tab (NRI card style). The card hugs its content and grows as the
+  // conversation gets longer; maxHeight caps it to the available space, after
+  // which the messages area scrolls (flexShrink) while the composer stays fixed.
+  chatWrap: { flex: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16 },
+  chatCard: {
+    maxHeight: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16,
+    borderWidth: 1, borderColor: '#F1F5F9',
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 3,
+  },
+  threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  threadHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  threadSubject: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1 },
+  threadDate: { fontSize: 11, color: '#94A3B8' },
+  messagesScroll: { flexShrink: 1, marginTop: 14 },
+  messagesContent: { gap: 12, paddingBottom: 4 },
+  noMsgText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 12, lineHeight: 19 },
+  closedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  closedNoteText: { fontSize: 13, color: '#059669', fontFamily: typography.labelMedium.fontFamily },
+  cardComposer: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
 
   // Details tab
   scrollContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 30 },
@@ -599,11 +625,10 @@ const styles = StyleSheet.create({
   internalMessage: { fontSize: 14, color: '#0F172A', lineHeight: 20 },
   internalTime: { fontSize: 10, color: '#B45309', opacity: 0.7 },
 
+  // Fixed composer bar
   closedBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#ECFDF5', paddingHorizontal: 16, paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#D1FAE5' },
   closedBarText: { fontSize: 13, color: '#059669', fontFamily: typography.labelMedium.fontFamily },
-
-  // Composer
-  composer: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  composer: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   internalToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, marginBottom: 4 },
   checkbox: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
   checkboxOn: { backgroundColor: '#B45309', borderColor: '#B45309' },
