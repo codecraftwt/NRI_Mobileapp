@@ -164,10 +164,9 @@ function TicketDetail({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={22} color="#FFFFFF" />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{detail?.ticket || 'Request Details'}</Text>
-        <View style={styles.backBtn} />
       </View>
 
       {loading && !detail ? (
@@ -213,59 +212,71 @@ function TicketDetail({ navigation, route }) {
                 {/* Support chat action */}
                 <TouchableOpacity
                   style={styles.supportChatBar}
-                  activeOpacity={0.85}
+                  activeOpacity={0.9}
                   onPress={() => navigation.navigate('RMSupportChat', { ticketId, ticketNumber: detail?.ticket })}
                 >
+                  <View style={styles.supportChatGlow} pointerEvents="none" />
                   <View style={styles.supportChatLeftIcon}>
-                    <Icon name="support-agent" size={22} color="#FFFFFF" />
+                    <Icon name="forum" size={22} color="#FFFFFF" />
                   </View>
                   <View style={styles.supportChatTextWrap}>
                     <Text style={styles.supportChatTitle}>Support Chat</Text>
                     <Text style={styles.supportChatSubtitle} numberOfLines={1}>Chat with the customer about this request</Text>
                   </View>
-                  {detail?.supportChat?.unreadCount > 0 ? (
+                  {detail?.supportChat?.unreadCount > 0 && (
                     <View style={styles.chatUnreadBadge}>
                       <Text style={styles.chatUnreadText}>{detail.supportChat.unreadCount > 9 ? '9+' : detail.supportChat.unreadCount}</Text>
                     </View>
-                  ) : (
-                    <Icon name="chevron-right" size={22} color="#3B82F6" />
                   )}
+                  <View style={styles.supportChatArrow}>
+                    <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+                  </View>
                 </TouchableOpacity>
 
-                {/* Request details */}
-                <CardTitle icon="description" title="Request Details" />
-                <View style={styles.card}>
-                  {/* Status + SLA banner */}
-                  <View style={[styles.statusBanner, { backgroundColor: cur.bg }]}>
-                    <View style={styles.statusBannerLeft}>
+                {/* Hero summary */}
+                <View style={styles.hero}>
+                  <View style={styles.heroGlow} />
+                  <View style={styles.heroTopRow}>
+                    <View style={[styles.heroStatusChip, { backgroundColor: cur.bg }]}>
                       <View style={[styles.statusDot, { backgroundColor: cur.text }]} />
-                      <Text style={[styles.statusBannerText, { color: cur.text }]}>{statusText(detail?.status)}</Text>
+                      <Text style={[styles.heroStatusText, { color: cur.text }]}>{statusText(detail?.status)}</Text>
                     </View>
                     {!!sla && (
-                      <View style={styles.slaBannerWrap}>
-                        <Icon name="schedule" size={13} color={sla.color} />
-                        <Text style={[styles.slaBannerText, { color: sla.color }]}>{sla.label}</Text>
+                      <View style={[styles.heroSlaChip, { backgroundColor: sla.bg }]}>
+                        <Icon name="schedule" size={12} color={sla.color} />
+                        <Text style={[styles.heroSlaText, { color: sla.color }]}>{sla.label}</Text>
                       </View>
                     )}
                   </View>
 
-                  <Text style={styles.detailService}>{detail?.service}</Text>
-                  <View style={styles.priorityPill}>
-                    <Icon name="flag" size={12} color="#475569" />
-                    <Text style={styles.priorityPillText}>{detail?.priorityLabel || 'Standard'}</Text>
+                  <Text style={styles.heroService}>{detail?.service}</Text>
+
+                  <View style={styles.heroFootRow}>
+                    <View style={styles.heroPriority}>
+                      <Icon name="flag" size={12} color="#FBBF24" />
+                      <Text style={styles.heroPriorityText}>{detail?.priorityLabel || 'Standard'}</Text>
+                    </View>
+                    {!!detail?.ticket && (
+                      <View style={styles.heroTicketWrap}>
+                        <Icon name="confirmation-number" size={12} color="#94A3B8" />
+                        <Text style={styles.heroTicketText}>{detail.ticket}</Text>
+                      </View>
+                    )}
                   </View>
+                </View>
 
-                  <View style={styles.detailDivider} />
-
-                  {detailRows.map((d, i) => (
-                    <View key={d.label} style={[styles.infoRow, i < detailRows.length - 1 && styles.rowBorder]}>
-                      <View style={styles.infoIconBg}><Icon name={d.icon} size={18} color="#2563EB" /></View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.infoLabel}>{d.label}</Text>
+                {/* Request details */}
+                <CardTitle icon="description" title="Request Details" />
+                <View style={styles.card}>
+                  <View style={styles.infoGrid}>
+                    {detailRows.map((d) => (
+                      <View key={d.label} style={styles.infoTile}>
+                        <View style={styles.infoIconBg}><Icon name={d.icon} size={16} color="#2563EB" /></View>
+                        <Text style={styles.infoLabel} numberOfLines={1}>{d.label}</Text>
                         <Text style={styles.infoValue}>{d.value}</Text>
                       </View>
-                    </View>
-                  ))}
+                    ))}
+                  </View>
 
                   {!!detail?.customerNotes && (
                     <View style={styles.customerNote}>
@@ -285,47 +296,69 @@ function TicketDetail({ navigation, route }) {
                     <View style={styles.card}>
                       {!!detail?.vendor && (
                         <View style={styles.vendorBox}>
-                          <View style={styles.vendorTop}>
-                            <Text style={styles.vendorName}>{detail.vendor.name || 'Vendor'}</Text>
-                            {!!detail.vendor.type && (
-                              <View style={[styles.pill, { backgroundColor: '#EEF2FF' }]}>
-                                <Text style={[styles.pillText, { color: '#6366F1' }]}>{detail.vendor.type}</Text>
+                          <View style={styles.vendorHeader}>
+                            <View style={styles.vendorAvatar}>
+                              <Text style={styles.vendorAvatarText}>{(detail.vendor.name || 'V').charAt(0).toUpperCase()}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.vendorName} numberOfLines={1}>{detail.vendor.name || 'Vendor'}</Text>
+                              {(!!detail.vendor.type || !!detail.vendor.ratingLabel) && (
+                                <View style={styles.vendorSubRow}>
+                                  {!!detail.vendor.type && (
+                                    <View style={[styles.pill, { backgroundColor: '#EEF2FF' }]}>
+                                      <Text style={[styles.pillText, { color: '#6366F1' }]}>{detail.vendor.type}</Text>
+                                    </View>
+                                  )}
+                                  {!!detail.vendor.ratingLabel && <Text style={styles.vendorRatingLabel}>{detail.vendor.ratingLabel}</Text>}
+                                </View>
+                              )}
+                            </View>
+                            {detail.vendor.rating != null && (
+                              <View style={styles.ratingBadge}>
+                                <Icon name="star" size={13} color="#F5B301" />
+                                <Text style={styles.ratingBadgeText}>{detail.vendor.rating.toFixed(1)}</Text>
                               </View>
                             )}
                           </View>
-                          {!!detail.vendor.contact && <Text style={styles.vendorMeta}>Contact: {detail.vendor.contact}</Text>}
-                          {detail.vendor.rating != null && (
-                            <View style={styles.ratingRow}>
-                              <Icon name="star" size={14} color="#F5B301" />
-                              <Text style={styles.ratingText}>{detail.vendor.rating.toFixed(1)}{detail.vendor.ratingLabel ? ` · ${detail.vendor.ratingLabel}` : ''}</Text>
+
+                          {(!!detail.vendor.phone || !!detail.vendor.email) && (
+                            <View style={styles.contactRow}>
+                              {!!detail.vendor.phone && (
+                                <TouchableOpacity style={styles.contactChip} activeOpacity={0.8} onPress={() => Linking.openURL(`tel:${detail.vendor.phone}`)}>
+                                  <Icon name="phone" size={14} color="#2563EB" />
+                                  <Text style={styles.contactChipText} numberOfLines={1}>{detail.vendor.phone}</Text>
+                                </TouchableOpacity>
+                              )}
+                              {!!detail.vendor.email && (
+                                <TouchableOpacity style={styles.contactChip} activeOpacity={0.8} onPress={() => Linking.openURL(`mailto:${detail.vendor.email}`)}>
+                                  <Icon name="email" size={14} color="#2563EB" />
+                                  <Text style={styles.contactChipText} numberOfLines={1}>{detail.vendor.email}</Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
                           )}
-                          {!!detail.vendor.phone && (
-                            <View style={styles.ratingRow}>
-                              <Icon name="phone" size={13} color="#94A3B8" />
-                              <Text style={styles.vendorMeta}>{detail.vendor.phone}</Text>
-                            </View>
-                          )}
-                          {!!detail.vendor.email && (
-                            <View style={styles.ratingRow}>
-                              <Icon name="email" size={13} color="#94A3B8" />
-                              <Text style={styles.vendorMeta}>{detail.vendor.email}</Text>
-                            </View>
-                          )}
+
+                          {!!detail.vendor.contact && <Text style={styles.vendorMeta}>Contact person: {detail.vendor.contact}</Text>}
+
                           {!!detail.vendor.assignedAt && (
-                            <Text style={styles.vendorAssigned}>Assigned {fmt(detail.vendor.assignedAt)} ({ago(detail.vendor.assignedAt)})</Text>
+                            <View style={styles.vendorAssignedRow}>
+                              <Icon name="schedule" size={12} color="#94A3B8" />
+                              <Text style={styles.vendorAssigned}>Assigned {fmt(detail.vendor.assignedAt)} · {ago(detail.vendor.assignedAt)}</Text>
+                            </View>
                           )}
                         </View>
                       )}
 
-                      <View style={[styles.assignMetaRow, !!detail?.vendor && styles.assignMetaRowSpaced]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.infoLabel}>Relationship Manager</Text>
-                          <Text style={styles.assignValue}>{detail?.rmName || '—'}</Text>
+                      <View style={[styles.assignPeopleRow, !!detail?.vendor && styles.assignMetaRowSpaced]}>
+                        <View style={styles.personTile}>
+                          <View style={styles.personIcon}><Icon name="badge" size={16} color="#2563EB" /></View>
+                          <Text style={styles.infoLabel}>Relationship Mgr</Text>
+                          <Text style={styles.assignValue} numberOfLines={1}>{detail?.rmName || '—'}</Text>
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.personTile}>
+                          <View style={styles.personIcon}><Icon name="headset-mic" size={16} color="#2563EB" /></View>
                           <Text style={styles.infoLabel}>Telecaller</Text>
-                          <Text style={styles.assignValue}>{detail?.telecaller || '—'}</Text>
+                          <Text style={styles.assignValue} numberOfLines={1}>{detail?.telecaller || '—'}</Text>
                         </View>
                       </View>
                     </View>
@@ -368,6 +401,10 @@ function TicketDetail({ navigation, route }) {
                     <CardTitle icon="fact-check" title="Vendor Report" />
                     <View style={styles.card}>
                       <View style={styles.reportHead}>
+                        <View style={styles.reportHeadLeft}>
+                          <View style={styles.reportHeadIcon}><Icon name="assignment-turned-in" size={16} color="#20304C" /></View>
+                          <Text style={styles.reportHeadTitle}>Field Report</Text>
+                        </View>
                         {report.sent ? (
                           <View style={styles.sentPill}>
                             <Icon name="check-circle" size={13} color="#059669" />
@@ -386,29 +423,38 @@ function TicketDetail({ navigation, route }) {
                         )}
                       </View>
 
-                      <Text style={styles.reportText}>{report.text || '—'}</Text>
+                      <View style={styles.reportBody}>
+                        <View style={styles.reportQuoteBar} />
+                        <Text style={styles.reportText}>{report.text || '—'}</Text>
+                      </View>
 
                       {report.attachments?.length > 0 && (
-                        <View style={styles.attachWrap}>
-                          {report.attachments.map((a) => (
-                            <TouchableOpacity
-                              key={a.id}
-                              style={styles.attachChip}
-                              activeOpacity={0.8}
-                              disabled={!a.url}
-                              onPress={() => a.url && Linking.openURL(a.url)}
-                            >
-                              <Icon name="attach-file" size={15} color="#2563EB" />
-                              <Text style={styles.attachChipText} numberOfLines={1}>{a.name}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
+                        <>
+                          <Text style={styles.attachLabel}>{report.attachments.length} Attachment{report.attachments.length > 1 ? 's' : ''}</Text>
+                          <View style={styles.attachWrap}>
+                            {report.attachments.map((a) => (
+                              <TouchableOpacity
+                                key={a.id}
+                                style={styles.attachChip}
+                                activeOpacity={0.8}
+                                disabled={!a.url}
+                                onPress={() => a.url && Linking.openURL(a.url)}
+                              >
+                                <Icon name="attach-file" size={15} color="#2563EB" />
+                                <Text style={styles.attachChipText} numberOfLines={1}>{a.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </>
                       )}
 
                       {!!report.reviewComment && (
                         <View style={styles.reviewNote}>
                           <Icon name="rate-review" size={14} color="#2563EB" />
-                          <Text style={styles.reviewNoteText}>{report.reviewComment}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.reviewNoteLabel}>Review Comment</Text>
+                            <Text style={styles.reviewNoteText}>{report.reviewComment}</Text>
+                          </View>
                         </View>
                       )}
 
@@ -457,6 +503,45 @@ function TicketDetail({ navigation, route }) {
             {/* ---------- ACTIVITY ---------- */}
             {tab === 'activity' && (
               <>
+                <CardTitle icon="history" title="Status History" />
+                <View style={styles.card}>
+                  {detail?.statusHistory?.length > 0 ? (
+                    <View style={styles.timelineWrapper}>
+                      {detail.statusHistory.map((h, i) => {
+                        const hs = statusStyle(h.status);
+                        return (
+                          <View key={h.id} style={styles.timelineRow}>
+                            <View style={styles.timelineDotCol}>
+                              <View style={[styles.timelineDotRing, i === 0 && styles.timelineDotRingActive]} />
+                              <View style={styles.timelineLine} />
+                            </View>
+                            <View style={styles.timelineCard}>
+                              <View style={styles.timelineCardTop}>
+                                <Text style={[styles.timelineStatus, { color: hs.text }]}>{statusText(h.status).toUpperCase()}</Text>
+                                <Text style={styles.timelineTime}>{fmt(h.at)}</Text>
+                              </View>
+                              {!!h.from && <Text style={styles.timelineFrom}>Changed from {statusText(h.from)}</Text>}
+                              {!!h.note && <Text style={styles.timelineSub}>{h.note}</Text>}
+                              {!!h.by && <Text style={styles.timelineBy}>by {h.by}</Text>}
+                            </View>
+                          </View>
+                        );
+                      })}
+                      <View style={styles.timelineRow}>
+                        <View style={styles.timelineDotCol}>
+                          <View style={styles.timelineDotMuted} />
+                        </View>
+                        <Text style={styles.timelinePlaceholder}>Further updates will appear here…</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.emptyBlock}>
+                      <Icon name="history" size={30} color="#CBD5E1" />
+                      <Text style={styles.emptyBlockText}>No status updates yet.</Text>
+                    </View>
+                  )}
+                </View>
+
                 {/* Internal Notes */}
                 <CardTitle icon="sticky-note-2" title="Internal Notes" />
                 <View style={styles.card}>
@@ -502,35 +587,7 @@ function TicketDetail({ navigation, route }) {
                   </View>
                 </View>
 
-                <CardTitle icon="history" title="Status History" />
-                <View style={styles.card}>
-                  {detail?.statusHistory?.length > 0 ? (
-                    detail.statusHistory.map((h, i) => {
-                      const hs = statusStyle(h.status);
-                      return (
-                        <View key={h.id} style={styles.tlRow}>
-                          <View style={styles.tlLeft}>
-                            <View style={[styles.tlDot, { backgroundColor: hs.text }]} />
-                            {i < detail.statusHistory.length - 1 && <View style={styles.tlLine} />}
-                          </View>
-                          <View style={{ flex: 1, paddingBottom: 16 }}>
-                            <View style={styles.tlHead}>
-                              <Text style={[styles.pillText, { color: hs.text }]}>{statusText(h.status)}</Text>
-                              {!!h.from && <Text style={styles.tlFrom}>from {statusText(h.from)}</Text>}
-                            </View>
-                            {!!h.note && <Text style={styles.tlNote}>{h.note}</Text>}
-                            <Text style={styles.tlMeta}>{fmt(h.at)}{h.by ? ` · ${h.by}` : ''}</Text>
-                          </View>
-                        </View>
-                      );
-                    })
-                  ) : (
-                    <View style={styles.emptyBlock}>
-                      <Icon name="history" size={30} color="#CBD5E1" />
-                      <Text style={styles.emptyBlockText}>No status updates yet.</Text>
-                    </View>
-                  )}
-                </View>
+              
 
                 <CardTitle icon="report-problem" title="Escalations" />
                 <View style={styles.card}>
@@ -640,7 +697,8 @@ function CardTitle({ icon, title }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 52, paddingBottom: 8, backgroundColor: '#20304C' },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { marginLeft: 6 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 
   centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
@@ -648,17 +706,28 @@ const styles = StyleSheet.create({
   retryBtn: { backgroundColor: '#20304C', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12 },
   retryText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 
-  // Request Details
-  statusBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  statusBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusBannerText: { fontSize: 13, fontWeight: '800' },
-  slaBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  slaBannerText: { fontSize: 12, fontWeight: '700' },
-  detailService: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', lineHeight: 22, marginTop: 14 },
-  priorityPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginTop: 10 },
-  priorityPillText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#475569' },
-  detailDivider: { height: 1, backgroundColor: '#F1F5F9', marginTop: 14, marginBottom: 2 },
+  // Hero summary
+  hero: {
+    backgroundColor: '#20304C', borderRadius: 20, padding: 18, marginTop: 6, overflow: 'hidden',
+    shadowColor: '#20304C', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 6,
+  },
+  heroGlow: { position: 'absolute', top: -60, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(217,70,37,0.18)' },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroStatusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  heroStatusText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  heroSlaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  heroSlaText: { fontSize: 11, fontWeight: '800' },
+  heroService: { fontSize: 19, fontFamily: typography.h4.fontFamily, color: '#FFFFFF', lineHeight: 26, marginTop: 14 },
+  heroFootRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' },
+  heroPriority: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  heroPriorityText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+  heroTicketWrap: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroTicketText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#CBD5E1', letterSpacing: 0.3 },
+
+  // Info grid
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  infoTile: { width: '47%', flexGrow: 1, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
   customerNote: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 14, backgroundColor: '#F0F9FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E0F2FE' },
   customerNoteLabel: { fontSize: 11, color: '#0369A1', fontWeight: '700', marginBottom: 2 },
   customerNoteText: { fontSize: 13, color: '#0C4A6E', lineHeight: 18 },
@@ -688,22 +757,31 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily },
 
   detailItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  infoIconBg: { width: 38, height: 38, borderRadius: 11, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center' },
-  infoLabel: { fontSize: 12, color: '#94A3B8' },
-  infoValue: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginTop: 2, lineHeight: 19 },
+  infoIconBg: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  infoLabel: { fontSize: 11, color: '#94A3B8', marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 },
+  infoValue: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginTop: 3, lineHeight: 19 },
 
-  vendorBox: { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#F1F5F9' },
-  vendorTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  vendorBox: { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#EEF2F6' },
+  vendorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  vendorAvatar: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#20304C', justifyContent: 'center', alignItems: 'center' },
+  vendorAvatarText: { fontSize: 18, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
   vendorName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  vendorMeta: { fontSize: 13, color: '#64748B' },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
-  ratingText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
-  vendorAssigned: { fontSize: 11, color: '#94A3B8', marginTop: 8 },
-  assignMetaRow: { flexDirection: 'row', gap: 16 },
-  assignMetaRowSpaced: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  assignValue: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 4 },
+  vendorSubRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' },
+  vendorRatingLabel: { fontSize: 12, color: '#64748B' },
+  vendorMeta: { fontSize: 13, color: '#64748B', marginTop: 10 },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF9E7', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: '#FCE9B6' },
+  ratingBadgeText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
+  contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  contactChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '100%' },
+  contactChipText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB', flexShrink: 1 },
+  vendorAssignedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#EEF2F6' },
+  vendorAssigned: { fontSize: 11, color: '#94A3B8' },
+  assignPeopleRow: { flexDirection: 'row', gap: 12 },
+  assignMetaRowSpaced: { marginTop: 14 },
+  personTile: { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  personIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' },
+  assignValue: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 3 },
 
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   priceLabel: { fontSize: 14, color: '#475569' },
@@ -713,34 +791,43 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#059669' },
   vendorCostRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
 
-  reportHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  sentPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginRight: 'auto' },
+  reportHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  reportHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reportHeadIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#EEF2F6', justifyContent: 'center', alignItems: 'center' },
+  reportHeadTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  sentPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5 },
   sentPillText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#059669' },
-  reportText: { fontSize: 14, color: '#334155', lineHeight: 20 },
-  reviewNote: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 12, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12 },
-  reviewNoteText: { flex: 1, fontSize: 13, color: '#1E293B', lineHeight: 18 },
+  reportBody: { flexDirection: 'row', gap: 12 },
+  reportQuoteBar: { width: 3, borderRadius: 2, backgroundColor: '#D94625', alignSelf: 'stretch' },
+  reportText: { flex: 1, fontSize: 14, color: '#334155', lineHeight: 21 },
+  attachLabel: { fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 16 },
+  reviewNote: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 14, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#DBEAFE' },
+  reviewNoteLabel: { fontSize: 11, color: '#2563EB', fontFamily: typography.labelMedium.fontFamily, marginBottom: 3 },
+  reviewNoteText: { fontSize: 13, color: '#1E293B', lineHeight: 18 },
   reportActions: { flexDirection: 'row', gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   reportReviewBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 14, paddingVertical: 12 },
   reportReviewBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB' },
   reportSendBtn: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 12 },
   reportSendBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
-  attachWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  attachWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   attachChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '100%' },
   attachChipText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB', flexShrink: 1 },
   reportMeta: { fontSize: 11, color: '#94A3B8', marginTop: 12 },
 
   // Support chat entry bar
   supportChatBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#EFF6FF', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
-    borderWidth: 1, borderColor: '#DBEAFE', marginTop: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 14, overflow: 'hidden',
+    backgroundColor: '#eb694c', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, marginTop: 6,
+    shadowColor: '#eb694c', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 5,
   },
-  supportChatLeftIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
-  supportChatTextWrap: { flex: 1, gap: 2 },
-  supportChatTitle: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  supportChatSubtitle: { fontSize: 12, color: '#3B82F6' },
+  supportChatGlow: { position: 'absolute', top: -40, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.14)' },
+  supportChatLeftIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  supportChatTextWrap: { flex: 1, gap: 3 },
+  supportChatTitle: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+  supportChatSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
   chatUnreadBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
   chatUnreadText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
+  supportChatArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
 
   // Notes / escalations list
   notesHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 12, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
@@ -761,15 +848,22 @@ const styles = StyleSheet.create({
   escalateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 14, paddingVertical: 13, marginTop: 14 },
   escalateBtnText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
 
-  // Timeline
-  tlRow: { flexDirection: 'row', gap: 12 },
-  tlLeft: { alignItems: 'center', width: 16 },
-  tlDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
-  tlLine: { flex: 1, width: 2, backgroundColor: '#E2E8F0', marginVertical: 2 },
-  tlHead: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  tlFrom: { fontSize: 11, color: '#94A3B8' },
-  tlMeta: { fontSize: 12, color: '#64748B', marginTop: 5 },
-  tlNote: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginTop: 2 },
+  // Timeline (matches NRI request timeline)
+  timelineWrapper: { marginTop: 4 },
+  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineDotCol: { alignItems: 'center', width: 18 },
+  timelineDotRing: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 4 },
+  timelineDotRingActive: { borderColor: '#D94625' },
+  timelineDotMuted: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#CBD5E1', backgroundColor: '#FFFFFF', marginTop: 2 },
+  timelineLine: { flex: 1, width: 0, borderLeftWidth: 1, borderStyle: 'dashed', borderColor: '#CBD5E1', marginVertical: 2, minHeight: 16 },
+  timelineCard: { flex: 1, backgroundColor: '#EFF4FF', borderRadius: 12, padding: 14, marginBottom: 16 },
+  timelineCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  timelineStatus: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  timelineTime: { fontSize: 11, color: '#64748B' },
+  timelineFrom: { fontSize: 12, color: '#64748B', marginTop: 6 },
+  timelineSub: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 4, lineHeight: 18 },
+  timelineBy: { fontSize: 11, color: '#94A3B8', marginTop: 6 },
+  timelinePlaceholder: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', flex: 1, marginTop: 2 },
 
   // Escalate modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', paddingHorizontal: 24 },

@@ -18,6 +18,7 @@ import Upsell from '../../Screens/RM/Upsell';
 import Escalations from '../../Screens/RM/Escalations';
 import Reports from '../../Screens/RM/Reports';
 import SupportChat from '../../Screens/RM/SupportChat';
+import SupportTicketDetail from '../../Screens/RM/SupportTicketDetail';
 import Profile from '../../Screens/RM/Profile';
 
 const Stack = createStackNavigator();
@@ -32,6 +33,7 @@ function DashboardStack() {
       <Stack.Screen name="Tickets" component={Tickets} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="RMSupportTicketDetail" component={SupportTicketDetail} />
       <Stack.Screen name="Planner" component={Planner} />
       <Stack.Screen name="Renewals" component={Renewals} />
       <Stack.Screen name="Upsell" component={Upsell} />
@@ -71,6 +73,7 @@ function ProfileStack() {
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="Escalations" component={Escalations} />
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="RMSupportTicketDetail" component={SupportTicketDetail} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );

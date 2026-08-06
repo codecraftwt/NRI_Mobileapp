@@ -45,7 +45,7 @@ function CustomerDetail({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={22} color="#FFFFFF" />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Customer Details</Text>
         <View style={{ width: 40 }} />
@@ -213,7 +213,8 @@ function EmptyState({ icon, text }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, backgroundColor: '#20304C' },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { marginLeft: 6 },
   headerTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#FFFFFF' },
 
   centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },

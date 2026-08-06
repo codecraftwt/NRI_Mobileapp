@@ -54,8 +54,8 @@ function Dashboard({ navigation }) {
 
   const goTo = (id) => {
     switch (id) {
-      case 'customers': navigation.navigate('MyCustomers'); break;
-      case 'tickets': navigation.navigate('Tickets'); break;
+      case 'customers': navigation.navigate('Customers'); break;
+      case 'tickets': navigation.navigate('TicketsTab'); break;
       case 'support': navigation.navigate('GeneralSupport'); break;
       case 'planner': navigation.navigate('Planner'); break;
       case 'renewals': navigation.navigate('Renewals'); break;
@@ -118,7 +118,7 @@ function Dashboard({ navigation }) {
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Pending Requests</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Tickets')}>
+              <TouchableOpacity onPress={() => navigation.navigate('TicketsTab')}>
                 <Text style={styles.viewAllText}>View all →</Text>
               </TouchableOpacity>
             </View>

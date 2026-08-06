@@ -82,7 +82,7 @@ function Escalations({ navigation }) {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow-back" size={24} color="#FFFFFF" />
+          <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Escalations</Text>
         <View style={{ width: 40 }} />
@@ -203,7 +203,8 @@ function Escalations({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, backgroundColor: '#20304C' },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { marginLeft: 6 },
   headerTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#FFFFFF' },
 
   tabsContainer: { paddingTop: 16, paddingBottom: 8 },

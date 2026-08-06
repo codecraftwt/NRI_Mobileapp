@@ -146,7 +146,6 @@ function Tickets({ navigation }) {
           activeOpacity={0.8}
         >
           <Icon name="tune" size={22} color={statusFilter !== 'all' ? '#FFFFFF' : '#20304C'} />
-          {statusFilter !== 'all' && <View style={styles.filterDot} />}
         </TouchableOpacity>
       </View>
 
@@ -284,7 +283,6 @@ function Tickets({ navigation }) {
             </View>
             {STATUS_OPTIONS.map(opt => {
               const active = statusFilter === opt.key;
-              const pill = opt.key === 'all' ? { bg: '#F1F5F9', text: '#475569' } : getStatusPill(opt.key);
               return (
                 <TouchableOpacity
                   key={opt.key}
@@ -292,10 +290,7 @@ function Tickets({ navigation }) {
                   onPress={() => { setStatusFilter(opt.key); setFilterVisible(false); }}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.filterOptionLeft}>
-                    <View style={[styles.filterDotColor, { backgroundColor: pill.text }]} />
-                    <Text style={styles.filterOptionLabel}>{opt.label}</Text>
-                  </View>
+                  <Text style={[styles.filterOptionLabel, active && styles.filterOptionLabelActive]}>{opt.label}</Text>
                   {active && <Icon name="check-circle" size={20} color="#20304C" />}
                 </TouchableOpacity>
               );
@@ -321,7 +316,6 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: '#1E293B', padding: 0 },
   filterBtn: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' },
   filterBtnActive: { backgroundColor: '#20304C', borderColor: '#20304C' },
-  filterDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#D94625' },
 
   activeFilterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 4, paddingTop: 4 },
   activeFilterChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
@@ -336,9 +330,8 @@ const styles = StyleSheet.create({
   sheetReset: { fontSize: 13, fontWeight: '700', color: '#D94625' },
   filterOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12, marginBottom: 6, borderWidth: 1, borderColor: 'transparent' },
   filterOptionActive: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
-  filterOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  filterDotColor: { width: 10, height: 10, borderRadius: 5 },
   filterOptionLabel: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  filterOptionLabelActive: { color: '#0F172A' },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 12 },
   card: {

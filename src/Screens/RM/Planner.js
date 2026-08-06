@@ -29,7 +29,7 @@ function fmtDateTime(iso) {
   return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function Planner() {
+function Planner({ navigation }) {
   const planner = useRmPlanner();
   const { customers } = useRmCustomers('');
 
@@ -93,8 +93,15 @@ function Planner() {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Planner</Text>
-        <Text style={styles.headerSub}>Visits, follow-ups & renewals</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Planner</Text>
+            <Text style={styles.headerSub}>Visits, follow-ups & renewals</Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -300,7 +307,10 @@ function Planner() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C' },
+  header: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, backgroundColor: '#20304C' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { marginLeft: 6 },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
 

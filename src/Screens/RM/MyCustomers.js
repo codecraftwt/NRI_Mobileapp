@@ -154,6 +154,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { marginLeft: 6 },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
   headerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
