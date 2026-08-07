@@ -20,6 +20,8 @@ import Reports from '../../Screens/RM/Reports';
 import SupportChat from '../../Screens/RM/SupportChat';
 import SupportTicketDetail from '../../Screens/RM/SupportTicketDetail';
 import Profile from '../../Screens/RM/Profile';
+import ProfilePersonal from '../../Screens/RM/ProfilePersonal';
+import ProfilePassword from '../../Screens/NRI/ProfilePassword';
 import Notifications from '../../Screens/NRI/Notifications';
 
 const Stack = createStackNavigator();
@@ -71,6 +73,8 @@ function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={Profile} />
+      <Stack.Screen name="RMProfilePersonal" component={ProfilePersonal} />
+      <Stack.Screen name="RMProfilePassword" component={ProfilePassword} />
       <Stack.Screen name="MyCustomers" component={MyCustomers} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="Escalations" component={Escalations} />

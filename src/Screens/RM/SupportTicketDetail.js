@@ -193,6 +193,7 @@ function SupportTicketDetail({ route, navigation }) {
           <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{ticket?.ticketNumber || ticketNumber || 'Support Ticket'}</Text>
+        <View style={styles.headerSpacer} />
       </View>
     </>
   );
@@ -522,6 +523,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   backIcon: { marginLeft: 6 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+  headerSpacer: { width: 44 },
 
   centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 40 },
   emptyText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },

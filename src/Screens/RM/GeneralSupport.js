@@ -240,8 +240,9 @@ function GeneralSupport({ navigation }) {
                         </View>
                       )}
                       {hasUnread && (
-                        <View style={styles.unreadBadge}>
-                          <Text style={styles.unreadText}>{t.unreadCount > 9 ? '9+' : t.unreadCount}</Text>
+                        <View style={styles.unreadChip}>
+                          <Icon name="forum" size={12} color="#2563EB" />
+                          <Text style={styles.unreadChipText}>{t.unreadCount > 9 ? '9+' : t.unreadCount}</Text>
                         </View>
                       )}
                     </View>
@@ -380,7 +381,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#d1d9e3', borderBottomWidth: 1, borderBottomColor: '#E4EAF1' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#EEF2F7', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   cardHeaderCode: { fontSize: 12.5, fontWeight: '800', letterSpacing: 0.3, color: '#20304C' },
   cardHeaderDate: { fontSize: 11.5, fontWeight: '700', color: '#64748B' },
   cardBody: { padding: 14 },
@@ -395,10 +396,10 @@ const styles = StyleSheet.create({
   categoryChipText: { fontSize: 11, color: '#64748B', flexShrink: 1 },
   escalatedTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
   escalatedTagText: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
-  unreadBadge: { minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
-  unreadText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
-  viewBtn: { backgroundColor: '#577099', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
-  viewBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  unreadChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DBEAFE', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
+  unreadChipText: { fontSize: 10, fontWeight: '700', color: '#1D4ED8' },
+  viewBtn: { backgroundColor: '#344769', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
+  viewBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

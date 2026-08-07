@@ -144,8 +144,7 @@ function TicketDetail({ navigation, route }) {
     detail.familyMember && { icon: 'family-restroom', label: 'Family Member', value: detail.familyMember },
     detail.location && { icon: 'location-on', label: 'Location', value: detail.location },
     { icon: 'schedule', label: 'SLA Deadline', value: fmt(detail.slaDeadline) },
-    { icon: 'event', label: 'Preferred Date', value: detail.preferredDate ? fmt(detail.preferredDate) : '—' },
-    { icon: 'event-note', label: 'Created', value: fmt(detail.createdAt) },
+    // { icon: 'event-note', label: 'Created', value: fmt(detail.createdAt) },
   ].filter(Boolean) : [];
 
   const pricingRows = detail ? [
@@ -167,6 +166,7 @@ function TicketDetail({ navigation, route }) {
           <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{detail?.ticket || 'Request Details'}</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       {loading && !detail ? (
@@ -209,30 +209,6 @@ function TicketDetail({ navigation, route }) {
             {/* ---------- OVERVIEW ---------- */}
             {tab === 'overview' && (
               <>
-                {/* Support chat action */}
-                <TouchableOpacity
-                  style={styles.supportChatBar}
-                  activeOpacity={0.9}
-                  onPress={() => navigation.navigate('RMSupportChat', { ticketId, ticketNumber: detail?.ticket })}
-                >
-                  <View style={styles.supportChatGlow} pointerEvents="none" />
-                  <View style={styles.supportChatLeftIcon}>
-                    <Icon name="forum" size={22} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.supportChatTextWrap}>
-                    <Text style={styles.supportChatTitle}>Support Chat</Text>
-                    <Text style={styles.supportChatSubtitle} numberOfLines={1}>Chat with the customer about this request</Text>
-                  </View>
-                  {detail?.supportChat?.unreadCount > 0 && (
-                    <View style={styles.chatUnreadBadge}>
-                      <Text style={styles.chatUnreadText}>{detail.supportChat.unreadCount > 9 ? '9+' : detail.supportChat.unreadCount}</Text>
-                    </View>
-                  )}
-                  <View style={styles.supportChatArrow}>
-                    <Icon name="arrow-forward" size={18} color="#FFFFFF" />
-                  </View>
-                </TouchableOpacity>
-
                 {/* Hero summary */}
                 <View style={styles.hero}>
                   <View style={styles.heroGlow} />
@@ -268,12 +244,14 @@ function TicketDetail({ navigation, route }) {
                 {/* Request details */}
                 <CardTitle icon="description" title="Request Details" />
                 <View style={styles.card}>
-                  <View style={styles.infoGrid}>
-                    {detailRows.map((d) => (
-                      <View key={d.label} style={styles.infoTile}>
+                  <View style={styles.detailList}>
+                    {detailRows.map((d, i) => (
+                      <View key={d.label} style={[styles.detailRow, i < detailRows.length - 1 && styles.detailRowBorder]}>
                         <View style={styles.infoIconBg}><Icon name={d.icon} size={16} color="#2563EB" /></View>
-                        <Text style={styles.infoLabel} numberOfLines={1}>{d.label}</Text>
-                        <Text style={styles.infoValue}>{d.value}</Text>
+                        <View style={styles.detailRowText}>
+                          <Text style={styles.detailRowLabel}>{d.label}</Text>
+                          <Text style={styles.detailRowValue}>{d.value}</Text>
+                        </View>
                       </View>
                     ))}
                   </View>
@@ -497,6 +475,30 @@ function TicketDetail({ navigation, route }) {
                     </View>
                   </>
                 )}
+
+                {/* Support chat action */}
+                <TouchableOpacity
+                  style={styles.supportChatBar}
+                  activeOpacity={0.9}
+                  onPress={() => navigation.navigate('RMSupportChat', { ticketId, ticketNumber: detail?.ticket })}
+                >
+                  <View style={styles.supportChatGlow} pointerEvents="none" />
+                  <View style={styles.supportChatLeftIcon}>
+                    <Icon name="forum" size={22} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.supportChatTextWrap}>
+                    <Text style={styles.supportChatTitle}>Support Chat</Text>
+                    <Text style={styles.supportChatSubtitle} numberOfLines={1}>Chat with the customer about this request</Text>
+                  </View>
+                  {detail?.supportChat?.unreadCount > 0 && (
+                    <View style={styles.chatUnreadBadge}>
+                      <Text style={styles.chatUnreadText}>{detail.supportChat.unreadCount > 9 ? '9+' : detail.supportChat.unreadCount}</Text>
+                    </View>
+                  )}
+                  <View style={styles.supportChatArrow}>
+                    <Icon name="arrow-forward" size={18} color="#2563EB" />
+                  </View>
+                </TouchableOpacity>
               </>
             )}
 
@@ -545,11 +547,6 @@ function TicketDetail({ navigation, route }) {
                 {/* Internal Notes */}
                 <CardTitle icon="sticky-note-2" title="Internal Notes" />
                 <View style={styles.card}>
-                  <View style={styles.notesHead}>
-                    <Icon name="lock" size={14} color="#B45309" />
-                    <Text style={styles.notesHeadText}>Staff only — not visible to the customer</Text>
-                  </View>
-
                   {noteCount > 0 ? (
                     detail.internalNotes.map((n, i) => (
                       <View key={n.id} style={[styles.noteItem, i < noteCount - 1 && styles.rowBorder]}>
@@ -589,7 +586,7 @@ function TicketDetail({ navigation, route }) {
 
               
 
-                <CardTitle icon="report-problem" title="Escalations" />
+                {/* <CardTitle icon="report-problem" title="Escalations" />
                 <View style={styles.card}>
                   {detail?.escalations?.length > 0 ? (
                     detail.escalations.map((e, i) => (
@@ -611,7 +608,7 @@ function TicketDetail({ navigation, route }) {
                     <Icon name="report-problem" size={16} color="#DC2626" />
                     <Text style={styles.escalateBtnText}>Escalate Request</Text>
                   </TouchableOpacity>
-                </View>
+                </View> */}
               </>
             )}
 
@@ -700,6 +697,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   backIcon: { marginLeft: 6 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+  headerSpacer: { width: 44 },
 
   centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 24 },
   errorText: { fontSize: 14, color: '#64748B', textAlign: 'center' },
@@ -725,9 +723,13 @@ const styles = StyleSheet.create({
   heroTicketWrap: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   heroTicketText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#CBD5E1', letterSpacing: 0.3 },
 
-  // Info grid
-  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  infoTile: { width: '47%', flexGrow: 1, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  // Request details list
+  detailList: {},
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  detailRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  detailRowText: { flex: 1 },
+  detailRowLabel: { fontSize: 11, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.4 },
+  detailRowValue: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginTop: 3, lineHeight: 19 },
   customerNote: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 14, backgroundColor: '#F0F9FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E0F2FE' },
   customerNoteLabel: { fontSize: 11, color: '#0369A1', fontWeight: '700', marginBottom: 2 },
   customerNoteText: { fontSize: 13, color: '#0C4A6E', lineHeight: 18 },
@@ -814,20 +816,21 @@ const styles = StyleSheet.create({
   attachChipText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB', flexShrink: 1 },
   reportMeta: { fontSize: 11, color: '#94A3B8', marginTop: 12 },
 
-  // Support chat entry bar
+  // Support chat entry bar (matches the NRI support-chat card)
   supportChatBar: {
     flexDirection: 'row', alignItems: 'center', gap: 14, overflow: 'hidden',
-    backgroundColor: '#eb694c', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, marginTop: 6,
-    shadowColor: '#eb694c', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 5,
+    backgroundColor: '#EFF6FF', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, marginTop: 20,
+    borderWidth: 1, borderColor: '#DBEAFE',
+    shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 14, elevation: 4,
   },
-  supportChatGlow: { position: 'absolute', top: -40, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.14)' },
-  supportChatLeftIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  supportChatGlow: { position: 'absolute', top: -40, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(59,130,246,0.06)' },
+  supportChatLeftIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
   supportChatTextWrap: { flex: 1, gap: 3 },
-  supportChatTitle: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
-  supportChatSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
+  supportChatTitle: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  supportChatSubtitle: { fontSize: 12, color: '#3B82F6' },
   chatUnreadBadge: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
   chatUnreadText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
-  supportChatArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  supportChatArrow: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
 
   // Notes / escalations list
   notesHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingBottom: 12, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
