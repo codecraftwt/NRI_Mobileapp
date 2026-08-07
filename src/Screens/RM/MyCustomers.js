@@ -153,32 +153,32 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: '#0F172A', fontFamily: typography.body.fontFamily, padding: 0 },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 12 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 8, gap: 10 },
   listItem: {
-    width: '100%', padding: 18,
-    backgroundColor: '#FFFFFF', borderRadius: 18,
+    width: '100%', padding: 14,
+    backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#475569', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4,
+    shadowColor: '#475569', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 3,
     flexDirection: 'row', alignItems: 'center',
   },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { fontSize: 17, fontFamily: typography.h2.fontFamily, color: '#4338CA', fontWeight: '800' },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarText: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#4338CA', fontWeight: '800' },
   listItemBody: { flex: 1, paddingRight: 12 },
-  listItemRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 12 },
-  
+  listItemRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 10 },
+
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  name: { fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#0F172A', flexShrink: 1, letterSpacing: -0.2 },
-  
-  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#FEF2F2', borderRadius: 12, borderWidth: 1, borderColor: '#FEE2E2' },
-  openBadgeText: { fontSize: 11, fontWeight: '700', color: '#DC2626' },
-  
-  sub: { fontSize: 13.5, color: '#475569', marginBottom: 4 },
+  name: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', flexShrink: 1, letterSpacing: -0.2 },
+
+  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: '#FEF2F2', borderRadius: 10, borderWidth: 1, borderColor: '#FEE2E2' },
+  openBadgeText: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
+
+  sub: { fontSize: 12, color: '#475569', marginBottom: 3 },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12.5, color: '#64748B' },
-  
-  membershipPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  membershipText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', letterSpacing: 0.2 },
+  metaText: { fontSize: 11.5, color: '#64748B' },
+
+  membershipPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9 },
+  membershipText: { fontSize: 10.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', letterSpacing: 0.2 },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

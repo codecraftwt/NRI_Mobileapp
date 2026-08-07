@@ -198,66 +198,57 @@ function GeneralSupport({ navigation }) {
             <Text style={styles.emptyTitle}>No Tickets Found</Text>
           </View>
         ) : (
-          filtered.map((t) => {
-            const pill = getStatusPill(t.status);
-            const icon = CATEGORY_ICON[t.category] || 'confirmation-number';
-            const hasUnread = t.unreadCount > 0;
-            return (
-              <TouchableOpacity
-                key={t.id}
-                style={styles.card}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate('RMSupportTicketDetail', { ticketId: t.id, ticketNumber: t.ticketNumber })}
-              >
-                {/* Faint header band (single brand-matched tone) */}
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardHeaderCode}>{t.ticketNumber}</Text>
-                  <Text style={styles.cardHeaderDate}>{dateShort(t.createdAt)}</Text>
-                </View>
-
-                {/* Body */}
-                <View style={styles.cardBody}>
-                  <View style={styles.cardBodyTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardSubtitle} numberOfLines={1}>{t.customer?.name || 'Customer'}</Text>
-                      <Text style={styles.cardTitle} numberOfLines={2}>{t.subject || 'Support request'}</Text>
-                    </View>
-                    <View style={[styles.statusChip, { backgroundColor: pill.bg }]}>
-                      <Text style={[styles.statusChipText, { color: pill.text }]}>{statusText(t.status)}</Text>
+          <View style={{ gap: 10 }}>
+            {filtered.map((t) => {
+              const pill = getStatusPill(t.status);
+              const icon = CATEGORY_ICON[t.category] || 'confirmation-number';
+              const hasUnread = t.unreadCount > 0;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.card, { borderLeftColor: pill.text }]}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate('RMSupportTicketDetail', { ticketId: t.id, ticketNumber: t.ticketNumber })}
+                >
+                  <View style={styles.cardTopRow}>
+                    <Text style={styles.cardCode}>{t.ticketNumber}</Text>
+                    <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+                      <Text style={[styles.statusPillText, { color: pill.text }]}>{statusText(t.status)}</Text>
                     </View>
                   </View>
 
-                  <View style={styles.cardBodyBottom}>
-                    <View style={styles.bottomLeft}>
-                      <View style={styles.categoryChip}>
-                        <Icon name={icon} size={13} color="#64748B" />
-                        <Text style={styles.categoryChipText} numberOfLines={1}>{t.categoryLabel || 'General'}</Text>
-                      </View>
+                  <Text style={styles.cardSubject} numberOfLines={2}>{t.subject || 'Support request'}</Text>
+
+                  <View style={styles.cardMetaRow}>
+                    <Icon name="person" size={13} color="#94A3B8" />
+                    <Text style={styles.cardCustomer} numberOfLines={1}>{t.customer?.name || 'Customer'}</Text>
+                    <View style={styles.categoryChip}>
+                      <Icon name={icon} size={12} color="#64748B" />
+                      <Text style={styles.categoryChipText} numberOfLines={1}>{t.categoryLabel || 'General'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.cardDate}>{dateShort(t.createdAt)}</Text>
+                    <View style={styles.cardTags}>
                       {t.escalated && (
                         <View style={styles.escalatedTag}>
-                          <Icon name="arrow-upward" size={11} color="#DC2626" />
+                          <Icon name="arrow-upward" size={10} color="#DC2626" />
                           <Text style={styles.escalatedTagText}>Escalated</Text>
                         </View>
                       )}
                       {hasUnread && (
                         <View style={styles.unreadChip}>
-                          <Icon name="forum" size={12} color="#2563EB" />
+                          <Icon name="forum" size={11} color="#1D4ED8" />
                           <Text style={styles.unreadChipText}>{t.unreadCount > 9 ? '9+' : t.unreadCount}</Text>
                         </View>
                       )}
                     </View>
-                    <TouchableOpacity
-                      style={styles.viewBtn}
-                      activeOpacity={0.85}
-                      onPress={() => navigation.navigate('RMSupportTicketDetail', { ticketId: t.id, ticketNumber: t.ticketNumber })}
-                    >
-                      <Text style={styles.viewBtnText}>View Detail</Text>
-                    </TouchableOpacity>
                   </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         )}
 
         {/* Pagination */}
@@ -375,31 +366,31 @@ const styles = StyleSheet.create({
   filterOptionCount: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#94A3B8' },
   filterOptionCountActive: { color: '#20304C' },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 8, gap: 12 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 8 },
+
+  // Status accent-bar cards (compact)
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden',
+    backgroundColor: '#FFFFFF', borderRadius: 14, padding: 11, borderLeftWidth: 4,
     borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#EEF2F7', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  cardHeaderCode: { fontSize: 12.5, fontWeight: '800', letterSpacing: 0.3, color: '#20304C' },
-  cardHeaderDate: { fontSize: 11.5, fontWeight: '700', color: '#64748B' },
-  cardBody: { padding: 14 },
-  cardBodyTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cardSubtitle: { fontSize: 11, color: '#94A3B8', marginBottom: 2 },
-  cardTitle: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#1E293B', lineHeight: 20 },
-  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusChipText: { fontSize: 10, fontWeight: '700' },
-  cardBodyBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 8 },
-  bottomLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  categoryChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 1 },
-  categoryChipText: { fontSize: 11, color: '#64748B', flexShrink: 1 },
-  escalatedTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
-  escalatedTagText: { fontSize: 10, fontWeight: '700', color: '#DC2626' },
-  unreadChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DBEAFE', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
-  unreadChipText: { fontSize: 10, fontWeight: '700', color: '#1D4ED8' },
-  viewBtn: { backgroundColor: '#344769', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
-  viewBtnText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  cardCode: { fontSize: 11.5, fontWeight: '800', letterSpacing: 0.3, color: '#20304C' },
+  cardSubject: { fontSize: 13.5, fontFamily: typography.labelMedium.fontFamily, color: '#1E293B', lineHeight: 18, marginTop: 5 },
+  cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
+  cardCustomer: { fontSize: 12, color: '#475569', flexShrink: 1 },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F1F5F9', borderRadius: 7, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 4 },
+  categoryChipText: { fontSize: 10.5, color: '#64748B', flexShrink: 1 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9, paddingTop: 9, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  cardDate: { fontSize: 11, fontWeight: '700', color: '#94A3B8' },
+  cardTags: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+
+  statusPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
+  statusPillText: { fontSize: 9.5, fontWeight: '700' },
+  escalatedTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEE2E2', borderRadius: 7, paddingHorizontal: 6, paddingVertical: 3 },
+  escalatedTagText: { fontSize: 9.5, fontWeight: '700', color: '#DC2626' },
+  unreadChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#DBEAFE', borderRadius: 7, paddingHorizontal: 6, paddingVertical: 3 },
+  unreadChipText: { fontSize: 9.5, fontWeight: '700', color: '#1D4ED8' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

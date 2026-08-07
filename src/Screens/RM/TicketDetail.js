@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextIn
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch } from 'react-redux';
 import { typography } from '../../theme/typography';
+import { useToast } from '../../context/ToastContext';
 import { useRmRequestDetail } from '../../Hooks/RM/useRmRequestDetail';
 import { reviewRmReport, sendRmReport } from '../../Redux/slices/rmReportsSlice';
 
@@ -77,6 +78,7 @@ function TicketDetail({ navigation, route }) {
   } = useRmRequestDetail(ticketId);
 
   const dispatch = useDispatch();
+  const { showToast } = useToast();
 
   const [tab, setTab] = useState('overview');
   const [noteText, setNoteText] = useState('');
@@ -108,7 +110,7 @@ function TicketDetail({ navigation, route }) {
       .then(() => {
         setReviewVisible(false);
         refresh();
-        Alert.alert('Report Reviewed', 'The vendor report has been marked as reviewed.');
+        showToast('Report marked as reviewed', 'success');
       })
       .catch((e) => Alert.alert('Could Not Review', e?.status === 403 ? "This report belongs to another RM's ticket." : (e?.message || 'Please try again.')))
       .finally(() => setReviewing(false));
@@ -121,7 +123,7 @@ function TicketDetail({ navigation, route }) {
     dispatch(sendRmReport({ report: report.id })).unwrap()
       .then(() => {
         refresh();
-        Alert.alert('Report Sent', 'The report has been dispatched to the customer.');
+        showToast('Report sent to customer', 'success');
       })
       .catch((e) => Alert.alert('Could Not Send', e?.status === 422 ? 'Review the report before sending it.' : (e?.message || 'Please try again.')))
       .finally(() => setSending(false));

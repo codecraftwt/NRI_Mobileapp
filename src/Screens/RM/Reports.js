@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, Linking } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, Linking, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { useToast } from '../../context/ToastContext';
 import { useRmReports } from '../../Hooks/RM/useRmReports';
 
 const FILTERS = [
@@ -28,11 +30,27 @@ function fmt(iso) {
 
 function Reports({ navigation }) {
   const [filter, setFilter] = useState('pending');
-  const { reports, loading, review, reviewingId, send, sendingId, refresh } = useRmReports(filter);
+  // "Pending" = not yet sent to the customer (sent_to_customer_at is null →
+  // mapReport sets sent = false), whether or not it's been reviewed. We fetch
+  // the full list and keep the not-sent ones so a report stays here through
+  // review and only leaves once it's actually sent — from this screen or from
+  // TicketDetail (both dispatch the same rmReports thunks / share the store).
+  const apiFilter = filter === 'pending' ? 'all' : filter;
+  const { reports: fetchedReports, loading, review, reviewingId, send, sendingId, refresh } = useRmReports(apiFilter);
+  // Treat a report as sent if ANY sent signal is present (sent flag, the
+  // sent_to_customer_at timestamp, or the "Sent" label) — so a sent report can
+  // never linger under Pending.
+  const isSent = (r) => r.sent === true || !!r.sentAt || (r.statusLabel || '').toLowerCase() === 'sent';
+  const reports = filter === 'pending' ? fetchedReports.filter(r => !isSent(r)) : fetchedReports;
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
 
   const [reviewFor, setReviewFor] = useState(null); // the report being reviewed
   const [comment, setComment] = useState('');
+
+  // Auto-refresh the list every time the screen comes into focus so it stays in
+  // sync after reviewing/sending (or actions taken elsewhere).
+  useFocusEffect(useCallback(() => { refresh(); }, [filter]));
 
   const openReview = (report) => {
     setReviewFor(report);
@@ -44,8 +62,10 @@ function Reports({ navigation }) {
     review(reviewFor.id, comment.trim()).unwrap?.().then(() => {
       setReviewFor(null);
       setComment('');
-      refresh();
-      showAlert('Report Reviewed', 'The vendor report has been marked as reviewed.');
+      // Don't refetch here — the slice flips the report to "reviewed" in place,
+      // so it stays on screen (a pending-list refetch would drop it). Same
+      // behavior as the vendor report in TicketDetail.
+      showToast('Report marked as reviewed', 'success');
     }).catch((e) => {
       showAlert('Could Not Review', e?.status === 403 ? "This report belongs to another RM's ticket." : (e?.message || 'Please try again.'));
     });
@@ -54,8 +74,10 @@ function Reports({ navigation }) {
   const handleSend = (report) => {
     if (sendingId) return;
     send(report.id).unwrap?.().then(() => {
+      // Once sent, it leaves this screen — refetch so the dispatched report
+      // drops out of the pending list. (Reviewing keeps it; only sending removes it.)
+      showToast('Report sent to customer', 'success');
       refresh();
-      showAlert('Report Sent', 'The report has been dispatched to the customer.');
     }).catch((e) => {
       showAlert('Could Not Send', e?.status === 422 ? 'Review the report before sending it.' : (e?.message || 'Please try again.'));
     });
@@ -87,7 +109,11 @@ function Reports({ navigation }) {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={loading && reports.length > 0} onRefresh={refresh} colors={['#20304C']} tintColor="#20304C" />}
+      >
         {loading && reports.length === 0 ? (
           <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
         ) : reports.length === 0 ? (

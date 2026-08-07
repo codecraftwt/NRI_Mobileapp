@@ -56,8 +56,22 @@ const rmReportsSlice = createSlice({
       .addCase(reviewRmReport.pending, (state, action) => {
         state.reviewingId = action.meta.arg.report;
       })
-      .addCase(reviewRmReport.fulfilled, (state) => {
+      .addCase(reviewRmReport.fulfilled, (state, action) => {
         state.reviewingId = null;
+        // Update the shared list item in place so both Reports and TicketDetail
+        // reflect it. Prefer the server's returned report; fall back to flags.
+        const id = action.meta.arg.report;
+        const idx = state.reports.findIndex(r => String(r.id) === String(id));
+        if (idx !== -1) {
+          const srv = action.payload?.report;
+          if (srv) {
+            state.reports[idx] = { ...state.reports[idx], ...srv };
+          } else {
+            state.reports[idx].reviewed = true;
+            if (action.meta.arg.comment != null) state.reports[idx].reviewComment = action.meta.arg.comment;
+            if ((state.reports[idx].statusLabel || '').toLowerCase() === 'pending') state.reports[idx].statusLabel = 'Reviewed';
+          }
+        }
       })
       .addCase(reviewRmReport.rejected, (state) => {
         state.reviewingId = null;
@@ -65,8 +79,19 @@ const rmReportsSlice = createSlice({
       .addCase(sendRmReport.pending, (state, action) => {
         state.sendingId = action.meta.arg.report;
       })
-      .addCase(sendRmReport.fulfilled, (state) => {
+      .addCase(sendRmReport.fulfilled, (state, action) => {
         state.sendingId = null;
+        // Reflect "sent" right away (from either screen). Prefer the server's
+        // returned report so sent/sentAt/statusLabel match the API exactly;
+        // fall back to setting the flags so the Pending filter drops it.
+        const id = action.meta.arg.report;
+        const idx = state.reports.findIndex(r => String(r.id) === String(id));
+        if (idx !== -1) {
+          const srv = action.payload?.report;
+          state.reports[idx] = srv
+            ? { ...state.reports[idx], ...srv, sent: true }
+            : { ...state.reports[idx], sent: true, sentAt: state.reports[idx].sentAt || new Date().toISOString(), statusLabel: 'Sent' };
+        }
       })
       .addCase(sendRmReport.rejected, (state) => {
         state.sendingId = null;

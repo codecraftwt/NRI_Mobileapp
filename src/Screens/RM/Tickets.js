@@ -343,26 +343,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderRadius: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
-    padding: 16,
+    padding: 19,
   },
   cardContent: { flexDirection: 'row', alignItems: 'center' },
   cardLeft: { flex: 1, paddingRight: 12 },
   cardRight: { alignItems: 'flex-end', justifyContent: 'space-between', height: 70 },
 
-  ticketNumRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
-  ticketNumText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
-  dateText: { fontSize: 12, color: '#94A3B8' },
+  ticketNumRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 7 },
+  ticketNumText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
+  dateText: { fontSize: 11, color: '#94A3B8' },
 
-  cardTitle: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginBottom: 8, lineHeight: 22 },
+  cardTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginBottom: 7, lineHeight: 19 },
 
   customerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  customerText: { fontSize: 13, color: '#475569' },
+  customerText: { fontSize: 12, color: '#475569' },
 
-  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusChipText: { fontSize: 11, fontWeight: '700' },
+  statusChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12 },
+  statusChipText: { fontSize: 10, fontWeight: '700' },
 
   dueWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8, backgroundColor: '#FEF3E7', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  dueText: { fontSize: 11, fontWeight: '700', color: '#B45309' },
+  dueText: { fontSize: 10, fontWeight: '700', color: '#B45309' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

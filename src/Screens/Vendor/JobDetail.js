@@ -7,6 +7,7 @@ import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-nat
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { useToast } from '../../context/ToastContext';
 import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
 import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
@@ -33,6 +34,7 @@ function JobDetail({ route, navigation }) {
   } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
   const { showAlert, alertProps } = useAppAlert();
+  const { showToast } = useToast();
 
   // Accept — ETA commitment
   const [committedEta, setCommittedEta] = useState(null);
@@ -59,31 +61,37 @@ function JobDetail({ route, navigation }) {
     }
   }, [job?.tracking?.number, job?.tracking?.url]);
 
+  // Ask for the OS-appropriate media/storage permission before opening the
+  // picker. The document picker (SAF) doesn't strictly need this, so we never
+  // hard-block on it — but we surface the prompt, and if it's permanently
+  // denied we point the user to Settings. Wrapped so a missing constant or a
+  // permission-API error can't crash the flow (that was the old bug).
   const requestFilePermission = async () => {
     if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33
-      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    if (await PermissionsAndroid.check(permission)) return true;
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow Photo & Document Access',
-      message: 'NRI Circle needs access to your files so you can attach proof to the completion report.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    });
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      showAlert('Permission Required', 'File access is blocked. Enable it from app settings to attach files.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
+    try {
+      const perms = (Platform.Version >= 33
+        ? [PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES, PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO]
+        : [PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE]
+      ).filter(Boolean);
+      if (perms.length === 0) return true;
+      const result = await PermissionsAndroid.requestMultiple(perms);
+      const values = Object.values(result);
+      if (values.some(v => v === PermissionsAndroid.RESULTS.GRANTED)) return true;
+      if (values.some(v => v === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) {
+        showAlert('Permission Needed', 'File access is blocked. Enable it in app settings to attach files.',
+          [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
+      }
+      // Denied (not permanently) — still let SAF handle per-file access.
+      return true;
+    } catch (e) {
+      return true;
     }
-    return false;
   };
 
   // Picks up to `remaining` proof files (images/pdf/video), enforcing the 25 MB
   // per-file cap. Returns the accepted picker files, or null if cancelled.
   const pickProofFiles = async (remaining) => {
-    const allowed = await requestFilePermission();
-    if (!allowed) return null;
+    await requestFilePermission();
     try {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf, docTypes.video],
@@ -128,7 +136,7 @@ function JobDetail({ route, navigation }) {
     }
     try {
       await accept(committedEta.toISOString()).unwrap();
-      showAlert('Job Accepted', 'You have accepted this job. It is now In Progress.');
+      showToast('Job accepted — now In Progress', 'success');
     } catch (e) {
       showAlert('Could Not Accept', e?.message || 'Something went wrong. Please try again.');
     }
@@ -162,7 +170,7 @@ function JobDetail({ route, navigation }) {
       await complete({ reportText: reportText.trim(), files: reportFiles }).unwrap();
       setReportText('');
       setReportFiles([]);
-      showAlert('Report Submitted', 'Your completion report has been submitted and the job is closed.');
+      showToast('Report submitted — job closed', 'success');
     } catch (e) {
       showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
     }
@@ -173,7 +181,7 @@ function JobDetail({ route, navigation }) {
     if (!accepted?.length) return;
     try {
       await addAttachments(accepted).unwrap();
-      showAlert('Attachments Added', 'The files were added to your report.');
+      showToast('Attachments added to your report', 'success');
     } catch (e) {
       showAlert('Could Not Add Attachments', e?.message || 'Something went wrong. Please try again.');
     }
@@ -241,7 +249,10 @@ function JobDetail({ route, navigation }) {
     );
   };
 
-  if (loading) {
+  // Only take over the whole screen on the FIRST load. Post-action refetches
+  // (accept/complete/upload) also flip `loading`, but we keep the page shown so
+  // it doesn't blank/reload under the success popup — button spinners cover it.
+  if (loading && !job) {
     return (
       <View style={styles.container}>
         <View style={styles.headerContainer}>
@@ -260,7 +271,7 @@ function JobDetail({ route, navigation }) {
     );
   }
 
-  if (failed || !job) {
+  if (failed && !job) {
     return (
       <View style={styles.container}>
         <View style={styles.headerContainer}>
