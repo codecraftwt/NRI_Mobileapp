@@ -50,7 +50,15 @@ const notificationsSlice = createSlice({
       })
       .addCase(fetchNotifications.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.items = action.payload.notifications;
+        const page = action.payload.meta?.currentPage || 1;
+        if (page > 1) {
+          // Load-more: append the next page, skipping ids we already hold.
+          const seen = new Set(state.items.map(n => n.id));
+          state.items = [...state.items, ...action.payload.notifications.filter(n => !seen.has(n.id))];
+        } else {
+          // First page / refresh: replace.
+          state.items = action.payload.notifications;
+        }
         state.unreadCount = action.payload.unreadCount;
         state.meta = action.payload.meta;
       })

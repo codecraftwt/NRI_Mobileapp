@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -34,7 +34,12 @@ function relativeTime(iso) {
 }
 
 function Notifications({ navigation }) {
-  const { items, unreadCount, loading, failed, error, fetch, markRead, markAllRead } = useNotifications();
+  const { items, unreadCount, meta, loading, failed, error, fetch, markRead, markAllRead } = useNotifications();
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+
+  const currentPage = meta?.currentPage || 1;
+  const lastPage = meta?.lastPage || 1;
 
   useFocusEffect(
     useCallback(() => {
@@ -43,9 +48,34 @@ function Notifications({ navigation }) {
     }, [])
   );
 
+  // Fetch the next page when the list nears the bottom (infinite scroll).
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current || loading || currentPage >= lastPage) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    Promise.resolve(fetch({ page: currentPage + 1 })).finally(() => {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    });
+  }, [currentPage, lastPage, loading, fetch]);
+
+  const onScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    if (contentSize.height - contentOffset.y - layoutMeasurement.height < 200) loadMore();
+  };
+
   const onPressItem = (n) => {
     if (!n.read) markRead(n.id);
-    if (n.url || n.event) handleNotificationNavigation(n.data);
+    // Route from the mapped fields (url/event/title/message live at the top of
+    // the RM item, not inside data), plus any extra keys in data.
+    handleNotificationNavigation({
+      url: n.url,
+      event: n.event,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      ...n.data,
+    });
   };
 
   return (
@@ -55,7 +85,9 @@ function Notifications({ navigation }) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={fetch} colors={['#D94625']} tintColor="#D94625" />}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={loading && items.length > 0 && !loadingMore} onRefresh={fetch} colors={['#D94625']} tintColor="#D94625" />}
       >
         <View style={styles.headerSection}>
           <Text style={styles.title}>Recent Activity{unreadCount > 0 ? ` (${unreadCount})` : ''}</Text>
@@ -104,6 +136,10 @@ function Notifications({ navigation }) {
               );
             })}
           </View>
+        )}
+
+        {loadingMore && (
+          <View style={styles.footerLoader}><ActivityIndicator size="small" color="#D94625" /></View>
         )}
       </ScrollView>
     </View>
@@ -190,6 +226,7 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D94625', marginLeft: 8 },
+  footerLoader: { paddingVertical: 20, alignItems: 'center' },
 });
 
 export default Notifications;

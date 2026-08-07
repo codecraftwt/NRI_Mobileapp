@@ -20,6 +20,7 @@ import Reports from '../../Screens/RM/Reports';
 import SupportChat from '../../Screens/RM/SupportChat';
 import SupportTicketDetail from '../../Screens/RM/SupportTicketDetail';
 import Profile from '../../Screens/RM/Profile';
+import Notifications from '../../Screens/NRI/Notifications';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -40,6 +41,7 @@ function DashboardStack() {
       <Stack.Screen name="Escalations" component={Escalations} />
       <Stack.Screen name="Reports" component={Reports} />
       <Stack.Screen name="RMSupportChat" component={SupportChat} />
+      <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   );
 }

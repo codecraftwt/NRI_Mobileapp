@@ -1,27 +1,34 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
+import { getRmRenewals } from '../../Api/RM/rmRenewalsApi';
 
-// Upcoming renewals within the next 45 days. Replace with live data when wired.
-const UPCOMING = [];
-// Memberships that lapsed in the last 30 days — win-back candidates.
-const EXPIRED = [];
-
-// Day-bucket summary cards (match the web renewals dashboard).
+// Day-bucket summary cards (match the web renewals dashboard). Counts are derived
+// from the upcoming list's daysLeft.
 const BUCKETS = [
   { key: 'within7', label: 'Within 7 Days', color: '#DC2626', border: '#FCA5A5', max: 7 },
   { key: 'd8_15', label: '8–15 Days', color: '#CA8A04', border: '#FCD34D', min: 8, max: 15 },
   { key: 'd16_45', label: '16–45 Days', color: '#0F172A', border: '#E2E8F0', min: 16, max: 45 },
 ];
 
-function countBucket(b) {
-  return UPCOMING.filter(r => {
+function countBucket(upcoming, b) {
+  return upcoming.filter(r => {
     const d = r.daysLeft;
     if (b.min != null && d < b.min) return false;
     if (b.max != null && d > b.max) return false;
     return true;
   }).length;
+}
+
+// Format an ISO date to "07 Aug 2026" (pinned to UTC to match the backend);
+// pass through non-date strings unchanged.
+function fmtDate(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 // Colour the days-left pill by urgency.
@@ -48,6 +55,27 @@ function EmptyCard({ icon, text }) {
 }
 
 function Renewals({ navigation }) {
+  const [upcoming, setUpcoming] = useState([]);
+  const [expired, setExpired] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(async () => {
+    setFailed(false);
+    setLoading(true);
+    try {
+      const res = await getRmRenewals();
+      setUpcoming(res.upcoming);
+      setExpired(res.expired);
+    } catch (e) {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
@@ -59,85 +87,101 @@ function Renewals({ navigation }) {
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Day-bucket summary */}
-        <View style={styles.bucketRow}>
-          {BUCKETS.map(b => (
-            <View key={b.key} style={[styles.bucketCard, { borderColor: b.border }]}>
-              <Text style={styles.bucketValue} numberOfLines={1}>
-                <Text style={{ color: b.color }}>{countBucket(b)}</Text>
-              </Text>
-              <Text style={styles.bucketLabel}>{b.label}</Text>
-            </View>
-          ))}
+      {loading && upcoming.length === 0 && expired.length === 0 ? (
+        <View style={styles.centerFill}><ActivityIndicator size="large" color="#20304C" /></View>
+      ) : failed ? (
+        <View style={styles.centerFill}>
+          <Icon name="error-outline" size={44} color="#CBD5E1" />
+          <Text style={styles.emptyText}>Could not load renewals.</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={load} colors={['#20304C']} tintColor="#20304C" />}
+        >
+          {/* Day-bucket summary */}
+          <View style={styles.bucketRow}>
+            {BUCKETS.map(b => (
+              <View key={b.key} style={[styles.bucketCard, { borderColor: b.border }]}>
+                <Text style={styles.bucketValue} numberOfLines={1}>
+                  <Text style={{ color: b.color }}>{countBucket(upcoming, b)}</Text>
+                </Text>
+                <Text style={styles.bucketLabel}>{b.label}</Text>
+              </View>
+            ))}
+          </View>
 
-        {/* Upcoming Renewals */}
-        <Text style={styles.sectionTitle}>Upcoming Renewals (next 45 days)</Text>
-        {UPCOMING.length === 0 ? (
-          <EmptyCard icon="event-available" text="No renewals due in the next 45 days." />
-        ) : (
-          <View style={styles.cardBlock}>
-            {UPCOMING.map((r, i) => {
-              const dl = daysLeftStyle(r.daysLeft);
-              return (
+          {/* Upcoming Renewals */}
+          <Text style={styles.sectionTitle}>Upcoming Renewals (next 45 days)</Text>
+          {upcoming.length === 0 ? (
+            <EmptyCard icon="event-available" text="No renewals due in the next 45 days." />
+          ) : (
+            <View style={styles.cardBlock}>
+              {upcoming.map((r, i) => {
+                const dl = daysLeftStyle(r.daysLeft);
+                return (
+                  <View key={r.id ?? i} style={styles.card}>
+                    <View style={styles.cardTop}>
+                      <View style={[styles.avatar, { backgroundColor: avatarColor(r.customer) }]}>
+                        <Text style={styles.avatarText}>{(r.customer || 'C').charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.name} numberOfLines={1}>{r.customer}</Text>
+                        <Text style={styles.plan} numberOfLines={1}>{r.plan}</Text>
+                      </View>
+                      <View style={[styles.daysPill, { backgroundColor: dl.bg }]}>
+                        <Text style={[styles.daysPillText, { color: dl.color }]}>{r.daysLeft}d left</Text>
+                      </View>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.metaRow}>
+                      <View style={styles.metaItem}>
+                        <Text style={styles.metaLabel}>Expires</Text>
+                        <Text style={styles.metaValue}>{fmtDate(r.expires)}</Text>
+                      </View>
+                      <View style={[styles.metaItem, styles.metaItemRight]}>
+                        <Text style={styles.metaLabel}>Last Paid</Text>
+                        <Text style={styles.metaValue}>{fmtDate(r.lastPaid)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Recently Expired */}
+          <Text style={[styles.sectionTitle, styles.sectionTitleDanger]}>Recently Expired (last 30 days)</Text>
+          <Text style={styles.sectionSub}>Win-back candidates</Text>
+          {expired.length === 0 ? (
+            <EmptyCard icon="history" text="Nothing expired recently." />
+          ) : (
+            <View style={styles.cardBlock}>
+              {expired.map((r, i) => (
                 <View key={r.id ?? i} style={styles.card}>
                   <View style={styles.cardTop}>
-                    <View style={[styles.avatar, { backgroundColor: avatarColor(r.customer) }]}>
-                      <Text style={styles.avatarText}>{(r.customer || 'C').charAt(0).toUpperCase()}</Text>
+                    <View style={[styles.avatar, { backgroundColor: '#FEE2E2' }]}>
+                      <Icon name="person-off" size={20} color="#DC2626" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>{r.customer}</Text>
                       <Text style={styles.plan} numberOfLines={1}>{r.plan}</Text>
                     </View>
-                    <View style={[styles.daysPill, { backgroundColor: dl.bg }]}>
-                      <Text style={[styles.daysPillText, { color: dl.color }]}>{r.daysLeft}d left</Text>
-                    </View>
-                  </View>
-                  <View style={styles.divider} />
-                  <View style={styles.metaRow}>
-                    <View style={styles.metaItem}>
-                      <Text style={styles.metaLabel}>Expires</Text>
-                      <Text style={styles.metaValue}>{r.expires || '—'}</Text>
-                    </View>
-                    <View style={[styles.metaItem, styles.metaItemRight]}>
-                      <Text style={styles.metaLabel}>Last Paid</Text>
-                      <Text style={styles.metaValue}>{r.lastPaid || '—'}</Text>
+                    <View style={styles.expiredWrap}>
+                      <Text style={styles.expiredLabel}>Expired</Text>
+                      <Text style={styles.expiredDate}>{fmtDate(r.expiredOn)}</Text>
                     </View>
                   </View>
                 </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Recently Expired */}
-        <Text style={[styles.sectionTitle, styles.sectionTitleDanger]}>Recently Expired (last 30 days)</Text>
-        <Text style={styles.sectionSub}>Win-back candidates</Text>
-        {EXPIRED.length === 0 ? (
-          <EmptyCard icon="history" text="Nothing expired recently." />
-        ) : (
-          <View style={styles.cardBlock}>
-            {EXPIRED.map((r, i) => (
-              <View key={r.id ?? i} style={styles.card}>
-                <View style={styles.cardTop}>
-                  <View style={[styles.avatar, { backgroundColor: '#FEE2E2' }]}>
-                    <Icon name="person-off" size={20} color="#DC2626" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name} numberOfLines={1}>{r.customer}</Text>
-                    <Text style={styles.plan} numberOfLines={1}>{r.plan}</Text>
-                  </View>
-                  <View style={styles.expiredWrap}>
-                    <Text style={styles.expiredLabel}>Expired</Text>
-                    <Text style={styles.expiredDate}>{r.expiredOn || '—'}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -150,6 +194,10 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#FFFFFF' },
 
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 60 },
+
+  centerFill: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 40 },
+  retryBtn: { backgroundColor: '#20304C', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 12 },
+  retryText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 
   // Buckets
   bucketRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },

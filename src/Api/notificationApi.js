@@ -1,29 +1,34 @@
 import apiClient, { normalizeApiError } from './client';
 
 // The notification item schema isn't pinned in the OpenAPI spec, so this mapper
-// stays tolerant across the plausible Laravel-notification shapes. `data`
-// carries the push payload ({ event, url }) — the same shape the FCM handler
-// uses — so taps can deep-link the same way.
+// stays tolerant across the plausible Laravel-notification shapes. The RM feed
+// returns { event, url, title, message } at the top level; the customer push
+// shape nests them under `data`. Read top-level first, then fall back to data,
+// so taps can deep-link the same way either way.
 function mapNotification(raw) {
   const data = raw.data || {};
   const readAt = raw.read_at ?? raw.readAt ?? null;
   return {
     id: raw.id,
-    type: raw.type || data.type || data.event || 'general',
+    type: raw.type || data.type || raw.event || data.event || 'general',
     title: raw.title || data.title || 'Notification',
     message: raw.message || raw.body || data.body || data.message || '',
     createdAt: raw.created_at || raw.createdAt || null,
     read: raw.is_read ?? raw.read ?? (readAt != null),
-    event: data.event || null,
-    url: data.url || null,
+    event: raw.event || data.event || null,
+    url: raw.url || data.url || null,
     data,
   };
 }
 
-// Notification routes are role-scoped. Customer routes exist today; vendor
-// routes light up once the backend adds them (same shape).
+// Notification routes are role-scoped. Match the same role keywords the app
+// uses for routing (Login / notificationRouting): relationship managers hit
+// /rm, vendors hit /vendor, everyone else is a customer.
 export function notifBaseForRole(role) {
-  return /vendor/.test(String(role || '').toLowerCase()) ? '/vendor' : '/customer';
+  const r = String(role || '').toLowerCase();
+  if (/relationship|manager|\brm\b/.test(r)) return '/rm';
+  if (/vendor/.test(r)) return '/vendor';
+  return '/customer';
 }
 
 // GET {base}/notifications — paginated, newest first; unread count in meta.
@@ -70,10 +75,11 @@ export async function markAllNotificationsRead(base = '/customer') {
   }
 }
 
-// GET /customer/notification-preferences — channel on/off flags.
-export async function getNotificationPreferences() {
+// GET {base}/notification-preferences — channel on/off flags. Role-scoped:
+// pass notifBaseForRole(role) for RM (/rm) or vendor (/vendor); customer default.
+export async function getNotificationPreferences(base = '/customer') {
   try {
-    const response = await apiClient.get('/customer/notification-preferences');
+    const response = await apiClient.get(`${base}/notification-preferences`);
     const d = response.data?.data || response.data || {};
     return { app: !!d.app, whatsapp: !!d.whatsapp, email: !!d.email, sms: !!d.sms };
   } catch (error) {
@@ -81,10 +87,10 @@ export async function getNotificationPreferences() {
   }
 }
 
-// PUT /customer/notification-preferences
-export async function updateNotificationPreferences(prefs) {
+// PUT {base}/notification-preferences
+export async function updateNotificationPreferences(prefs, base = '/customer') {
   try {
-    const response = await apiClient.put('/customer/notification-preferences', prefs);
+    const response = await apiClient.put(`${base}/notification-preferences`, prefs);
     const d = response.data?.data || response.data || {};
     return { app: !!d.app, whatsapp: !!d.whatsapp, email: !!d.email, sms: !!d.sms };
   } catch (error) {

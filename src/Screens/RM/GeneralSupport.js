@@ -324,16 +324,10 @@ function GeneralSupport({ navigation }) {
                   onPress={() => { setStatusFilter(opt.key); setFilterVisible(false); }}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.filterOptionIcon, active && styles.filterOptionIconActive]}>
-                    <Icon name={opt.icon} size={19} color={active ? '#FFFFFF' : '#64748B'} />
-                  </View>
+                  <Icon name={opt.icon} size={20} color={active ? '#20304C' : '#94A3B8'} />
                   <Text style={[styles.filterOptionLabel, active && styles.filterOptionLabelActive]}>{opt.label}</Text>
-                  <View style={[styles.filterOptionCount, active && styles.filterOptionCountActive]}>
-                    <Text style={[styles.filterOptionCountText, active && styles.filterOptionCountTextActive]}>{countFor(opt.key)}</Text>
-                  </View>
-                  <View style={[styles.radio, active && styles.radioOn]}>
-                    {active && <View style={styles.radioInner} />}
-                  </View>
+                  <Text style={[styles.filterOptionCount, active && styles.filterOptionCountActive]}>{countFor(opt.key)}</Text>
+                  {active && <Icon name="check" size={20} color="#20304C" />}
                 </TouchableOpacity>
               );
             })}
@@ -373,19 +367,12 @@ const styles = StyleSheet.create({
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   sheetTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   sheetReset: { fontSize: 13, fontWeight: '700', color: '#D94625' },
-  filterOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, marginBottom: 6, borderWidth: 1, borderColor: 'transparent' },
-  filterOptionActive: { backgroundColor: '#F5F8FC', borderColor: '#D6E0EC' },
-  filterOptionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  filterOptionIconActive: { backgroundColor: '#20304C' },
+  filterOption: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 13, paddingHorizontal: 12, borderRadius: 12 },
+  filterOptionActive: { backgroundColor: '#F5F8FC' },
   filterOptionLabel: { flex: 1, fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
   filterOptionLabelActive: { color: '#0F172A' },
-  filterOptionCount: { minWidth: 26, height: 24, borderRadius: 12, paddingHorizontal: 8, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  filterOptionCountActive: { backgroundColor: '#E0E7F1' },
-  filterOptionCountText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
-  filterOptionCountTextActive: { color: '#20304C' },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' },
-  radioOn: { borderColor: '#20304C' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#20304C' },
+  filterOptionCount: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#94A3B8' },
+  filterOptionCountActive: { color: '#20304C' },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 8, gap: 12 },
   card: {

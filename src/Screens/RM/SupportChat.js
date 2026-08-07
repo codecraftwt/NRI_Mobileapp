@@ -21,7 +21,10 @@ function formatTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // Timestamps arrive as UTC ("...Z"). Pin the display to UTC so the reply time
+  // matches the backend/admin value on every device, regardless of local zone.
+  const s = d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+  return s.replace(/\b(am|pm)\b/i, m => m.toUpperCase());
 }
 
 function SupportChat({ route, navigation }) {
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
   bubbleRowMe: { alignSelf: 'flex-end' },
   bubble: { borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10 },
   bubbleSupport: { backgroundColor: '#F1F5F9', borderBottomLeftRadius: 4 },
-  bubbleMe: { backgroundColor: '#1D4ED8', borderBottomRightRadius: 4 },
+  bubbleMe: { backgroundColor: '#334565', borderBottomRightRadius: 4 },
   bubbleAuthor: { fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 2 },
   bubbleAuthorMe: { color: 'rgba(255,255,255,0.85)' },
   bubbleText: { fontSize: 14, color: '#0F172A' },

@@ -100,14 +100,31 @@ function SupportTicketDetail({ route, navigation }) {
     if (!replyText.trim() || sending) return;
     const text = replyText.trim();
     const asInternal = internalNote;
+    // Show the message immediately with a temporary id, then swap in the
+    // server copy (or drop it on failure) once the request resolves.
+    const tempId = `temp-${text.length}-${replies.length}`;
+    const optimistic = {
+      id: tempId,
+      message: text,
+      isInternal: asInternal,
+      fromRm: true,
+      authorName: user?.name || '',
+      createdAt: new Date().toISOString(),
+    };
     setReplyText('');
+    setReplies(prev => [...prev, optimistic]);
     setSending(true);
     try {
       const res = await replyRmSupportTicket(ticketId, text, { isInternal: asInternal });
-      if (res.reply) setReplies(prev => [...prev, { ...res.reply, isInternal: res.reply.isInternal || asInternal }]);
-      else await load();
+      // Swap the optimistic bubble for the server copy when we get one; if the
+      // reply endpoint echoes nothing usable, keep the optimistic bubble as-is
+      // rather than reloading (a refetch can briefly drop the just-sent reply).
+      if (res.reply) {
+        setReplies(prev => prev.map(m => (m.id === tempId ? { ...res.reply, isInternal: res.reply.isInternal || asInternal } : m)));
+      }
       setInternalNote(false);
     } catch (e) {
+      setReplies(prev => prev.filter(m => m.id !== tempId));
       setReplyText(text);
       const msg = e?.status === 422
         ? 'This ticket is closed and can no longer be replied to.'
@@ -597,7 +614,7 @@ const styles = StyleSheet.create({
   bubbleRowMe: { alignSelf: 'flex-end' },
   bubble: { borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10 },
   bubbleSupport: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F1F5F9', borderBottomLeftRadius: 4 },
-  bubbleMe: { backgroundColor: '#20304C', borderBottomRightRadius: 4 },
+  bubbleMe: { backgroundColor: '#334565', borderBottomRightRadius: 4 },
   bubbleAuthor: { fontSize: 11, fontWeight: '700', color: '#64748B', marginBottom: 2 },
   bubbleAuthorMe: { color: 'rgba(255,255,255,0.85)' },
   bubbleText: { fontSize: 14, color: '#0F172A', lineHeight: 20 },
