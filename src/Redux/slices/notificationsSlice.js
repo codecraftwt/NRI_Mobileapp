@@ -36,6 +36,11 @@ const initialState = {
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   status: 'idle',
   error: null,
+  // Ids flipped read by an in-flight "mark all read" — used to roll back if it fails.
+  pendingAllReadIds: [],
+  // Ids the user read this session. Kept so a focus-refetch that hasn't caught
+  // up server-side (eventual consistency) doesn't resurrect them as unread.
+  readIds: [],
 };
 
 const notificationsSlice = createSlice({
@@ -59,24 +64,57 @@ const notificationsSlice = createSlice({
           // First page / refresh: replace.
           state.items = action.payload.notifications;
         }
-        state.unreadCount = action.payload.unreadCount;
+        // Re-apply this session's reads the server list may not reflect yet, and
+        // discount them from the server's unread total so the badge stays right.
+        const readSet = new Set(state.readIds);
+        let stillUnreadServerSide = 0;
+        state.items.forEach(n => {
+          if (readSet.has(n.id) && !n.read) { n.read = true; stillUnreadServerSide += 1; }
+        });
+        state.unreadCount = Math.max(0, (action.payload.unreadCount || 0) - stillUnreadServerSide);
         state.meta = action.payload.meta;
       })
       .addCase(fetchNotifications.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload;
       })
-      // Optimistically flip local read state so the UI updates instantly.
-      .addCase(markNotificationRead.fulfilled, (state, action) => {
-        const item = state.items.find(n => n.id === action.payload);
+      // Optimistically flip read state the moment the request fires so the dot
+      // and unread count clear instantly; roll back if the request fails.
+      .addCase(markNotificationRead.pending, (state, action) => {
+        const id = action.meta.arg;
+        if (!state.readIds.includes(id)) state.readIds.push(id);
+        const item = state.items.find(n => n.id === id);
         if (item && !item.read) {
           item.read = true;
           state.unreadCount = Math.max(0, state.unreadCount - 1);
         }
       })
-      .addCase(markAllNotificationsRead.fulfilled, (state) => {
+      .addCase(markNotificationRead.rejected, (state, action) => {
+        const id = action.meta.arg;
+        state.readIds = state.readIds.filter(x => x !== id);
+        const item = state.items.find(n => n.id === id);
+        if (item && item.read) {
+          item.read = false;
+          state.unreadCount += 1;
+        }
+      })
+      // "Mark all read" — optimistic, remembering which ids we flipped so a
+      // failure restores exactly those (leaving already-read items untouched).
+      .addCase(markAllNotificationsRead.pending, (state) => {
+        state.pendingAllReadIds = state.items.filter(n => !n.read).map(n => n.id);
         state.items.forEach(n => { n.read = true; });
+        state.pendingAllReadIds.forEach(id => { if (!state.readIds.includes(id)) state.readIds.push(id); });
         state.unreadCount = 0;
+      })
+      .addCase(markAllNotificationsRead.fulfilled, (state) => {
+        state.pendingAllReadIds = [];
+      })
+      .addCase(markAllNotificationsRead.rejected, (state) => {
+        const ids = new Set(state.pendingAllReadIds);
+        state.items.forEach(n => { if (ids.has(n.id)) n.read = false; });
+        state.readIds = state.readIds.filter(x => !ids.has(x));
+        state.unreadCount = ids.size;
+        state.pendingAllReadIds = [];
       });
   },
 });

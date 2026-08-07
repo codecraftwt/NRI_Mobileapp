@@ -64,6 +64,11 @@ function Notifications({ navigation }) {
     if (contentSize.height - contentOffset.y - layoutMeasurement.height < 200) loadMore();
   };
 
+  // Only unread notifications are shown — reading one (or "mark all as read")
+  // drops it off the list, and the slice keeps this session's reads read across
+  // refetches so a refresh won't bring them back.
+  const visibleItems = items.filter(n => !n.read);
+
   const onPressItem = (n) => {
     if (!n.read) markRead(n.id);
     // Route from the mapped fields (url/event/title/message live at the top of
@@ -105,19 +110,19 @@ function Notifications({ navigation }) {
             <Icon name="refresh" size={36} color="#DC2626" />
             <Text style={styles.stateText}>{error?.message || 'Couldn\'t load notifications. Tap to retry.'}</Text>
           </TouchableOpacity>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <View style={styles.stateBox}>
             <Icon name="notifications-none" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No notifications yet</Text>
+            <Text style={styles.emptyTitle}>You're all caught up</Text>
           </View>
         ) : (
           <View style={styles.listContainer}>
-            {items.map((notif, index) => {
+            {visibleItems.map((notif, index) => {
               const v = getVisual(notif);
               return (
                 <TouchableOpacity
                   key={notif.id}
-                  style={[styles.notificationCard, index === items.length - 1 && styles.lastCard, !notif.read && styles.unreadCard]}
+                  style={[styles.notificationCard, index === visibleItems.length - 1 && styles.lastCard, !notif.read && styles.unreadCard]}
                   activeOpacity={0.7}
                   onPress={() => onPressItem(notif)}
                 >
