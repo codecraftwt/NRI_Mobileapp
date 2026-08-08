@@ -11,6 +11,19 @@ import { updateProfile, saveUserProfile } from '../../Redux/slices/userSlice';
 
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 
+// The API stores gender lower-cased ("male"); match it back to the display
+// option so the picker shows a checkmark and the label isn't lower-cased.
+const normalizeGender = (g) => GENDERS.find(o => o.toLowerCase() === String(g || '').toLowerCase()) || (g || '');
+
+// YYYY-MM-DD from the Date's LOCAL parts — toISOString() would convert to UTC
+// and can roll the date back a day for negative-offset timezones.
+const toApiDate = (d) => {
+  if (!d) return undefined;
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+
 function SelectField({ label, value, placeholder, options, onSelect }) {
   const [open, setOpen] = useState(false);
   return (
@@ -53,7 +66,7 @@ export default function ProfilePersonal({ navigation }) {
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [dob, setDob] = useState(user?.dob ? new Date(user.dob) : null);
-  const [gender, setGender] = useState(user?.gender || '');
+  const [gender, setGender] = useState(normalizeGender(user?.gender));
   const [bio, setBio] = useState(user?.bio || '');
   const [emergencyName, setEmergencyName] = useState(user?.emergencyContactName || '');
   const [emergencyPhone, setEmergencyPhone] = useState(user?.emergencyContactPhone || '');
@@ -70,7 +83,19 @@ export default function ProfilePersonal({ navigation }) {
     }
     setSavingPersonal(true);
     try {
-      await dispatch(saveUserProfile({ name: name.trim(), phone })).unwrap();
+      await dispatch(saveUserProfile({
+        name: name.trim(),
+        phone: phone || undefined,
+        profile: {
+          dateOfBirth: toApiDate(dob),
+          gender: gender ? gender.toLowerCase() : undefined,
+          bio: bio || undefined,
+          emergencyContactName: emergencyName || undefined,
+          emergencyContactPhone: emergencyPhone || undefined,
+        },
+      })).unwrap();
+      // Reflect immediately in case the PUT response omits an echoed field —
+      // the reducer already merged whatever the server returned.
       dispatch(updateProfile({
         name: name.trim(),
         phone,

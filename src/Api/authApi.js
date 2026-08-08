@@ -80,6 +80,12 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
   const relationshipManager = data?.rm ?? customer.rm ?? customer.relationship_manager;
   const roles = Array.isArray(apiUser.roles) ? apiUser.roles : null;
   const emailVerified = resolveEmailVerified(apiUser, customer, data);
+  // Extended profile (DOB, gender, bio, emergency contact, India address) —
+  // nested under `data.user.profile` on GET /auth/me and echoed back by
+  // PUT /auth/profile. Flattened here onto the canonical user so the Personal
+  // Info screen can read them directly (and they survive an /auth/me refresh).
+  const profileObj = apiUser.profile || {};
+  const indiaAddr = profileObj.india_address || {};
 
   const user = {
     id: apiUser.id,
@@ -105,6 +111,18 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     homeState: homeState?.name || customer.home_state || customer.state || null,
     homeStateId: homeState?.id ?? null,
     referredByCode: customer.referred_by_code || null,
+    dob: profileObj.date_of_birth || null,
+    gender: profileObj.gender || null,
+    bio: profileObj.bio || null,
+    emergencyContactName: profileObj.emergency_contact_name || null,
+    emergencyContactPhone: profileObj.emergency_contact_phone || null,
+    indiaAddress: {
+      state: indiaAddr.state || null,
+      city: indiaAddr.city || null,
+      pincode: indiaAddr.pincode || null,
+      line1: indiaAddr.line_1 || null,
+      line2: indiaAddr.line_2 || null,
+    },
     rm: relationshipManager
       ? {
           name: relationshipManager.name,
@@ -195,21 +213,70 @@ export async function me() {
 // callers only need to send the fields relevant to whichever form they're
 // saving — `|| undefined` on each optional field keeps axios/JSON.stringify
 // from sending it at all when unset.
-export async function updateProfile({ name, phone, nriCountry, nriCity, preferredLanguage, timezone, stateId }) {
+export async function updateProfile({
+  name, phone, whatsappNumber, nriCountry, nriState, nriCity,
+  preferredLanguage, timezone, stateId, profile, indiaAddress,
+} = {}) {
   try {
     const response = await apiClient.put('/auth/profile', {
       name: name || undefined,
       phone: phone || undefined,
+      whatsapp_number: whatsappNumber || undefined,
       nri_country: nriCountry || undefined,
+      nri_state: nriState || undefined,
       nri_city: nriCity || undefined,
       preferred_language: preferredLanguage || undefined,
       timezone: timezone || undefined,
       state_id: stateId || undefined,
+      // The nested profile/india_address objects mirror the web "Edit Profile"
+      // page — omitted entirely (not sent as {}) when the caller has nothing to
+      // change, so this stays a true partial update.
+      profile: mapProfileToBody(profile),
+      india_address: mapIndiaAddressToBody(indiaAddress),
     });
     return mapAuthResponse(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);
   }
+}
+
+// Drops undefined keys; returns undefined when nothing is left, so callers can
+// spread the result into a request body without emitting an empty object.
+function pruneUndefined(obj) {
+  if (!obj) return undefined;
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function mapProfileToBody(profile) {
+  if (!profile) return undefined;
+  return pruneUndefined({
+    date_of_birth: profile.dateOfBirth,
+    gender: profile.gender,
+    country_of_residence_id: profile.countryOfResidenceId,
+    state_id: profile.stateId,
+    city_id: profile.cityId,
+    postal_code: profile.postalCode,
+    address_line_1: profile.addressLine1,
+    address_line_2: profile.addressLine2,
+    bio: profile.bio,
+    emergency_contact_name: profile.emergencyContactName,
+    emergency_contact_phone: profile.emergencyContactPhone,
+  });
+}
+
+function mapIndiaAddressToBody(addr) {
+  if (!addr) return undefined;
+  return pruneUndefined({
+    state_id: addr.stateId,
+    city_id: addr.cityId,
+    pincode: addr.pincode,
+    line_1: addr.line1,
+    line_2: addr.line2,
+  });
 }
 
 // Response schema isn't in the backend's OpenAPI spec (description-only, no
