@@ -8,8 +8,8 @@ export function mapRatingSummary(raw) {
   const s = raw || {};
   return {
     overallScore: s.overall_score ?? s.overall ?? s.score ?? null,
-    standing: s.standing || s.status_label || s.status || null,
-    avgCustomerRating: s.avg_customer_rating ?? s.average_customer_rating ?? s.avg_rating ?? null,
+    standing: s.standing || s.status_label || s.status || s.label || null,
+    avgCustomerRating: s.avg_customer_rating ?? s.average_customer_rating ?? s.avg_rating ?? s.avg_customer ?? null,
     ratedJobs: s.rated_jobs ?? s.rated_jobs_count ?? s.total ?? s.count ?? null,
   };
 }
@@ -27,7 +27,8 @@ export function mapRating(raw) {
     // Composite/weighted score shown in its own column.
     composite: raw.composite_score != null ? Number(raw.composite_score).toFixed(2)
       : raw.composite != null ? Number(raw.composite).toFixed(2) : '—',
-    feedback: raw.feedback || raw.comment || raw.review || '',
+    // The live payload carries the customer's written feedback as `notes`.
+    feedback: raw.feedback || raw.comment || raw.review || raw.notes || '',
     date: raw.created_at || raw.rated_at || raw.date || null,
   };
 }

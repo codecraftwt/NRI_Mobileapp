@@ -10,8 +10,10 @@ export function useVendorRatings(page = 1) {
   const status = useSelector(state => state.vendorRatings.status);
   const error = useSelector(state => state.vendorRatings.error);
 
+  // Fetch fresh every time the screen mounts so newly-received ratings show up
+  // on re-open (not just the first-ever visit).
   useEffect(() => {
-    if (status === 'idle') dispatch(fetchVendorRatings({ page }));
+    dispatch(fetchVendorRatings({ page }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

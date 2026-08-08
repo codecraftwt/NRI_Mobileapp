@@ -26,7 +26,7 @@ function formatDate(iso) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function Stars({ value, size = 18 }) {
+function Stars({ value, size = 16 }) {
   return (
     <View style={styles.starsRow}>
       {[1, 2, 3, 4, 5].map(n => (
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
 
-  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100, gap: 14 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100, gap: 11 },
 
   sectionTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginTop: 4, marginBottom: -2 },
 
@@ -201,9 +201,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginTop: 3 },
 
   ratingCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 13,
     borderWidth: 1, borderColor: '#F1F5F9', borderLeftWidth: 4,
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 3,
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
   ratingCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   jobWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -215,17 +215,17 @@ const styles = StyleSheet.create({
   scorePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   scorePillText: { fontSize: 13, fontFamily: typography.h2.fontFamily },
 
-  serviceText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 12, lineHeight: 20 },
+  serviceText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 9, lineHeight: 18 },
 
-  starsWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  starsWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   starsRow: { flexDirection: 'row', gap: 2 },
   ratingOutOf: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
 
   feedbackBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12,
-    backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9,
+    backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
   },
-  feedbackText: { fontSize: 13, color: '#475569', fontStyle: 'italic', flex: 1 },
+  feedbackText: { fontSize: 12, color: '#475569', fontStyle: 'italic', flex: 1 },
 
   paginationCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
