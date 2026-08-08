@@ -5,6 +5,7 @@ import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-nat
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { typography } from '../../theme/typography';
 import { useVendorProfile } from '../../Hooks/useVendorProfile';
 
@@ -22,6 +23,7 @@ function getStatusStyle(status) {
 function Documents({ navigation }) {
   const { profile, loading, actionLoading, uploadDocument, deleteDocument, documentTypes, documentTypesLoading } = useVendorProfile();
   const { showAlert, alertProps } = useAppAlert();
+  const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
   const [documentType, setDocumentType] = useState('');
   const [showTypes, setShowTypes] = useState(false);
 
@@ -131,9 +133,16 @@ function Documents({ navigation }) {
                     </View>
                     {!!doc.rejectionReason && <Text style={styles.rejectionText}>{doc.rejectionReason}</Text>}
                   </View>
-                  <TouchableOpacity onPress={() => handleDelete(doc)} disabled={actionLoading} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="delete-outline" size={22} color="#DC2626" />
-                  </TouchableOpacity>
+                  <View style={styles.docActions}>
+                    {!!doc.url && (
+                      <TouchableOpacity onPress={() => openAttachment(doc.url, typeLabel(doc.documentType))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Icon name="visibility" size={22} color="#2563EB" />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={() => handleDelete(doc)} disabled={actionLoading} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="delete-outline" size={22} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })
@@ -185,6 +194,7 @@ function Documents({ navigation }) {
         </View>
       </ScrollView>
       <AppAlert {...alertProps} />
+      {attachmentPreview}
     </View>
   );
 }
@@ -206,6 +216,7 @@ const styles = StyleSheet.create({
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   docRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   docIconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(217, 70, 37, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  docActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   docInfo: { flex: 1, gap: 6 },
   docName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   statusPill: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },

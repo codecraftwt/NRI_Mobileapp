@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Linking, Alert, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Alert, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
 import { useReports } from '../../Hooks/useReports';
 import { typography } from '../../theme/typography';
@@ -57,6 +58,7 @@ function TicketDetail({ route, navigation }) {
   const { detail: ticket, loading, failed, retry, rate, rateLoading } = useTicketDetail(ticketId);
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
   const report = (ticket && reports.find(r => r.ticketNumber === ticket.ticketNumber)) || ticket?.report || null;
+  const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -84,7 +86,7 @@ function TicketDetail({ route, navigation }) {
 
   const handleViewAttachment = (url) => {
     if (!url) return;
-    Linking.openURL(url).catch(() => Alert.alert('Could Not Open', 'This attachment could not be opened.'));
+    openAttachment(url);
   };
 
   useFocusEffect(
@@ -475,6 +477,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         </View>
       </Modal>
+      {attachmentPreview}
     </View>
   );
 }

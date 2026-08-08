@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Linking, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Linking, Alert, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { typography } from '../../theme/typography';
 import { useToast } from '../../context/ToastContext';
 import { useRmRequestDetail } from '../../Hooks/RM/useRmRequestDetail';
 import { reviewRmReport, sendRmReport } from '../../Redux/slices/rmReportsSlice';
+import { openRemoteFile } from '../../Utils/fileDownload';
 
 const norm = (s) => String(s || '').toLowerCase();
 
@@ -79,6 +80,26 @@ function TicketDetail({ navigation, route }) {
 
   const dispatch = useDispatch();
   const { showToast } = useToast();
+  const token = useSelector(s => s.user.token);
+  const [previewUri, setPreviewUri] = useState(null);
+
+  // Attachments live behind authenticated storage — opening the raw URL in the
+  // browser drops the token and shows a blank page. Images preview in-app (the
+  // Image source carries the Bearer token); other files download with the token.
+  const isImageUrl = (u) => /\.(png|jpe?g|webp|gif|heic|bmp)(\?|$)/i.test(String(u || ''));
+  const openAttachment = async (a) => {
+    if (!a?.url) return;
+    if (isImageUrl(a.url)) {
+      setPreviewUri(a.url);
+      return;
+    }
+    try {
+      showToast('Opening attachment…', 'success');
+      await openRemoteFile({ url: a.url, filename: a.name || 'attachment', token });
+    } catch (e) {
+      showToast(e?.message || 'Could not open the attachment', 'error');
+    }
+  };
 
   const [tab, setTab] = useState('overview');
   const [noteText, setNoteText] = useState('');
@@ -418,7 +439,7 @@ function TicketDetail({ navigation, route }) {
                                 style={styles.attachChip}
                                 activeOpacity={0.8}
                                 disabled={!a.url}
-                                onPress={() => a.url && Linking.openURL(a.url)}
+                                onPress={() => openAttachment(a)}
                               >
                                 <Icon name="attach-file" size={15} color="#2563EB" />
                                 <Text style={styles.attachChipText} numberOfLines={1}>{a.name}</Text>
@@ -617,6 +638,22 @@ function TicketDetail({ navigation, route }) {
           </ScrollView>
         </KeyboardAvoidingView>
       )}
+
+      {/* Attachment image preview */}
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <TouchableOpacity style={styles.previewOverlay} activeOpacity={1} onPress={() => setPreviewUri(null)}>
+          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewUri(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="close" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          {!!previewUri && (
+            <Image
+              source={{ uri: previewUri, headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       {/* Review Report Modal */}
       <Modal visible={reviewVisible} transparent animationType="fade" onRequestClose={() => setReviewVisible(false)}>
@@ -869,6 +906,11 @@ const styles = StyleSheet.create({
   timelineSub: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 4, lineHeight: 18 },
   timelineBy: { fontSize: 11, color: '#94A3B8', marginTop: 6 },
   timelinePlaceholder: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', flex: 1, marginTop: 2 },
+
+  // Attachment image preview
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+  previewClose: { position: 'absolute', top: 48, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
+  previewImage: { width: '92%', height: '80%' },
 
   // Escalate modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', paddingHorizontal: 24 },

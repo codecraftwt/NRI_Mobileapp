@@ -96,3 +96,39 @@ export async function downloadDocumentFile({ url, filename, token }) {
   RNBlobUtil.ios.presentOptionsMenu(path);
   return path;
 }
+
+// Fetches a (possibly auth-protected) file and OPENS it in the OS viewer
+// instead of just saving it — used for viewing attachments (PDF, etc.) where
+// the user expects the document to open, not silently download.
+export async function openRemoteFile({ url, filename, token }) {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'ngrok-skip-browser-warning': 'true',
+  };
+  const res = await RNBlobUtil.fetch('GET', url, headers);
+  const status = res.respInfo?.status;
+  if (status && status >= 400) {
+    let message = `Could not open the file (HTTP ${status}).`;
+    try {
+      const body = await res.json();
+      if (body?.message) message = body.message;
+    } catch {
+      // response wasn't JSON — keep the generic message
+    }
+    throw new Error(message);
+  }
+
+  const mime = res.respInfo?.headers?.['Content-Type'] || res.respInfo?.headers?.['content-type'] || 'application/octet-stream';
+  const finalName = withExtension(filename, mime);
+  const path = `${RNBlobUtil.fs.dirs.CacheDir}/${finalName}`;
+  await RNBlobUtil.fs.writeFile(path, res.base64(), 'base64');
+
+  if (Platform.OS === 'android') {
+    // Opens the file with the user's default viewer via a FileProvider intent.
+    await RNBlobUtil.android.actionViewIntent(path, mime);
+  } else {
+    // Opens the native iOS document preview (Quick Look).
+    RNBlobUtil.ios.previewDocument(path);
+  }
+  return path;
+}

@@ -29,6 +29,7 @@ import { usePropertyDetail } from '../../Hooks/usePropertyDetail';
 import { useStates } from '../../Hooks/useStates';
 import { useDistricts } from '../../Hooks/useDistricts';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
+import { openRemoteFile } from '../../Utils/fileDownload';
 
 const PROPERTY_TYPE_OPTIONS = ['Flat', 'House', 'Farm / Agricultural Land', 'Commercial', 'Plot'];
 const PROPERTY_TYPE_TO_API = { Flat: 'flat', House: 'house', 'Farm / Agricultural Land': 'farm', Commercial: 'commercial', Plot: 'plot' };
@@ -175,6 +176,7 @@ function AttachmentsCard({ propertyId }) {
   const { detail, uploadingAttachment, uploadAttachment, removeAttachment } = usePropertyDetail();
   const attachments = detail?.id === propertyId ? detail.attachments : [];
   const { showAlert, alertProps } = useAppAlert();
+  const token = useSelector(s => s.user.token);
 
   const handleTakePhoto = async () => {
     setShowPhotoModal(false);
@@ -250,6 +252,14 @@ function AttachmentsCard({ propertyId }) {
   const handleView = (a) => {
     if (!a.url) { showAlert('Not Available', 'This attachment has no viewable file.'); return; }
     if (a.type === 'photo') { setPreviewImage({ uri: a.url, name: a.label || 'Photo' }); return; }
+    // Remote docs live behind auth — fetch with the token and open in the OS
+    // viewer (opening the raw URL in the browser drops the token → blank page).
+    // Local picks (file://, content://) still open directly.
+    if (/^https?:/i.test(a.url)) {
+      openRemoteFile({ url: a.url, filename: a.label || 'attachment', token }).catch(() =>
+        showAlert('Could Not Open', 'This attachment could not be opened.'));
+      return;
+    }
     Linking.openURL(a.url).catch(() => showAlert('Could Not Open', 'This attachment could not be opened.'));
   };
 

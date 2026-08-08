@@ -60,10 +60,6 @@ function Profile({ navigation }) {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       {/* Top Blue Header */}
       <View style={styles.topBlueBg}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <Text style={styles.screenTitle}>My Profile</Text>
-        </View>
-
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>

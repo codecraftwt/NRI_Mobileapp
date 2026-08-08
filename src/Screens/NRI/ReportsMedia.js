@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -8,6 +8,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useReports } from '../../Hooks/useReports';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 function formatReportDate(dateStr) {
@@ -22,6 +23,7 @@ function ReportsMedia({ navigation }) {
   const mediaCount = reports.reduce((sum, r) => sum + (r.mediaCount || 0), 0);
   const token = useSelector(state => state.user.token);
   const { showAlert, alertProps } = useAppAlert();
+  const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -44,7 +46,7 @@ function ReportsMedia({ navigation }) {
 
   const handleViewAttachment = (url) => {
     if (!url) return;
-    Linking.openURL(url).catch(() => showAlert('Could Not Open', 'This attachment could not be opened.'));
+    openAttachment(url);
   };
 
   const handleDownload = async (report, media, idx) => {
@@ -220,6 +222,7 @@ function ReportsMedia({ navigation }) {
       </Modal>
 
       <AppAlert {...alertProps} />
+      {attachmentPreview}
     </View>
   );
 }

@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, Linking, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, RefreshControl, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useToast } from '../../context/ToastContext';
 import { useRmReports } from '../../Hooks/RM/useRmReports';
+import { openRemoteFile } from '../../Utils/fileDownload';
 
 const FILTERS = [
   { key: 'pending', label: 'Pending' },
@@ -44,6 +46,25 @@ function Reports({ navigation }) {
   const reports = filter === 'pending' ? fetchedReports.filter(r => !isSent(r)) : fetchedReports;
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
+  const token = useSelector(s => s.user.token);
+  const [previewUri, setPreviewUri] = useState(null);
+
+  // Raw storage URLs open blank in the browser (token isn't sent). Images
+  // preview in-app with the Bearer token; other files download with the token.
+  const isImageUrl = (u) => /\.(png|jpe?g|webp|gif|heic|bmp)(\?|$)/i.test(String(u || ''));
+  const openAttachment = async (a) => {
+    if (!a?.url) return;
+    if (isImageUrl(a.url)) {
+      setPreviewUri(a.url);
+      return;
+    }
+    try {
+      showToast('Opening attachment…', 'success');
+      await openRemoteFile({ url: a.url, filename: a.name || 'attachment', token });
+    } catch (e) {
+      showToast(e?.message || 'Could not open the attachment', 'error');
+    }
+  };
 
   const [reviewFor, setReviewFor] = useState(null); // the report being reviewed
   const [comment, setComment] = useState('');
@@ -150,7 +171,7 @@ function Reports({ navigation }) {
                 {r.attachments?.length > 0 && (
                   <View style={styles.attachWrap}>
                     {r.attachments.map(a => (
-                      <TouchableOpacity key={a.id} style={styles.attachChip} disabled={!a.url} onPress={() => a.url && Linking.openURL(a.url)} activeOpacity={0.8}>
+                      <TouchableOpacity key={a.id} style={styles.attachChip} disabled={!a.url} onPress={() => openAttachment(a)} activeOpacity={0.8}>
                         <Icon name="attach-file" size={14} color="#2563EB" />
                         <Text style={styles.attachChipText} numberOfLines={1}>{a.name}</Text>
                       </TouchableOpacity>
@@ -205,6 +226,22 @@ function Reports({ navigation }) {
           })
         )}
       </ScrollView>
+
+      {/* Attachment image preview */}
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <TouchableOpacity style={styles.previewOverlay} activeOpacity={1} onPress={() => setPreviewUri(null)}>
+          <TouchableOpacity style={styles.previewClose} onPress={() => setPreviewUri(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Icon name="close" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          {!!previewUri && (
+            <Image
+              source={{ uri: previewUri, headers: token ? { Authorization: `Bearer ${token}` } : undefined }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       {/* Review modal */}
       <Modal visible={!!reviewFor} transparent animationType="fade" onRequestClose={() => setReviewFor(null)}>
@@ -292,6 +329,10 @@ const styles = StyleSheet.create({
 
   sentRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   sentRowText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#059669' },
+
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+  previewClose: { position: 'absolute', top: 48, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center', zIndex: 2 },
+  previewImage: { width: '92%', height: '80%' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
   modalCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20 },

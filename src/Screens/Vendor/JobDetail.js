@@ -8,6 +8,7 @@ import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useToast } from '../../context/ToastContext';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
 import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
@@ -35,6 +36,7 @@ function JobDetail({ route, navigation }) {
   const token = useSelector(state => state.user.token);
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
+  const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
   // Accept — ETA commitment
   const [committedEta, setCommittedEta] = useState(null);
@@ -402,7 +404,7 @@ function JobDetail({ route, navigation }) {
                 <TouchableOpacity
                   key={doc.id ?? idx}
                   style={styles.docRow}
-                  onPress={() => doc.url && Linking.openURL(doc.url).catch(() => showAlert('Could Not Open', 'Unable to open this document.'))}
+                  onPress={() => openAttachment(doc.url, doc.name)}
                   activeOpacity={0.7}
                   disabled={!doc.url}
                 >
@@ -635,7 +637,7 @@ function JobDetail({ route, navigation }) {
                 {job.reportMedia.map((url, i) => {
                   const isPdf = /\.pdf(\?|$)/i.test(url);
                   return (
-                    <TouchableOpacity key={i} style={styles.pdfThumb} onPress={() => Linking.openURL(url)} activeOpacity={0.7}>
+                    <TouchableOpacity key={i} style={styles.pdfThumb} onPress={() => openAttachment(url)} activeOpacity={0.7}>
                       <Icon name={isPdf ? 'picture-as-pdf' : 'image'} size={26} color="#64748B" />
                       <Text style={styles.pdfThumbText}>{isPdf ? 'PDF' : 'IMG'}</Text>
                     </TouchableOpacity>
@@ -740,6 +742,7 @@ function JobDetail({ route, navigation }) {
         </TouchableOpacity>
       </ScrollView>
       <AppAlert {...alertProps} />
+      {attachmentPreview}
     </View>
   );
 }
