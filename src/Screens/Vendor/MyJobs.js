@@ -33,10 +33,11 @@ function getPriorityStyle(priority) {
 
 function MyJobs({ navigation }) {
   const [activeTab, setActiveTab] = useState('all');
-  const { jobs, counts, meta, loading, failed, error, fetch, retry } = useVendorJobs({ page: 1 });
+  const { jobs, counts, meta, loading, loadingMore, failed, error, fetch, retry } = useVendorJobs({ page: 1 });
 
   const currentPage = meta.currentPage;
   const totalPages = meta.lastPage || 1;
+  const hasMore = currentPage < totalPages;
 
   const getTabCount = (tabKey) => {
     if (tabKey === 'all') return (counts.assigned || 0) + (counts.in_progress || 0) + (counts.completed || 0);
@@ -45,12 +46,12 @@ function MyJobs({ navigation }) {
 
   const activeQuery = TABS.find(t => t.key === activeTab)?.query;
 
-  // Refresh on focus so job-status changes made in JobDetail (accept / reject /
-  // complete) are reflected when returning to the list. `fetch` is a fresh
-  // reference each render, so it's kept out of deps to avoid a refetch loop.
+  // Refresh from page 1 on focus so job-status changes made in JobDetail
+  // (accept / reject / complete) are reflected when returning to the list.
+  // `fetch` is a fresh reference each render, so it's kept out of deps.
   useFocusEffect(
     useCallback(() => {
-      fetch({ status: activeQuery, page: currentPage });
+      fetch({ status: activeQuery, page: 1 });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab])
   );
@@ -60,8 +61,17 @@ function MyJobs({ navigation }) {
     fetch({ status: tab.query, page: 1 });
   };
 
-  const goToPage = (p) => {
-    fetch({ status: activeQuery, page: p });
+  // Infinite scroll: pull the next page (appended by the slice) only when there
+  // is one and nothing is already in flight — one API call per page, as needed.
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    fetch({ status: activeQuery, page: currentPage + 1 });
+  };
+
+  const handleScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const distanceFromBottom = contentSize.height - (layoutMeasurement.height + contentOffset.y);
+    if (distanceFromBottom < 240) loadMore();
   };
 
   return (
@@ -93,7 +103,13 @@ function MyJobs({ navigation }) {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleScroll}
+      >
         {loading ? (
           <View style={styles.emptyState}>
             <ActivityIndicator size="small" color="#D94625" />
@@ -163,30 +179,11 @@ function MyJobs({ navigation }) {
               );
             })}
 
-            <View style={styles.paginationRow}>
-              <Text style={styles.paginationInfo}>
-                Showing {((currentPage - 1) * meta.perPage) + 1} to {Math.min(currentPage * meta.perPage, meta.total)} of {meta.total} entries
-              </Text>
-              <View style={styles.paginationControls}>
-                <TouchableOpacity
-                  style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
-                  onPress={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <Icon name="chevron-left" size={20} color={currentPage === 1 ? '#CBD5E1' : '#64748B'} />
-                </TouchableOpacity>
-                <View style={styles.pageNumActive}>
-                  <Text style={styles.pageNumActiveText}>{currentPage}</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.pageBtn, currentPage === totalPages && styles.pageBtnDisabled]}
-                  onPress={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  <Icon name="chevron-right" size={20} color={currentPage === totalPages ? '#CBD5E1' : '#64748B'} />
-                </TouchableOpacity>
+            {loadingMore && (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color="#D94625" />
               </View>
-            </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -254,21 +251,7 @@ const styles = StyleSheet.create({
   viewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   viewBtnText: { fontSize: 12, fontWeight: '700', color: '#D94625' },
 
-  paginationRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingHorizontal: 4,
-  },
-  paginationInfo: { fontSize: 12, color: '#94A3B8' },
-  paginationControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pageBtn: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF',
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  pageBtnDisabled: { backgroundColor: '#F8FAFC' },
-  pageNumActive: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#D94625',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  pageNumActiveText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  footerLoader: { paddingVertical: 16, alignItems: 'center' },
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },

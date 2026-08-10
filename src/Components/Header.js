@@ -9,7 +9,7 @@ const HEADER_PADDING_TOP = STATUS_BAR_HEIGHT;
 const HEADER_CONTENT_HEIGHT = 46;
 const HEADER_HEIGHT = STATUS_BAR_HEIGHT + HEADER_CONTENT_HEIGHT;
 
-function Header({ navigation, title, showBack, isTabRoot }) {
+function Header({ navigation, title, showBack, isTabRoot, onBack }) {
   const isDashboard = !showBack && !isTabRoot && !title;
 
   if (isDashboard) {
@@ -40,7 +40,7 @@ function Header({ navigation, title, showBack, isTabRoot }) {
     <View style={styles.container}>
       <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent />
       {showBack ? (
-        <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => (onBack ? onBack() : navigation.goBack())}>
           <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.backIcon} />
         </TouchableOpacity>
       ) : (

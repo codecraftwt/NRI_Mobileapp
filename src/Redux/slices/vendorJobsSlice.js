@@ -74,6 +74,9 @@ const initialState = {
   counts: { assigned: 0, in_progress: 0, completed: 0 },
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   status: 'idle',
+  // Separate flag for appending later pages (infinite scroll) so the visible
+  // list isn't replaced by the full-screen loader while page 2+ loads.
+  loadingMore: false,
   error: null,
 
   detail: null,
@@ -103,18 +106,32 @@ const vendorJobsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchVendorJobs.pending, (state) => {
-        state.status = 'loading';
+      .addCase(fetchVendorJobs.pending, (state, action) => {
+        // page > 1 is a "load more" — keep the current list on screen and only
+        // flip the footer spinner; page 1 (or unspecified) is a fresh load.
+        const page = action.meta.arg?.page ?? 1;
+        if (page > 1) state.loadingMore = true;
+        else state.status = 'loading';
         state.error = null;
       })
       .addCase(fetchVendorJobs.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.jobs = action.payload.jobs;
+        state.loadingMore = false;
+        const page = action.payload.meta?.currentPage ?? 1;
+        if (page > 1) {
+          // Append, skipping any ids already in the list (defensive against
+          // overlap between pages).
+          const seen = new Set(state.jobs.map(j => j.id));
+          state.jobs = [...state.jobs, ...action.payload.jobs.filter(j => !seen.has(j.id))];
+        } else {
+          state.jobs = action.payload.jobs;
+        }
         state.counts = action.payload.counts;
         state.meta = action.payload.meta;
       })
       .addCase(fetchVendorJobs.rejected, (state, action) => {
-        state.status = 'failed';
+        state.status = state.loadingMore ? 'succeeded' : 'failed';
+        state.loadingMore = false;
         state.error = action.payload;
       })
       .addCase(fetchVendorJobDetail.pending, (state) => {

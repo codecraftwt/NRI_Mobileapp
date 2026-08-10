@@ -9,6 +9,7 @@ export function useVendorJobs({ status, page = 1 } = {}) {
   const counts = useSelector(state => state.vendorJobs.counts);
   const meta = useSelector(state => state.vendorJobs.meta);
   const reqStatus = useSelector(state => state.vendorJobs.status);
+  const loadingMore = useSelector(state => state.vendorJobs.loadingMore);
   const error = useSelector(state => state.vendorJobs.error);
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export function useVendorJobs({ status, page = 1 } = {}) {
     counts,
     meta,
     loading: reqStatus === 'loading',
+    loadingMore,
     failed: reqStatus === 'failed',
     error,
     fetch: (params) => dispatch(fetchVendorJobs(params)),
