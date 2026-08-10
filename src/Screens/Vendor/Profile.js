@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useVendorProfile } from '../../Hooks/Vendor/useVendorProfile';
 import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto } from '../../Redux/slices/userSlice';
 
 const initialsFor = (name) => (name || 'V').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();

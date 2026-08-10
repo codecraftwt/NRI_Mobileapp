@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Activi
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
-import { useVendorJobs } from '../../Hooks/useVendorJobs';
+import { useVendorJobs } from '../../Hooks/Vendor/useVendorJobs';
 
 const TABS = [
   { key: 'all', label: 'All', query: undefined },

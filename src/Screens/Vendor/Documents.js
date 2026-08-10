@@ -7,7 +7,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { typography } from '../../theme/typography';
-import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useVendorProfile } from '../../Hooks/Vendor/useVendorProfile';
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 

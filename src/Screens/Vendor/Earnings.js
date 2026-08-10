@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, ScrollView, StatusBar, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
-import { useVendorEarnings } from '../../Hooks/useVendorEarnings';
+import { useVendorEarnings } from '../../Hooks/Vendor/useVendorEarnings';
 
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

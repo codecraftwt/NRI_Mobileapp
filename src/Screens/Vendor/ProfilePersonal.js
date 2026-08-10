@@ -4,7 +4,7 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useVendorProfile } from '../../Hooks/Vendor/useVendorProfile';
 
 function ProfilePersonal({ navigation }) {
   const { profile, loading, actionLoading, updateProfile } = useVendorProfile();

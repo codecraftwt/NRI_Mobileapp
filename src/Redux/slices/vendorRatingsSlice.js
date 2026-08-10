@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import * as vendorRatingsApi from '../../Api/vendorRatingsApi';
+import * as vendorRatingsApi from '../../Api/Vendor/vendorRatingsApi';
 
 export const fetchVendorRatings = createAsyncThunk('vendorRatings/fetchAll', async (params, { rejectWithValue }) => {
   try {

@@ -4,8 +4,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
-import { useVendorSupport } from '../../Hooks/useVendorSupport';
-import { useVendorJobs } from '../../Hooks/useVendorJobs';
+import { useVendorSupport } from '../../Hooks/Vendor/useVendorSupport';
+import { useVendorJobs } from '../../Hooks/Vendor/useVendorJobs';
 
 // The dispute can optionally be tied to one of the vendor's jobs (sends
 // `ticket_id`). Default is a general payout/account issue (no ticket_id).

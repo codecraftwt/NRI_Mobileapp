@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError } from '../client';
 
 // Field names for the disputes list aren't fully pinned down in the backend's
 // OpenAPI schema (the GET only documents "Paginated disputes"), so this mapper

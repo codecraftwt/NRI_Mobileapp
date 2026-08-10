@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, ScrollView, ActivityIndicator, TouchableOpacity
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { typography } from '../../theme/typography';
-import { useVendorProfile, useVendorRates } from '../../Hooks/useVendorProfile';
+import { useVendorProfile, useVendorRates } from '../../Hooks/Vendor/useVendorProfile';
 import { getServiceGroups } from '../../Api/catalogApi';
 
 const formatRate = (v) => (v == null ? '—' : `₹${Number(v).toLocaleString('en-IN')}`);

@@ -9,8 +9,8 @@ import { typography } from '../../theme/typography';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useToast } from '../../context/ToastContext';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
-import { useVendorJobDetail } from '../../Hooks/useVendorJobDetail';
-import { getVendorJobInvoiceUrl } from '../../Api/vendorJobsApi';
+import { useVendorJobDetail } from '../../Hooks/Vendor/useVendorJobDetail';
+import { getVendorJobInvoiceUrl } from '../../Api/Vendor/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 // Completion proof: up to 8 files, 25 MB each (per the /complete endpoint).

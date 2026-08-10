@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
-import { useVendorSupport } from '../../Hooks/useVendorSupport';
+import { useVendorSupport } from '../../Hooks/Vendor/useVendorSupport';
 
 function getStatusPill(status) {
   switch (String(status || '').toLowerCase()) {

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchVendorDashboard } from '../Redux/slices/vendorDashboardSlice';
+import { fetchVendorDashboard } from '../../Redux/slices/vendorDashboardSlice';
 
 export function useVendorDashboard() {
   const dispatch = useDispatch();

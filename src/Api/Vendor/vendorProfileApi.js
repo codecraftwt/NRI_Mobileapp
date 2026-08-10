@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError } from '../client';
 
 function mapGeoRef(raw) {
   if (!raw) return null;

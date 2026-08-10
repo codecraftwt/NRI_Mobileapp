@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchVendorJobs } from '../Redux/slices/vendorJobsSlice';
+import { fetchVendorJobs } from '../../Redux/slices/vendorJobsSlice';
 
 // status: undefined (all) | 'assigned' | 'in_progress' | 'completed'
 export function useVendorJobs({ status, page = 1 } = {}) {

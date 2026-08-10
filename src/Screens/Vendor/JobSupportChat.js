@@ -5,7 +5,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { getVendorJobSupportChat, sendVendorJobSupportChat } from '../../Api/vendorJobsApi';
+import { getVendorJobSupportChat, sendVendorJobSupportChat } from '../../Api/Vendor/vendorJobsApi';
 import { typography } from '../../theme/typography';
 
 function getStatusPill(statusLabel) {

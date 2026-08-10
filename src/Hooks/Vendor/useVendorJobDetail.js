@@ -8,7 +8,7 @@ import {
   completeJob,
   addReportAttachments,
   saveTracking,
-} from '../Redux/slices/vendorJobsSlice';
+} from '../../Redux/slices/vendorJobsSlice';
 
 export function useVendorJobDetail(ticket) {
   const dispatch = useDispatch();

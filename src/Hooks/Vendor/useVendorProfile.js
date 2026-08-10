@@ -8,7 +8,7 @@ import {
   updateVendorAvailability,
   uploadVendorDocument,
   deleteVendorDocument,
-} from '../Redux/slices/vendorProfileSlice';
+} from '../../Redux/slices/vendorProfileSlice';
 
 // Vendor profile (contact, bank, services, availability, documents) with the
 // mutations for each section. Auto-fetches the profile on mount.

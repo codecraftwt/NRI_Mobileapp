@@ -4,8 +4,8 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
-import { useVendorPayoutDetail } from '../../Hooks/useVendorEarnings';
-import { getVendorPayoutInvoiceUrl } from '../../Api/vendorEarningsApi';
+import { useVendorPayoutDetail } from '../../Hooks/Vendor/useVendorEarnings';
+import { getVendorPayoutInvoiceUrl } from '../../Api/Vendor/vendorEarningsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

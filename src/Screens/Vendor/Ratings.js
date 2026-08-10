@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, StatusBar, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
-import { useVendorRatings } from '../../Hooks/useVendorRatings';
+import { useVendorRatings } from '../../Hooks/Vendor/useVendorRatings';
 
 // Colour-code the composite score so strong/weak jobs read at a glance.
 function scoreStyle(value) {

@@ -5,7 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
-import { useVendorProfile } from '../../Hooks/useVendorProfile';
+import { useVendorProfile } from '../../Hooks/Vendor/useVendorProfile';
 
 // yyyy-mm-dd → Date (local); Date → yyyy-mm-dd (API) / dd-mm-yyyy (display).
 const parseApiDate = (s) => {

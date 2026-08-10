@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchVendorEarnings, fetchVendorPayoutDetail, clearPayoutDetail } from '../Redux/slices/vendorEarningsSlice';
+import { fetchVendorEarnings, fetchVendorPayoutDetail, clearPayoutDetail } from '../../Redux/slices/vendorEarningsSlice';
 
 // status: undefined (all) | 'pending' | 'processed' | 'paid'
 export function useVendorEarnings({ status, page = 1 } = {}) {

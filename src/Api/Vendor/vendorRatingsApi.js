@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError } from '../client';
 
 // Response field names aren't fully pinned in the backend's OpenAPI schema
 // (only "data.summary + data.ratings"), so these mappers stay tolerant across

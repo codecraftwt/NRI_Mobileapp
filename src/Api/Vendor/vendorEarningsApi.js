@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, API_BASE_URL } from './client';
+import apiClient, { normalizeApiError, API_BASE_URL } from '../client';
 
 // Response field names aren't fully pinned in the OpenAPI schema, so these
 // mappers stay tolerant across a few plausible snake_case shapes — consistent

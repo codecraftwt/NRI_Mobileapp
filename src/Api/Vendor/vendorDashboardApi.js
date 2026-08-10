@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError } from '../client';
 import { mapJob } from './vendorJobsApi';
 
 // Response field names aren't fully pinned in the backend's OpenAPI schema, so

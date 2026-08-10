@@ -1,5 +1,5 @@
-import apiClient, { normalizeApiError, API_BASE_URL } from './client';
-import { mapSupportTicket, mapSupportReply } from './supportTicketApi';
+import apiClient, { normalizeApiError, API_BASE_URL } from '../client';
+import { mapSupportTicket, mapSupportReply } from '../supportTicketApi';
 
 // Response field names aren't fully pinned in the backend's OpenAPI schema, so
 // these mappers stay tolerant across a few plausible snake_case shapes —

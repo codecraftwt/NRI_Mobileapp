@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchVendorDisputes, raiseVendorDispute, resetRaiseStatus } from '../Redux/slices/vendorSupportSlice';
+import { fetchVendorDisputes, raiseVendorDispute, resetRaiseStatus } from '../../Redux/slices/vendorSupportSlice';
 
 export function useVendorSupport(page = 1) {
   const dispatch = useDispatch();

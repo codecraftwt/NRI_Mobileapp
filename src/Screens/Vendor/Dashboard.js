@@ -4,9 +4,9 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { useVendorRatings } from '../../Hooks/useVendorRatings';
-import { useVendorProfile } from '../../Hooks/useVendorProfile';
-import { useVendorDashboard } from '../../Hooks/useVendorDashboard';
+import { useVendorRatings } from '../../Hooks/Vendor/useVendorRatings';
+import { useVendorProfile } from '../../Hooks/Vendor/useVendorProfile';
+import { useVendorDashboard } from '../../Hooks/Vendor/useVendorDashboard';
 import { useNotifications } from '../../Hooks/useNotifications';
 
 const QUICK_ACTIONS = [
