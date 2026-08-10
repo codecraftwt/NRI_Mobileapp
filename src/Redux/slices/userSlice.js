@@ -147,6 +147,21 @@ export const removeUserProfilePhoto = createAsyncThunk(
   }
 );
 
+// Deletes (or archives) the signed-in account after confirming the current
+// password. The server revokes every token — including this session's — so on
+// success we clear the local session exactly like logout. A wrong password /
+// blocked deletion comes back as a 422 and is surfaced to the UI.
+export const deleteAccount = createAsyncThunk(
+  'user/deleteAccount',
+  async ({ currentPassword }, { rejectWithValue }) => {
+    try {
+      return await authApi.deleteAccount({ currentPassword });
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const changeUserPassword = createAsyncThunk(
   'user/changePassword',
   async ({ currentPassword, password, passwordConfirmation }, { rejectWithValue }) => {
@@ -230,6 +245,8 @@ const initialState = {
   removePhotoError: null,
   changePasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   changePasswordError: null,
+  deleteAccountStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  deleteAccountError: null,
   forgotPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   forgotPasswordError: null,
   resetPasswordStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
@@ -414,6 +431,25 @@ const userSlice = createSlice({
       .addCase(removeUserProfilePhoto.rejected, (state, action) => {
         state.removePhotoStatus = 'failed';
         state.removePhotoError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+      })
+      .addCase(deleteAccount.pending, (state) => {
+        state.deleteAccountStatus = 'loading';
+        state.deleteAccountError = null;
+      })
+      .addCase(deleteAccount.fulfilled, (state) => {
+        // Server revoked all tokens — drop the local session (same as logout).
+        state.deleteAccountStatus = 'idle';
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.registerStatus = 'idle';
+        state.registerError = null;
+        state.loginStatus = 'idle';
+        state.loginError = null;
+      })
+      .addCase(deleteAccount.rejected, (state, action) => {
+        state.deleteAccountStatus = 'failed';
+        state.deleteAccountError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
       .addCase(changeUserPassword.pending, (state) => {
         state.changePasswordStatus = 'loading';

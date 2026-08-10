@@ -65,6 +65,10 @@ function SupportTicketChat({ route, navigation }) {
   const [paidReplyIds, setPaidReplyIds] = useState(() => new Set());
   const user = useSelector(s => s.user.user);
   const scrollRef = useRef(null);
+  // Keep the latest `retry` in a ref so the focus-effect poll always calls the
+  // current version without re-subscribing the interval each render.
+  const retryRef = useRef(retry);
+  useEffect(() => { retryRef.current = retry; }, [retry]);
 
   // Paid ticket ids from the billing overview (is_paid === true) — the
   // authoritative "has this plan been paid?" source.
@@ -99,9 +103,15 @@ function SupportTicketChat({ route, navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (ticketId) retry();
+      if (ticketId) retryRef.current?.();
       // Refresh billing too so a just-paid plan reflects immediately.
       refreshBilling();
+      // Poll while the screen is focused so replies received in real time show
+      // up without having to leave and re-open the chat. Cleared on blur.
+      const intervalId = setInterval(() => {
+        if (ticketId) retryRef.current?.();
+      }, 8000);
+      return () => clearInterval(intervalId);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticketId])
   );
@@ -192,7 +202,9 @@ function SupportTicketChat({ route, navigation }) {
     );
   }
 
-  if (failed || !ticket) {
+  // Only surface the error/not-found screen when there's no thread to show. Once
+  // a ticket is loaded, a failed background poll keeps the chat on screen.
+  if (!ticket) {
     return (
       <View style={styles.container}>
         <Header navigation={navigation} title="Support Ticket" showBack />

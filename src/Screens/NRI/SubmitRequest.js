@@ -379,7 +379,11 @@ function SubmitRequest({ navigation }) {
         text: 'Track my Request',
         onPress: () => {
           setGoServicesOnAlertClose(false);
+          // Cart lives in the Services tab stack. Open the Requests tab to track,
+          // then reset the Services stack back to its list root so leaving the
+          // tracking screen doesn't drop the user back on this now-empty cart.
           navigation.navigate('Requests');
+          navigation.popToTop();
         },
       },
     ]);

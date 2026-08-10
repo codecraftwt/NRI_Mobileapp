@@ -30,6 +30,9 @@ const initialState = {
   tickets: [],
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   status: 'idle',
+  // Separate flag for appending later pages (infinite scroll) so the visible
+  // list isn't replaced by the full-screen loader while page 2+ loads.
+  loadingMore: false,
   error: null,
   detail: null,
   detailStatus: 'idle',
@@ -44,17 +47,31 @@ const myTicketsSlice = createSlice({
   reducers: {},
   extraReducers: (builder) => {
     builder
-      .addCase(fetchMyTickets.pending, (state) => {
-        state.status = 'loading';
+      .addCase(fetchMyTickets.pending, (state, action) => {
+        // page > 1 is a "load more" — keep the current list on screen and only
+        // flip the footer spinner; page 1 (or unspecified) is a fresh load.
+        const page = action.meta.arg?.page ?? 1;
+        if (page > 1) state.loadingMore = true;
+        else state.status = 'loading';
         state.error = null;
       })
       .addCase(fetchMyTickets.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.tickets = action.payload.tickets;
+        state.loadingMore = false;
+        const page = action.payload.meta?.currentPage ?? 1;
+        if (page > 1) {
+          // Append, skipping any ids already loaded (defensive against overlap).
+          const seen = new Set(state.tickets.map(t => t.id));
+          state.tickets = [...state.tickets, ...action.payload.tickets.filter(t => !seen.has(t.id))];
+        } else {
+          state.tickets = action.payload.tickets;
+        }
         state.meta = action.payload.meta;
       })
       .addCase(fetchMyTickets.rejected, (state, action) => {
-        state.status = 'failed';
+        // A failed "load more" keeps the existing list; only a fresh load fails.
+        state.status = state.loadingMore ? 'succeeded' : 'failed';
+        state.loadingMore = false;
         state.error = action.payload;
       })
       .addCase(fetchTicketDetail.pending, (state) => {

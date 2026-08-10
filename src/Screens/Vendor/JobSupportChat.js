@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -35,6 +35,8 @@ function JobSupportChat({ route, navigation }) {
   const [failed, setFailed] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  useEffect(() => { sendingRef.current = sending; }, [sending]);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -49,7 +51,27 @@ function JobSupportChat({ route, navigation }) {
     }
   }, [ticketId]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Silent background refresh — no loading/failed toggles, so a transient error
+  // never blanks an already-loaded thread.
+  const silentRefresh = useCallback(async () => {
+    try {
+      const res = await getVendorJobSupportChat(ticketId);
+      setChat(res.chat);
+      setReplies(res.replies);
+    } catch (e) { /* keep showing the current thread */ }
+  }, [ticketId]);
+
+  // Poll while focused so replies received in real time appear without leaving
+  // and re-opening the chat. Skips while a send is in flight.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      const intervalId = setInterval(() => {
+        if (!sendingRef.current) silentRefresh();
+      }, 8000);
+      return () => clearInterval(intervalId);
+    }, [load, silentRefresh])
+  );
 
   // A message sits on the right when it's the vendor's own — trust the forced
   // flag on a just-sent reply, else match the logged-in vendor by id/name.

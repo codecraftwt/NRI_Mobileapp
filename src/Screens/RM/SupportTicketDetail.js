@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -64,6 +64,8 @@ function SupportTicketDetail({ route, navigation }) {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [statusPickerVisible, setStatusPickerVisible] = useState(false);
   const scrollRef = useRef(null);
+  const sendingRef = useRef(false);
+  useEffect(() => { sendingRef.current = sending; }, [sending]);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -79,7 +81,29 @@ function SupportTicketDetail({ route, navigation }) {
     }
   }, [ticketId]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Silent background refresh — updates thread + replies without toggling
+  // loading/failed (so a transient error never blanks the thread) and without
+  // touching selectedStatus (so a mid-change status pick isn't clobbered).
+  const silentRefresh = useCallback(async () => {
+    try {
+      const res = await getRmSupportTicketDetail(ticketId);
+      setTicket(res.ticket);
+      setReplies(res.replies);
+    } catch (e) { /* keep showing the current thread */ }
+  }, [ticketId]);
+
+  // Poll while focused so replies received in real time appear without leaving
+  // and re-opening the ticket. Skips while a send is in flight so the optimistic
+  // reply isn't clobbered.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      const intervalId = setInterval(() => {
+        if (!sendingRef.current) silentRefresh();
+      }, 8000);
+      return () => clearInterval(intervalId);
+    }, [load, silentRefresh])
+  );
 
   // The RM's own replies sit on the right — trust the forced flag on a just-sent
   // reply, else match the logged-in RM by id/name. Customer (and admin) replies

@@ -63,9 +63,23 @@ function HorizontalProgressBar({ statusLabel }) {
 }
 
 function Requests({ navigation }) {
-  const { tickets, meta, loading, failed, retry, fetchPage } = useMyTickets();
+  const { tickets, meta, loading, loadingMore, failed, retry, fetchPage } = useMyTickets();
   const [activeTab, setActiveTab] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Infinite scroll: pull the next page (appended by the slice) only when there
+  // is one and nothing is already in flight — one API call per page, as needed.
+  const loadMore = () => {
+    if (loading || loadingMore || refreshing) return;
+    if (meta.currentPage >= meta.lastPage) return;
+    fetchPage(meta.currentPage + 1, STATUS_BY_TAB[activeTab]);
+  };
+
+  const handleScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const distanceFromBottom = contentSize.height - (layoutMeasurement.height + contentOffset.y);
+    if (distanceFromBottom < 240) loadMore();
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -114,9 +128,12 @@ function Requests({ navigation }) {
         </View>
       )}
 
-      <ScrollView 
-        contentContainerStyle={[styles.scrollContent, tickets.length === 0 && { flexGrow: 1 }]} 
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, tickets.length === 0 && { flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleScroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
         {loading && tickets.length === 0 && (
@@ -184,23 +201,9 @@ function Requests({ navigation }) {
           );
         })}
 
-        {filteredTickets.length > 0 && meta.lastPage > 1 && (
-          <View style={styles.pagerRow}>
-            <TouchableOpacity
-              style={[styles.pagerBtn, meta.currentPage <= 1 && styles.pagerBtnDisabled]}
-              disabled={meta.currentPage <= 1}
-              onPress={() => fetchPage(meta.currentPage - 1)}
-            >
-              <Icon name="chevron-left" size={24} color="#333" />
-            </TouchableOpacity>
-            <Text style={styles.pagerText}>Page {meta.currentPage} of {meta.lastPage}</Text>
-            <TouchableOpacity
-              style={[styles.pagerBtn, meta.currentPage >= meta.lastPage && styles.pagerBtnDisabled]}
-              disabled={meta.currentPage >= meta.lastPage}
-              onPress={() => fetchPage(meta.currentPage + 1)}
-            >
-              <Icon name="chevron-right" size={24} color="#333" />
-            </TouchableOpacity>
+        {loadingMore && (
+          <View style={styles.footerLoader}>
+            <ActivityIndicator size="small" color="#D94625" />
           </View>
         )}
       </ScrollView>
@@ -268,10 +271,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
   emptyText: { fontSize: 14, color: '#64748B' },
   
-  pagerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 24, paddingTop: 16 },
-  pagerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  pagerBtnDisabled: { opacity: 0.3 },
-  pagerText: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
+  footerLoader: { paddingVertical: 16, alignItems: 'center' },
 });
 
 export default Requests;

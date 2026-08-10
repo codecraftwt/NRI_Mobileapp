@@ -7,6 +7,7 @@ export function useMyTickets(page = 1, perPage) {
   const tickets = useSelector(state => state.myTickets.tickets);
   const meta = useSelector(state => state.myTickets.meta);
   const status = useSelector(state => state.myTickets.status);
+  const loadingMore = useSelector(state => state.myTickets.loadingMore);
   const error = useSelector(state => state.myTickets.error);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ export function useMyTickets(page = 1, perPage) {
     tickets,
     meta,
     loading: status === 'loading',
+    loadingMore,
     failed: status === 'failed',
     error,
     fetchPage: (p, status) => dispatch(fetchMyTickets({ page: p, perPage, status })),

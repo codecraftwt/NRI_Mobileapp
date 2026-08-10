@@ -334,6 +334,25 @@ export async function removeProfilePhoto() {
   }
 }
 
+// DELETE /auth/account — delete the signed-in account, confirmed by the current
+// password. The account is permanently removed when nothing else references it,
+// otherwise it's archived (soft-deleted) so linked records stay valid. Either
+// way ALL of the account's tokens (including this request's) are revoked
+// server-side. 422 on a wrong password or when deletion is blocked (e.g. the
+// sole remaining super-admin). Returns { deleted } — true = removed, false =
+// archived.
+export async function deleteAccount({ currentPassword }) {
+  try {
+    const response = await apiClient.delete('/auth/account', {
+      data: { current_password: currentPassword },
+    });
+    const data = response.data?.data || response.data || {};
+    return { deleted: !!data.deleted, message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 export async function changePassword({ currentPassword, password, passwordConfirmation }) {
   try {
     await apiClient.post('/auth/change-password', {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Alert, Platform, PermissionsAndroid, Linking, Image, Dimensions, Modal, Animated, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -9,7 +9,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser } from '../../Redux/slices/userSlice';
+import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser, deleteAccount } from '../../Redux/slices/userSlice';
 import { useReferrals } from '../../Hooks/useReferrals';
 import { useToast } from '../../context/ToastContext';
 
@@ -26,8 +26,13 @@ function Profile({ navigation }) {
   const user = useSelector(state => state.user.user);
   const uploadingPhoto = useSelector(state => state.user.uploadPhotoStatus === 'loading');
   const removingPhoto = useSelector(state => state.user.removePhotoStatus === 'loading');
+  const deletingAccount = useSelector(state => state.user.deleteAccountStatus === 'loading');
   const dispatch = useDispatch();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const { referralCode } = useReferrals();
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
@@ -173,6 +178,36 @@ function Profile({ navigation }) {
     ]);
   };
 
+  const openDeleteModal = () => {
+    setDeletePassword('');
+    setShowDeletePassword(false);
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAccount = () => {
+    if (!deletePassword.trim()) {
+      setDeleteError('Please enter your current password to confirm.');
+      return;
+    }
+    setDeleteError(null);
+    dispatch(deleteAccount({ currentPassword: deletePassword }))
+      .unwrap()
+      .then((res) => {
+        setShowDeleteModal(false);
+        setDeletePassword('');
+        showToast(res?.deleted ? 'Your account has been deleted.' : 'Your account has been deactivated.', 'success');
+        // Session already cleared in the slice — return to the app's start.
+        let root = navigation;
+        while (root.getParent()) root = root.getParent();
+        root.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+      })
+      .catch((error) => {
+        // 422 = wrong password or deletion blocked (e.g. sole super-admin).
+        setDeleteError(error?.message || 'Could not delete your account. Please try again.');
+      });
+  };
+
   return (
     <View style={styles.container}>
       {/* Top Blue Header */}
@@ -266,6 +301,11 @@ function Profile({ navigation }) {
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
           <Text style={styles.logoutBtnText}>Sign Out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteBtn} onPress={openDeleteModal} activeOpacity={0.85}>
+          <Icon name="delete-outline" size={18} color="#DC2626" />
+          <Text style={styles.deleteBtnText}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <Modal visible={showPhotoModal} transparent animationType="slide" onRequestClose={() => setShowPhotoModal(false)}>
@@ -304,6 +344,61 @@ function Profile({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      {/* Delete account — password-confirmed, destructive */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => !deletingAccount && setShowDeleteModal(false)}>
+        <KeyboardAvoidingView style={styles.deleteOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.deleteCard}>
+            <View style={styles.deleteIconWrap}>
+              <Icon name="warning-amber" size={28} color="#DC2626" />
+            </View>
+            <Text style={styles.deleteTitle}>Delete Account</Text>
+            <Text style={styles.deleteMsg}>
+              This permanently deletes your account. If it's linked to existing records it's deactivated instead. This can't be undone. Enter your password to confirm.
+            </Text>
+
+            <View style={styles.deleteInputRow}>
+              <TextInput
+                style={styles.deleteInput}
+                placeholder="Current password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={!showDeletePassword}
+                autoCapitalize="none"
+                value={deletePassword}
+                editable={!deletingAccount}
+                onChangeText={(t) => { setDeletePassword(t); if (deleteError) setDeleteError(null); }}
+              />
+              <TouchableOpacity onPress={() => setShowDeletePassword(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name={showDeletePassword ? 'visibility-off' : 'visibility'} size={20} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            {!!deleteError && <Text style={styles.deleteErrorText}>{deleteError}</Text>}
+
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteActionBtn, styles.deleteConfirmBtn, deletingAccount && styles.deleteConfirmBtnDisabled]}
+                onPress={confirmDeleteAccount}
+                disabled={deletingAccount}
+                activeOpacity={0.85}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <AppAlert {...alertProps} />
     </View>
   );
@@ -492,6 +587,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   logoutBtnText: { fontSize: 16, fontWeight: '700', color: '#A64416' },
+
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    marginTop: 12,
+  },
+  deleteBtnText: { fontSize: 16, fontWeight: '700', color: '#DC2626' },
+
+  // Delete-account confirm dialog
+  deleteOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  deleteCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center' },
+  deleteIconWrap: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  deleteTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', textAlign: 'center' },
+  deleteMsg: { fontSize: 13.5, color: '#64748B', textAlign: 'center', lineHeight: 20, marginTop: 8, marginBottom: 18 },
+  deleteInputRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 50 },
+  deleteInput: { flex: 1, fontSize: 15, color: '#1E293B', height: '100%' },
+  deleteErrorText: { alignSelf: 'flex-start', fontSize: 12, color: '#DC2626', marginTop: 8 },
+  deleteActions: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
+  deleteActionBtn: { flex: 1, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  deleteCancelBtn: { backgroundColor: '#F1F5F9' },
+  deleteCancelText: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  deleteConfirmBtn: { backgroundColor: '#DC2626' },
+  deleteConfirmBtnDisabled: { opacity: 0.7 },
+  deleteConfirmText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, paddingTop: 12 },
