@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -21,6 +21,27 @@ const C = {
 const colors = C;
 
 const { width: W, height: H } = Dimensions.get('window');
+
+// Shared centered dialog for all the pickers. On iOS the card is lifted above
+// the keyboard with KeyboardAvoidingView (padding); on Android we let the OS
+// handle it via the manifest's adjustResize — adding KeyboardAvoidingView there
+// too would double-adjust and make the card jump, so behavior is left undefined.
+function PickerSheet({ visible, onClose, title, children }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          {children}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
 
 function SelectField({ label, required, value, placeholder, options, onSelect, loading, searchable }) {
   const [open, setOpen] = useState(false);
@@ -51,38 +72,33 @@ function SelectField({ label, required, value, placeholder, options, onSelect, l
           </>
         )}
       </TouchableOpacity>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{flex: 1}} activeOpacity={1} onPress={() => setOpen(false)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>{label}</Text>
-            {searchable && (
-              <View style={styles.searchWrap}>
-                <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder={`Search...`}
-                  placeholderTextColor="#94A3B8"
-                  value={query}
-                  onChangeText={setQuery}
-                />
-              </View>
-            )}
-            <FlatList
-              data={displayOptions}
-              keyExtractor={item => item}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); setOpen(false); }}>
-                  <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
-                  {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
-                </TouchableOpacity>
-              )}
+      <PickerSheet visible={open} onClose={() => setOpen(false)} title={label}>
+        {searchable && (
+          <View style={styles.searchWrap}>
+            <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={`Search...`}
+              placeholderTextColor="#94A3B8"
+              value={query}
+              onChangeText={setQuery}
             />
           </View>
-        </View>
-      </Modal>
+        )}
+        <FlatList
+          data={displayOptions}
+          keyExtractor={item => item}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.modalOption} onPress={() => { onSelect(item); setOpen(false); }}>
+              <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
+              {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={searchable && query ? <Text style={styles.emptyText}>No matches found.</Text> : null}
+        />
+      </PickerSheet>
     </View>
   );
 }
@@ -116,49 +132,42 @@ function AutocompleteField({ label, required, value, onChangeText, placeholder, 
           </>
         )}
       </TouchableOpacity>
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{flex: 1}} activeOpacity={1} onPress={() => setOpen(false)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>{label}</Text>
-            
-            <View style={styles.searchWrap}>
-              <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder={`Type or search...`}
-                placeholderTextColor="#94A3B8"
-                value={query}
-                onChangeText={setQuery}
-                autoFocus={true}
-              />
-            </View>
-
-            <FlatList
-              data={suggestions}
-              keyExtractor={item => item}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(item); setOpen(false); }}>
-                  <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
-                  {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
-                </TouchableOpacity>
-              )}
-              ListFooterComponent={
-                query && suggestions.every(s => s.toLowerCase() !== query.toLowerCase()) ? (
-                  <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(query); setOpen(false); }}>
-                    <Text style={[styles.modalOptionText, { color: C.primary, fontFamily: 'Poppins-Bold' }]}>Use "{query}"</Text>
-                  </TouchableOpacity>
-                ) : null
-              }
-              ListEmptyComponent={
-                !query ? null : <Text style={styles.emptyText}>No matches found. You can use your typed text above.</Text>
-              }
-            />
-          </View>
+      <PickerSheet visible={open} onClose={() => setOpen(false)} title={label}>
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder={`Type or search...`}
+            placeholderTextColor="#94A3B8"
+            value={query}
+            onChangeText={setQuery}
+            autoFocus={true}
+          />
         </View>
-      </Modal>
+
+        <FlatList
+          data={suggestions}
+          keyExtractor={item => item}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(item); setOpen(false); }}>
+              <Text style={[styles.modalOptionText, item === value && { color: C.primary, fontFamily: 'Poppins-Bold' }]}>{item}</Text>
+              {item === value && <Icon name="check-circle" size={20} color={C.primary} />}
+            </TouchableOpacity>
+          )}
+          ListFooterComponent={
+            query && suggestions.every(s => s.toLowerCase() !== query.toLowerCase()) ? (
+              <TouchableOpacity style={styles.modalOption} onPress={() => { onChangeText(query); setOpen(false); }}>
+                <Text style={[styles.modalOptionText, { color: C.primary, fontFamily: 'Poppins-Bold' }]}>Use "{query}"</Text>
+              </TouchableOpacity>
+            ) : null
+          }
+          ListEmptyComponent={
+            !query ? null : <Text style={styles.emptyText}>No matches found. You can use your typed text above.</Text>
+          }
+        />
+      </PickerSheet>
       {hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
@@ -201,43 +210,37 @@ function PhoneField({ label, required, optional, value, onChangeText, placeholde
       </View>
       {hint && <Text style={styles.hint}>{hint}</Text>}
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setOpen(false)} />
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Select Country Code</Text>
-            <View style={styles.searchWrap}>
-              <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search country or code..."
-                placeholderTextColor="#94A3B8"
-                value={query}
-                onChangeText={setQuery}
-              />
-            </View>
-            <FlatList
-              data={filtered}
-              keyExtractor={item => String(item.id ?? item.isoCode ?? item.name)}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => {
-                const active = selectedCountry?.isoCode === item.isoCode;
-                return (
-                  <TouchableOpacity style={styles.modalOption} onPress={() => { onSelectCountry(item); setOpen(false); }}>
-                    <View style={styles.codeOptionLeft}>
-                      <Text style={styles.flagEmoji}>{item.flagEmoji || '🌐'}</Text>
-                      <Text style={[styles.modalOptionText, active && { color: C.primary, fontFamily: 'Poppins-Bold' }]} numberOfLines={1}>{item.name}</Text>
-                    </View>
-                    <Text style={styles.codeOptionDial}>{item.phoneCode ? `+${item.phoneCode}` : ''}</Text>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={<Text style={styles.emptyText}>No matches found.</Text>}
-            />
-          </View>
+      <PickerSheet visible={open} onClose={() => setOpen(false)} title="Select Country Code">
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search country or code..."
+            placeholderTextColor="#94A3B8"
+            value={query}
+            onChangeText={setQuery}
+          />
         </View>
-      </Modal>
+        <FlatList
+          data={filtered}
+          keyExtractor={item => String(item.id ?? item.isoCode ?? item.name)}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const active = selectedCountry?.isoCode === item.isoCode;
+            return (
+              <TouchableOpacity style={styles.modalOption} onPress={() => { onSelectCountry(item); setOpen(false); }}>
+                <View style={styles.codeOptionLeft}>
+                  <Text style={styles.flagEmoji}>{item.flagEmoji || '🌐'}</Text>
+                  <Text style={[styles.modalOptionText, active && { color: C.primary, fontFamily: 'Poppins-Bold' }]} numberOfLines={1}>{item.name}</Text>
+                </View>
+                <Text style={styles.codeOptionDial}>{item.phoneCode ? `+${item.phoneCode}` : ''}</Text>
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={<Text style={styles.emptyText}>No matches found.</Text>}
+        />
+      </PickerSheet>
     </View>
   );
 }
@@ -509,15 +512,15 @@ const styles = StyleSheet.create({
   ctaBtn: { width: '100%', height: 56, backgroundColor: colors.accent, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
   ctaBtnDisabled: { opacity: 0.7 },
   ctaText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 24, paddingTop: 12, elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 10 },
-  modalHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1', alignSelf: 'center', marginBottom: 12 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  modalCard: { width: '100%', maxWidth: 420, maxHeight: '78%', backgroundColor: '#fff', borderRadius: 24, paddingTop: 18, paddingBottom: 12, overflow: 'hidden', elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
   modalTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', textAlign: 'center' },
   modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
   modalOptionText: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#334155' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', marginHorizontal: 20, marginVertical: 12, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', height: '100%' },
+  listContent: { paddingBottom: 12 },
   emptyText: { textAlign: 'center', fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 24, paddingHorizontal: 20 },
 });
 
