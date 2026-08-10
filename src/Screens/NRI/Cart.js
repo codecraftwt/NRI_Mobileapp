@@ -5,14 +5,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { removeFromCart, clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { usePlans } from '../../Hooks/usePlans';
+import { useCartPriceSync } from '../../Hooks/useCartPriceSync';
 import SubmitRequest from './SubmitRequest';
 
 const GST_RATE = 0.18;
-// Annual NRI Circle membership that activates a guest's account before their
-// first service request can be dispatched (matches the approved checkout UI).
-const MEMBERSHIP_RATE = 99.0;
 
-const fmt = (v) => `$${(Number(v) || 0).toFixed(2)}`;
+const toAmount = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const fmt = (v) => `$${toAmount(v).toFixed(2)}`;
 
 function SummaryRow({ label, sub, value, strong }) {
   return (
@@ -30,6 +30,13 @@ function Cart({ navigation }) {
   const items = useSelector(selectCartItems);
   const servicesTotal = useSelector(selectCartSubtotal);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  // Live membership plan — read here (before any early return) so the hook order
+  // stays stable across the guest/authenticated branches. Only used by the guest
+  // summary below; the authenticated branch ignores it.
+  const { regularPlans } = usePlans();
+  // Keep the guest cart's service prices exact (matches OnboardingPayment). Gated
+  // to guests so the authenticated SubmitRequest path never triggers a refetch.
+  useCartPriceSync(!isAuthenticated);
 
   // Signed-in members get the "Submit Request" checkout (create + pay for a
   // service request). Guests keep the membership + sign-in/register cart below.
@@ -37,12 +44,20 @@ function Cart({ navigation }) {
     return <SubmitRequest navigation={navigation} />;
   }
 
-  const membershipGst = isAuthenticated ? 0 : MEMBERSHIP_RATE * GST_RATE;
-  const membershipTotal = isAuthenticated ? 0 : MEMBERSHIP_RATE + membershipGst;
-  
-  // The backend does not apply GST to services when they are bundled into the 
+  // Annual NRI Circle membership that activates a guest's account before their
+  // first service request can be dispatched. Pull the live plan + price from the
+  // same source OnboardingPayment uses so the total shown here matches the
+  // "Amount Payable" (and the amount Stripe actually charges) exactly.
+  const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
+  const membershipRate = toAmount(plan?.usdPrice) || toAmount(plan?.price) || 0;
+
+  // GST rounded to cents to match OnboardingPayment / the backend charge.
+  const membershipGst = Math.round(membershipRate * GST_RATE * 100) / 100;
+  const membershipTotal = membershipRate + membershipGst;
+
+  // The backend does not apply GST to services when they are bundled into the
   // membership subscription checkout (guest flow).
-  const servicesGst = !isAuthenticated ? 0 : servicesTotal * GST_RATE;
+  const servicesGst = 0;
   const grandTotal = servicesTotal + servicesGst + membershipTotal;
 
   const empty = items.length === 0;
@@ -166,7 +181,7 @@ function Cart({ navigation }) {
             {!isAuthenticated && (
               <>
                 <View style={styles.divider} />
-                <SummaryRow label="Membership rate" value={fmt(MEMBERSHIP_RATE)} />
+                <SummaryRow label="Membership rate" value={fmt(membershipRate)} />
                 <SummaryRow label="Membership GST" sub="(18%)" value={fmt(membershipGst)} />
                 <SummaryRow label="Membership total" sub="(activates your account)" value={fmt(membershipTotal)} />
               </>

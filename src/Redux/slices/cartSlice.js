@@ -125,6 +125,18 @@ const cartSlice = createSlice({
     removeFromCart: (state, action) => {
       state.items = state.items.filter(i => i.serviceId !== action.payload);
     },
+    // Refresh the stored per-service prices from the authoritative
+    // /services?city_id=<id> response (keyed by serviceId), so a persisted cart
+    // whose prices went stale shows the exact vendor price the backend charges.
+    // payload: { [serviceId]: { price, currency } }
+    updateCartItemPrices: (state, action) => {
+      const map = action.payload || {};
+      state.items = state.items.map((it) => {
+        const next = map[it.serviceId];
+        if (next == null || next.price == null) return it;
+        return { ...it, price: next.price, currency: next.currency || it.currency };
+      });
+    },
     clearCart: () => initialState,
   },
   extraReducers: (builder) => {
@@ -171,7 +183,7 @@ const cartSlice = createSlice({
   },
 });
 
-export const { addToCart, removeFromCart, clearCart } = cartSlice.actions;
+export const { addToCart, removeFromCart, updateCartItemPrices, clearCart } = cartSlice.actions;
 
 // Selectors
 export const selectCartItems = (s) => s.cart.items;

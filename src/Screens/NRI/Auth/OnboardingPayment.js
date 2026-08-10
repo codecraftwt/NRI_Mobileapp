@@ -15,6 +15,7 @@ import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, selectCartSubtotal } from '../../../Redux/slices/cartSlice';
 import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
 import { addCartItem } from '../../../Api/cartApi';
+import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
 import apiClient from '../../../Api/client';
 import { useFamilyMembers } from '../../../Hooks/useFamilyMembers';
 import { usePlans } from '../../../Hooks/usePlans';
@@ -240,6 +241,11 @@ function OnboardingPayment({ route, navigation }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCart, cartServiceIdsKey]);
+
+  // Re-bind the EXACT vendor price for every cart service from the live
+  // GET /services?city_id=<id> response, so the Order Summary and Amount Payable
+  // shown here match what the backend charges (only runs for the cart flow).
+  useCartPriceSync(fromCart);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
   // { url, paymentId } while the hosted Stripe checkout WebView is open.
   const [checkoutSession, setCheckoutSession] = useState(null);

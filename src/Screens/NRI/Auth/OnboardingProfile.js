@@ -83,6 +83,11 @@ function SelectField({ label, required, value, placeholder, options, onSelect, l
               value={query}
               onChangeText={setQuery}
             />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')} style={styles.searchClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
           </View>
         )}
         <FlatList
@@ -143,6 +148,11 @@ function AutocompleteField({ label, required, value, onChangeText, placeholder, 
             onChangeText={setQuery}
             autoFocus={true}
           />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} style={styles.searchClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
 
         <FlatList
@@ -220,6 +230,11 @@ function PhoneField({ label, required, optional, value, onChangeText, placeholde
             value={query}
             onChangeText={setQuery}
           />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} style={styles.searchClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
         <FlatList
           data={filtered}
@@ -520,6 +535,7 @@ const styles = StyleSheet.create({
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', marginHorizontal: 20, marginVertical: 12, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', height: '100%' },
+  searchClear: { marginLeft: 8, padding: 2 },
   listContent: { paddingBottom: 12 },
   emptyText: { textAlign: 'center', fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 24, paddingHorizontal: 20 },
 });
