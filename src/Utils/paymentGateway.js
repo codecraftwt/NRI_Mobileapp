@@ -63,6 +63,24 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
   }
 }
 
+// Drives a full Razorpay payment for a backend `order` (returned in place of a
+// checkout_url by the pay/checkout/subscription endpoints): opens the native
+// SDK, then confirms the result via the caller's `verify` function — which
+// should perform POST /customer/payments/{payment}/verify (e.g. a thunk
+// dispatch chained with .unwrap()). `verify` receives { paymentId, razorpay* }
+// with the same key names verifyPayment in paymentsApi.js expects. Throws with
+// a human-readable message if the SDK is cancelled/declined or verify fails.
+export async function runRazorpayPayment({ order, paymentId, name, description, user, verify }) {
+  const rp = await openRazorpayCheckout({ order, name, description, user });
+  await verify({
+    paymentId,
+    razorpayOrderId: rp.razorpayOrderId,
+    razorpayPaymentId: rp.razorpayPaymentId,
+    razorpaySignature: rp.razorpaySignature,
+    razorpaySubscriptionId: rp.razorpaySubscriptionId,
+  });
+}
+
 export function extractStripeSessionId(checkoutUrl) {
   const match = checkoutUrl?.match(/\/pay\/([^#]+)/);
   return match ? match[1] : null;

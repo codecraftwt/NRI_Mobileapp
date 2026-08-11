@@ -16,8 +16,12 @@ const C = {
 const { width: W, height: H } = Dimensions.get('window');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_NUMBER_REGEX = /[0-9]/;
-const PASSWORD_SPECIAL_REGEX = /[^A-Za-z0-9]/;
+// Mirror the backend register rule: Password::min(8)->mixedCase()->symbols()
+// — at least 8 chars, one uppercase + one lowercase letter, and one symbol.
+// (No digit is required, matching the server.)
+const PASSWORD_UPPER_REGEX = /[A-Z]/;
+const PASSWORD_LOWER_REGEX = /[a-z]/;
+const PASSWORD_SYMBOL_REGEX = /[^A-Za-z0-9]/;
 
 function Register({ navigation }) {
   const dispatch = useDispatch();
@@ -44,6 +48,22 @@ function Register({ navigation }) {
     return Array.isArray(value) ? value[0] : value;
   };
 
+  // Live password rules shown under the field so the user knows what's needed
+  // as they type — mirrors the backend Password::min(8)->mixedCase()->symbols().
+  const passwordRules = [
+    { label: '8+ chars', met: password.length >= 8 },
+    { label: 'Mixed case', met: PASSWORD_UPPER_REGEX.test(password) && PASSWORD_LOWER_REGEX.test(password) },
+    { label: 'Symbol', met: PASSWORD_SYMBOL_REGEX.test(password) },
+  ];
+  const passwordMetCount = passwordRules.filter(r => r.met).length;
+  // Strength = how many rules are satisfied. Drives the meter + label/colour.
+  const passwordStrength = [
+    { label: 'Weak', color: '#EF4444' },
+    { label: 'Weak', color: '#EF4444' },
+    { label: 'Good', color: '#F59E0B' },
+    { label: 'Strong', color: '#16A34A' },
+  ][passwordMetCount];
+
   const validate = () => {
     const errors = {};
     if (!name.trim()) errors.name = 'Full name is required.';
@@ -51,8 +71,8 @@ function Register({ navigation }) {
     else if (!EMAIL_REGEX.test(email.trim())) errors.email = 'Enter a valid email address.';
     if (!password) errors.password = 'Password is required.';
     else if (password.length < 8) errors.password = 'Password must be at least 8 characters.';
-    else if (!PASSWORD_NUMBER_REGEX.test(password)) errors.password = 'Password must include at least one number.';
-    else if (!PASSWORD_SPECIAL_REGEX.test(password)) errors.password = 'Password must include at least one special character.';
+    else if (!(PASSWORD_UPPER_REGEX.test(password) && PASSWORD_LOWER_REGEX.test(password))) errors.password = 'Password must include both uppercase and lowercase letters.';
+    else if (!PASSWORD_SYMBOL_REGEX.test(password)) errors.password = 'Password must include at least one special character.';
     if (!confirmPassword) errors.password_confirmation = 'Please confirm your password.';
     else if (password !== confirmPassword) errors.password_confirmation = 'Passwords do not match.';
     return errors;
@@ -161,6 +181,38 @@ function Register({ navigation }) {
             </TouchableOpacity>
           </View>
           {!!errorFor('password') && <Text style={styles.errorText}>{errorFor('password')}</Text>}
+
+          {!!password && (
+            <View style={styles.strengthRow}>
+              <View style={styles.strengthBar}>
+                {passwordRules.map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.strengthSeg,
+                      { backgroundColor: i < passwordMetCount ? passwordStrength.color : '#E2E8F0' },
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
+                {passwordStrength.label}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.chipRow}>
+            {passwordRules.map((rule) => (
+              <View key={rule.label} style={[styles.chip, rule.met && styles.chipMet]}>
+                <Icon
+                  name={rule.met ? 'check' : 'add'}
+                  size={12}
+                  color={rule.met ? '#16A34A' : C.textPlaceholder}
+                />
+                <Text style={[styles.chipText, rule.met && styles.chipTextMet]}>{rule.label}</Text>
+              </View>
+            ))}
+          </View>
 
           <Text style={styles.inputLabel}>Confirm Password</Text>
           <View style={[styles.inputWrap, errorFor('password_confirmation') && styles.inputWrapError]}>
@@ -358,6 +410,59 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     marginTop: 8,
     marginLeft: 8,
+  },
+  strengthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginHorizontal: 4,
+  },
+  strengthBar: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  strengthSeg: {
+    flex: 1,
+    height: 5,
+    borderRadius: radius.full,
+  },
+  strengthLabel: {
+    fontSize: 11,
+    fontFamily: 'Poppins-SemiBold',
+    marginLeft: 10,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    marginHorizontal: 4,
+  },
+  chip: {
+    flex: 1,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  chipMet: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  chipText: {
+    fontSize: 11,
+    fontFamily: 'Poppins-Regular',
+    color: '#64748B',
+    marginLeft: 3,
+  },
+  chipTextMet: {
+    color: '#16A34A',
+    fontFamily: 'Poppins-SemiBold',
   },
 
   // Glowing CTA

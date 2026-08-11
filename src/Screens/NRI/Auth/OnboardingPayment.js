@@ -8,6 +8,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import StripeCheckoutModal from '../../../Components/StripeCheckoutModal';
+import { runRazorpayPayment } from '../../../Utils/paymentGateway';
+import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../../Hooks/usePaymentGateways';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
@@ -165,7 +167,15 @@ function OnboardingPayment({ route, navigation }) {
   const fromCart = cartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
-  const paymentMethod = 'stripe';
+  // Available gateways come from the backend (already NRI + admin-toggle gated).
+  const { gateways } = usePaymentGateways();
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  useEffect(() => {
+    if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
+      setPaymentMethod(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateways]);
   const [submitting, setSubmitting] = useState(false);
   // Two-step sub-flow for the cart path: 'details' (who/where + documents) then
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
@@ -552,11 +562,33 @@ function OnboardingPayment({ route, navigation }) {
         // once the gateway redirects back to the success_url with a session_id
         // (see StripeCheckoutModal).
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        // Auto-renew membership → order carries a subscription_id (verified
+        // with razorpay_subscription_id inside runRazorpayPayment).
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle Membership',
+          description: plan?.name || 'Membership',
+          user: { name: profile?.fullName, email: profile?.email, phone: profile?.phone },
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        await finishUp();
+      } else if (result.planId) {
+        // PayPal auto-renew returns a plan_id for a native SDK flow not built
+        // on mobile — steer to a supported gateway instead of a false success.
+        showAlert('Not Available', 'This payment method isn\'t supported in the app yet. Please choose Card (Stripe) or Razorpay.', 'error');
       } else {
         // Wallet credits / free plan covered the full amount — nothing to pay.
         await finishUp();
       }
     } catch (error) {
+      // Diagnostic: surface the HTTP status so a gateway rejection can be told
+      // apart (502 = account can't process this currency/subscription, 503 =
+      // Razorpay disabled by admin, 422 = not an NRI customer). Visible in
+      // Metro / `adb logcat`.
+      console.warn('[Razorpay] checkout failed', { gateway: paymentMethod, status: error?.status, message: error?.message });
       showAlert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
     } finally {
       setSubmitting(false);
@@ -848,16 +880,23 @@ function OnboardingPayment({ route, navigation }) {
                 <Icon name="mark-email-read" size={16} color={C.primary} />
                 <Text style={styles.cardHeaderText}>Payment Details</Text>
               </View>
-              <Text style={styles.gatewayIntro}>Pay securely with card:</Text>
+              <Text style={styles.gatewayIntro}>Choose how you'd like to pay:</Text>
 
-              <TouchableOpacity style={[styles.gatewayRow, styles.gatewayRowActive]} activeOpacity={0.8}>
-                <Icon name="credit-card" size={22} color={paymentMethod === 'stripe' ? C.primary : '#64748B'} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.gatewayName}>Card (Stripe)</Text>
-                  <Text style={styles.gatewayDesc}>Accepts major cards (Visa, Mastercard, Amex)</Text>
-                </View>
-                <View style={[styles.radio, paymentMethod === 'stripe' && styles.radioActive]} />
-              </TouchableOpacity>
+              {gateways.map(g => (
+                <TouchableOpacity
+                  key={g.value}
+                  style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setPaymentMethod(g.value)}
+                >
+                  <Icon name={gatewayIcon(g.value)} size={22} color={paymentMethod === g.value ? C.primary : '#64748B'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gatewayName}>{g.label}</Text>
+                    {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                  </View>
+                  <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
+                </TouchableOpacity>
+              ))}
 
               {loading ? (
                 <ActivityIndicator size="large" color={C.accent} style={styles.payLoading} />

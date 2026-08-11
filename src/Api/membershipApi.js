@@ -171,16 +171,14 @@ export async function checkoutMembership({
       status: data.status,
       gateway: data.gateway,
       amount: data.amount,
-      // Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
-      // gateway is 'stripe' | 'paypal' (Razorpay is NOT valid for this
-      // endpoint — it's a separate registration-gate checkout, not the
-      // general ticket/add-on checkout). Response is
-      // "data: { payment_id, status, checkout_url? | plan_id?, amount }":
-      // both gateways return `checkout_url` (hosted page, opened via
-      // openStripeCheckout in paymentGateway.js) for a one-time charge; only
-      // PayPal with auto_renew returns `plan_id` instead, for PayPal's native
-      // subscription SDK — not yet built client-side, so unused for now.
+      // gateway is 'stripe' | 'paypal' | 'razorpay'. Stripe/PayPal return a
+      // `checkout_url` (hosted page, opened via openStripeCheckout). Razorpay
+      // has no hosted page — it returns `order` ({ order_id, key, amount,
+      // currency } one-time, or { subscription_id, key } auto-renew) to feed
+      // the native SDK via runRazorpayPayment. PayPal with auto_renew returns
+      // `plan_id` instead, for PayPal's native subscription SDK (not yet built).
       checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
       planId: data.plan_id || null,
       message: response.data?.message,
     };

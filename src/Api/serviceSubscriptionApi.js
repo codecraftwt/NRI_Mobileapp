@@ -123,7 +123,12 @@ export async function createServiceSubscription({
     const data = response.data?.data || {};
     return {
       subscription: mapSubscription(data.subscription || data),
+      paymentId: data.payment_id || null,
+      // Stripe/PayPal return checkout_url; Razorpay returns `order`
+      // ({ subscription_id, key }) for the native SDK — fed to runRazorpayPayment,
+      // then confirmed via /payments/{payment}/verify with the payment id above.
       checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
       planId: data.plan_id || null,
       message: response.data?.message,
     };

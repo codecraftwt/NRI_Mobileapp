@@ -19,6 +19,42 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
   }
 }
 
+// The gateways currently offerable to this customer. The backend list already
+// reflects NRI eligibility AND the super-admin enable/disable toggle, so it's
+// the single source of truth for the payment picker — don't hardcode or
+// re-gate client-side. Each item is { value, label } e.g.
+// { value: 'razorpay', label: 'Card (Razorpay)' }.
+export async function getPaymentGateways() {
+  try {
+    const response = await apiClient.get('/customer/payment-gateways');
+    // Tolerate the common response shapes: { data: [...] }, a bare [...], or a
+    // { gateways: [...] } wrapper. Items may key the id as value/key/gateway/id
+    // and the label as label/name/title.
+    // Laravel serializes a non-sequentially-keyed collection (e.g. after a
+    // gateway is filtered out, keys become {0,2}) as a JSON OBJECT, not an
+    // array — so `data` can arrive as either. Object.values() flattens both.
+    const body = response.data;
+    let raw = body?.data ?? body?.gateways ?? body?.data?.gateways;
+    if (raw == null && Array.isArray(body)) raw = body;
+    const list = Array.isArray(raw) ? raw
+      : (raw && typeof raw === 'object') ? Object.values(raw)
+      : [];
+    const mapped = list
+      .map(g => {
+        if (typeof g === 'string') return { value: g, label: g };
+        const value = g.value ?? g.key ?? g.gateway ?? g.id ?? g.slug;
+        return { value, label: g.label ?? g.name ?? g.title ?? value };
+      })
+      .filter(g => !!g.value);
+    // Diagnostic: if the picker is missing a gateway, this shows exactly what
+    // the endpoint returned. Visible in Metro / `adb logcat`.
+    console.warn('[payment-gateways] raw:', JSON.stringify(response.data), '-> parsed:', JSON.stringify(mapped));
+    return mapped;
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 function mapPayment(raw) {
   return {
     id: raw.id,

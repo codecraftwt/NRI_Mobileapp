@@ -16,6 +16,8 @@ import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -120,6 +122,9 @@ function SubmitRequest({ navigation }) {
   const items = useSelector(selectCartItems);
   const servicesSubtotal = useSelector(selectCartSubtotal);
   const savedLocation = useSelector(s => s.serviceLocation);
+  const user = useSelector(s => s.user.user);
+  // Available gateways come from the backend (already NRI + admin-toggle gated).
+  const { gateways } = usePaymentGateways();
 
   const [reqForm, setReqForm] = useState({
     fullName: '', relation: '', property: 'Not applicable',
@@ -131,7 +136,13 @@ function SubmitRequest({ navigation }) {
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
   const [documentFiles, setDocumentFiles] = useState({});
   const [pincodeLocation, setPincodeLocation] = useState(null);
-  const paymentMethod = 'stripe';
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  useEffect(() => {
+    if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
+      setPaymentMethod(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateways]);
   const [couponCode, setCouponCode] = useState('');
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [goServicesOnAlertClose, setGoServicesOnAlertClose] = useState(false);
@@ -452,6 +463,17 @@ function SubmitRequest({ navigation }) {
           setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId });
           submissionLockRef.current = false;
           setSubmissionInProgress(false);
+        } else if (pay.order) {
+          // Razorpay — no hosted page; drive the native SDK then verify inline.
+          await runRazorpayPayment({
+            order: pay.order,
+            paymentId: pay.paymentId,
+            name: 'NRI Circle',
+            description: 'Service request',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+          await finishSuccess();
         } else {
           await finishSuccess();
         }
@@ -700,11 +722,21 @@ function SubmitRequest({ navigation }) {
             <TextInput style={styles.input} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={setCouponCode} />
 
             <Text style={styles.fieldLabel}>Payment Method</Text>
-            <TouchableOpacity style={[styles.gatewayRow, styles.gatewayRowActive]} activeOpacity={0.8}>
-              <Icon name="credit-card" size={20} color={paymentMethod === 'stripe' ? '#20304C' : '#64748B'} />
-              <View style={{ flex: 1 }}><Text style={styles.gatewayName}>Card (Stripe)</Text><Text style={styles.gatewayDesc}>Visa, Mastercard, Amex, Apple & Google Pay</Text></View>
-              <View style={[styles.radio, paymentMethod === 'stripe' && styles.radioActive]} />
-            </TouchableOpacity>
+            {gateways.map(g => (
+              <TouchableOpacity
+                key={g.value}
+                style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
+                activeOpacity={0.8}
+                onPress={() => setPaymentMethod(g.value)}
+              >
+                <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.gatewayName}>{g.label}</Text>
+                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                </View>
+                <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
+              </TouchableOpacity>
+            ))}
 
             {/* Order summary — from the quote API */}
             <View style={styles.divider} />

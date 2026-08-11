@@ -39,6 +39,8 @@ import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -50,12 +52,6 @@ const REQUEST_TYPES = [ONE_TIME, RECURRING];
 // is picked). The server quote returns the authoritative gst_rate/gst_amount
 // once state_id is available and takes over from this estimate.
 const GST_RATE = 0.18;
-// International gateways offered for ticket/subscription checkout.
-const PAYMENT_METHODS = [
-  { key: 'stripe', label: 'Stripe', desc: 'Credit / Debit Card', icon: 'credit-card' },
-  { key: 'paypal', label: 'PayPal', desc: 'Pay with your PayPal account', icon: 'account-balance-wallet' },
-];
-
 // Recurring services are priced/quoted in USD (customer_price).
 const formatUsdMonthly = (pricing) => {
   if (!pricing) return '';
@@ -203,7 +199,7 @@ function CreateTicket({ route, navigation }) {
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('stripe'); // 'stripe' | 'paypal'
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
   // While the hosted-checkout WebView (Stripe/PayPal) is open:
   // { url, paymentId?, kind, successTitle, successMessage }
   const [checkoutSession, setCheckoutSession] = useState(null);
@@ -230,6 +226,14 @@ function CreateTicket({ route, navigation }) {
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
   const { membership, usage } = useMembership();
   const user = useSelector(s => s.user.user);
+  const { gateways } = usePaymentGateways();
+  // Keep the selected gateway valid against the backend's available list.
+  useEffect(() => {
+    if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
+      setPaymentMethod(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateways]);
   const {
     services: baseServices,
     loading: loadingBaseServices,
@@ -697,6 +701,19 @@ function CreateTicket({ route, navigation }) {
           successTitle: 'Payment Successful',
           successMessage: 'Your service request has been paid and confirmed.',
         });
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: 'Service request',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        showAlert('Payment Successful', 'Your service request has been paid and confirmed.', [
+          { text: 'OK', onPress: goToServices },
+        ]);
       } else {
         showAlert('Payment Confirmed', result.message || 'Your service request has been paid.', [
           { text: 'OK', onPress: goToServices },
@@ -788,6 +805,23 @@ function CreateTicket({ route, navigation }) {
           successTitle: 'Subscription Created',
           successMessage: 'Your recurring subscription is now being activated.',
         });
+      } else if (result.order) {
+        // Razorpay recurring — the SDK runs the e-mandate flow off order
+        // ({ subscription_id }), then we verify with razorpay_subscription_id.
+        // NOTE: the create call above will currently 502 (the configured
+        // Razorpay account rejects USD subscriptions) and be caught below —
+        // this path is ready for when the account supports USD plans.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: 'Recurring service subscription',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        showAlert('Subscription Created', 'Your recurring subscription is now active.', [
+          { text: 'OK', onPress: () => { resetSubscription(); goToServices(); } },
+        ]);
       } else {
         showAlert('Subscription Created', result.message || 'Your recurring subscription has been created.', [
           { text: 'OK', onPress: () => { resetSubscription(); goToServices(); } },
@@ -1355,19 +1389,19 @@ function CreateTicket({ route, navigation }) {
             <>
               <Text style={styles.paymentMethodLabel}>Payment Method</Text>
               <View style={styles.paymentMethodRow}>
-                {PAYMENT_METHODS.map(m => {
-                  const active = paymentMethod === m.key;
+                {gateways.map(g => {
+                  const active = paymentMethod === g.value;
                   return (
                     <TouchableOpacity
-                      key={m.key}
+                      key={g.value}
                       style={[styles.paymentOption, active && styles.paymentOptionActive]}
-                      onPress={() => setPaymentMethod(m.key)}
+                      onPress={() => setPaymentMethod(g.value)}
                       activeOpacity={0.7}
                     >
-                      <Icon name={m.icon} size={20} color={active ? '#D94625' : '#94A3B8'} />
+                      <Icon name={gatewayIcon(g.value)} size={20} color={active ? '#D94625' : '#94A3B8'} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.paymentOptionText, active && styles.paymentOptionTextActive]}>{m.label}</Text>
-                        <Text style={styles.paymentOptionDesc}>{m.desc}</Text>
+                        <Text style={[styles.paymentOptionText, active && styles.paymentOptionTextActive]}>{g.label}</Text>
+                        {!!GATEWAY_META[g.value]?.desc && <Text style={styles.paymentOptionDesc}>{GATEWAY_META[g.value].desc}</Text>}
                       </View>
                       <View style={[styles.paymentRadio, active && styles.paymentRadioActive]}>
                         {active && <View style={styles.paymentRadioDot} />}

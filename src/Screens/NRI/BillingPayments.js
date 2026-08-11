@@ -12,6 +12,8 @@ import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
 import { getReceiptDownloadUrl } from '../../Api/paymentsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { usePaymentGateways } from '../../Hooks/usePaymentGateways';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -65,6 +67,7 @@ function PageSizeField({ value, onSelect }) {
 function BillingPayments({ navigation }) {
   const { overview, loading, failed, retry, pay, verifyPayment, stopAutoRenew, stopAutoRenewLoading } = useBilling();
   const { cancelSubscription } = useMyAddonPackages();
+  const { gateways } = usePaymentGateways();
   const user = useSelector(state => state.user.user);
   const token = useSelector(state => state.user.token);
   const [payingKey, setPayingKey] = useState(null);
@@ -102,6 +105,18 @@ function BillingPayments({ navigation }) {
         // Stripe / PayPal hosted checkout — open in the in-app WebView; verified
         // in handleCheckoutSuccess once it redirects back with a session_id.
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, label: item.label });
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: item.label,
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        retry();
+        showAlert('Payment Successful', `${item.label} has been paid.`);
       } else {
         retry();
         showAlert('Payment Successful', result.message || `${item.label} has been paid.`);
@@ -132,13 +147,18 @@ function BillingPayments({ navigation }) {
   const handleCheckoutCancel = () => setCheckoutSession(null);
 
   const handlePayNow = (item) => {
+    // Gateway list comes straight from the backend (already NRI + admin-toggle
+    // gated) — build the buttons from it rather than hardcoding.
+    if (!gateways.length) {
+      showAlert('Unavailable', 'No payment methods are available right now. Please try again shortly.');
+      return;
+    }
     showAlert(
       'Choose Payment Method',
       `Pay ${formatUsd(item.amount)} for ${item.label}`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Stripe', onPress: () => handleGatewayPayment(item, 'stripe') },
-        { text: 'PayPal', onPress: () => handleGatewayPayment(item, 'paypal') },
+        ...gateways.map(g => ({ text: g.label, onPress: () => handleGatewayPayment(item, g.value) })),
       ]
     );
   };

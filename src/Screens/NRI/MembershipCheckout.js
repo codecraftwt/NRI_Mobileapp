@@ -9,6 +9,8 @@ import { useAddonPackages } from '../../Hooks/useAddonPackages';
 import { useMembershipCheckout } from '../../Hooks/useMembershipCheckout';
 import { useMembership } from '../../Hooks/useMembership';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { usePaymentGateways, gatewayIcon } from '../../Hooks/usePaymentGateways';
 import { lightColors as baseColors, typography, spacing, radius } from '../../theme';
 import { Dimensions } from 'react-native';
 
@@ -44,7 +46,9 @@ function MembershipCheckout({ navigation, route }) {
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [addonCouponCode, setAddonCouponCode] = useState('');
+  const { gateways } = usePaymentGateways();
   const [gateway, setGateway] = useState('stripe');
+  const [autoRenew, setAutoRenew] = useState(false);
   const [useWallet, setUseWallet] = useState(false);
   // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
   const [checkoutSession, setCheckoutSession] = useState(null);
@@ -83,6 +87,14 @@ function MembershipCheckout({ navigation, route }) {
       setSelectedPlanId(regularPlans[0].id);
     }
   }, [regularPlans, selectedPlanId]);
+
+  // Keep the selected gateway valid against the backend's available list.
+  useEffect(() => {
+    if (gateways.length && !gateways.some(g => g.value === gateway)) {
+      setGateway(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateways]);
 
   useEffect(() => {
     // Read-only balance check for the "use wallet credits" toggle — not part
@@ -148,7 +160,7 @@ function MembershipCheckout({ navigation, route }) {
         addons: selectedAddonIds,
         couponCode: planCouponCode.trim() || undefined,
         addonCouponCode: addonCouponCode.trim() || undefined,
-        autoRenew: false,
+        autoRenew,
         useWallet,
       }).unwrap();
 
@@ -157,6 +169,26 @@ function MembershipCheckout({ navigation, route }) {
         // Confirmed in handleCheckoutSuccess once it redirects back with a
         // session_id (see StripeCheckoutModal).
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle Membership',
+          description: selectedPlan?.name || 'Membership',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        refetchMembership();
+        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+          btnText: 'OK',
+          onConfirm: () => navigation.goBack(),
+        });
+      } else if (result.planId) {
+        // PayPal auto-renew returns a plan_id for PayPal's native subscription
+        // SDK, which isn't built on mobile yet — steer the user to a supported
+        // gateway rather than silently reporting a non-existent success.
+        showAlert('Not Available', 'Auto-renew with PayPal isn\'t supported in the app yet. Please choose Stripe or Razorpay for an auto-renewing membership.', 'error');
       } else {
         // Wallet credits covered the full amount — already activated.
         refetchMembership();
@@ -312,16 +344,21 @@ function MembershipCheckout({ navigation, route }) {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Payment Details</Text>
 
-          <TouchableOpacity style={[styles.gatewayRow, gateway === 'stripe' && styles.planRowSelected]} onPress={() => setGateway('stripe')}>
-            <Icon name="credit-card" size={20} color={gateway === 'stripe' ? C.primary : '#64748B'} />
-            <Text style={styles.planName}>Card (Stripe)</Text>
-            <View style={[styles.radio, gateway === 'stripe' && styles.radioActive]} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.gatewayRow, gateway === 'paypal' && styles.planRowSelected]} onPress={() => setGateway('paypal')}>
-            <Icon name="account-balance-wallet" size={20} color={gateway === 'paypal' ? C.primary : '#64748B'} />
-            <Text style={styles.planName}>PayPal</Text>
-            <View style={[styles.radio, gateway === 'paypal' && styles.radioActive]} />
-          </TouchableOpacity>
+          {gateways.map(g => (
+            <TouchableOpacity key={g.value} style={[styles.gatewayRow, gateway === g.value && styles.planRowSelected]} onPress={() => setGateway(g.value)}>
+              <Icon name={gatewayIcon(g.value)} size={20} color={gateway === g.value ? C.primary : '#64748B'} />
+              <Text style={styles.planName}>{g.label}</Text>
+              <View style={[styles.radio, gateway === g.value && styles.radioActive]} />
+            </TouchableOpacity>
+          ))}
+
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.switchLabel}>Auto-renew annually</Text>
+              <Text style={styles.hint}>Automatically renew this membership each year</Text>
+            </View>
+            <Switch value={autoRenew} onValueChange={setAutoRenew} />
+          </View>
 
           <View style={[styles.switchRow, walletBalance <= 0 && styles.switchRowDisabled]}>
             <View style={{ flex: 1 }}>
