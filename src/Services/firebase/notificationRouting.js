@@ -61,9 +61,7 @@ function extractSupportTicketNumber(data) {
 // only carries the SUP-… number. Resolve number → id via the customer's
 // support-ticket list (the ticket is recent, so it's on the first page/s),
 // then open that exact thread. Falls back to the list if it can't be resolved.
-async function openCustomerSupportTicketByNumber(ticketNumber) {
-  const toChat = (ticketId) =>
-    navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId } } });
+async function openCustomerSupportTicketByNumber(ticketNumber, openChat) {
   try {
     let page = 1;
     let lastPage = 1;
@@ -71,19 +69,19 @@ async function openCustomerSupportTicketByNumber(ticketNumber) {
       const { tickets, meta } = await getSupportTickets({ page });
       lastPage = meta?.lastPage || 1;
       const match = (tickets || []).find(t => (t.ticketNumber || '').toUpperCase() === ticketNumber);
-      if (match?.id != null) return toChat(match.id);
+      if (match?.id != null) return openChat(match.id);
       page += 1;
     } while (page <= lastPage && page <= 5);
   } catch (e) { /* fall through to the list */ }
   return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
 }
 
-export function handleNotificationNavigation(data) {
+// `nav` is the in-app Notifications screen's own navigation prop (passed only
+// for taps on the in-app list). When present we PUSH the target onto the
+// current stack so Back returns to Notifications; real push-notification taps
+// pass no `nav` and deep-link via the tab navigators instead.
+export function handleNotificationNavigation(data, nav) {
   if (!data) return;
-  // TEMP DIAGNOSTIC — remove once notification routing is confirmed. Shows the
-  // exact payload a tapped notification carries so we can key routing off the
-  // real fields (is the SUP-… number actually present? under which key?).
-  try { console.log('[notif-route] payload:', JSON.stringify(data)); } catch (e) { console.log('[notif-route] payload (unstringifiable):', data); }
   // Don't push a signed-out user into an authenticated area.
   if (!store.getState()?.user?.isAuthenticated) return;
   const url = String(data.url || '');
@@ -134,15 +132,19 @@ export function handleNotificationNavigation(data) {
   // support-tickets url (e.g. /my/support-tickets/6). Open that exact ticket's
   // chat thread: prefer the id from the url (the last path segment), and only
   // fall back to resolving the SUP-… number via the list when there's no id.
+  // In-app tap → push onto the current (Dashboard) stack so Back returns to
+  // Notifications. Push tap → deep-link into the Requests tab.
+  const openCustomerChat = (ticketId) =>
+    nav
+      ? nav.navigate('SupportTicketChat', { ticketId })
+      : navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId } } });
+
   if (!isVendor) {
     const supNumber = extractSupportTicketNumber(data);
     const isSupportTicket = !!supNumber || /support[-_ ]?ticket/.test(hay);
     if (isSupportTicket) {
-      if (id) {
-        console.log('[notif-route] → SupportTicketChat ticketId=', id);
-        return navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId: id } } });
-      }
-      if (supNumber) return openCustomerSupportTicketByNumber(supNumber);
+      if (id) return openCustomerChat(id);
+      if (supNumber) return openCustomerSupportTicketByNumber(supNumber, openCustomerChat);
     }
   }
 
@@ -165,6 +167,7 @@ export function handleNotificationNavigation(data) {
 
   // Customer ticket/request events.
   if (id && /ticket|request|job|sla/.test(hay)) {
+    if (nav) return nav.navigate('TicketDetail', { ticketId: id });
     return navigate('AppHome', { screen: 'Requests', params: { screen: 'TicketDetail', params: { ticketId: id } } });
   }
   // Fallback — just bring the app to its home.

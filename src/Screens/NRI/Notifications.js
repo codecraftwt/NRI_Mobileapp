@@ -73,6 +73,9 @@ function Notifications({ navigation }) {
     if (!n.read) markRead(n.id);
     // Route from the mapped fields (url/event/title/message live at the top of
     // the RM item, not inside data), plus any extra keys in data.
+    // Pass this screen's navigation so the target is pushed onto the current
+    // stack — Back then returns here to Notifications (customer routes only;
+    // RM/vendor branches ignore it and deep-link via their tabs as before).
     handleNotificationNavigation({
       url: n.url,
       event: n.event,
@@ -80,7 +83,7 @@ function Notifications({ navigation }) {
       title: n.title,
       message: n.message,
       ...n.data,
-    });
+    }, navigation);
   };
 
   return (
