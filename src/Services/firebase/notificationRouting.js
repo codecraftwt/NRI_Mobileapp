@@ -1,5 +1,6 @@
 import { store } from '../../Redux/store';
 import { navigate } from '../../Navigations/navigationRef';
+import { getSupportTickets } from '../../Api/supportTicketApi';
 
 /**
  * Routes a tapped push notification to the right in-app screen.
@@ -45,8 +46,44 @@ function extractTicketNumber(data) {
   return m ? m[0].toUpperCase() : undefined;
 }
 
+// A support-ticket is identified unambiguously by its "SUP-YYYY-NNNNN" number.
+// Scan the whole payload (title/message/url + any data field) so it's found
+// wherever the backend put it — the request number (NRI-…) in the subject must
+// not be mistaken for it.
+function extractSupportTicketNumber(data) {
+  let s = `${data?.title || ''} ${data?.message || ''} ${data?.url || ''}`;
+  try { s += ` ${JSON.stringify(data)}`; } catch (e) { /* ignore */ }
+  const m = s.match(/SUP-\d{4}-\d+/i);
+  return m ? m[0].toUpperCase() : undefined;
+}
+
+// The customer support-ticket chat needs the numeric id, but the notification
+// only carries the SUP-… number. Resolve number → id via the customer's
+// support-ticket list (the ticket is recent, so it's on the first page/s),
+// then open that exact thread. Falls back to the list if it can't be resolved.
+async function openCustomerSupportTicketByNumber(ticketNumber) {
+  const toChat = (ticketId) =>
+    navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId } } });
+  try {
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const { tickets, meta } = await getSupportTickets({ page });
+      lastPage = meta?.lastPage || 1;
+      const match = (tickets || []).find(t => (t.ticketNumber || '').toUpperCase() === ticketNumber);
+      if (match?.id != null) return toChat(match.id);
+      page += 1;
+    } while (page <= lastPage && page <= 5);
+  } catch (e) { /* fall through to the list */ }
+  return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
+}
+
 export function handleNotificationNavigation(data) {
   if (!data) return;
+  // TEMP DIAGNOSTIC — remove once notification routing is confirmed. Shows the
+  // exact payload a tapped notification carries so we can key routing off the
+  // real fields (is the SUP-… number actually present? under which key?).
+  try { console.log('[notif-route] payload:', JSON.stringify(data)); } catch (e) { console.log('[notif-route] payload (unstringifiable):', data); }
   // Don't push a signed-out user into an authenticated area.
   if (!store.getState()?.user?.isAuthenticated) return;
   const url = String(data.url || '');
@@ -91,6 +128,22 @@ export function handleNotificationNavigation(data) {
       return toDashboard('GeneralSupport');
     }
     return navigate('RMHome');
+  }
+
+  // Customer support-ticket reply. Identified by its SUP-… number and/or a
+  // support-tickets url (e.g. /my/support-tickets/6). Open that exact ticket's
+  // chat thread: prefer the id from the url (the last path segment), and only
+  // fall back to resolving the SUP-… number via the list when there's no id.
+  if (!isVendor) {
+    const supNumber = extractSupportTicketNumber(data);
+    const isSupportTicket = !!supNumber || /support[-_ ]?ticket/.test(hay);
+    if (isSupportTicket) {
+      if (id) {
+        console.log('[notif-route] → SupportTicketChat ticketId=', id);
+        return navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId: id } } });
+      }
+      if (supNumber) return openCustomerSupportTicketByNumber(supNumber);
+    }
   }
 
   // Support / chat replies → the role's Support area.

@@ -165,7 +165,10 @@ function SupportTicketChat({ route, navigation }) {
       return;
     }
     const ticketNumber = job && typeof job === 'object' ? (job.ticket_number || job.ticketNumber || null) : null;
-    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id });
+    // Pass this support ticket's id so the payment screen can navigate back to
+    // the correct chat thread (CustomPlanPayment lives in the Dashboard stack,
+    // so a plain merge:true can't find a chat opened from another tab).
+    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id, supportTicketId: ticketId });
   };
 
   const handleEscalate = () => {
@@ -223,7 +226,7 @@ function SupportTicketChat({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Header navigation={navigation} title={ticket.ticketNumber} showBack />
+      <Header navigation={navigation} title="Support Chat" showBack />
 
       {showCreatedBanner && (
         <View style={styles.bannerWrap}>

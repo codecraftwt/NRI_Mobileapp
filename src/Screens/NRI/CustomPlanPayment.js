@@ -16,14 +16,19 @@ function formatUsd(value) {
 // proposal, before the Stripe checkout opens. Base price comes from the
 // accepted proposal; GST is added at 18% (matching the web invoice).
 function CustomPlanPayment({ route, navigation }) {
-  const { jobId, ticketNumber, basePrice, replyId } = route.params || {};
+  const { jobId, ticketNumber, basePrice, replyId, supportTicketId } = route.params || {};
   const { pay: payBill, verifyPayment } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
 
-  // Return to the chat, flagging this proposal reply as paid so its "Pay Now"
-  // button is removed. merge:true pops back to the existing chat instance.
+  // Return to the support chat, flagging this proposal reply as paid so its
+  // "Pay Now" button is removed. Navigate with the ticket id explicitly (not a
+  // bare merge:true) so we always land on the correct thread — this screen
+  // lives in the Dashboard stack, so the chat opened from another tab isn't in
+  // this stack for merge to find, and a fresh instance needs the id to load.
   const goBackPaid = () => {
-    if (replyId != null) {
+    if (supportTicketId != null) {
+      navigation.navigate('SupportTicketChat', { ticketId: supportTicketId, paidReplyId: replyId });
+    } else if (replyId != null) {
       navigation.navigate({ name: 'SupportTicketChat', params: { paidReplyId: replyId }, merge: true });
     } else {
       navigation.goBack();
@@ -36,6 +41,7 @@ function CustomPlanPayment({ route, navigation }) {
   const amountPayable = Math.round((base + gstAmount) * 100) / 100;
 
   const [paying, setPaying] = useState(false);
+  const [paid, setPaid] = useState(false);
   const [checkoutSession, setCheckoutSession] = useState(null);
 
   const handlePay = async () => {
@@ -49,9 +55,9 @@ function CustomPlanPayment({ route, navigation }) {
       if (result.checkoutUrl) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else {
-        showAlert('Payment Successful', result.message || 'Your custom plan has been paid.', [
-          { text: 'OK', onPress: goBackPaid },
-        ]);
+        // Paid outright (no checkout step) — mark paid and go straight to chat.
+        setPaid(true);
+        goBackPaid();
       }
     } catch (error) {
       showAlert('Payment Failed', error?.message || 'Could not start payment. Please try again.');
@@ -65,9 +71,10 @@ function CustomPlanPayment({ route, navigation }) {
     setCheckoutSession(null);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
-      showAlert('Payment Successful', 'Your custom plan has been paid.', [
-        { text: 'OK', onPress: goBackPaid },
-      ]);
+      // Verified — no confirmation modal; disable Pay and return to the chat,
+      // flagging this proposal reply as paid so its "Pay Now" button is gone.
+      setPaid(true);
+      goBackPaid();
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
     }
@@ -127,7 +134,7 @@ function CustomPlanPayment({ route, navigation }) {
           </View>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={[styles.payBtn, paying && styles.payBtnDisabled]} onPress={handlePay} disabled={paying} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.payBtn, (paying || paid) && styles.payBtnDisabled]} onPress={handlePay} disabled={paying || paid} activeOpacity={0.85}>
               {paying ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
                 <>
                   <Icon name="lock" size={15} color="#FFFFFF" />

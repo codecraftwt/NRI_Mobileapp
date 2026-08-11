@@ -98,7 +98,7 @@ function NewSupportTicket({ navigation }) {
       const result = await create({
         subject: subject.trim(),
         message: message.trim(),
-        category: raiseTo && raiseTo !== GENERAL_VALUE ? raiseTo : undefined,
+        category: raiseTo || GENERAL_VALUE,
         stateId: isCustomPlan ? stateId : undefined,
         cityId: isCustomPlan ? cityId : undefined,
       }).unwrap();
