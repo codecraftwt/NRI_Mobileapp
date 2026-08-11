@@ -209,6 +209,16 @@ function ProfileStack() {
   );
 }
 
+// The root (first) screen of each tab's stack. Tapping a tab always returns to
+// its root so a deep screen the stack was left on (e.g. SupportTicketChat under
+// Requests, which also hides the tab bar) can't be re-surfaced by the tab.
+const TAB_ROOT_SCREENS = {
+  Dashboard: 'DashboardMain',
+  Services: 'ServicesMain',
+  Requests: 'RequestsMain',
+  Profile: 'ProfileMain',
+};
+
 function CustomTabBar({ state, descriptors, navigation }) {
   const focusedRoute = state.routes[state.index];
   const { options } = descriptors[focusedRoute.key];
@@ -285,7 +295,14 @@ function CustomTabBar({ state, descriptors, navigation }) {
             canPreventDefault: true,
           });
 
-          if (!isFocused && !event.defaultPrevented) {
+          if (event.defaultPrevented) return;
+          const rootScreen = TAB_ROOT_SCREENS[route.name];
+          if (rootScreen) {
+            // Land on the tab's root screen, popping any deep screen the stack
+            // was left on (so the tab bar reappears and re-tapping never
+            // reopens e.g. the support chat).
+            navigation.navigate(route.name, { screen: rootScreen });
+          } else if (!isFocused) {
             navigation.navigate(route.name, route.params);
           }
         };
