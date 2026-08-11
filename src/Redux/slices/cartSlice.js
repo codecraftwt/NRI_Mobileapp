@@ -22,8 +22,11 @@ const initialState = {
 };
 
 // Adopt the authoritative server cart rows into the local display list while
-// keeping the location fields (stateName/cityName/cityId/pincode) the guest
-// chose — the cart API omits those, so a plain replace would lose them.
+// keeping the fields the guest already resolved that the cart API omits:
+// location (stateName/cityName/cityId/pincode) AND the exact per-city price.
+// GET /customer/cart returns no per-line pricing, so a plain `...si` spread
+// would overwrite the guest's bound price with 0 and zero out the cart total —
+// keep the existing price/currency whenever the server row has no real price.
 function mergeServerIntoLocal(state, serverItems) {
   const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
   state.items = serverItems.map((si) => {
@@ -33,6 +36,8 @@ function mergeServerIntoLocal(state, serverItems) {
       return {
         ...existing,
         ...si,
+        price: Number(si.price) > 0 ? si.price : existing.price,
+        currency: Number(si.price) > 0 ? si.currency : (existing.currency ?? si.currency),
         stateName: existing.stateName ?? si.stateName,
         cityName: existing.cityName ?? si.cityName,
         cityId: existing.cityId ?? si.cityId,

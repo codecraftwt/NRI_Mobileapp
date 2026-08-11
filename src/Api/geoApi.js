@@ -14,14 +14,11 @@ function mapCountry(raw) {
 
 // GET /geo/countries → { id, name, iso2, phone_code, currency_code,
 // currency_symbol, flag_emoji } per country. Doubles as the dial-code source
-// for phone/WhatsApp flag pickers (phone_code + flag_emoji). Pass
-// `excludeIndia` to request the India-excluded list web onboarding uses — an
-// NRI never resides in India.
-export async function getCountries({ excludeIndia = false } = {}) {
+// for phone/WhatsApp flag pickers (phone_code + flag_emoji). The endpoint
+// already includes India by default.
+export async function getCountries() {
   try {
-    const params = {};
-    if (excludeIndia) params.exclude_india = 1;
-    const response = await apiClient.get('/geo/countries', { params });
+    const response = await apiClient.get('/geo/countries');
     const list = response.data?.data || response.data || [];
     return list.map(mapCountry);
   } catch (error) {
