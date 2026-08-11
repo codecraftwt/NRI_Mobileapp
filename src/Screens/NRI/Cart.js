@@ -96,7 +96,7 @@ function Cart({ navigation }) {
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
           <Text style={styles.emptyDesc}>Browse services and add the ones you need.</Text>
           <TouchableOpacity style={styles.browseBtn} onPress={() => navigation.navigate('GuestServices')}>
-            <Text style={styles.browseBtnText}>Browse Services</Text>
+            <Text style={styles.browseBtnText}>Back to Services</Text>
           </TouchableOpacity>
         </View>
       ) : (

@@ -8,7 +8,6 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { saveUserProfile } from '../../Redux/slices/userSlice';
-import { useCountries } from '../../Hooks/useCountries';
 import { useStates } from '../../Hooks/useStates';
 import { useDocuments } from '../../Hooks/useDocuments';
 import { useWalletAccount } from '../../Hooks/useWalletAccount';
@@ -116,7 +115,6 @@ export default function ProfileNri({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
 
-  const { countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
 
   const { members: familyMembers, retry: retryFamily } = useFamilyMembers();
@@ -124,6 +122,12 @@ export default function ProfileNri({ navigation }) {
   const { documents, retry: retryDocuments } = useDocuments();
   const { balance: walletBalance, retry: retryWallet } = useWalletAccount();
   const { referralCode, retry: retryReferrals } = useReferrals();
+
+  // Collapse the family list to the first 3 by default; the rest is behind a
+  // Show more / Show less toggle.
+  const [showAllFamily, setShowAllFamily] = useState(false);
+  const FAMILY_PREVIEW_COUNT = 3;
+  const visibleFamily = showAllFamily ? familyMembers : familyMembers.slice(0, FAMILY_PREVIEW_COUNT);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -143,7 +147,8 @@ export default function ProfileNri({ navigation }) {
     }, [])
   );
 
-  const [nriCountry, setNriCountry] = useState(user?.countryOfResidence || '');
+  // Display-only — sourced from the account, not editable on this screen.
+  const nriCountry = user?.countryOfResidence || '';
   const [nriCity, setNriCity] = useState(user?.city || '');
   const [nriHomeState, setNriHomeState] = useState(user?.homeState || '');
   const [nriLanguage, setNriLanguage] = useState(LANGUAGE_LABEL_BY_CODE[user?.language] || 'English');
@@ -181,25 +186,13 @@ export default function ProfileNri({ navigation }) {
         <View style={styles.sectionCard}>
           <Text style={styles.cardTitle}>NRI Details</Text>
 
-          <SelectField
-            label="NRI Country"
-            value={nriCountry}
-            placeholder="Select Country"
-            options={countryNames}
-            loading={loadingCountries}
-            onSelect={(v) => {
-              setNriCountry(v);
-              const guessed = TIMEZONE_BY_COUNTRY[v];
-              if (guessed && (!nriTimezone || nriTimezone === TIMEZONE_BY_COUNTRY[nriCountry])) {
-                setNriTimezone(guessed);
-              }
-            }}
-          />
-          {countriesFailed && (
-            <TouchableOpacity onPress={retryCountries}>
-              <Text style={styles.retryText}>Couldn't load countries. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
+          {/* NRI Country is display-only — set at registration, not editable here. */}
+          <Text style={styles.inputLabel}>NRI Country</Text>
+          <View style={[styles.selectBox, styles.selectBoxDisabled]}>
+            <Text style={[styles.selectText, !nriCountry && styles.placeholderText]} numberOfLines={1}>
+              {nriCountry || '—'}
+            </Text>
+          </View>
 
           <Text style={styles.inputLabel}>NRI City</Text>
           <TextInput style={styles.input} value={nriCity} onChangeText={setNriCity} placeholderTextColor="#94A3B8" />
@@ -254,15 +247,11 @@ export default function ProfileNri({ navigation }) {
         <View style={styles.card}>
           <View style={styles.listHeaderRow}>
             <Text style={styles.cardTitle}>Family Members ({familyMembers.length})</Text>
-            <TouchableOpacity style={styles.addLinkBtn} onPress={() => navigation.navigate('AddFamilyMember')}>
-              <Icon name="add" size={16} color="#1E3A8A" />
-              <Text style={styles.addLinkText}>Add</Text>
-            </TouchableOpacity>
           </View>
           {familyMembers.length === 0 ? (
             <Text style={styles.emptyText}>No family members added yet.</Text>
           ) : (
-            familyMembers.map(m => (
+            visibleFamily.map(m => (
               <View key={m.id} style={styles.listRow}>
                 <Text style={styles.listRowName}>{m.name}</Text>
                 <View style={styles.listRowMetaRow}>
@@ -274,6 +263,14 @@ export default function ProfileNri({ navigation }) {
                 <Text style={styles.listRowMeta}>{[m.cityName, m.stateName].filter(Boolean).join(', ')}</Text>
               </View>
             ))
+          )}
+          {familyMembers.length > FAMILY_PREVIEW_COUNT && (
+            <TouchableOpacity style={styles.showMoreBtn} onPress={() => setShowAllFamily(v => !v)} activeOpacity={0.7}>
+              <Text style={styles.showMoreText}>
+                {showAllFamily ? 'Show less' : `Show ${familyMembers.length - FAMILY_PREVIEW_COUNT} more`}
+              </Text>
+              <Icon name={showAllFamily ? 'expand-less' : 'expand-more'} size={18} color="#1E3A8A" />
+            </TouchableOpacity>
           )}
         </View>
       </ScrollView>
@@ -333,6 +330,8 @@ const styles = StyleSheet.create({
   addLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#1E3A8A', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   addLinkText: { fontSize: 13, fontWeight: '600', color: '#1E3A8A' },
   emptyText: { fontSize: 14, color: '#94A3B8', marginTop: 12 },
+  showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 12, paddingVertical: 8 },
+  showMoreText: { fontSize: 14, fontWeight: '600', color: '#1E3A8A' },
   listRow: { paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, gap: 6 },
   listRowName: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   listRowMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

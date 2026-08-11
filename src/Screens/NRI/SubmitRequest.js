@@ -543,7 +543,7 @@ function SubmitRequest({ navigation }) {
           <Icon name="shopping-cart" size={54} color="#CBD5E1" />
           <Text style={styles.emptyTitle}>No services selected</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.primaryBtnText}>Browse Services</Text>
+            <Text style={styles.primaryBtnText}>Back to Services</Text>
           </TouchableOpacity>
         </View>
       ) : page === 'cart' ? (
