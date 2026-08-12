@@ -119,7 +119,6 @@ function Dashboard({ navigation }) {
             <Icon name="star" size={12} color="#F5B301" />
             <Text style={styles.goldBadgeText}>Gold Vendor</Text>
           </View>
-          <Text style={styles.metaText}>{ratingValue != null ? `${Number(ratingValue).toFixed(1)} Rating` : 'No ratings yet'}</Text>
         </View>
 
         {/* Availability Toggle */}

@@ -28,7 +28,12 @@ const rmRequestsSlice = createSlice({
       })
       .addCase(fetchRmRequests.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.requests = action.payload.requests;
+        const isAppend = action.meta.arg?.page > 1;
+        if (isAppend) {
+          state.requests = [...state.requests, ...action.payload.requests];
+        } else {
+          state.requests = action.payload.requests;
+        }
         state.meta = action.payload.meta;
       })
       .addCase(fetchRmRequests.rejected, (state, action) => {

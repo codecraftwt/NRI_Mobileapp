@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, TextInput, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useRmRequests } from '../../Hooks/RM/useRmRequests';
@@ -38,16 +38,6 @@ function isOverdue(t) {
   return !!t.overdue || (!!t.slaDeadline && new Date(t.slaDeadline).getTime() < Date.now());
 }
 
-// Windowed page numbers around the current page (e.g. [1,2,3]).
-function pageWindow(current, last, size = 3) {
-  let start = Math.max(1, current - Math.floor(size / 2));
-  const end = Math.min(last, start + size - 1);
-  start = Math.max(1, end - size + 1);
-  const arr = [];
-  for (let i = start; i <= end; i++) arr.push(i);
-  return arr;
-}
-
 // Short date for the card header band, e.g. "24/09/2024".
 function dateShort(iso) {
   if (!iso) return '';
@@ -65,8 +55,8 @@ function slaLabel(deadline, overdue, status) {
   if (!deadline) return overdue ? 'Overdue' : null;
   const diff = new Date(deadline).getTime() - Date.now();
   const days = Math.round(Math.abs(diff) / 86400000);
-  const isOverdue = overdue || diff < 0;
-  if (isOverdue) return days <= 0 ? 'Overdue' : `Overdue ${days}d`;
+  const overdueNow = overdue || diff < 0;
+  if (overdueNow) return days <= 0 ? 'Overdue' : `Overdue ${days}d`;
   return days <= 0 ? 'Due today' : `Due in ${days}d`;
 }
 
@@ -74,19 +64,8 @@ function Tickets({ navigation }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterVisible, setFilterVisible] = useState(false);
-  const { requests, loading, meta, fetchPage } = useRmRequests();
-
-  const currentPage = meta?.currentPage || 1;
-  const lastPage = meta?.lastPage || 1;
-  const perPage = meta?.perPage || requests.length || 0;
+  const { requests, loading, meta, fetchNextPage } = useRmRequests();
   const total = meta?.total || 0;
-  const from = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
-  const to = Math.min(currentPage * perPage, total);
-
-  const goToPage = (p) => {
-    if (loading || p < 1 || p > lastPage || p === currentPage) return;
-    fetchPage(p);
-  };
 
   const matchesStatus = (t) => {
     if (statusFilter === 'all') return true;
@@ -161,18 +140,31 @@ function Tickets({ navigation }) {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {loading && requests.length === 0 ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color="#20304C" />
-          </View>
-        ) : filtered.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="confirmation-number" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No Tickets Found</Text>
-          </View>
-        ) : (
-          filtered.map((t) => {
+      <FlatList
+        data={filtered}
+        keyExtractor={t => String(t.id)}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onEndReached={fetchNextPage}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={
+          loading && requests.length === 0 ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#20304C" />
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Icon name="confirmation-number" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No Tickets Found</Text>
+            </View>
+          )
+        }
+        ListFooterComponent={
+          loading && requests.length > 0 ? (
+            <View style={styles.listFooter}><ActivityIndicator size="small" color="#20304C" /></View>
+          ) : null
+        }
+        renderItem={({ item: t }) => {
             const pill = getStatusPill(t.status);
             const resolved = norm(t.status) === 'resolved' || norm(t.status) === 'completed';
             const sla = slaLabel(t.slaDeadline, t.overdue, t.status);
@@ -218,51 +210,8 @@ function Tickets({ navigation }) {
                 </View>
               </TouchableOpacity>
             );
-          })
-        )}
-
-        {/* Pagination */}
-        {!!meta && total > 0 && requests.length > 0 && (
-          <View style={styles.pagination}>
-            <Text style={styles.pageInfo}>Showing {from} to {to} of {total} results</Text>
-            {lastPage > 1 && (
-              <View style={styles.pageRow}>
-                <TouchableOpacity
-                  style={[styles.pageBtn, currentPage <= 1 && styles.pageBtnDisabled]}
-                  onPress={() => goToPage(currentPage - 1)}
-                  disabled={currentPage <= 1}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="chevron-left" size={18} color={currentPage <= 1 ? '#CBD5E1' : '#475569'} />
-                </TouchableOpacity>
-
-                {pageWindow(currentPage, lastPage).map(p => {
-                  const active = p === currentPage;
-                  return (
-                    <TouchableOpacity
-                      key={p}
-                      style={[styles.pageNum, active && styles.pageNumActive]}
-                      onPress={() => goToPage(p)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.pageNumText, active && styles.pageNumTextActive]}>{p}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-
-                <TouchableOpacity
-                  style={[styles.pageBtn, currentPage >= lastPage && styles.pageBtnDisabled]}
-                  onPress={() => goToPage(currentPage + 1)}
-                  disabled={currentPage >= lastPage}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="chevron-right" size={18} color={currentPage >= lastPage ? '#CBD5E1' : '#475569'} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-      </ScrollView>
+        }}
+      />
 
       {/* Filter sheet */}
       <Modal visible={filterVisible} transparent animationType="slide" onRequestClose={() => setFilterVisible(false)}>
@@ -366,16 +315,7 @@ const styles = StyleSheet.create({
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
-
-  pagination: { alignItems: 'center', gap: 12, marginTop: 8, paddingTop: 8 },
-  pageInfo: { fontSize: 13, color: '#64748B' },
-  pageRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pageBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  pageBtnDisabled: { backgroundColor: '#F8FAFC' },
-  pageNum: { minWidth: 36, height: 36, borderRadius: 18, paddingHorizontal: 6, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  pageNumActive: { backgroundColor: '#1D4ED8', borderColor: '#1D4ED8' },
-  pageNumText: { fontSize: 13, fontWeight: '700', color: '#475569' },
-  pageNumTextActive: { color: '#FFFFFF' },
+  listFooter: { paddingVertical: 16 },
 });
 
 export default Tickets;

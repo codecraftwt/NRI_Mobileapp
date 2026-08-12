@@ -14,6 +14,12 @@ export function useRmRequests(params) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchNextPage = () => {
+    if (status !== 'loading' && meta && meta.currentPage < meta.lastPage) {
+      dispatch(fetchRmRequests({ ...(params || {}), page: meta.currentPage + 1 }));
+    }
+  };
+
   return {
     requests,
     meta,
@@ -21,6 +27,7 @@ export function useRmRequests(params) {
     failed: status === 'failed',
     error,
     fetchPage: (p) => dispatch(fetchRmRequests({ ...(params || {}), page: p })),
+    fetchNextPage,
     refresh: (overrides) => dispatch(fetchRmRequests({ ...(params || {}), ...(overrides || {}) })),
   };
 }

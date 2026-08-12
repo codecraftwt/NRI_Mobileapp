@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   valueBannerPillText: { fontSize: 11, fontWeight: '700', color: '#FDE68A' },
 
   sectionTitle: { fontSize: 18, fontFamily: typography.sectionTitle.fontFamily, color: '#0F172A', marginTop: 4, marginBottom: 12 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 18, padding: 13, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#20304C', justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 16, fontFamily: typography.h2.fontFamily },
@@ -214,13 +214,13 @@ const styles = StyleSheet.create({
   scorePill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   scoreText: { fontSize: 11, fontWeight: '700' },
 
-  upgradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+  upgradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap', backgroundColor: '#F8FAFC', borderRadius: 12, padding: 10, borderWidth: 1, borderColor: '#F1F5F9' },
   planTag: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   planTagHighlight: { backgroundColor: '#FFF3EE', borderColor: '#FDE4D8' },
   planTagText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
   value: { marginLeft: 'auto', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#16A34A' },
 
-  pitchBtn: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EEF2F7', borderRadius: 22, paddingVertical: 10, paddingHorizontal: 18, marginTop: 16 },
+  pitchBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#EEF2F7', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 16, marginTop: 10 },
   pitchText: { fontSize: 13, fontWeight: '700', color: '#20304C', letterSpacing: 0.2 },
 
   emptyState: { paddingVertical: 70, alignItems: 'center', gap: 12 },
