@@ -34,7 +34,7 @@ function RequestSupportChat({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <Header navigation={navigation} showBack />
+      <Header navigation={navigation} title="Support Chat" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.headerRow}>

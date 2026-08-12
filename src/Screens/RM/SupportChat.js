@@ -28,7 +28,7 @@ function formatTime(dateStr) {
 }
 
 function SupportChat({ route, navigation }) {
-  const { ticketId, ticketNumber } = route.params || {};
+  const { ticketId } = route.params || {};
   const user = useSelector(s => s.user.user);
   const { showAlert, alertProps } = useAppAlert();
 
@@ -138,7 +138,7 @@ function SupportChat({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Header navigation={navigation} title={chat?.ticketNumber || ticketNumber || 'Support Chat'} showBack />
+      <Header navigation={navigation} title="Support Chat" showBack />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
