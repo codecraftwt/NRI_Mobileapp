@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Linking } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../theme/typography';
 
@@ -14,22 +14,10 @@ function RMWidget({ rm }) {
         <View style={styles.info}>
           <Text style={styles.title}>YOUR RELATIONSHIP MANAGER</Text>
           <Text style={styles.name}>{rm.name}</Text>
-          {!!rm.phone && (
-            <View style={styles.phoneRow}>
-              <Icon name="headset-mic" size={13} color="#E2E8F0" />
-              <Text style={styles.phone}>{rm.phone}</Text>
-            </View>
-          )}
         </View>
       </View>
-      
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${rm.phone || '+910000000000'}`)}>
-          <Icon name="phone" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
-        {/* <TouchableOpacity style={styles.waBtn} onPress={() => Linking.openURL(`whatsapp://send?phone=${rm.phone || '+910000000000'}`)}>
-          <Icon name="chat" size={16} color="#FFFFFF" />
-        </TouchableOpacity> */}
+      <View style={styles.statusIcon}>
+        <Icon name="verified-user" size={18} color="#FFFFFF" />
       </View>
     </View>
   );
@@ -82,34 +70,11 @@ const styles = StyleSheet.create({
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF'
   },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  phone: {
-    fontSize: 12,
-    fontFamily: typography.labelMedium.fontFamily,
-    color: '#CBD5E1',
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  callBtn: { 
+  statusIcon: {
     width: 34,
     height: 34,
     borderRadius: 17,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  waBtn: { 
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#22C55E',
     justifyContent: 'center',
     alignItems: 'center',
   },
