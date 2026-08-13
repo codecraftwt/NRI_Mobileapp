@@ -1,6 +1,8 @@
+import { CommonActions } from '@react-navigation/native';
 import { store } from '../../Redux/store';
-import { navigate } from '../../Navigations/navigationRef';
+import { navigate, dispatch } from '../../Navigations/navigationRef';
 import { getSupportTickets } from '../../Api/supportTicketApi';
+import { getVendorJobs, getVendorJobSupportChat } from '../../Api/Vendor/vendorJobsApi';
 
 /**
  * Routes a tapped push notification to the right in-app screen.
@@ -57,6 +59,13 @@ function extractSupportTicketNumber(data) {
   return m ? m[0].toUpperCase() : undefined;
 }
 
+function extractRequestTicketNumber(data) {
+  let s = `${data?.title || ''} ${data?.message || ''} ${data?.url || ''}`;
+  try { s += ` ${JSON.stringify(data)}`; } catch (e) { /* ignore */ }
+  const m = s.match(/NRI-\d{4}-\d+/i);
+  return m ? m[0].toUpperCase() : undefined;
+}
+
 // The customer support-ticket chat needs the numeric id, but the notification
 // only carries the SUP-… number. Resolve number → id via the customer's
 // support-ticket list (the ticket is recent, so it's on the first page/s),
@@ -76,11 +85,131 @@ async function openCustomerSupportTicketByNumber(ticketNumber, openChat) {
   return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
 }
 
+async function findVendorJobIdByTicketNumber(ticketNumber) {
+  if (!ticketNumber) return null;
+  try {
+    const { jobs } = await getVendorJobs({ search: ticketNumber });
+    const match = (jobs || []).find(job => (job.ticket || '').toUpperCase() === ticketNumber);
+    return match?.id || null;
+  } catch (e) { /* fall through to normal vendor routing */ }
+  return null;
+}
+
+async function getMatchingVendorSupportJobId(data) {
+  const supportTicketNumber = extractSupportTicketNumber(data);
+  const requestTicketNumber = extractRequestTicketNumber(data);
+  if (!supportTicketNumber || !requestTicketNumber) return null;
+
+  const jobId = await findVendorJobIdByTicketNumber(requestTicketNumber);
+  if (!jobId) return null;
+
+  try {
+    const { chat } = await getVendorJobSupportChat(jobId);
+    return (chat?.ticketNumber || '').toUpperCase() === supportTicketNumber ? jobId : null;
+  } catch (e) { /* fall through to normal vendor routing */ }
+  return null;
+}
+
+// Deep-link into a screen under the vendor My Jobs tab by rebuilding the whole
+// navigation tree. The My Jobs stack becomes [MyJobsMain, <screen>] so Back
+// always lands on MyJobs.js, the Home (Dashboard) tab is reset to its root so
+// it never re-surfaces a leftover Notifications screen, and the other tabs are
+// reset to their roots. Rebuilding the state — rather than navigate() — is what
+// clears the stale screens notification taps used to leave behind.
+function resetVendorToMyJobs(screen, params) {
+  dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'VendorHome',
+          state: {
+            index: 1, // My Jobs tab focused
+            routes: [
+              { name: 'Dashboard', state: { index: 0, routes: [{ name: 'DashboardMain' }] } },
+              { name: 'MyJobs', state: { index: 1, routes: [{ name: 'MyJobsMain' }, { name: screen, params }] } },
+              { name: 'Earnings', state: { index: 0, routes: [{ name: 'EarningsMain' }] } },
+              { name: 'Support', state: { index: 0, routes: [{ name: 'SupportMain' }] } },
+              { name: 'Profile', state: { index: 0, routes: [{ name: 'ProfileMain' }] } },
+            ],
+          },
+        },
+      ],
+    })
+  );
+}
+
+// Pop the in-app Notifications screen off its (Home/Dashboard) stack before
+// deep-linking to a different tab, so the Home tab never re-shows it.
+function closeInAppNotifications(nav) {
+  if (nav && typeof nav.popToTop === 'function') {
+    try { nav.popToTop(); } catch (e) { /* ignore */ }
+  }
+}
+
+// Deep-link into a screen under the RM Dashboard tab by rebuilding the whole
+// navigation tree (mirrors resetVendorToMyJobs / resetCustomerRequests): the
+// Dashboard stack becomes [DashboardMain, <screen>] so Back lands on the RM
+// dashboard, the leftover Notifications screen is dropped, and the other tabs
+// are reset to their roots.
+function resetRmDashboard(screen, params) {
+  dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'RMHome',
+          state: {
+            index: 0, // Dashboard tab focused
+            routes: [
+              { name: 'Dashboard', state: { index: 1, routes: [{ name: 'DashboardMain' }, { name: screen, params }] } },
+              { name: 'Customers', state: { index: 0, routes: [{ name: 'MyCustomersMain' }] } },
+              { name: 'TicketsTab', state: { index: 0, routes: [{ name: 'TicketsMain' }] } },
+              { name: 'Profile', state: { index: 0, routes: [{ name: 'ProfileMain' }] } },
+            ],
+          },
+        },
+      ],
+    })
+  );
+}
+
+// Deep-link into a screen under the customer Requests tab by rebuilding the
+// whole navigation tree (mirrors resetVendorToMyJobs): the Requests stack
+// becomes [RequestsMain, <screen>] so Back lands on the request list, the Home
+// (Dashboard) tab is reset to its root so it never re-surfaces a leftover
+// Notifications screen, and the other tabs are reset to their roots.
+function resetCustomerRequests(screen, params) {
+  const requestsState = screen && screen !== 'RequestsMain'
+    ? { index: 1, routes: [{ name: 'RequestsMain' }, { name: screen, params }] }
+    : { index: 0, routes: [{ name: 'RequestsMain' }] };
+  dispatch(
+    CommonActions.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'AppHome',
+          state: {
+            index: 2, // Requests tab focused
+            routes: [
+              { name: 'Dashboard', state: { index: 0, routes: [{ name: 'DashboardMain' }] } },
+              { name: 'Services', state: { index: 0, routes: [{ name: 'ServicesMain' }] } },
+              { name: 'Requests', state: requestsState },
+              { name: 'Profile', state: { index: 0, routes: [{ name: 'ProfileMain' }] } },
+            ],
+          },
+        },
+      ],
+    })
+  );
+}
+
 // `nav` is the in-app Notifications screen's own navigation prop (passed only
-// for taps on the in-app list). When present we PUSH the target onto the
-// current stack so Back returns to Notifications; real push-notification taps
-// pass no `nav` and deep-link via the tab navigators instead.
-export function handleNotificationNavigation(data, nav) {
+// for taps on the in-app list). Taps pop it off the Home stack and deep-link
+// through the tab navigators instead, so the Home tab is never left showing
+// the Notifications list and Back lands on the target tab's root screen.
+// Real push-notification taps pass no `nav` and deep-link the same way.
+export async function handleNotificationNavigation(data, nav) {
   if (!data) return;
   // Don't push a signed-out user into an authenticated area.
   if (!store.getState()?.user?.isAuthenticated) return;
@@ -97,12 +226,13 @@ export function handleNotificationNavigation(data, nav) {
   const isRm = /relationship|manager|\brm\b/.test(role);
 
   // ---- Relationship Manager ----
-  // RM screens live under the Dashboard tab of the RMHome tab navigator, so we
-  // deep-link as RMHome → Dashboard → <screen>. Order matters: the more specific
+  // RM screens live under the Dashboard tab of the RMHome tab navigator. The
+  // navigation tree is rebuilt around the target (see resetRmDashboard) so
+  // Back always lands on the RM dashboard and the Home tab is never left
+  // showing the Notifications screen. Order matters: the more specific
   // support-ticket / request-chat routes are matched before the generic ones.
   if (isRm) {
-    const toDashboard = (screen, params) =>
-      navigate('RMHome', { screen: 'Dashboard', params: params ? { screen, params } : { screen } });
+    const toDashboard = (screen, params) => resetRmDashboard(screen, params);
     // General-support ticket thread (customer-raised support ticket). The
     // notification url carries the ticket id (/support-tickets/47); we also
     // pass the SUP-… number from the message for the header.
@@ -125,6 +255,7 @@ export function handleNotificationNavigation(data, nav) {
     if (/support|chat|dispute/.test(hay)) {
       return toDashboard('GeneralSupport');
     }
+    closeInAppNotifications(nav);
     return navigate('RMHome');
   }
 
@@ -132,12 +263,13 @@ export function handleNotificationNavigation(data, nav) {
   // support-tickets url (e.g. /my/support-tickets/6). Open that exact ticket's
   // chat thread: prefer the id from the url (the last path segment), and only
   // fall back to resolving the SUP-… number via the list when there's no id.
-  // In-app tap → push onto the current (Dashboard) stack so Back returns to
-  // Notifications. Push tap → deep-link into the Requests tab.
-  const openCustomerChat = (ticketId) =>
-    nav
-      ? nav.navigate('SupportTicketChat', { ticketId })
-      : navigate('AppHome', { screen: 'Requests', params: { screen: 'SupportTicketChat', params: { ticketId } } });
+  // Always land on the Requests tab (not pushed onto the current stack) so
+  // Back returns to the request list and the Home tab isn't left showing the
+  // Notifications screen.
+  const openCustomerChat = (ticketId) => {
+    closeInAppNotifications(nav);
+    return resetCustomerRequests('SupportTicketChat', { ticketId });
+  };
 
   if (!isVendor) {
     const supNumber = extractSupportTicketNumber(data);
@@ -149,27 +281,45 @@ export function handleNotificationNavigation(data, nav) {
   }
 
   // Support / chat replies → the role's Support area.
+  if (isVendor) {
+    const supportJobId = await getMatchingVendorSupportJobId(data);
+    if (supportJobId) {
+      // Always rebuild the My Jobs stack (not just push onto the current one)
+      // so Back from the chat lands on MyJobs.js and the Home tab is not left
+      // showing the Notifications screen the tap came from.
+      return resetVendorToMyJobs('JobSupportChat', { ticketId: supportJobId });
+    }
+  }
+
   if (/support|chat|dispute/.test(hay)) {
-    if (isVendor) return navigate('VendorHome', { screen: 'Support', params: { screen: 'SupportMain' } });
+    if (isVendor) {
+      closeInAppNotifications(nav);
+      return navigate('VendorHome', { screen: 'Support', params: { screen: 'SupportMain' } });
+    }
+    closeInAppNotifications(nav);
     return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
   }
 
   // Vendor job events (assigned, SLA breach, report reviewed, …).
   if (isVendor) {
     if (id && /job|ticket|sla/.test(hay)) {
-      return navigate('VendorHome', { screen: 'MyJobs', params: { screen: 'JobDetail', params: { ticketId: id } } });
+      return resetVendorToMyJobs('JobDetail', { ticketId: id });
     }
     if (/earning|payout/.test(hay)) {
+      closeInAppNotifications(nav);
       return navigate('VendorHome', { screen: 'Earnings', params: { screen: 'EarningsMain' } });
     }
+    closeInAppNotifications(nav);
     return navigate('VendorHome');
   }
 
-  // Customer ticket/request events.
+  // Customer ticket/request events. Land on the Requests tab with a clean
+  // stack so Back returns to the request list (same reasoning as above).
   if (id && /ticket|request|job|sla/.test(hay)) {
-    if (nav) return nav.navigate('TicketDetail', { ticketId: id });
-    return navigate('AppHome', { screen: 'Requests', params: { screen: 'TicketDetail', params: { ticketId: id } } });
+    closeInAppNotifications(nav);
+    return resetCustomerRequests('TicketDetail', { ticketId: id });
   }
   // Fallback — just bring the app to its home.
+  closeInAppNotifications(nav);
   return navigate('AppHome');
 }

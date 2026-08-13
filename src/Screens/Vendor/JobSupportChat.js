@@ -36,6 +36,7 @@ function JobSupportChat({ route, navigation }) {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  const scrollRef = useRef(null);
   useEffect(() => { sendingRef.current = sending; }, [sending]);
 
   const load = useCallback(async () => {
@@ -146,7 +147,7 @@ function JobSupportChat({ route, navigation }) {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Header navigation={navigation} title={chat.ticketNumber || 'Support Chat'} showBack />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.chatWrap}>
         <View style={styles.card}>
           <View style={styles.threadHeaderRow}>
             <View style={styles.threadHeaderLeft}>
@@ -158,7 +159,14 @@ function JobSupportChat({ route, navigation }) {
             <Text style={styles.threadDate}>{formatTime(chat.createdAt)}</Text>
           </View>
 
-          <View style={styles.messagesWrap}>
+          <ScrollView
+            ref={scrollRef}
+            style={styles.messagesScroll}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+          >
             {replies.length === 0 ? (
               <Text style={styles.noMsgText}>No messages yet.</Text>
             ) : (
@@ -175,7 +183,7 @@ function JobSupportChat({ route, navigation }) {
                 );
               })
             )}
-          </View>
+          </ScrollView>
 
           {isResolved ? (
             <View style={styles.resolvedNote}>
@@ -203,7 +211,7 @@ function JobSupportChat({ route, navigation }) {
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
       <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
@@ -211,12 +219,13 @@ function JobSupportChat({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 60, gap: 16 },
+  chatWrap: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   emptyText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
 
   card: {
+    maxHeight: '100%',
     backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, gap: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 3,
@@ -228,7 +237,8 @@ const styles = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 
-  messagesWrap: { gap: 12 },
+  messagesScroll: { flexShrink: 1 },
+  messagesContent: { gap: 12, paddingBottom: 4 },
   noMsgText: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingVertical: 8 },
   bubbleRow: { maxWidth: '85%', alignSelf: 'flex-start' },
   bubbleRowMe: { alignSelf: 'flex-end' },
