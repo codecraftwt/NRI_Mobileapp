@@ -52,10 +52,17 @@ function Planner({ navigation }) {
   };
 
   const handleDateChange = (event, selected) => {
-    setShowDatePicker(false);
-    if (event.type === 'dismissed' || !selected) return;
-    if (Platform.OS === 'android') { setPendingDate(selected); setShowTimePicker(true); }
-    else setDueAt(selected);
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      if (event.type === 'dismissed' || !selected) return;
+      setPendingDate(selected);
+      setShowTimePicker(true);
+    } else if (selected) {
+      // iOS spinner fires onChange continuously as the wheels are scrolled —
+      // closing here (like Android's dialog) would dismiss after the first
+      // tick. Keep it open; the Done button below closes it.
+      setDueAt(selected);
+    }
   };
 
   const handleTimeChange = (event, selected) => {
@@ -165,7 +172,13 @@ function Planner({ navigation }) {
         )}
       </ScrollView>
 
-      {/* Add / "Plan Something" modal */}
+      {/* Add / "Plan Something" modal. Type, Customer and the date/time
+          pickers render as overlays *inside* this single Modal instead of
+          each being their own top-level <Modal> — mounting several native
+          Modals at once (and toggling them open/closed) is what left the
+          whole Add Plan flow, including the Add button itself, unresponsive
+          after a picker had been opened once. Only one native Modal is ever
+          presented now. */}
       <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -245,55 +258,75 @@ function Planner({ navigation }) {
               <Text style={styles.helperText}>You'll get an in-app reminder on the morning an item is due.</Text>
             </ScrollView>
           </View>
+
+          {/* Type picker overlay */}
+          {showTypePicker && (
+            <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowTypePicker(false)}>
+              <View style={styles.pickerSheet}>
+                <Text style={styles.pickerTitle}>Select Type</Text>
+                {TYPES.map(t => (
+                  <TouchableOpacity key={t.value} style={styles.pickerRow} onPress={() => { setType(t.value); setShowTypePicker(false); }} activeOpacity={0.7}>
+                    <View style={[styles.taskIconBg, { backgroundColor: t.color + '15' }]}><Icon name={t.icon} size={16} color={t.color} /></View>
+                    <Text style={styles.pickerRowText}>{t.label}</Text>
+                    {type === t.value && <Icon name="check" size={20} color="#20304C" />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Customer picker overlay */}
+          {showCustomerPicker && (
+            <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowCustomerPicker(false)}>
+              <View style={styles.pickerSheet}>
+                <Text style={styles.pickerTitle}>Select Customer</Text>
+                <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                  <TouchableOpacity style={styles.pickerRow} onPress={() => { setCustomerId(null); setCustomerName(''); setShowCustomerPicker(false); }} activeOpacity={0.7}>
+                    <Text style={styles.pickerRowText}>— None —</Text>
+                    {!customerId && <Icon name="check" size={20} color="#20304C" />}
+                  </TouchableOpacity>
+                  {customers.map(c => (
+                    <TouchableOpacity key={c.id} style={styles.pickerRow} onPress={() => { setCustomerId(c.id); setCustomerName(c.name); setShowCustomerPicker(false); }} activeOpacity={0.7}>
+                      <Text style={styles.pickerRowText} numberOfLines={1}>{c.name}</Text>
+                      {customerId === c.id && <Icon name="check" size={20} color="#20304C" />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* iOS date/time picker overlay — spinner fires onChange continuously
+              while scrolling, so it stays open until Done is tapped. */}
+          {Platform.OS === 'ios' && showDatePicker && (
+            <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)}>
+              <TouchableOpacity activeOpacity={1} style={styles.iosPickerSheet} onPress={() => {}}>
+                <DateTimePicker
+                  value={dueAt || new Date()}
+                  mode="datetime"
+                  display="spinner"
+                  onChange={handleDateChange}
+                />
+                <TouchableOpacity style={styles.iosPickerDoneBtn} onPress={() => setShowDatePicker(false)} activeOpacity={0.8}>
+                  <Text style={styles.iosPickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
 
-      {/* Type picker */}
-      <Modal visible={showTypePicker} transparent animationType="fade" onRequestClose={() => setShowTypePicker(false)}>
-        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowTypePicker(false)}>
-          <View style={styles.pickerSheet}>
-            <Text style={styles.pickerTitle}>Select Type</Text>
-            {TYPES.map(t => (
-              <TouchableOpacity key={t.value} style={styles.pickerRow} onPress={() => { setType(t.value); setShowTypePicker(false); }} activeOpacity={0.7}>
-                <View style={[styles.taskIconBg, { backgroundColor: t.color + '15' }]}><Icon name={t.icon} size={16} color={t.color} /></View>
-                <Text style={styles.pickerRowText}>{t.label}</Text>
-                {type === t.value && <Icon name="check" size={20} color="#20304C" />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Customer picker */}
-      <Modal visible={showCustomerPicker} transparent animationType="fade" onRequestClose={() => setShowCustomerPicker(false)}>
-        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowCustomerPicker(false)}>
-          <View style={styles.pickerSheet}>
-            <Text style={styles.pickerTitle}>Select Customer</Text>
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              <TouchableOpacity style={styles.pickerRow} onPress={() => { setCustomerId(null); setCustomerName(''); setShowCustomerPicker(false); }} activeOpacity={0.7}>
-                <Text style={styles.pickerRowText}>— None —</Text>
-                {!customerId && <Icon name="check" size={20} color="#20304C" />}
-              </TouchableOpacity>
-              {customers.map(c => (
-                <TouchableOpacity key={c.id} style={styles.pickerRow} onPress={() => { setCustomerId(c.id); setCustomerName(c.name); setShowCustomerPicker(false); }} activeOpacity={0.7}>
-                  <Text style={styles.pickerRowText} numberOfLines={1}>{c.name}</Text>
-                  {customerId === c.id && <Icon name="check" size={20} color="#20304C" />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {showDatePicker && (
+      {/* Android's native system dialogs render outside the RN view tree, so
+          they don't need to live inside the Add modal like the overlays above. */}
+      {Platform.OS === 'android' && showDatePicker && (
         <DateTimePicker
           value={dueAt || new Date()}
-          mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          mode="date"
+          display="default"
           onChange={handleDateChange}
         />
       )}
-      {showTimePicker && (
+      {Platform.OS === 'android' && showTimePicker && (
         <DateTimePicker
           value={pendingDate || dueAt || new Date()}
           mode="time"
@@ -364,9 +397,12 @@ const styles = StyleSheet.create({
   helperText: { fontSize: 12, color: '#94A3B8', textAlign: 'center', marginTop: 14, lineHeight: 17 },
 
   // Pickers
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 28 },
+  pickerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 28 },
   pickerSheet: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 },
   pickerTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 8 },
+  iosPickerSheet: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingTop: 8, paddingBottom: 16, paddingHorizontal: 16 },
+  iosPickerDoneBtn: { backgroundColor: '#20304C', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
+  iosPickerDoneText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
   pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   pickerRowText: { flex: 1, fontSize: 15, color: '#334155' },
 });

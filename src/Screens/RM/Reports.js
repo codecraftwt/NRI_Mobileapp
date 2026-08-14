@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, Modal, ActivityIndicator, RefreshControl, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, StatusBar, TextInput, Modal, ActivityIndicator, RefreshControl, Image, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -245,33 +245,37 @@ function Reports({ navigation }) {
 
       {/* Review modal */}
       <Modal visible={!!reviewFor} transparent animationType="fade" onRequestClose={() => setReviewFor(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Review Report</Text>
-            <Text style={styles.modalSub}>Add an optional review comment, then mark this report reviewed.</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Review comment (optional)..."
-              placeholderTextColor="#94A3B8"
-              value={comment}
-              onChangeText={setComment}
-              multiline
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setReviewFor(null)} activeOpacity={0.8}>
-                <Text style={styles.modalBtnGhostText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnPrimary, reviewingId && styles.btnDisabled]}
-                onPress={submitReview}
-                disabled={!!reviewingId}
-                activeOpacity={0.85}
-              >
-                {reviewingId ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalBtnPrimaryText}>Mark Reviewed</Text>}
-              </TouchableOpacity>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Review Report</Text>
+                <Text style={styles.modalSub}>Add an optional review comment, then mark this report reviewed.</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Review comment (optional)..."
+                  placeholderTextColor="#94A3B8"
+                  value={comment}
+                  onChangeText={setComment}
+                  multiline
+                />
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setReviewFor(null)} activeOpacity={0.8}>
+                    <Text style={styles.modalBtnGhostText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.modalBtnPrimary, reviewingId && styles.btnDisabled]}
+                    onPress={submitReview}
+                    disabled={!!reviewingId}
+                    activeOpacity={0.85}
+                  >
+                    {reviewingId ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalBtnPrimaryText}>Mark Reviewed</Text>}
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       <AppAlert {...alertProps} />
