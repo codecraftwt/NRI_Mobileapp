@@ -60,7 +60,7 @@ function Ratings({ navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={{ marginLeft: 6 }} />
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, alignItems: 'center', marginRight: 44 }}>
           <Text style={styles.headerTitle}>Ratings</Text>
           {/* <Text style={styles.headerSub}>Your performance & customer feedback</Text> */}
         </View>

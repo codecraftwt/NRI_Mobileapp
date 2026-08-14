@@ -6,7 +6,7 @@ import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
 const SETTINGS_ITEMS = [
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit details', icon: 'person-outline', route: 'ProfilePersonal' },
-  { key: 'address', label: 'Address', subtitle: 'Update your address', icon: 'place', route: 'ProfileAddress' },
+  { key: 'address', label: 'Address', subtitle: 'View your address', icon: 'place', route: 'ProfileAddress' },
   { key: 'password', label: 'Password', subtitle: 'Update your password', icon: 'lock-outline', route: 'ProfilePassword' },
 ];
 

@@ -9,7 +9,7 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, saveUserProfile } from '../../Redux/slices/userSlice';
 
-const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const GENDERS = ['Male', 'Female', 'Other'];
 
 // The API stores gender lower-cased ("male"); match it back to the display
 // option so the picker shows a checkmark and the label isn't lower-cased.

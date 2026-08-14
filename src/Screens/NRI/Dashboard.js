@@ -236,7 +236,7 @@ function Dashboard({ navigation }) {
           {/* Active Requests List */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Active Requests</Text>
+              <Text style={styles.sectionTitle}>All Requests</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Requests')}>
                 <Text style={styles.viewAllText}>View all →</Text>
               </TouchableOpacity>

@@ -105,12 +105,11 @@ export async function getTalukas({ districtId, cityId } = {}) {
   }
 }
 
-// The API's docs only promise "matching postal codes with their geo chain" —
-// the exact shape of that chain isn't nailed down (and the endpoint
-// currently 500s server-side on every code, so there's no real payload to
-// verify against yet). This mapper is deliberately defensive: it accepts
-// either nested relation objects (state/district/city/taluka) or flat
-// `*_name` fields, whichever the backend ends up sending.
+// Confirmed live response shape: { id, city_id, taluka_id, postal_code,
+// area_name, city: { id, name, state_id }, taluka }. No top-level state —
+// callers resolve the name from the cached states list via city.state_id.
+// This mapper stays defensive (accepts flat `*_name` fields too) in case the
+// backend later sends them alongside the relation objects.
 function mapPostalCode(raw) {
   return {
     id: raw.id,

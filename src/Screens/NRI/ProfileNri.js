@@ -197,7 +197,7 @@ export default function ProfileNri({ navigation }) {
           <Text style={styles.inputLabel}>NRI City</Text>
           <TextInput style={styles.input} value={nriCity} onChangeText={setNriCity} placeholderTextColor="#94A3B8" />
 
-          <SelectField
+          {/* <SelectField
             label="Home State in India"
             value={nriHomeState}
             placeholder="Select State"
@@ -209,7 +209,7 @@ export default function ProfileNri({ navigation }) {
             <TouchableOpacity onPress={retryStates}>
               <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
             </TouchableOpacity>
-          )}
+          )} */}
 
           <SelectField
             label="Language"
