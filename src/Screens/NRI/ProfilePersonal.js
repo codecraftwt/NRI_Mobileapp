@@ -15,6 +15,13 @@ const GENDERS = ['Male', 'Female', 'Other'];
 // option so the picker shows a checkmark and the label isn't lower-cased.
 const normalizeGender = (g) => GENDERS.find(o => o.toLowerCase() === String(g || '').toLowerCase()) || (g || '');
 
+// Letters, spaces and the punctuation real names use (O'Brien, Anne-Marie) —
+// no digits or symbols.
+const sanitizeName = (v) => String(v || '').replace(/[^A-Za-z\s'.-]/g, '');
+
+// Digits only, capped at 12 — matches the max valid phone length the API accepts.
+const sanitizePhone = (v) => String(v || '').replace(/\D/g, '').slice(0, 12);
+
 // YYYY-MM-DD from the Date's LOCAL parts — toISOString() would convert to UTC
 // and can roll the date back a day for negative-offset timezones.
 const toApiDate = (d) => {
@@ -131,7 +138,7 @@ export default function ProfilePersonal({ navigation }) {
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Phone</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
+          <TextInput style={styles.input} value={phone} onChangeText={(v) => setPhone(sanitizePhone(v))} keyboardType="phone-pad" maxLength={12} placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Date of Birth</Text>
           <TouchableOpacity style={styles.selectBox} onPress={() => setShowDobPicker(true)} activeOpacity={0.7}>
@@ -156,7 +163,7 @@ export default function ProfilePersonal({ navigation }) {
           <TextInput style={[styles.input, styles.multiline]} value={bio} onChangeText={setBio} multiline placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Emergency Contact Name</Text>
-          <TextInput style={styles.input} value={emergencyName} onChangeText={setEmergencyName} placeholderTextColor="#94A3B8" />
+          <TextInput style={styles.input} value={emergencyName} onChangeText={(v) => setEmergencyName(sanitizeName(v))} placeholderTextColor="#94A3B8" />
 
           <Text style={styles.inputLabel}>Emergency Contact Phone</Text>
           <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
