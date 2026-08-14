@@ -19,6 +19,7 @@ import JobDetail from '../../Screens/Vendor/JobDetail';
 import JobSupportChat from '../../Screens/Vendor/JobSupportChat';
 import Documents from '../../Screens/Vendor/Documents';
 import ProfilePersonal from '../../Screens/Vendor/ProfilePersonal';
+import ProfilePassword from '../../Screens/NRI/ProfilePassword';
 import BankDetails from '../../Screens/Vendor/BankDetails';
 import SupportTicketDetail from '../../Screens/Vendor/SupportTicketDetail';
 import Availability from '../../Screens/Vendor/Availability';
@@ -87,6 +88,7 @@ function ProfileStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ProfileMain" component={Profile} />
       <Stack.Screen name="ProfilePersonal" component={ProfilePersonal} />
+      <Stack.Screen name="ProfilePassword" component={ProfilePassword} />
       <Stack.Screen name="BankDetails" component={BankDetails} />
       <Stack.Screen name="Documents" component={Documents} />
       <Stack.Screen name="Availability" component={Availability} />

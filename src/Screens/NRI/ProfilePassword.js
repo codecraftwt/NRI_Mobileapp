@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
@@ -16,6 +17,9 @@ export default function ProfilePassword({ navigation }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState({});
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { showAlert, alertProps } = useAppAlert();
 
   const clearPasswordError = (field) => {
@@ -77,34 +81,49 @@ export default function ProfilePassword({ navigation }) {
         >
           <View style={styles.sectionCard}>
           <Text style={styles.inputLabel}>Current Password<Text style={styles.required}> *</Text></Text>
-          <TextInput
-            style={[styles.input, passwordErrorFor('current_password') && styles.inputError]}
-            value={currentPassword}
-            onChangeText={(v) => { setCurrentPassword(v); clearPasswordError('current_password'); }}
-            secureTextEntry
-            placeholderTextColor="#94A3B8"
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon, passwordErrorFor('current_password') && styles.inputError]}
+              value={currentPassword}
+              onChangeText={(v) => { setCurrentPassword(v); clearPasswordError('current_password'); }}
+              secureTextEntry={!showCurrent}
+              placeholderTextColor="#94A3B8"
+            />
+            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowCurrent(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name={showCurrent ? 'visibility-off' : 'visibility'} size={20} color="#64748B" />
+            </TouchableOpacity>
+          </View>
           {!!passwordErrorFor('current_password') && <Text style={styles.errorText}>{passwordErrorFor('current_password')}</Text>}
 
           <Text style={styles.inputLabel}>New Password<Text style={styles.required}> *</Text></Text>
-          <TextInput
-            style={[styles.input, passwordErrorFor('password') && styles.inputError]}
-            value={newPassword}
-            onChangeText={(v) => { setNewPassword(v); clearPasswordError('password'); }}
-            secureTextEntry
-            placeholder="Minimum 8 characters"
-            placeholderTextColor="#94A3B8"
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon, passwordErrorFor('password') && styles.inputError]}
+              value={newPassword}
+              onChangeText={(v) => { setNewPassword(v); clearPasswordError('password'); }}
+              secureTextEntry={!showNew}
+              placeholder="Minimum 8 characters"
+              placeholderTextColor="#94A3B8"
+            />
+            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowNew(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name={showNew ? 'visibility-off' : 'visibility'} size={20} color="#64748B" />
+            </TouchableOpacity>
+          </View>
           {!!passwordErrorFor('password') && <Text style={styles.errorText}>{passwordErrorFor('password')}</Text>}
 
           <Text style={styles.inputLabel}>Confirm New Password<Text style={styles.required}> *</Text></Text>
-          <TextInput
-            style={[styles.input, passwordErrorFor('password_confirmation') && styles.inputError]}
-            value={confirmPassword}
-            onChangeText={(v) => { setConfirmPassword(v); clearPasswordError('password_confirmation'); }}
-            secureTextEntry
-            placeholderTextColor="#94A3B8"
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon, passwordErrorFor('password_confirmation') && styles.inputError]}
+              value={confirmPassword}
+              onChangeText={(v) => { setConfirmPassword(v); clearPasswordError('password_confirmation'); }}
+              secureTextEntry={!showConfirm}
+              placeholderTextColor="#94A3B8"
+            />
+            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowConfirm(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name={showConfirm ? 'visibility-off' : 'visibility'} size={20} color="#64748B" />
+            </TouchableOpacity>
+          </View>
           {!!passwordErrorFor('password_confirmation') && <Text style={styles.errorText}>{passwordErrorFor('password_confirmation')}</Text>}
 
           <TouchableOpacity style={[styles.saveBtn, changingPassword && styles.saveBtnDisabled]} onPress={handleChangePassword} disabled={changingPassword}>
@@ -131,6 +150,9 @@ const styles = StyleSheet.create({
   required: { color: '#DC2626' },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52, fontSize: 16, color: '#0F172A' },
   inputError: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  inputRow: { position: 'relative', justifyContent: 'center' },
+  inputWithIcon: { paddingRight: 48 },
+  eyeBtn: { position: 'absolute', right: 14, height: 52, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 13, color: '#DC2626', marginTop: 6 },
   saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
