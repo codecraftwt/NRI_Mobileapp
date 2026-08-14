@@ -189,6 +189,10 @@ function JobDetail({ route, navigation }) {
     }
   };
 
+  const trackingUnchanged =
+    trackingNumber.trim() === (job?.tracking?.number || '') &&
+    trackingUrl.trim() === (job?.tracking?.url || '');
+
   const handleSaveTracking = async () => {
     try {
       await saveTracking({ trackingNumber: trackingNumber.trim(), trackingUrl: trackingUrl.trim() }).unwrap();
@@ -610,7 +614,7 @@ function JobDetail({ route, navigation }) {
               />
             </View>
 
-            <TouchableOpacity style={[styles.saveTrackingBtn, actionLoading && styles.btnDisabled]} onPress={handleSaveTracking} disabled={actionLoading} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.saveTrackingBtn, (actionLoading || trackingUnchanged) && styles.btnDisabled]} onPress={handleSaveTracking} disabled={actionLoading || trackingUnchanged} activeOpacity={0.8}>
               {actionLoading ? (
                 <ActivityIndicator size="small" color="#2563EB" />
               ) : (
