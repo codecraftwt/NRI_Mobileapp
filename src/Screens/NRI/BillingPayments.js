@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList, RefreshControl, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -174,7 +174,12 @@ function BillingPayments({ navigation }) {
         filename: `Receipt-${item.label}.pdf`,
         token,
       });
-      showAlert('Download Complete', 'Your receipt has been saved to your Downloads folder.');
+      showAlert(
+        'Download Complete',
+        Platform.OS === 'ios'
+          ? 'Your receipt has been saved. Find it in the Files app under On My iPhone/iPad > NRICircle, or use the share sheet to save it elsewhere.'
+          : 'Your receipt has been saved to your Downloads folder.'
+      );
     } catch (error) {
       showAlert('Download Failed', error?.message || 'Receipt is not available yet.');
     } finally {

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Linking, Share } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { useReferrals } from '../../Hooks/useReferrals';
@@ -36,7 +37,8 @@ function ReferEarn({ navigation }) {
   );
 
   const handleCopy = () => {
-    // TODO: use a clipboard library to copy `referralCode`
+    if (!referralCode) return;
+    Clipboard.setString(referralCode);
     showToast('Referral code copied successfully!', 'success');
   };
 

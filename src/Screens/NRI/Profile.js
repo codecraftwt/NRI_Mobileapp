@@ -4,6 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
@@ -47,6 +48,8 @@ function Profile({ navigation }) {
   );
 
   const handleCopyCode = () => {
+    if (!referralCode) return;
+    Clipboard.setString(referralCode);
     showToast('Referral code copied successfully!', 'success');
   };
 
