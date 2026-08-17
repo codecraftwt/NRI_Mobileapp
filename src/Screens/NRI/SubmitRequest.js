@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Platform, PermissionsAndroid, Linking, Alert, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Platform, Alert, Image } from 'react-native';
 import RNBlobUtil from 'react-native-blob-util';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSelector, useDispatch } from 'react-redux';
@@ -287,25 +287,7 @@ function SubmitRequest({ navigation }) {
     ? Number(quote.gstAmount)
     : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100));
 
-  // Document upload
-  const requestFilePermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33 ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    if (await PermissionsAndroid.check(permission)) return true;
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow Photo & Document Access',
-      message: 'NRI Circle needs access to attach documents to your request.',
-      buttonPositive: 'Allow', buttonNegative: 'Deny',
-    });
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert('Permission Required', 'Enable photo & document access from app settings to attach files.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
-    }
-    return false;
-  };
   const handleChooseDocument = async (docId) => {
-    if (!(await requestFilePermission())) return;
     try {
       const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       const picked = results[0];

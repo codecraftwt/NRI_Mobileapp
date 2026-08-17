@@ -114,35 +114,6 @@ function SectionHeader({ title, action }) {
   );
 }
 
-async function requestFilePermission(showAlert) {
-  if (Platform.OS !== 'android') return true;
-  const permission = Platform.Version >= 33
-    ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-    : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-  const already = await PermissionsAndroid.check(permission);
-  if (already) return true;
-
-  const result = await PermissionsAndroid.request(permission, {
-    title: 'Allow Photo & Document Access',
-    message: 'NRI Circle needs access to your photos and documents so you can attach them to this property.',
-    buttonPositive: 'Allow',
-    buttonNegative: 'Deny',
-  });
-
-  if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-
-  if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-    showAlert(
-      'Permission Required',
-      'Photo & document access is blocked. Please enable it from app settings to attach files.',
-      [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
-    );
-  } else {
-    showAlert('Permission Denied', 'Photo & document access is required to attach files.');
-  }
-  return false;
-}
-
 async function requestCameraPermission(showAlert) {
   if (Platform.OS !== 'android') return true;
   const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
@@ -200,8 +171,6 @@ function AttachmentsCard({ propertyId }) {
 
   const handleChooseFromGallery = async () => {
     setShowPhotoModal(false);
-    const allowed = await requestFilePermission(showAlert);
-    if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
       if (response.didCancel || response.errorCode) return;
       const uri = response.assets?.[0]?.uri;
@@ -219,8 +188,6 @@ function AttachmentsCard({ propertyId }) {
   };
 
   const pickAndUpload = async (kind) => {
-    const allowed = await requestFilePermission(showAlert);
-    if (!allowed) return;
     try {
       const [result] = await pick({
         type: [docTypes.images, docTypes.pdf],
@@ -414,14 +381,10 @@ function PendingAttachmentsCard({ files, onAdd, onRemove }) {
 
   const handleChooseFromGallery = async () => {
     setShowPhotoModal(false);
-    const allowed = await requestFilePermission(showAlert);
-    if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, addFromPhotoResponse);
   };
 
   const pickDocument = async () => {
-    const allowed = await requestFilePermission(showAlert);
-    if (!allowed) return;
     try {
       const [result] = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       if (!result) return;

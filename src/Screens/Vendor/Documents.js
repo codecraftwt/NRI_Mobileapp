@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, PermissionsAndroid, Linking } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
@@ -33,32 +33,11 @@ function Documents({ navigation }) {
   const typeLabel = (t) =>
     documentTypes.find(d => d.value === (t || '').toLowerCase())?.label || (t || 'Document');
 
-  const requestPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33
-      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    if (await PermissionsAndroid.check(permission)) return true;
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow File Access',
-      message: 'NRI Circle needs access to your files so you can upload verification documents.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    });
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      showAlert('Permission Required', 'File access is blocked. Enable it from app settings.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
-    }
-    return false;
-  };
-
   const handleUpload = async () => {
     if (!documentType) {
       showAlert('Select a type', 'Please choose a document type first.');
       return;
     }
-    if (!(await requestPermission())) return;
     try {
       const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       const picked = results[0];

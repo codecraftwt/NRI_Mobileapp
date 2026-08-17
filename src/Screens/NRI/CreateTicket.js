@@ -9,10 +9,8 @@ import {
   Modal,
   FlatList,
   Platform,
-  PermissionsAndroid,
   Alert,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -546,43 +544,11 @@ function CreateTicket({ route, navigation }) {
       });
   };
 
-  const requestFilePermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33
-      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    const already = await PermissionsAndroid.check(permission);
-    if (already) return true;
-
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow Photo & Document Access',
-      message: 'NRI Circle needs access to your photos and documents so you can attach them to a service request.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    });
-
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert(
-        'Permission Required',
-        'Photo & document access is blocked. Please enable it from app settings to attach files.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
-      );
-    } else {
-      Alert.alert('Permission Denied', 'Photo & document access is required to attach files.');
-    }
-    return false;
-  };
-
   const handleChooseFiles = async () => {
     if (files.length >= MAX_FILES) {
       Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`);
       return;
     }
-
-    const allowed = await requestFilePermission();
-    if (!allowed) return;
 
     try {
       const results = await pick({
@@ -622,8 +588,6 @@ function CreateTicket({ route, navigation }) {
 
   // Single-file picker for a specific required subscription document.
   const handleChooseDocument = async (docId) => {
-    const allowed = await requestFilePermission();
-    if (!allowed) return;
     try {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf],

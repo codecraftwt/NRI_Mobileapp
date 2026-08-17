@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, PermissionsAndroid, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -63,37 +63,9 @@ function JobDetail({ route, navigation }) {
     }
   }, [job?.tracking?.number, job?.tracking?.url]);
 
-  // Ask for the OS-appropriate media/storage permission before opening the
-  // picker. The document picker (SAF) doesn't strictly need this, so we never
-  // hard-block on it — but we surface the prompt, and if it's permanently
-  // denied we point the user to Settings. Wrapped so a missing constant or a
-  // permission-API error can't crash the flow (that was the old bug).
-  const requestFilePermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    try {
-      const perms = (Platform.Version >= 33
-        ? [PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES, PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO]
-        : [PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE]
-      ).filter(Boolean);
-      if (perms.length === 0) return true;
-      const result = await PermissionsAndroid.requestMultiple(perms);
-      const values = Object.values(result);
-      if (values.some(v => v === PermissionsAndroid.RESULTS.GRANTED)) return true;
-      if (values.some(v => v === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN)) {
-        showAlert('Permission Needed', 'File access is blocked. Enable it in app settings to attach files.',
-          [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
-      }
-      // Denied (not permanently) — still let SAF handle per-file access.
-      return true;
-    } catch (e) {
-      return true;
-    }
-  };
-
   // Picks up to `remaining` proof files (images/pdf/video), enforcing the 25 MB
   // per-file cap. Returns the accepted picker files, or null if cancelled.
   const pickProofFiles = async (remaining) => {
-    await requestFilePermission();
     try {
       const results = await pick({
         type: [docTypes.images, docTypes.pdf, docTypes.video],

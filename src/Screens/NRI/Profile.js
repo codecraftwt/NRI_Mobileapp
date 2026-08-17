@@ -82,35 +82,6 @@ function Profile({ navigation }) {
     return false;
   };
 
-  const requestGalleryPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33
-      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    const already = await PermissionsAndroid.check(permission);
-    if (already) return true;
-
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow Photo Access',
-      message: 'NRI Circle needs access to your photos so you can set a profile picture.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    });
-
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert(
-        'Permission Required',
-        'Photo access is blocked. Please enable it from app settings to choose a profile picture.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]
-      );
-    } else {
-      Alert.alert('Permission Denied', 'Photo access is required to choose a profile picture.');
-    }
-    return false;
-  };
-
   const uploadPhoto = (asset) => {
     if (!asset?.uri) return;
     dispatch(uploadUserProfilePhoto({ uri: asset.uri, name: asset.fileName, type: asset.type }))
@@ -132,8 +103,6 @@ function Profile({ navigation }) {
 
   const handleChooseFromGallery = async () => {
     setShowPhotoModal(false);
-    const allowed = await requestGalleryPermission();
-    if (!allowed) return;
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
       if (response.didCancel || response.errorCode) return;
       uploadPhoto(response.assets?.[0]);

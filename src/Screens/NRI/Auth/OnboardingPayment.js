@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, PermissionsAndroid, Linking, Alert, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, Alert, Image } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNBlobUtil from 'react-native-blob-util';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -335,29 +335,7 @@ function OnboardingPayment({ route, navigation }) {
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
-  // Required-document upload (Android needs media/storage permission first).
-  const requestFilePermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    const permission = Platform.Version >= 33
-      ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
-      : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-    if (await PermissionsAndroid.check(permission)) return true;
-    const result = await PermissionsAndroid.request(permission, {
-      title: 'Allow Photo & Document Access',
-      message: 'NRI Circle needs access to your photos and documents so you can attach them.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Deny',
-    });
-    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert('Permission Required', 'Enable photo & document access from app settings to attach files.',
-        [{ text: 'Cancel', style: 'cancel' }, { text: 'Open Settings', onPress: () => Linking.openSettings() }]);
-    }
-    return false;
-  };
-
   const handleChooseDocument = async (docId) => {
-    if (!(await requestFilePermission())) return;
     try {
       const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
       const picked = results[0];
