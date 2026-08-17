@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, MULTIPART } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
 
 function mapAttachment(raw) {
   return {
@@ -99,13 +99,18 @@ export async function deleteProperty(id) {
   }
 }
 
+// Uses postMultipart (react-native-blob-util) rather than axios/FormData —
+// axios's multipart body stalls against this backend until the request times
+// out, surfacing as a "Network error" (same issue fixed for other uploads).
+// `file.uri` must be a real file:// path (local-copy resolved) — a raw
+// content:// picker uri isn't guaranteed to work with blob-util's file wrap.
 export async function uploadAttachment(propertyId, { type, label, file }) {
   try {
-    const formData = new FormData();
-    formData.append('type', type);
-    if (label) formData.append('label', label);
-    formData.append('file', file);
-    const response = await apiClient.post(`/customer/properties/${propertyId}/attachments`, formData, MULTIPART);
+    const fields = { type };
+    if (label) fields.label = label;
+    const response = await postMultipart(`/customer/properties/${propertyId}/attachments`, fields, [
+      { field: 'file', uri: file.uri, name: file.name, type: file.type },
+    ]);
     return mapAttachment(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

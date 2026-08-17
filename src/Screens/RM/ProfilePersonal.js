@@ -8,6 +8,8 @@ import { useStates } from '../../Hooks/useStates';
 import { getCities } from '../../Api/geoApi';
 import { getRmProfile, updateRmProfile } from '../../Api/RM/rmProfileApi';
 
+const sanitizePhone = (v) => String(v || '').replace(/\D/g, '').slice(0, 12);
+
 // Same modal-select UI the NRI profile screen uses.
 function SelectField({ label, value, placeholder, options, onSelect, disabled }) {
   const [open, setOpen] = useState(false);
@@ -144,10 +146,10 @@ export default function ProfilePersonal({ navigation }) {
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor="#94A3B8" />
 
               <Text style={styles.inputLabel}>Phone</Text>
-              <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
+              <TextInput style={styles.input} value={phone} onChangeText={(v) => setPhone(sanitizePhone(v))} keyboardType="phone-pad" maxLength={12} placeholderTextColor="#94A3B8" />
 
               <Text style={styles.inputLabel}>WhatsApp Number</Text>
-              <TextInput style={styles.input} value={whatsapp} onChangeText={setWhatsapp} keyboardType="phone-pad" placeholderTextColor="#94A3B8" />
+              <TextInput style={styles.input} value={whatsapp} onChangeText={(v) => setWhatsapp(sanitizePhone(v))} keyboardType="phone-pad" maxLength={12} placeholderTextColor="#94A3B8" />
 
               <SelectField label="State" value={stateName} placeholder="Select State" options={stateNames} onSelect={onSelectState} />
 

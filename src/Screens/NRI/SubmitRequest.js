@@ -27,7 +27,7 @@ import { useToast } from '../../context/ToastContext';
 const GST_RATE = 0.18;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 // Matches the family member API's relationship enum (same as CreateTicket).
-const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 const fmt = (v) => `$${(Number(v) || 0).toFixed(2)}`;
 

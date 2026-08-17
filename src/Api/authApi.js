@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, API_BASE_URL } from './client';
+import apiClient, { normalizeApiError, API_BASE_URL, postMultipart } from './client';
 
 // Server origin (strip the trailing /api/v1) — used to turn a relative photo
 // path from the backend (e.g. "storage/profile-photos/x.jpg") into an absolute
@@ -301,22 +301,21 @@ function extractPhotoUrl(data) {
 
 // Verified live via the backend's OpenAPI spec (GET /docs?api-docs.json):
 // POST /auth/profile/photo, multipart field `photo` (binary, required).
+// Uses postMultipart (react-native-blob-util) rather than axios/FormData —
+// axios's multipart body stalls against this backend until the request times
+// out, surfacing as a "Network error" (same issue fixed for other uploads).
+// `file.uri` must be a real file:// path (local-copy resolved) — a raw
+// content:// picker uri isn't guaranteed to work with blob-util's file wrap.
 export async function uploadProfilePhoto(file) {
   try {
-    const formData = new FormData();
-    const filePart = { uri: file.uri, name: file.name || 'photo.jpg', type: file.type || 'image/jpeg' };
+    const name = file.name || 'photo.jpg';
+    const type = file.type || 'image/jpeg';
     // The stored field is `profile_photo` (see GET /auth/me); include both keys
     // so whichever the endpoint expects receives the file.
-    formData.append('profile_photo', filePart);
-    formData.append('photo', filePart);
-    const response = await apiClient.post('/auth/profile/photo', formData, {
-      // Do NOT hard-set 'multipart/form-data' — that omits the boundary and the
-      // server can't parse the upload. Stripping it lets RN set the boundary.
-      transformRequest: (data, headers) => {
-        if (headers) { delete headers['Content-Type']; delete headers['content-type']; }
-        return data;
-      },
-    });
+    const response = await postMultipart('/auth/profile/photo', {}, [
+      { field: 'profile_photo', uri: file.uri, name, type },
+      { field: 'photo', uri: file.uri, name, type },
+    ]);
     const data = response.data?.data || response.data || {};
     return { photoUrl: extractPhotoUrl(data), message: response.data?.message };
   } catch (error) {

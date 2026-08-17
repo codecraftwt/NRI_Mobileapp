@@ -94,7 +94,7 @@ function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
 // Relations offered for a cart service request (who the service is for).
 // Matches the family member API's `relationship` enum — same list the ticket
 // booking form (CreateTicket) offers.
-const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 // Labelled select that opens a centered, searchable list of options — used by
 // the cart service-request form (State / City / Taluka / Relation / Priority).

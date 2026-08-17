@@ -149,42 +149,33 @@ function AttachmentsCard({ propertyId }) {
   const { showAlert, alertProps } = useAppAlert();
   const token = useSelector(s => s.user.token);
 
+  // Copies the picked asset to a local file:// path before uploading — a
+  // gallery pick's uri is a content:// SAF reference on Android, which the
+  // blob-util multipart uploader can't read directly.
+  const uploadPickedPhoto = async (response) => {
+    const asset = response.assets?.[0];
+    if (response.didCancel || response.errorCode || !asset?.uri) return;
+    const name = asset.fileName || `photo_${Date.now()}.jpg`;
+    const type = asset.type || 'image/jpeg';
+    const [local] = await resolveLocalCopies([{ uri: asset.uri, name }]);
+    uploadAttachment(propertyId, 'photo', label.trim(), { uri: local.uri, name, type })
+      .unwrap()
+      .then(() => setLabel(''))
+      .catch((error) => {
+        showAlert('Upload Failed', error?.message || 'Could not upload this photo.');
+      });
+  };
+
   const handleTakePhoto = async () => {
     setShowPhotoModal(false);
     const allowed = await requestCameraPermission(showAlert);
     if (!allowed) return;
-    launchCamera({ mediaType: 'photo', quality: 0.8 }, response => {
-      if (response.didCancel || response.errorCode) return;
-      const uri = response.assets?.[0]?.uri;
-      const name = response.assets?.[0]?.fileName || `photo_${Date.now()}.jpg`;
-      const type = response.assets?.[0]?.type || 'image/jpeg';
-      if (uri) {
-        uploadAttachment(propertyId, 'photo', label.trim(), { uri, name, type })
-          .unwrap()
-          .then(() => setLabel(''))
-          .catch((error) => {
-            showAlert('Upload Failed', error?.message || 'Could not upload this photo.');
-          });
-      }
-    });
+    launchCamera({ mediaType: 'photo', quality: 0.8 }, uploadPickedPhoto);
   };
 
   const handleChooseFromGallery = async () => {
     setShowPhotoModal(false);
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, response => {
-      if (response.didCancel || response.errorCode) return;
-      const uri = response.assets?.[0]?.uri;
-      const name = response.assets?.[0]?.fileName || `photo_${Date.now()}.jpg`;
-      const type = response.assets?.[0]?.type || 'image/jpeg';
-      if (uri) {
-        uploadAttachment(propertyId, 'photo', label.trim(), { uri, name, type })
-          .unwrap()
-          .then(() => setLabel(''))
-          .catch((error) => {
-            showAlert('Upload Failed', error?.message || 'Could not upload this photo.');
-          });
-      }
-    });
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, uploadPickedPhoto);
   };
 
   const pickAndUpload = async (kind) => {
@@ -360,14 +351,20 @@ function PendingAttachmentsCard({ files, onAdd, onRemove }) {
     Promise.resolve(opening).catch(() => showAlert('Could Not Open', 'No app is available to preview this document.'));
   };
 
-  const addFromPhotoResponse = (response) => {
+  const addFromPhotoResponse = async (response) => {
     if (response.didCancel || response.errorCode) return;
     const asset = response.assets?.[0];
     if (!asset?.uri) return;
+    const name = asset.fileName || `photo_${Date.now()}.jpg`;
+    const type = asset.type || 'image/jpeg';
+    // Copy to a local file:// path now — a gallery pick's uri is a content://
+    // SAF reference on Android, which won't survive being uploaded later
+    // (after the property is created) via the blob-util multipart uploader.
+    const [local] = await resolveLocalCopies([{ uri: asset.uri, name }]);
     onAdd({
       kind: 'photo',
       label: label.trim(),
-      file: { uri: asset.uri, name: asset.fileName || `photo_${Date.now()}.jpg`, type: asset.type || 'image/jpeg' },
+      file: { uri: local.uri, name, type },
     });
     setLabel('');
   };

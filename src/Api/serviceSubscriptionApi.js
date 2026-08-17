@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, MULTIPART } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
 
 // Recurring per-service subscriptions (Service.allows_recurring). A single
 // subscription can bundle several services that share one billing interval.
@@ -92,20 +92,25 @@ export async function createServiceSubscription({
     let response;
 
     if (hasDocs) {
-      const formData = new FormData();
-      (serviceIds || []).forEach(id => formData.append('service_ids[]', id));
-      formData.append('gateway', gateway);
-      formData.append('family_member_id', familyMemberId);
-      if (propertyId) formData.append('property_id', propertyId);
-      formData.append('state_id', stateId);
-      if (cityId) formData.append('city_id', cityId);
-      if (talukaId) formData.append('taluka_id', talukaId);
-      formData.append('address', address);
-      if (customerNotes) formData.append('customer_notes', customerNotes);
-      docEntries.forEach(([docId, file]) => {
-        formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
-      });
-      response = await apiClient.post('/customer/service-subscriptions', formData, MULTIPART);
+      // postMultipart (react-native-blob-util) rather than axios/FormData —
+      // axios's multipart body stalls against this backend until the request
+      // times out, surfacing as a "Network error" (same issue fixed for other
+      // uploads).
+      const fields = {
+        'service_ids[]': serviceIds || [],
+        gateway,
+        family_member_id: familyMemberId,
+        property_id: propertyId || undefined,
+        state_id: stateId,
+        city_id: cityId || undefined,
+        taluka_id: talukaId || undefined,
+        address,
+        customer_notes: customerNotes || undefined,
+      };
+      const files = docEntries.map(([docId, file]) => ({
+        field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
+      }));
+      response = await postMultipart('/customer/service-subscriptions', fields, files);
     } else {
       response = await apiClient.post('/customer/service-subscriptions', {
         service_ids: serviceIds,
@@ -141,11 +146,10 @@ export async function createServiceSubscription({
 // any time the subscription isn't cancelled.
 export async function addSubscriptionDocuments(subscriptionId, documents) {
   try {
-    const formData = new FormData();
-    Object.entries(documents || {}).forEach(([docId, file]) => {
-      if (file) formData.append(`documents[${docId}]`, { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
-    });
-    const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/documents`, formData, MULTIPART);
+    const files = Object.entries(documents || {})
+      .filter(([, file]) => !!file)
+      .map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type }));
+    const response = await postMultipart(`/customer/service-subscriptions/${subscriptionId}/documents`, {}, files);
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

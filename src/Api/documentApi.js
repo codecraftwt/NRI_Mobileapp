@@ -1,4 +1,4 @@
-import apiClient, { API_BASE_URL, normalizeApiError, MULTIPART } from './client';
+import apiClient, { API_BASE_URL, normalizeApiError, postMultipart } from './client';
 
 function mapDocument(raw) {
   return {
@@ -24,16 +24,18 @@ export async function getDocuments() {
   }
 }
 
+// Uses postMultipart (react-native-blob-util) rather than axios/FormData —
+// axios's multipart body stalls against this backend until the request times
+// out, surfacing as a "Network error" (same issue fixed for other uploads).
 export async function uploadDocument({ documentType, documentName, file, expiryDate, sharedWithRm, notes }) {
   try {
-    const formData = new FormData();
-    formData.append('document_type', documentType);
-    formData.append('document_name', documentName);
-    formData.append('file', file);
-    if (expiryDate) formData.append('expiry_date', expiryDate);
-    if (sharedWithRm) formData.append('shared_with_rm', '1');
-    if (notes) formData.append('notes', notes);
-    const response = await apiClient.post('/customer/documents', formData, MULTIPART);
+    const fields = { document_type: documentType, document_name: documentName };
+    if (expiryDate) fields.expiry_date = expiryDate;
+    if (sharedWithRm) fields.shared_with_rm = '1';
+    if (notes) fields.notes = notes;
+    const response = await postMultipart('/customer/documents', fields, [
+      { field: 'file', uri: file.uri, name: file.name, type: file.type },
+    ]);
     return mapDocument(response.data?.data || response.data);
   } catch (error) {
     throw normalizeApiError(error);

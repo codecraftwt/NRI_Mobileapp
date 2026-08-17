@@ -295,28 +295,35 @@ function OnboardingProfile({ navigation }) {
     retry: retryIntlCities,
   } = useInternationalCities(country, stateProvince);
 
+  // Swaps the leading "+<dial code>" on a phone value for a new one, keeping
+  // whatever local number the user already typed after it.
+  const withDialCode = (value, phoneCode) => {
+    const local = (value || '').replace(/^\+\d{1,4}\s*/, '');
+    return phoneCode ? `+${phoneCode} ${local}` : local;
+  };
+
   const handleCountrySelect = (value) => {
     setCountry(value);
     setStateProvince('');
     setCity('');
-    // Default both dial-code fields to the residence country's code — but only
-    // prefill fields the user hasn't typed into yet (never overwrite input).
+    // Default both dial-code fields to the residence country's code — unless
+    // that field's flag has already been explicitly picked by the user.
     const c = countries.find(x => x.name === value);
     if (c?.phoneCode) {
-      if (!phone.trim()) setPhone(`+${c.phoneCode} `);
-      if (!whatsapp.trim()) setWhatsapp(`+${c.phoneCode} `);
+      if (!phoneIso) setPhone(prev => withDialCode(prev, c.phoneCode));
+      if (!whatsappIso) setWhatsapp(prev => withDialCode(prev, c.phoneCode));
     }
   };
 
-  // Flag tapped on the Phone / WhatsApp field: remember that field's country
-  // and prefill its dial code only when the field is still empty.
+  // Flag tapped on the Phone / WhatsApp field: swap in the new dial code,
+  // keeping any local number the user already typed.
   const handlePhoneCountry = (c) => {
     setPhoneIso(c.isoCode);
-    if (!phone.trim() && c.phoneCode) setPhone(`+${c.phoneCode} `);
+    setPhone(prev => withDialCode(prev, c.phoneCode));
   };
   const handleWhatsappCountry = (c) => {
     setWhatsappIso(c.isoCode);
-    if (!whatsapp.trim() && c.phoneCode) setWhatsapp(`+${c.phoneCode} `);
+    setWhatsapp(prev => withDialCode(prev, c.phoneCode));
   };
 
   const handleContinue = async () => {

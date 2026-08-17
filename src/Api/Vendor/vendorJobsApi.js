@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, API_BASE_URL } from '../client';
+import apiClient, { normalizeApiError, API_BASE_URL, postMultipart } from '../client';
 import { mapSupportTicket, mapSupportReply } from '../supportTicketApi';
 
 // Response field names aren't fully pinned in the backend's OpenAPI schema, so
@@ -159,16 +159,10 @@ export async function getVendorJobDetail(ticket) {
   }
 }
 
-// Multipart body for the completion/report endpoints: an optional `report_text`
-// field plus up to 8 proof files under `media_files[]`. Files are RN picker
-// objects: { uri, name, type }.
-function buildReportFormData({ reportText, files } = {}) {
-  const formData = new FormData();
-  if (reportText != null) formData.append('report_text', reportText);
-  (files || []).forEach(f => {
-    formData.append('media_files[]', { uri: f.uri, name: f.name, type: f.type || 'application/octet-stream' });
-  });
-  return formData;
+// Up to 8 proof files for the completion/report endpoints, under `media_files[]`.
+// Files are RN picker objects: { uri, name, type }.
+function buildReportFiles(files) {
+  return (files || []).map(f => ({ field: 'media_files[]', uri: f.uri, name: f.name, type: f.type }));
 }
 
 // POST /vendor/jobs/{ticket}/accept — accept with an ETA commitment; moves the
@@ -197,13 +191,14 @@ export async function rejectVendorJob(ticket, { reason }) {
 // POST /vendor/jobs/{ticket}/complete — submit the completion report
 // (report_text required) with optional proof files; closes the job and notifies
 // the RM. 422 if the job is not in progress.
+// Uses postMultipart (react-native-blob-util) rather than axios/FormData —
+// axios's multipart body stalls against this backend until the request times
+// out, surfacing as a "Network error" (same issue fixed for other uploads).
 export async function completeVendorJob(ticket, { reportText, files }) {
   try {
-    const response = await apiClient.post(
-      `/vendor/jobs/${ticket}/complete`,
-      buildReportFormData({ reportText, files }),
-      { headers: { 'Content-Type': 'multipart/form-data' } },
-    );
+    const fields = {};
+    if (reportText != null) fields.report_text = reportText;
+    const response = await postMultipart(`/vendor/jobs/${ticket}/complete`, fields, buildReportFiles(files));
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
@@ -216,11 +211,7 @@ export async function completeVendorJob(ticket, { reportText, files }) {
 // it's already been sent.
 export async function addVendorJobReportAttachments(ticket, { files }) {
   try {
-    const response = await apiClient.post(
-      `/vendor/jobs/${ticket}/report/attachments`,
-      buildReportFormData({ files }),
-      { headers: { 'Content-Type': 'multipart/form-data' } },
-    );
+    const response = await postMultipart(`/vendor/jobs/${ticket}/report/attachments`, {}, buildReportFiles(files));
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
