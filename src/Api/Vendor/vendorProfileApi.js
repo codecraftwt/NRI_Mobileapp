@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from '../client';
+import apiClient, { normalizeApiError, postMultipart } from '../client';
 
 function mapGeoRef(raw) {
   if (!raw) return null;
@@ -177,15 +177,15 @@ export async function getVendorDocumentTypes() {
 }
 
 // POST /vendor/profile/documents — multipart KYC/registration document upload.
-// `file` is an RN picker object: { uri, name, type }.
+// `file` is an RN picker object: { uri, name, type }. Uses postMultipart
+// (react-native-blob-util) rather than axios/FormData — axios's multipart
+// body stalls against this backend until the request times out, surfacing as
+// a "Network error" (same issue already fixed for ticket document uploads).
 export async function uploadVendorDocument({ documentType, file }) {
   try {
-    const formData = new FormData();
-    formData.append('document_type', documentType);
-    formData.append('file', { uri: file.uri, name: file.name, type: file.type || 'application/octet-stream' });
-    const response = await apiClient.post('/vendor/profile/documents', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await postMultipart('/vendor/profile/documents', { document_type: documentType }, [
+      { field: 'file', uri: file.uri, name: file.name, type: file.type },
+    ]);
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
