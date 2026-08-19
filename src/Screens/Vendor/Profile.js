@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, StatusBar, Platform, Image, Modal, Alert, PermissionsAndroid, Linking, TextInput, KeyboardAvoidingView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -27,7 +28,7 @@ const STATUS_BAR_HEIGHT = (Platform.OS === 'android' ? (StatusBar.currentHeight 
 
 function Profile({ navigation }) {
   const dispatch = useDispatch();
-  const { profile, loading } = useVendorProfile();
+  const { profile, loading, retry } = useVendorProfile();
   const { showAlert, alertProps } = useAppAlert();
   // Profile photo lives on the auth user (GET /auth/me → profile_photo), not on
   // the vendor profile — upload/remove go through the shared user thunks.
@@ -40,6 +41,16 @@ function Profile({ navigation }) {
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+
+  // Re-fetch the profile every time this screen regains focus, so edits made
+  // on subscreens (Personal Info, Availability, Services Offered, etc.) are
+  // reflected here without needing a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+  );
 
   const requestCameraPermission = async () => {
     if (Platform.OS !== 'android') return true;
