@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Modal, TextInput, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { logoutUser } from '../../Redux/slices/userSlice';
+import { logoutUser, deleteAccount } from '../../Redux/slices/userSlice';
 import { getRmProfile } from '../../Api/RM/rmProfileApi';
 import { typography } from '../../theme/typography';
 
@@ -20,7 +20,12 @@ const MENU = [
 function Profile({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
+  const deletingAccount = useSelector(state => state.user.deleteAccountStatus === 'loading');
   const [profile, setProfile] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -43,6 +48,34 @@ function Profile({ navigation }) {
     dispatch(logoutUser()).finally(() => {
       navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
     });
+  };
+
+  const openDeleteModal = () => {
+    setDeletePassword('');
+    setShowDeletePassword(false);
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAccount = () => {
+    if (!deletePassword.trim()) {
+      setDeleteError('Please enter your current password to confirm.');
+      return;
+    }
+    setDeleteError(null);
+    dispatch(deleteAccount({ currentPassword: deletePassword }))
+      .unwrap()
+      .then((res) => {
+        setShowDeleteModal(false);
+        setDeletePassword('');
+        Alert.alert('Account Deleted', res?.deleted ? 'Your account has been deleted.' : 'Your account has been deactivated.');
+        // Session already cleared in the slice — return to the login screen.
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      })
+      .catch((error) => {
+        // 422 = wrong password or deletion blocked.
+        setDeleteError(error?.message || 'Could not delete your account. Please try again.');
+      });
   };
 
   return (
@@ -120,10 +153,70 @@ function Profile({ navigation }) {
         </View>
 
         <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.85} onPress={handleLogout}>
-          <Icon name="logout" size={20} color="#DC2626" />
+          <Icon name="logout" size={20} color="#A64416" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteBtn} onPress={openDeleteModal} activeOpacity={0.85}>
+          <Icon name="delete-outline" size={18} color="#DC2626" />
+          <Text style={styles.deleteBtnText}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Delete account — password-confirmed, destructive */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => !deletingAccount && setShowDeleteModal(false)}>
+        <KeyboardAvoidingView style={styles.deleteOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.deleteCard}>
+            <View style={styles.deleteIconWrap}>
+              <Icon name="warning-amber" size={28} color="#DC2626" />
+            </View>
+            <Text style={styles.deleteTitle}>Delete Account</Text>
+            <Text style={styles.deleteMsg}>
+              This permanently deletes your account. If it's linked to existing records it's deactivated instead. This can't be undone. Enter your password to confirm.
+            </Text>
+
+            <View style={styles.deleteInputRow}>
+              <TextInput
+                style={styles.deleteInput}
+                placeholder="Current password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={!showDeletePassword}
+                autoCapitalize="none"
+                value={deletePassword}
+                editable={!deletingAccount}
+                onChangeText={(t) => { setDeletePassword(t); if (deleteError) setDeleteError(null); }}
+              />
+              <TouchableOpacity onPress={() => setShowDeletePassword(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name={showDeletePassword ? 'visibility-off' : 'visibility'} size={20} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            {!!deleteError && <Text style={styles.deleteErrorText}>{deleteError}</Text>}
+
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.deleteActionBtn, styles.deleteCancelBtn]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.deleteCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteActionBtn, styles.deleteConfirmBtn, deletingAccount && styles.deleteConfirmBtnDisabled]}
+                onPress={confirmDeleteAccount}
+                disabled={deletingAccount}
+                activeOpacity={0.85}
+              >
+                {deletingAccount ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -188,10 +281,33 @@ const styles = StyleSheet.create({
 
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#FEF2F2', borderRadius: 16, paddingVertical: 16, marginTop: 24,
-    borderWidth: 1, borderColor: '#FEE2E2',
+    backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 16, marginTop: 24,
+    borderWidth: 1, borderColor: '#A64416',
   },
-  logoutText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },
+  logoutText: { fontSize: 15, fontWeight: '700', color: '#A64416' },
+
+  deleteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 16, borderRadius: 16, marginTop: 12,
+    borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2',
+  },
+  deleteBtnText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },
+
+  deleteOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  deleteCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, alignItems: 'center' },
+  deleteIconWrap: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  deleteTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', textAlign: 'center' },
+  deleteMsg: { fontSize: 13.5, color: '#64748B', textAlign: 'center', lineHeight: 20, marginTop: 8, marginBottom: 18 },
+  deleteInputRow: { flexDirection: 'row', alignItems: 'center', width: '100%', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 50 },
+  deleteInput: { flex: 1, fontSize: 15, color: '#1E293B', height: '100%' },
+  deleteErrorText: { alignSelf: 'flex-start', fontSize: 12, color: '#DC2626', marginTop: 8 },
+  deleteActions: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
+  deleteActionBtn: { flex: 1, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  deleteCancelBtn: { backgroundColor: '#F1F5F9' },
+  deleteCancelText: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  deleteConfirmBtn: { backgroundColor: '#DC2626' },
+  deleteConfirmBtnDisabled: { opacity: 0.7 },
+  deleteConfirmText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 });
 
 export default Profile;
