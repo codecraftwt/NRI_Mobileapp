@@ -4,7 +4,7 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { selectIsInCart } from '../../Redux/slices/cartSlice';
+import { selectCartItems } from '../../Redux/slices/cartSlice';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useCart } from '../../Hooks/useCart';
 import { useToast } from '../../context/ToastContext';
@@ -26,22 +26,28 @@ const HOW_IT_RUNS = [
   { step: '04', title: 'Report', desc: 'Summary and receipt sent to your phone.' },
 ];
 
-const priceValue = (pricing) => {
+// `mode` is 'oneTime' | 'recurring' — which of the service's two prices to
+// read. Set by whichever listing screen (Services.js / ServiceList.js) the
+// customer tapped the card from.
+const priceValue = (pricing, mode) => {
   if (!pricing) return null;
-  if (pricing.customerPrice != null) return Number(pricing.customerPrice);
-  if (pricing.recurringPrice != null) return Number(pricing.recurringPrice);
-  return null;
+  const v = mode === 'recurring' ? pricing.recurringPrice : pricing.customerPrice;
+  return v != null ? Number(v) : null;
 };
 
-const priceLabel = (pricing) => {
+const priceLabel = (pricing, mode) => {
   if (!pricing) return '—';
   if (pricing.isQuoted) return 'On quote';
-  const v = priceValue(pricing);
-  return v != null ? `$${v.toFixed(2)}` : '—';
+  if (mode === 'recurring' && pricing.recurringDisplayPrice) return pricing.recurringDisplayPrice;
+  const v = priceValue(pricing, mode);
+  return v != null ? `$${v.toFixed(2)}${mode === 'recurring' ? '/mo' : ''}` : '—';
 };
 
-const durationLabel = (pricing) => {
+const durationLabel = (pricing, mode) => {
   if (!pricing) return '—';
+  if (mode === 'recurring' && pricing.billingInterval) {
+    return `${pricing.billingInterval.charAt(0).toUpperCase()}${pricing.billingInterval.slice(1)} billing`;
+  }
   if (pricing.turnaroundLabel) return pricing.turnaroundLabel;
   if (pricing.turnaroundHours != null) return `${pricing.turnaroundHours} hrs`;
   return '—';
@@ -49,6 +55,8 @@ const durationLabel = (pricing) => {
 
 function ServiceInfo({ route, navigation }) {
   const { service, category } = route.params;
+  // Defaults to one-time when opened without a mode (e.g. a stale deep link).
+  const mode = route.params?.mode === 'recurring' ? 'recurring' : 'oneTime';
   const { showToast } = useToast();
   // Cart binds the server APIs when signed in; local-only for guests (onboarding).
   const { count: cartCount, add: addServiceToCart } = useCart();
@@ -67,7 +75,13 @@ function ServiceInfo({ route, navigation }) {
   const fresh = [...oneTime, ...recurring].find(s => s.id === service.id);
   const svc = fresh || service;
 
-  const inCart = useSelector(selectIsInCart(svc.id));
+  // Mode-aware: a service already in the cart under the OTHER mode must still
+  // let the user tap through and switch it (POST /customer/cart/items with a
+  // new billing_mode switches the line rather than duplicating it) — only a
+  // same-mode re-add should just jump to the cart.
+  const cartLine = useSelector(selectCartItems).find(i => i.serviceId === svc.id);
+  const inCartSameMode = !!cartLine && cartLine.isRecurring === (mode === 'recurring');
+  const inOtherMode = !!cartLine && !inCartSameMode;
   const pricing = svc.pricing;
 
   // Bookable in the chosen city only when there's a real vendor price (or it's
@@ -75,7 +89,7 @@ function ServiceInfo({ route, navigation }) {
   // "Not available in your area" — adding it would put a $0 line in the cart and
   // 422 at checkout, so the CTA is blocked (matches the list screen, which hides
   // these entirely).
-  const canBook = !!pricing && (pricing.isQuoted || priceValue(pricing) != null);
+  const canBook = !!pricing && (pricing.isQuoted || priceValue(pricing, mode) != null);
 
   const handleAdd = () => {
     if (hasLocation && !canBook) return;
@@ -88,16 +102,21 @@ function ServiceInfo({ route, navigation }) {
       navigation.navigate(target.name, { openLocation: true });
       return;
     }
-    if (inCart) { navigation.navigate('Cart'); return; }
+    if (inCartSameMode) { navigation.navigate('Cart'); return; }
     // Adds locally (display) and, when signed in, syncs to the server cart —
-    // the badge count then reflects the server response.
+    // the badge count then reflects the server response. Re-adding under a
+    // different mode (inOtherMode) goes through this same path and switches
+    // the existing line rather than duplicating it (see cartSlice.addToCart /
+    // cartApi.addCartItem's billing_mode).
     addServiceToCart({
       serviceId: svc.id,
       name: svc.name,
       categoryName: category.name,
-      price: priceValue(pricing) ?? 0,
+      price: priceValue(pricing, mode) ?? 0,
       currency: pricing?.currency || 'USD',
-      durationLabel: durationLabel(pricing),
+      durationLabel: durationLabel(pricing, mode),
+      isRecurring: mode === 'recurring',
+      billingInterval: mode === 'recurring' ? pricing?.billingInterval : undefined,
       stateName: savedLocation.stateName,
       cityName: savedLocation.cityName,
       cityId: savedLocation.cityId,
@@ -105,7 +124,7 @@ function ServiceInfo({ route, navigation }) {
     });
 
     const shortName = svc.name.length > 24 ? `${svc.name.slice(0, 24).trim()}…` : svc.name;
-    showToast(`${shortName} added to cart`, 'success');
+    showToast(inOtherMode ? `${shortName} switched to ${mode === 'recurring' ? 'recurring' : 'one-time'}` : `${shortName} added to cart`, 'success');
   };
 
   const ctaDisabled = hasLocation && !canBook;
@@ -113,8 +132,12 @@ function ServiceInfo({ route, navigation }) {
     ? 'Set your location to add'
     : !canBook
       ? 'Not available in your area'
-      : inCart ? 'Go to Cart' : 'Add to Cart';
-  const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCart ? 'shopping-cart' : 'add-shopping-cart';
+      : inCartSameMode
+        ? 'Go to Cart'
+        : inOtherMode
+          ? `Switch to ${mode === 'recurring' ? 'Recurring' : 'One Time'}`
+          : 'Add to Cart';
+  const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCartSameMode ? 'shopping-cart' : inOtherMode ? 'sync-alt' : 'add-shopping-cart';
 
   const renderTopRow = () => (
     <View style={styles.heroTopRow}>
@@ -151,7 +174,12 @@ function ServiceInfo({ route, navigation }) {
       )}
 
       <ScrollView style={styles.sheet} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>{category.name.toUpperCase()}</Text>
+        <View style={styles.eyebrowRow}>
+          <Text style={styles.eyebrow}>{category.name.toUpperCase()}</Text>
+          <View style={styles.modeBadge}>
+            <Text style={styles.modeBadgeText}>{mode === 'recurring' ? 'RECURRING' : 'ONE TIME'}</Text>
+          </View>
+        </View>
         <Text style={styles.title}>{svc.name}</Text>
         {!!svc.description && <Text style={styles.desc}>{svc.description}</Text>}
 
@@ -159,11 +187,11 @@ function ServiceInfo({ route, navigation }) {
         <View style={styles.metaRow}>
           <View style={styles.metaBox}>
             <Text style={styles.metaLabel}>PRICE</Text>
-            <Text style={styles.metaValue}>{priceLabel(pricing)}</Text>
+            <Text style={styles.metaValue}>{priceLabel(pricing, mode)}</Text>
           </View>
           <View style={styles.metaBox}>
-            <Text style={styles.metaLabel}>DURATION</Text>
-            <Text style={styles.metaValue}>{durationLabel(pricing)}</Text>
+            <Text style={styles.metaLabel}>{mode === 'recurring' ? 'BILLING' : 'DURATION'}</Text>
+            <Text style={styles.metaValue}>{durationLabel(pricing, mode)}</Text>
           </View>
         </View>
 
@@ -203,8 +231,8 @@ function ServiceInfo({ route, navigation }) {
       {/* Sticky bottom bar */}
       <View style={styles.bottomBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.bottomPrice}>{priceLabel(pricing)}</Text>
-          <Text style={styles.bottomDuration}>{durationLabel(pricing)}</Text>
+          <Text style={styles.bottomPrice}>{priceLabel(pricing, mode)}</Text>
+          <Text style={styles.bottomDuration}>{durationLabel(pricing, mode)}</Text>
         </View>
         <TouchableOpacity style={[styles.cta, ctaDisabled && styles.ctaDisabled]} activeOpacity={0.85} onPress={handleAdd} disabled={ctaDisabled}>
           <Icon name={ctaIcon} size={18} color="#FFFFFF" />
@@ -250,7 +278,10 @@ const styles = StyleSheet.create({
   // (cart-2 style).
   sheet: { flex: 1, marginTop: -44, backgroundColor: '#FFFFFF', borderTopLeftRadius: 44, borderTopRightRadius: 44 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 120 },
-  eyebrow: { fontSize: 11, letterSpacing: 1.5, color: '#D94625', fontFamily: typography.labelMedium.fontFamily, marginBottom: 8 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  eyebrow: { fontSize: 11, letterSpacing: 1.5, color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
+  modeBadge: { backgroundColor: '#EEF2FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  modeBadgeText: { fontSize: 10, letterSpacing: 0.5, color: '#1E3A8A', fontFamily: typography.labelMedium.fontFamily },
   title: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A', letterSpacing: -0.5, marginBottom: 10 },
   desc: { fontSize: 14, lineHeight: 21, color: '#64748B', marginBottom: 20 },
 

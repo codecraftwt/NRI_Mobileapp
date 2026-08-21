@@ -6,16 +6,17 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { clearCart, clearServerCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { usePriorities } from '../../Hooks/usePriorities';
-import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
+import { useBilling } from '../../Hooks/useBilling';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -118,9 +119,8 @@ function SubmitRequest({ navigation }) {
   const { showToast } = useToast();
   // Signed-in cart — removing a line also hits DELETE /customer/cart/items/{id}
   // and refreshes the server count (useCart fetches it on mount).
-  const { remove: removeCartService } = useCart();
+  const { remove: removeCartService, checkout: checkoutCart, checkoutLoading } = useCart();
   const items = useSelector(selectCartItems);
-  const servicesSubtotal = useSelector(selectCartSubtotal);
   const savedLocation = useSelector(s => s.serviceLocation);
   const user = useSelector(s => s.user.user);
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -162,31 +162,53 @@ function SubmitRequest({ navigation }) {
   const { cityNames, cities } = useCities(reqForm.state);
   const { talukaNames, talukas } = useTalukas(null, reqForm.city);
   const { priorities } = usePriorities();
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { loading: pincodeLoading, lookup: lookupPincode } = usePostalCodeLookup();
   const {
     requiredDocuments, fetchRequiredDocuments,
     quote, quoteLoading, fetchQuote,
-    submitTicket, submitLoading, payForTicket, payLoading, verifyPayment, verifyLoading, reset,
+    reset,
   } = useTicketBooking();
+  // Generic gateway-payment verification (shared with membership/billing
+  // checkouts) — already extracts a pending_recurring_bundle when present.
+  const { verifyPayment, verifyLoading } = useBilling();
+  // A recurring cart service that wasn't (fully) paid for by this checkout —
+  // either because the checkout itself is pure-recurring (payment_required:
+  // false, nothing to pay via a ticket) or because it rode alongside a
+  // one-time gateway payment as a leftover (see checkoutCart in cartApi.js).
+  const [pendingBundle, setPendingBundle] = useState(null);
 
-  // Clear any stale booking state (submit/pay/verify status) left over from a
+  // Clear any stale booking state (quote status etc.) left over from a
   // previous request so the Submit button never sticks behind an old spinner.
   useEffect(() => {
     reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Only one-time items ever become a ticket — a recurring item surfaces as
+  // pending_recurring_bundle after checkout instead (see cartApi.checkoutCart)
+  // and the ticket-quote endpoint below has no concept of billing_mode at all
+  // (it always prices as one-time), so a recurring item must never be sent
+  // through it. Its price is read straight off the cart, which is already
+  // bound to recurring_price via useCartPriceSync.
+  const oneTimeItems = items.filter(i => !i.isRecurring);
+  const recurringItems = items.filter(i => i.isRecurring);
+  // price is already GST-inclusive (price = base + gstAmount); each line
+  // below shows its own base, with GST/total aggregated across all of them,
+  // matching the one-time estimate's amount/GST/total breakdown above.
+  const recurringGstTotal = recurringItems.reduce((sum, i) => sum + Number(i.gstAmount || 0), 0);
+  const recurringSubtotal = recurringItems.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+  const recurringInterval = recurringItems.find(i => i.billingInterval)?.billingInterval || 'monthly';
+
   const priorityLabelOf = (p) => `${p.name} — ${Number(p.surcharge) > 0 ? fmt(p.surcharge) : 'Free'}`;
   const priorityLabels = priorities.map(priorityLabelOf);
   const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
   const prioritySurcharge = Number(selectedPriority?.surcharge || 0);
 
-  const serviceIdsKey = items.map(i => i.serviceId).join(',');
+  const oneTimeServiceIdsKey = oneTimeItems.map(i => i.serviceId).join(',');
   useEffect(() => {
-    if (items.length) fetchRequiredDocuments(items.map(i => i.serviceId));
+    if (oneTimeItems.length) fetchRequiredDocuments(oneTimeItems.map(i => i.serviceId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceIdsKey]);
+  }, [oneTimeServiceIdsKey]);
 
   useEffect(() => {
     if (!reqForm.priority && priorities.length) {
@@ -247,20 +269,22 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submissionInProgress || submitLoading || payLoading || verifyLoading;
+  const loading = submissionInProgress || checkoutLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
-  // server instead of computing them locally.
+  // server instead of computing them locally. One-time items only (see the
+  // oneTimeItems/recurringItems split above) — a recurring item never runs
+  // through this endpoint.
   const quoteStateId = states.find(s => s.name === reqForm.state)?.id || null;
   const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
   const quoteUrgency = selectedPriority?.slug || 'standard';
-  const quoteKey = `${serviceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
+  const quoteKey = `${oneTimeServiceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
-    if (!items.length || !quoteCityId) return;
+    if (!oneTimeItems.length || !quoteCityId) return;
     fetchQuote({
-      serviceId: items[0].serviceId,
-      extraServices: items.slice(1).map(i => i.serviceId),
+      serviceId: oneTimeItems[0].serviceId,
+      extraServices: oneTimeItems.slice(1).map(i => i.serviceId),
       stateId: quoteStateId,
       cityId: quoteCityId,
       urgency: quoteUrgency,
@@ -271,21 +295,24 @@ function SubmitRequest({ navigation }) {
 
   // The quote API returns the address-specific pre-GST service amount,
   // GST amount, and GST-inclusive total. Use it directly when available; fall
-  // back to splitting the cart's GST-inclusive total while the quote loads.
+  // back to splitting the one-time cart items' GST-inclusive total while the
+  // quote loads. A pure-recurring cart (no one-time items) has nothing to
+  // quote/charge as a ticket at all — everything below is 0, and the
+  // recurring total is shown separately (see recurringSubtotal above).
   const hasQuoteTotal = Number(quote?.totalAmount || 0) > 0;
-  const selectedServicesTotal = servicesSubtotal;
-  const cartBaseTotal = items.reduce((sum, item) => sum + Number(item.base || 0), 0);
-  const cartGstTotal = items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
-  const estSurcharge = quote?.expressSurcharge != null ? Number(quote.expressSurcharge) : prioritySurcharge;
-  const estDiscount = Number(quote?.discount || 0);
+  const selectedServicesTotal = oneTimeItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const cartBaseTotal = oneTimeItems.reduce((sum, item) => sum + Number(item.base || 0), 0);
+  const cartGstTotal = oneTimeItems.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
+  const estSurcharge = oneTimeItems.length === 0 ? 0 : (quote?.expressSurcharge != null ? Number(quote.expressSurcharge) : prioritySurcharge);
+  const estDiscount = oneTimeItems.length === 0 ? 0 : Number(quote?.discount || 0);
   const fallbackTotal = Math.max(0, Math.round((selectedServicesTotal + estSurcharge - estDiscount) * 100) / 100);
-  const estTotal = hasQuoteTotal ? Number(quote.totalAmount) : fallbackTotal;
-  const estAmount = quote?.customerPrice != null
+  const estTotal = oneTimeItems.length === 0 ? 0 : (hasQuoteTotal ? Number(quote.totalAmount) : fallbackTotal);
+  const estAmount = oneTimeItems.length === 0 ? 0 : (quote?.customerPrice != null
     ? Number(quote.customerPrice)
-    : (cartBaseTotal > 0 ? cartBaseTotal : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100);
-  const estGst = quote?.gstAmount != null
+    : (cartBaseTotal > 0 ? cartBaseTotal : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100));
+  const estGst = oneTimeItems.length === 0 ? 0 : (quote?.gstAmount != null
     ? Number(quote.gstAmount)
-    : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100));
+    : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100)));
 
   const handleChooseDocument = async (docId) => {
     try {
@@ -338,22 +365,6 @@ function SubmitRequest({ navigation }) {
       ? RNBlobUtil.ios.previewDocument(path)
       : RNBlobUtil.android.actionViewIntent(path, file.type || 'application/pdf');
     Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
-  };
-
-  const resolveFamilyMemberId = async () => {
-    const name = reqForm.fullName.trim();
-    const relationship = reqForm.relation.toLowerCase();
-    if (!name || !relationship) return undefined;
-    const existing = familyMembers.find(m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship);
-    if (existing) return existing.id;
-    // Non-fatal: if creating the family member fails, still submit the request
-    // (POST /customer/tickets) without a family_member_id rather than aborting.
-    try {
-      const created = await createFamilyMember({ name, relationship }).unwrap();
-      return created.id;
-    } catch (e) {
-      return undefined;
-    }
   };
 
   const finishSuccess = async () => {
@@ -414,6 +425,21 @@ function SubmitRequest({ navigation }) {
 
   const handleContinue = () => { if (validateDetails()) setStep('payment'); };
 
+  // A recurring cart item that's still unpaid after checkout (either the
+  // whole cart was pure-recurring — nothing to pay via a ticket — or it rode
+  // alongside a one-time gateway payment as a leftover) surfaces its own
+  // "Complete Payment" prompt instead of the plain success alert; either way
+  // it also resurfaces later via the Dashboard's pending_recurring_bundles.
+  const handlePostCheckout = async (bundle) => {
+    if (bundle) {
+      setPendingBundle(bundle);
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
+    } else {
+      await finishSuccess();
+    }
+  };
+
   const handleSubmit = async () => {
     if (loading || submissionLockRef.current) return;
     if (!validateDetails()) { setStep('details'); return; }
@@ -424,47 +450,49 @@ function SubmitRequest({ navigation }) {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
-      const address = reqForm.pincode.trim() ? `${reqForm.address.trim()} - ${reqForm.pincode.trim()}` : reqForm.address.trim();
-      const familyMemberId = await resolveFamilyMemberId();
 
-      // All cart services go into ONE request: first = base, rest = extras.
-      const result = await submitTicket({
-        serviceId: items[0].serviceId,
-        extraServices: items.slice(1).map(i => i.serviceId),
+      const result = await checkoutCart({
+        gateway: paymentMethod,
         couponCode: couponCode.trim() || undefined,
-        familyMemberId, stateId, cityId, talukaId, address,
+        familyMemberName: reqForm.fullName.trim() || undefined,
+        familyMemberRelationship: reqForm.relation.trim().toLowerCase() || undefined,
+        stateId, cityId, talukaId,
+        address: reqForm.address.trim(),
+        pincode: reqForm.pincode.trim(),
         urgency: selectedPriority?.slug || 'standard',
         preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
         customerNotes: reqForm.notes || undefined,
         documents: documentFiles,
       }).unwrap();
 
-      if (result.paymentRequired && result.ticket?.id) {
-        const pay = await payForTicket({ ticketId: result.ticket.id, gateway: paymentMethod }).unwrap();
-        if (pay.checkoutUrl) {
-          setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId });
-          submissionLockRef.current = false;
-          setSubmissionInProgress(false);
-        } else if (pay.order) {
-          // Razorpay — no hosted page; drive the native SDK then verify inline.
-          await runRazorpayPayment({
-            order: pay.order,
-            paymentId: pay.paymentId,
-            name: 'NRI Circle',
-            description: 'Service request',
-            user,
-            verify: (params) => verifyPayment(params).unwrap(),
-          });
-          await finishSuccess();
-        } else {
-          await finishSuccess();
-        }
+      if (result.checkoutUrl) {
+        // Stripe — open the hosted checkout page; confirmed in
+        // handleCheckoutSuccess once it redirects back with a session_id.
+        // Carry the pending bundle (if any) through to that point.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, pendingBundle: result.pendingRecurringBundle });
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: 'Service request',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        await handlePostCheckout(result.pendingRecurringBundle);
       } else {
-        await finishSuccess();
+        // Nothing to pay via a gateway — either wallet covered a one-time
+        // ticket, or the cart was pure-recurring (payment_required: false,
+        // tickets: []) and the only thing left is the pending bundle prompt.
+        await handlePostCheckout(result.pendingRecurringBundle);
       }
     } catch (error) {
       // Surface the backend's exact reason (401 unauthenticated, 422 validation
-      // / booking-rule / no-vendor-in-city, etc.) so failures are diagnosable.
+      // / booking-rule / no-vendor-in-city / PayPal-rejects-recurring, etc.)
+      // so failures are diagnosable.
       const fieldErrors = error?.errors ? Object.values(error.errors).flat().join('\n') : '';
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
         || 'Could not submit your request. Please try again.';
@@ -481,7 +509,7 @@ function SubmitRequest({ navigation }) {
     setSubmissionInProgress(true);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
-      await finishSuccess();
+      await handlePostCheckout(session?.pendingBundle);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify the payment yet. If charged, check Requests shortly.');
       submissionLockRef.current = false;
@@ -539,6 +567,12 @@ function SubmitRequest({ navigation }) {
                 <Text style={styles.itemName} numberOfLines={2}>{it.name}</Text>
                 <View style={styles.itemMetaRow}>
                   <View style={styles.itemBadge}><Text style={styles.itemBadgeText}>{(it.categoryName || '').toUpperCase()}</Text></View>
+                  {!!it.isRecurring && (
+                    <View style={styles.recurringBadge}>
+                      <Icon name="autorenew" size={11} color="#B45309" />
+                      <Text style={styles.recurringBadgeText}>RECURRING</Text>
+                    </View>
+                  )}
                   {!!it.durationLabel && (
                     <View style={styles.itemDuration}>
                       <Icon name="schedule" size={12} color="#94A3B8" />
@@ -546,6 +580,13 @@ function SubmitRequest({ navigation }) {
                     </View>
                   )}
                 </View>
+                {/* 'nationwide' = no saved account city yet, so this price is
+                    only a reference average and can differ from what's
+                    actually charged at checkout — 'city' is the real, final
+                    number (see cartApi.mapCartItem). */}
+                {it.pricingBasis === 'nationwide' && (
+                  <Text style={styles.estimateNote}>Estimate — set your location for the exact price</Text>
+                )}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
                 <TouchableOpacity onPress={() => { removeCartService(it.serviceId); showToast('Service removed from cart', 'success'); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -555,19 +596,43 @@ function SubmitRequest({ navigation }) {
             </View>
           ))}
 
-          {/* Estimated price — shown with selected services (from the quote API) */}
+          {/* Estimated price — one-time items from the quote API; recurring
+              items shown as their own subscription breakdown, never blended
+              into the one-time estimate/total above (they're billed
+              separately, right after submitting). */}
           <View style={styles.card}>
             <View style={styles.cardHeadRow}>
               <Text style={styles.cardTitle}>Estimated Price for Your Address</Text>
               {quoteLoading && <ActivityIndicator size="small" color="#D94625" />}
             </View>
-            <SummaryRow label="Estimated amount" value={fmt(estAmount)} />
-            {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-            {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-            <SummaryRow label="GST" sub="(18%)" value={fmt(estGst)} />
-            <View style={styles.divider} />
-            <SummaryRow label="Estimated Total" value={fmt(estTotal)} strong />
-            <Text style={styles.disclaimer}>Final amount is set by the verified vendor covering your exact address.</Text>
+            {oneTimeItems.length > 0 ? (
+              <>
+                <SummaryRow label="Estimated amount" value={fmt(estAmount)} />
+                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                <SummaryRow label="GST" sub="(18%)" value={fmt(estGst)} />
+                <View style={styles.divider} />
+                <SummaryRow label="Estimated Total" value={fmt(estTotal)} strong />
+                <Text style={styles.disclaimer}>Final amount is set by the verified vendor covering your exact address.</Text>
+              </>
+            ) : (
+              <Text style={styles.disclaimer}>No one-time services in your cart.</Text>
+            )}
+
+            {recurringItems.length > 0 && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.recurringChip}>
+                  <Icon name="autorenew" size={13} color="#B45309" />
+                  <Text style={styles.recurringChipText}>Recurring Subscription ({recurringItems.length})</Text>
+                </View>
+                {recurringItems.map((it) => (
+                  <SummaryRow key={it.serviceId} label={it.name} value={fmt(it.base != null ? it.base : it.price)} />
+                ))}
+                <SummaryRow label="Subscription GST" value={fmt(recurringGstTotal)} />
+                <SummaryRow label={`Subscription Total (billed ${recurringInterval})`} value={fmt(recurringSubtotal)} strong />
+              </>
+            )}
           </View>
 
           <TouchableOpacity style={styles.continueBtn} activeOpacity={0.9} onPress={() => { setStep('details'); setPage('form'); }}>
@@ -720,13 +785,29 @@ function SubmitRequest({ navigation }) {
               </TouchableOpacity>
             ))}
 
-            {/* Order summary — from the quote API */}
+            {/* Order summary — one-time items from the quote API; recurring
+                items are billed separately, not part of this payment. */}
             <View style={styles.divider} />
-            <SummaryRow label="Services" value={String(items.length)} />
-            <SummaryRow label="Services total" value={fmt(estAmount)} />
-            {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-            {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-            <SummaryRow label="Services GST" sub="(18%)" value={fmt(estGst)} />
+            {oneTimeItems.length > 0 ? (
+              <>
+                <SummaryRow label="Services" value={String(oneTimeItems.length)} />
+                <SummaryRow label="Services total" value={fmt(estAmount)} />
+                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                <SummaryRow label="Services GST" sub="(18%)" value={fmt(estGst)} />
+              </>
+            ) : (
+              <Text style={styles.disclaimer}>
+                No one-time services in this request — your recurring service(s) are set up
+                after you tap Submit, via a separate subscription payment.
+              </Text>
+            )}
+            {recurringItems.length > 0 && (
+              <SummaryRow
+                label={`Recurring (${recurringItems.length}) — not charged now`}
+                value={fmt(recurringSubtotal)}
+              />
+            )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
               <Text style={styles.payValue}>{fmt(estTotal)}</Text>
@@ -753,6 +834,13 @@ function SubmitRequest({ navigation }) {
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}
         title="Secure Payment"
+      />
+
+      <PendingRecurringBundleModal
+        visible={!!pendingBundle}
+        bundle={pendingBundle}
+        onClose={() => { setPendingBundle(null); finishSuccess(); }}
+        onSuccess={() => { setPendingBundle(null); finishSuccess(); }}
       />
 
       {/* In-app image preview */}
@@ -809,8 +897,13 @@ const styles = StyleSheet.create({
   itemIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEF2FB', justifyContent: 'center', alignItems: 'center' },
   itemName: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', marginBottom: 6 },
   itemMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  estimateNote: { fontSize: 11, color: '#B45309', marginTop: 6 },
   itemBadge: { backgroundColor: '#EEF2FB', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   itemBadgeText: { fontSize: 9, letterSpacing: 0.5, color: '#20304C', fontFamily: typography.labelMedium.fontFamily },
+  recurringBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  recurringBadgeText: { fontSize: 9, letterSpacing: 0.5, color: '#B45309', fontFamily: typography.labelMedium.fontFamily },
+  recurringChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: 10 },
+  recurringChipText: { fontSize: 11.5, color: '#B45309', fontFamily: typography.labelMedium.fontFamily },
   itemDuration: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   itemDurationText: { fontSize: 11, color: '#94A3B8' },
   itemPrice: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#D94625' },

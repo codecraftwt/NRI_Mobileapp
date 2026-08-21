@@ -7,6 +7,7 @@ import {
   mergeGuestCart,
   addServerCartItem,
   removeServerCartItem,
+  checkoutCart,
   selectCartItems,
   selectServerCartCount,
 } from '../Redux/slices/cartSlice';
@@ -25,6 +26,7 @@ export function useCart({ autoFetch = true } = {}) {
   const items = useSelector(selectCartItems);
   const serverCount = useSelector(selectServerCartCount);
   const guestMergeStatus = useSelector((s) => s.cart.guestMergeStatus);
+  const checkoutLoading = useSelector((s) => s.cart.checkoutStatus === 'loading');
   // A guest cart carried into a signed-in session: local items exist but the
   // server cart is still empty, so they were never uploaded.
   const hasUnsyncedGuestCart = items.length > 0 && serverCount === 0;
@@ -50,7 +52,11 @@ export function useCart({ autoFetch = true } = {}) {
     // Local add drives the display list in both flows.
     dispatch(addToCart(item));
     // Signed-in: sync to the backend cart; the returned count updates the badge.
-    if (isAuthenticated && item?.serviceId != null) dispatch(addServerCartItem(item.serviceId));
+    // billing_mode only matters for a dual-mode service — safe to always send
+    // whichever mode the item was added under (see cartApi.addCartItem).
+    if (isAuthenticated && item?.serviceId != null) {
+      dispatch(addServerCartItem({ serviceId: item.serviceId, billingMode: item.isRecurring ? 'recurring' : 'one_time' }));
+    }
   };
 
   const remove = (serviceId) => {
@@ -62,5 +68,9 @@ export function useCart({ autoFetch = true } = {}) {
     if (isAuthenticated) dispatch(fetchServerCart());
   };
 
-  return { items, count, isAuthenticated, add, remove, refresh };
+  // Turns the authenticated cart into service request(s) + starts payment —
+  // see cartApi.checkoutCart for params/response shape.
+  const checkout = (params) => dispatch(checkoutCart(params));
+
+  return { items, count, isAuthenticated, add, remove, refresh, checkout, checkoutLoading };
 }

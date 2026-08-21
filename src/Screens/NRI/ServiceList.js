@@ -8,15 +8,17 @@ import { useCart } from '../../Hooks/useCart';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import LocationPickerModal from '../../Components/LocationPickerModal';
 
-// Short one-line price for the list row. USD (customer_price); recurring
-// services show their monthly rate.
-const priceLabel = (pricing) => {
+// Short one-line price for the list row, for the given mode ('oneTime' |
+// 'recurring') — reads customer_price or recurring_price explicitly rather
+// than preferring whichever happens to be present.
+const priceLabel = (pricing, mode) => {
   if (!pricing) return '';
   if (pricing.isQuoted) return 'On quote';
-  if (pricing.customerPrice != null) return `$${Number(pricing.customerPrice).toFixed(2)}`;
-  if (pricing.recurringDisplayPrice) return pricing.recurringDisplayPrice;
-  if (pricing.recurringPrice != null) return `$${Number(pricing.recurringPrice).toFixed(2)}`;
-  return '';
+  if (mode === 'recurring') {
+    if (pricing.recurringDisplayPrice) return pricing.recurringDisplayPrice;
+    return pricing.recurringPrice != null ? `$${Number(pricing.recurringPrice).toFixed(2)}/mo` : '';
+  }
+  return pricing.customerPrice != null ? `$${Number(pricing.customerPrice).toFixed(2)}` : '';
 };
 
 function ServiceList({ route, navigation }) {
@@ -31,6 +33,9 @@ function ServiceList({ route, navigation }) {
   // Service tapped before a location was set — opened automatically after the
   // user picks a location (so they don't bounce back here).
   const [pendingService, setPendingService] = useState(null);
+  // Which of a service's two prices to browse/show — carried into
+  // ServiceInfo when a card is tapped.
+  const [mode, setMode] = useState('oneTime');
 
   const { oneTime, recurring, loading } = useServiceGroups(
     category.name,
@@ -40,21 +45,24 @@ function ServiceList({ route, navigation }) {
 
   // Availability filtering only kicks in once a location is set: before that
   // the user browses the FULL catalog ("starting from" prices). After a city is
-  // chosen we hide services with no vendor price there ("Not available in your
-  // area", i.e. customer_price + recurring_price both null). Price presence is
-  // used rather than the vendor_priced flags — those are null for services with
-  // no recurring option, which a flag check mis-read as available.
+  // chosen we hide services with no vendor price there, for the selected mode
+  // ("Not available in your area", i.e. customer_price/recurring_price null).
+  // Price presence is used rather than the vendor_priced flags — those are
+  // null for services with no recurring option, which a flag check mis-read
+  // as available.
   const isAvailable = (s) => {
     const p = s.pricing;
     if (!p || p.isQuoted) return true;
-    return (p.customerPrice ?? p.recurringPrice ?? null) != null;
+    const v = mode === 'recurring' ? p.recurringPrice : p.customerPrice;
+    return v != null;
   };
 
-  // Merge both buckets, de-duped by id — the single-service detail screen
-  // handles one-time vs recurring for whichever the user opens.
+  // Merge both buckets, de-duped by id, then keep only services offered in
+  // the selected mode.
   const seen = new Set();
   const services = [...oneTime, ...recurring]
     .filter(s => (seen.has(s.id) ? false : seen.add(s.id)))
+    .filter(s => (mode === 'recurring' ? s.allowsRecurring : s.allowsSingleUse))
     .filter(s => !hasLocation || isAvailable(s));
 
   const openService = (service) => {
@@ -65,7 +73,7 @@ function ServiceList({ route, navigation }) {
       setLocModalOpen(true);
       return;
     }
-    navigation.navigate('GuestServiceInfo', { service, category });
+    navigation.navigate('GuestServiceInfo', { service, category, mode });
   };
 
   return (
@@ -99,11 +107,29 @@ function ServiceList({ route, navigation }) {
         <Text style={styles.locBannerAction}>{hasLocation ? 'Change' : 'Set'}</Text>
       </TouchableOpacity>
 
+      {/* One Time / Recurring toggle */}
+      <View style={styles.modeToggleRow}>
+        <TouchableOpacity
+          style={[styles.modeToggleBtn, mode === 'oneTime' && styles.modeToggleBtnActive]}
+          activeOpacity={0.85}
+          onPress={() => setMode('oneTime')}
+        >
+          <Text style={[styles.modeToggleText, mode === 'oneTime' && styles.modeToggleTextActive]}>One Time</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modeToggleBtn, mode === 'recurring' && styles.modeToggleBtnActive]}
+          activeOpacity={0.85}
+          onPress={() => setMode('recurring')}
+        >
+          <Text style={[styles.modeToggleText, mode === 'recurring' && styles.modeToggleTextActive]}>Recurring</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 40 }} />
         ) : services.length === 0 ? (
-          <Text style={styles.emptyText}>No services available in this category.</Text>
+          <Text style={styles.emptyText}>No {mode === 'recurring' ? 'recurring' : 'one-time'} services available in this category.</Text>
         ) : (
           services.map(s => (
             <TouchableOpacity key={s.id} style={styles.card} activeOpacity={0.7} onPress={() => openService(s)}>
@@ -112,7 +138,7 @@ function ServiceList({ route, navigation }) {
                 <Text style={styles.cardSub} numberOfLines={2}>
                   {s.description || s.pricing?.turnaroundLabel || 'Standard turnaround'}
                 </Text>
-                {!!priceLabel(s.pricing) && <Text style={styles.cardPrice}>{priceLabel(s.pricing)}</Text>}
+                {!!priceLabel(s.pricing, mode) && <Text style={styles.cardPrice}>{priceLabel(s.pricing, mode)}</Text>}
               </View>
               <Icon name="chevron-right" size={22} color="#94A3B8" />
             </TouchableOpacity>
@@ -185,6 +211,15 @@ const styles = StyleSheet.create({
   locBannerLabel: { fontSize: 11, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
   locBannerValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, marginTop: 1 },
   locBannerAction: { fontSize: 13, color: '#D94625', fontFamily: typography.h4.fontFamily },
+
+  modeToggleRow: {
+    flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 4,
+    marginHorizontal: 20, marginTop: 16, borderWidth: 1, borderColor: '#F1F5F9',
+  },
+  modeToggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center' },
+  modeToggleBtnActive: { backgroundColor: '#20304C' },
+  modeToggleText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
+  modeToggleTextActive: { color: '#FFFFFF', fontFamily: typography.h4.fontFamily },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40, gap: 12 },
   emptyText: { textAlign: 'center', color: '#94A3B8', marginTop: 40, fontSize: 14 },

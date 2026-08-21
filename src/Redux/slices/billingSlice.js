@@ -43,6 +43,28 @@ export const stopMembershipAutoRenew = createAsyncThunk(
   }
 );
 
+export const cancelAllSubscriptions = createAsyncThunk(
+  'billing/cancelAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await billingApi.cancelAllSubscriptions();
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const subscribeRecurringBundle = createAsyncThunk(
+  'billing/subscribeRecurringBundle',
+  async (bundleId, { rejectWithValue }) => {
+    try {
+      return await billingApi.subscribeRecurringBundle(bundleId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const fetchPaymentHistory = createAsyncThunk(
   'billing/fetchPaymentHistory',
   async (params, { rejectWithValue }) => {
@@ -64,6 +86,10 @@ const initialState = {
   verifyError: null,
   stopAutoRenewStatus: 'idle',
   stopAutoRenewError: null,
+  cancelAllStatus: 'idle',
+  cancelAllError: null,
+  subscribeRecurringStatus: 'idle',
+  subscribeRecurringError: null,
   payments: [],
   paymentsMeta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   paymentsStatus: 'idle',
@@ -121,6 +147,31 @@ const billingSlice = createSlice({
       .addCase(stopMembershipAutoRenew.rejected, (state, action) => {
         state.stopAutoRenewStatus = 'failed';
         state.stopAutoRenewError = action.payload;
+      })
+      .addCase(cancelAllSubscriptions.pending, (state) => {
+        state.cancelAllStatus = 'loading';
+        state.cancelAllError = null;
+      })
+      .addCase(cancelAllSubscriptions.fulfilled, (state, action) => {
+        state.cancelAllStatus = 'succeeded';
+        if (state.overview && action.payload.membership?.status === 'cancelled') {
+          state.overview.autoRenewingMembership = null;
+        }
+      })
+      .addCase(cancelAllSubscriptions.rejected, (state, action) => {
+        state.cancelAllStatus = 'failed';
+        state.cancelAllError = action.payload;
+      })
+      .addCase(subscribeRecurringBundle.pending, (state) => {
+        state.subscribeRecurringStatus = 'loading';
+        state.subscribeRecurringError = null;
+      })
+      .addCase(subscribeRecurringBundle.fulfilled, (state) => {
+        state.subscribeRecurringStatus = 'succeeded';
+      })
+      .addCase(subscribeRecurringBundle.rejected, (state, action) => {
+        state.subscribeRecurringStatus = 'failed';
+        state.subscribeRecurringError = action.payload;
       })
       .addCase(fetchPaymentHistory.pending, (state) => {
         state.paymentsStatus = 'loading';

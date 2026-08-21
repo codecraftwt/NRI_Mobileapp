@@ -248,7 +248,7 @@ function MyMembership({ navigation }) {
                     {autoRenewingMembership.planName} <Text style={styles.autoRenewType}>(membership)</Text>
                   </Text>
                   <Text style={styles.autoRenewMeta}>
-                    Auto-renews{autoRenewingMembership.nextRenewalAt ? ` on ${formatDate(autoRenewingMembership.nextRenewalAt)}` : ''}
+                    Auto-renews{autoRenewingMembership.expiresAt ? ` on ${formatDate(autoRenewingMembership.expiresAt)}` : ''}
                     {autoRenewingMembership.amount != null ? ` at ${formatUsd(autoRenewingMembership.amount)}` : ''}
                   </Text>
                 </View>

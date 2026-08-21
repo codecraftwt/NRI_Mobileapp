@@ -1,5 +1,6 @@
 import apiClient, { normalizeApiError } from './client';
 import { getTicketDetail } from './ticketApi';
+import { mapPendingRecurringBundle } from './paymentsApi';
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -79,6 +80,9 @@ function mapDashboard(raw) {
     planUsage: mapPlanUsage(raw.plan_usage),
     recentTickets: (raw.recent_tickets || []).map(mapRecentTicket),
     recentReports: (raw.recent_reports || []).map(mapRecentReport),
+    // Every unpaid recurring bundle for the customer, not just the most
+    // recent one — stays populated until each is paid via subscribe-recurring.
+    pendingRecurringBundles: (raw.pending_recurring_bundles || []).map(mapPendingRecurringBundle),
   };
 }
 

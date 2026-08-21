@@ -32,10 +32,18 @@ export function useCartPriceSync(enabled = true) {
       for (const cityId of cityIds) {
         try {
           const services = await getServices({ cityId });
-          for (const s of services) {
-            const price = s.pricing?.customerPrice ?? s.pricing?.recurringPrice;
+          const byId = new Map(services.map(s => [s.id, s]));
+          // Bind whichever price the item was actually added under (one-time
+          // vs recurring) — a service can offer both, so picking "whichever is
+          // present" would silently swap a recurring line back to its one-time
+          // price (or vice versa) on refresh.
+          for (const item of items) {
+            if ((item.cityId || savedCityId) !== cityId) continue;
+            const s = byId.get(item.serviceId);
+            if (!s) continue;
+            const price = item.isRecurring ? s.pricing?.recurringPrice : s.pricing?.customerPrice;
             if (price != null) {
-              priceMap[s.id] = { price: Number(price), currency: s.pricing?.currency || 'USD' };
+              priceMap[item.serviceId] = { price: Number(price), currency: s.pricing?.currency || 'USD' };
             }
           }
         } catch (e) {

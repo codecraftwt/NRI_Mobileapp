@@ -14,7 +14,7 @@ import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
-import { clearCart, selectCartItems, selectCartSubtotal } from '../../../Redux/slices/cartSlice';
+import { clearCart, selectCartItems } from '../../../Redux/slices/cartSlice';
 import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
@@ -162,9 +162,18 @@ function OnboardingPayment({ route, navigation }) {
   // details and bills the selected services alongside the membership. With an
   // empty cart this is a plain membership registration — unchanged.
   const cartItems = useSelector(selectCartItems);
-  const servicesSubtotal = useSelector(selectCartSubtotal);
   const savedLocation = useSelector(s => s.serviceLocation);
   const fromCart = cartItems.length > 0;
+
+  // A recurring cart service can't ride this membership checkout session (a
+  // checkout session only ever produces one subscription, and the membership
+  // itself is already that one) — the backend silently excludes it from the
+  // charge and leaves it pending until the customer completes it separately
+  // from their dashboard. Split the cart so the platform/membership fee shown
+  // and charged here never double-counts a recurring item's price.
+  const oneTimeCartItems = cartItems.filter(i => !i.isRecurring);
+  const recurringCartItems = cartItems.filter(i => i.isRecurring);
+  const servicesSubtotal = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.price) || 0), 0);
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -243,10 +252,15 @@ function OnboardingPayment({ route, navigation }) {
   // Required documents for the selected (cart) services — displayed on this
   // step so the customer knows what to prepare. Fetched from the same endpoint
   // the ticket booking form uses. (User is authenticated by this step.)
+  // ALL cart items, not just one-time ones — confirmed live that the checkout
+  // endpoint 422s ("The documents.N field is required") for a recurring
+  // service's required document even though its ticket isn't created here;
+  // there's no other document-upload step for it before the deferred
+  // subscribe-recurring payment, so it has to be collected now.
   const requiredDocuments = useSelector(state => state.ticketBooking.requiredDocuments);
   const cartServiceIdsKey = cartItems.map(i => i.serviceId).join(',');
   useEffect(() => {
-    if (fromCart) {
+    if (fromCart && cartItems.length > 0) {
       dispatch(fetchTicketRequiredDocuments(cartItems.map(i => i.serviceId)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -444,7 +458,11 @@ function OnboardingPayment({ route, navigation }) {
 
   // Activates the membership locally, creates the cart's service requests, then
   // moves on to the welcome screen once the gateway payment is confirmed.
-  const finishUp = async () => {
+  // `pendingRecurringBundle` (from the verify() response) is forwarded so the
+  // welcome screen can prompt for it — a recurring cart service is priced
+  // alongside the membership but can't ride the same checkout session, so it's
+  // left unpaid until the customer completes it separately.
+  const finishUp = async (pendingRecurringBundle) => {
     dispatch(updateProfile({
       countryOfResidence: profile?.countryOfResidence,
       stateProvince: profile?.stateProvince,
@@ -478,7 +496,7 @@ function OnboardingPayment({ route, navigation }) {
 
     // Tell the welcome screen whether service requests were created, so it can
     // send the user to the Requests (tracking) tab instead of the dashboard.
-    navigation.replace('OnboardingWelcome', { plan, hasServiceRequests: fromCart });
+    navigation.replace('OnboardingWelcome', { plan, hasServiceRequests: fromCart, pendingRecurringBundle });
   };
 
   const handlePay = async () => {
@@ -492,7 +510,7 @@ function OnboardingPayment({ route, navigation }) {
         // Sync Redux cart to backend before checkout so they ride along with membership
         for (const item of cartItems) {
           try {
-            await addCartItem(item.serviceId);
+            await addCartItem(item.serviceId, item.isRecurring ? 'recurring' : 'one_time');
           } catch (e) {
             setSubmitting(false);
             showAlert('Cart Sync Failed', e?.message || 'Could not sync cart items.');
@@ -544,7 +562,7 @@ function OnboardingPayment({ route, navigation }) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
         // Auto-renew membership → order carries a subscription_id (verified
         // with razorpay_subscription_id inside runRazorpayPayment).
-        await runRazorpayPayment({
+        const verifyResult = await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle Membership',
@@ -552,7 +570,7 @@ function OnboardingPayment({ route, navigation }) {
           user: { name: profile?.fullName, email: profile?.email, phone: profile?.phone },
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        await finishUp();
+        await finishUp(verifyResult?.data?.pendingRecurringBundle);
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for a native SDK flow not built
         // on mobile — steer to a supported gateway instead of a false success.
@@ -580,8 +598,8 @@ function OnboardingPayment({ route, navigation }) {
     setCheckoutSession(null);
     setSubmitting(true);
     try {
-      await verifyPayment({ paymentId, sessionId }).unwrap();
-      await finishUp();
+      const verifyResult = await verifyPayment({ paymentId, sessionId }).unwrap();
+      await finishUp(verifyResult?.data?.pendingRecurringBundle);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
     } finally {
@@ -789,31 +807,56 @@ function OnboardingPayment({ route, navigation }) {
                     <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(membershipPayable)}</Text>
                   </View>
 
-                  <View style={styles.divider} />
-                  <View style={styles.servicesChip}>
-                    <Icon name="shopping-cart" size={13} color={C.accent} />
-                    <Text style={styles.servicesChipText}>Services ({cartItems.length})</Text>
-                  </View>
-                  {cartItems.map((it) => (
-                    <View key={it.serviceId} style={styles.row}>
-                      <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                      <Text style={styles.rowValue}>{formatUsd(it.price)}</Text>
-                    </View>
-                  ))}
-                  {prioritySurcharge > 0 && (
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Priority ({selectedPriority?.name})</Text>
-                      <Text style={styles.rowValue}>+{formatUsd(prioritySurcharge)}</Text>
-                    </View>
+                  {oneTimeCartItems.length > 0 && (
+                    <>
+                      <View style={styles.divider} />
+                      <View style={styles.servicesChip}>
+                        <Icon name="shopping-cart" size={13} color={C.accent} />
+                        <Text style={styles.servicesChipText}>Services ({oneTimeCartItems.length})</Text>
+                      </View>
+                      {oneTimeCartItems.map((it) => (
+                        <View key={it.serviceId} style={styles.row}>
+                          <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
+                          <Text style={styles.rowValue}>{formatUsd(it.price)}</Text>
+                        </View>
+                      ))}
+                      {prioritySurcharge > 0 && (
+                        <View style={styles.row}>
+                          <Text style={styles.rowLabel}>Priority ({selectedPriority?.name})</Text>
+                          <Text style={styles.rowValue}>+{formatUsd(prioritySurcharge)}</Text>
+                        </View>
+                      )}
+                      <View style={styles.row}>
+                        <Text style={styles.rowLabel}>Services GST {servicesGst > 0 ? "(18%)" : "(Included in Membership)"}</Text>
+                        <Text style={styles.rowValue}>{formatUsd(servicesGst)}</Text>
+                      </View>
+                      <View style={styles.row}>
+                        <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
+                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(servicesPayable)}</Text>
+                      </View>
+                    </>
                   )}
-                  <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Services GST {servicesGst > 0 ? "(18%)" : "(Included in Membership)"}</Text>
-                    <Text style={styles.rowValue}>{formatUsd(servicesGst)}</Text>
-                  </View>
-                  <View style={styles.row}>
-                    <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
-                    <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(servicesPayable)}</Text>
-                  </View>
+
+                  {recurringCartItems.length > 0 && (
+                    <>
+                      <View style={styles.divider} />
+                      <View style={styles.recurringChip}>
+                        <Icon name="autorenew" size={13} color="#B45309" />
+                        <Text style={styles.recurringChipText}>Recurring Services ({recurringCartItems.length}) — not charged now</Text>
+                      </View>
+                      {recurringCartItems.map((it) => (
+                        <View key={it.serviceId} style={styles.row}>
+                          <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
+                          <Text style={styles.rowValue}>{formatUsd(it.price)}{it.billingInterval ? '/mo' : ''}</Text>
+                        </View>
+                      ))}
+                      <Text style={styles.recurringNote}>
+                        Not included in the amount payable below — a recurring service is billed
+                        separately from your membership/platform fee. Once your registration payment
+                        is confirmed, you'll see a "Pay Now" prompt for these on your dashboard.
+                      </Text>
+                    </>
+                  )}
                 </>
               )}
 
@@ -822,10 +865,10 @@ function OnboardingPayment({ route, navigation }) {
                 <Text style={styles.amountPayableLabel}>Amount Payable</Text>
                 <Text style={styles.amountPayableValue}>{formatUsd(amountPayable)}</Text>
               </View>
-              {fromCart && (
+              {fromCart && oneTimeCartItems.length > 0 && (
                 <Text style={styles.combinedNote}>
-                  Included in the amount payable above — services are paid together with your
-                  membership in this one payment.
+                  Included in the amount payable above — one-time services are paid together with
+                  your membership in this one payment.
                 </Text>
               )}
 
@@ -1009,6 +1052,9 @@ const styles = StyleSheet.create({
   servicesChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.accent + '15', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
   servicesChipText: { fontSize: 13, color: colors.accent, fontFamily: 'Montserrat-Bold' },
   combinedNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17, marginTop: 8 },
+  recurringChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#FEF3C7', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
+  recurringChipText: { fontSize: 13, color: '#B45309', fontFamily: 'Montserrat-Bold' },
+  recurringNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#B45309', lineHeight: 17, marginTop: 8 },
 
   // Two-step sub-flow indicator
   subStepsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },

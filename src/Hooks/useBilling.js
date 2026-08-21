@@ -5,6 +5,8 @@ import {
   payBillableItem,
   verifyBillingPayment,
   stopMembershipAutoRenew,
+  cancelAllSubscriptions,
+  subscribeRecurringBundle,
 } from '../Redux/slices/billingSlice';
 
 export function useBilling() {
@@ -16,6 +18,8 @@ export function useBilling() {
   const payLoading = useSelector(state => state.billing.payStatus === 'loading');
   const verifyLoading = useSelector(state => state.billing.verifyStatus === 'loading');
   const stopAutoRenewLoading = useSelector(state => state.billing.stopAutoRenewStatus === 'loading');
+  const cancelAllLoading = useSelector(state => state.billing.cancelAllStatus === 'loading');
+  const subscribeRecurringLoading = useSelector(state => state.billing.subscribeRecurringStatus === 'loading');
 
   useEffect(() => {
     if (status === 'idle') dispatch(fetchBillingOverview());
@@ -36,5 +40,11 @@ export function useBilling() {
 
     stopAutoRenewLoading,
     stopAutoRenew: (membershipId) => dispatch(stopMembershipAutoRenew(membershipId)),
+
+    cancelAllLoading,
+    cancelAllSubscriptions: () => dispatch(cancelAllSubscriptions()),
+
+    subscribeRecurringLoading,
+    subscribeRecurring: (bundleId) => dispatch(subscribeRecurringBundle(bundleId)),
   };
 }

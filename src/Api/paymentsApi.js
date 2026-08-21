@@ -1,5 +1,24 @@
 import apiClient, { API_BASE_URL, normalizeApiError } from './client';
 
+// A membership checkout can bundle one-time cart services into the same
+// gateway session, but never a recurring one (a checkout session only ever
+// produces one subscription, and the membership itself is already that one).
+// So a recurring cart service is priced/shown up front but left unpaid after
+// membership checkout — this is that leftover item, wherever it appears
+// (payments/verify, GET /dashboard, or implicitly what subscribe-recurring
+// pays for). display_amount/display_currency are already GST-inclusive and
+// already converted to the customer's billing currency.
+export function mapPendingRecurringBundle(raw) {
+  if (!raw) return null;
+  return {
+    bundleId: raw.bundle_id,
+    serviceNames: raw.service_names,
+    interval: raw.interval,
+    displayAmount: raw.display_amount,
+    displayCurrency: raw.display_currency,
+  };
+}
+
 // Generic payment confirmation endpoint — shared across every payable type
 // (membership, ticket, add-on package subscription). Razorpay: pass
 // razorpayOrderId/razorpayPaymentId/razorpaySignature for a one-time order,
@@ -13,7 +32,13 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
       razorpay_subscription_id: razorpaySubscriptionId || undefined,
       session_id: sessionId || undefined,
     });
-    return { message: response.data?.message, data: response.data?.data || null };
+    const data = response.data?.data || null;
+    return {
+      message: response.data?.message,
+      // A membership checkout that left a recurring service unpaid — null on
+      // every other payment.
+      data: data ? { ...data, pendingRecurringBundle: mapPendingRecurringBundle(data.pending_recurring_bundle) } : null,
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }

@@ -1,10 +1,11 @@
-import React, { useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, BackHandler, Animated, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector } from 'react-redux';
 import RMWidget from '../../Components/RMWidget';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { useDashboard } from '../../Hooks/useDashboard';
 import { usePlans } from '../../Hooks/usePlans';
 import { lightColors as colors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../theme';
@@ -21,6 +22,7 @@ function Dashboard({ navigation }) {
   const { plans } = usePlans();
   const { showAlert, alertProps } = useAppAlert();
   const waveAnim = useRef(new Animated.Value(0)).current;
+  const [activeBundle, setActiveBundle] = useState(null);
 
   useEffect(() => {
     Animated.loop(
@@ -41,6 +43,7 @@ function Dashboard({ navigation }) {
 
   const membership = data?.membership;
   const recentTickets = data?.recentTickets || [];
+  const pendingRecurringBundles = data?.pendingRecurringBundles || [];
 
   // Match the active membership to its plan from GET /plans (by id, then slug,
   // then name) so the card can show the plan's real price.
@@ -233,6 +236,23 @@ function Dashboard({ navigation }) {
             </View>
           )}
 
+          {pendingRecurringBundles.map(bundle => (
+            <View key={bundle.bundleId} style={styles.pendingBundleCard}>
+              <View style={styles.alertIcon}>
+                <Icon name="autorenew" size={22} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingBundleTitle} numberOfLines={2}>{bundle.serviceNames}</Text>
+                <Text style={styles.pendingBundleMeta}>
+                  Billed {bundle.interval} · {bundle.displayCurrency === 'INR' ? '₹' : '$'}{Number(bundle.displayAmount || 0).toFixed(2)}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.pendingBundleBtn} onPress={() => setActiveBundle(bundle)}>
+                <Text style={styles.pendingBundleBtnText}>Pay Now</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
           {/* Active Requests List */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
@@ -361,6 +381,16 @@ function Dashboard({ navigation }) {
         </ScrollView>
       </View>
       <AppAlert {...alertProps} />
+      <PendingRecurringBundleModal
+        visible={!!activeBundle}
+        bundle={activeBundle}
+        onClose={() => setActiveBundle(null)}
+        onSuccess={() => {
+          setActiveBundle(null);
+          retry();
+          showAlert('Subscription Activated', 'Your recurring subscription payment was confirmed.', [{ text: 'OK' }]);
+        }}
+      />
     </View>
   );
 }
@@ -700,6 +730,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertText: { ...typography.body, color: '#92400E', flex: 1 },
+
+  pendingBundleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#FEF3C7',
+    gap: spacing.sm,
+  },
+  pendingBundleTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#92400E' },
+  pendingBundleMeta: { fontSize: 12, color: '#B45309', marginTop: 2 },
+  pendingBundleBtn: {
+    backgroundColor: '#D94625',
+    borderRadius: radius.full,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  pendingBundleBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
 
   emptyCard: {
     backgroundColor: '#FFFFFF',

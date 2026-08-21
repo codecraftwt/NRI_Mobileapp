@@ -112,8 +112,10 @@ const serviceSubscriptionSlice = createSlice({
         state.cancelStatus = 'loading';
         state.cancelError = null;
       })
-      .addCase(cancelServiceSubscription.fulfilled, (state) => {
+      .addCase(cancelServiceSubscription.fulfilled, (state, action) => {
         state.cancelStatus = 'succeeded';
+        const sub = state.subscriptions.find(s => s.id === action.meta.arg);
+        if (sub) sub.autoRenew = false;
       })
       .addCase(cancelServiceSubscription.rejected, (state, action) => {
         state.cancelStatus = 'failed';

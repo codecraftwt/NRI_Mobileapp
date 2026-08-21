@@ -53,24 +53,34 @@ const detailsFor = (name) =>
 const ALL_CAT = '__all__';
 const allOption = { id: '__all__', name: '__all__', displayName: 'All Categories', icon: 'grid-view', color: '#20304C' };
 
-const priceValue = (p) => (p ? (p.customerPrice ?? p.recurringPrice ?? null) : null);
+// `mode` is 'oneTime' | 'recurring' — picks which of the service's two prices
+// (allows_single_use vs allows_recurring) to read, rather than silently
+// preferring whichever happens to be present.
+const priceValue = (p, mode) => {
+  if (!p) return null;
+  return mode === 'recurring' ? p.recurringPrice : p.customerPrice;
+};
 
-// Bookable in the chosen city? Once a location is set, a service is available
-// only if it actually has a vendor price (one-time OR recurring) — or it's an
-// on-quote service. `customer_price: null` + `recurring_price: null` is the
-// "Not available in your area" case, so it's hidden. (Price presence is used
-// rather than the vendor_priced flags because those are null for services that
-// don't offer a recurring option, which the flag check mis-read as available.)
-// Only applied once a location is set (see below).
-const isServiceAvailable = (s) => {
+// Bookable in the chosen city, for the selected mode? Once a location is set,
+// a service is available only if it actually has a vendor price for that mode
+// — or it's an on-quote service. `customer_price`/`recurring_price: null` is
+// the "Not available in your area" case, so it's hidden. (Price presence is
+// used rather than the vendor_priced flags because those are null for
+// services that don't offer that mode at all, which a flag check mis-read as
+// available.) Only applied once a location is set (see below).
+const isServiceAvailable = (s, mode) => {
   const p = s.pricing;
   if (!p || p.isQuoted) return true;
-  return priceValue(p) != null;
+  return priceValue(p, mode) != null;
 };
-const priceText = (p) => {
+const priceText = (p, mode) => {
   if (!p) return '—';
   if (p.isQuoted) return 'On quote';
-  const v = priceValue(p);
+  if (mode === 'recurring') {
+    if (p.recurringDisplayPrice) return p.recurringDisplayPrice;
+    return p.recurringPrice != null ? `$${Number(p.recurringPrice).toFixed(2)}/mo` : '—';
+  }
+  const v = priceValue(p, mode);
   return v != null ? `$${Number(v).toFixed(2)}` : '—';
 };
 const durationText = (p) => {
@@ -84,6 +94,9 @@ function Services({ navigation, route }) {
   const { categories, loading: loadingCats } = useServiceCategories();
   const [search, setSearch] = useState('');
   const [activeCatName, setActiveCatName] = useState(ALL_CAT); // default: All Categories
+  // Which of a service's two prices to browse/show — 'oneTime' (allows_single_use)
+  // or 'recurring' (allows_recurring). Carried into ServiceInfo when a card is tapped.
+  const [mode, setMode] = useState('oneTime');
   const [filterOpen, setFilterOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false); // location picker
   // Service the user tapped before a location was set — opened automatically
@@ -202,8 +215,9 @@ function Services({ navigation, route }) {
   const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
   const q = search.toLowerCase().trim();
   const services = (isAll ? allServices : catServices)
+    .filter(s => (mode === 'recurring' ? s.allowsRecurring : s.allowsSingleUse))
     .filter(s => s.name.toLowerCase().includes(q))
-    .filter(s => !hasLocation || isServiceAvailable(s));
+    .filter(s => !hasLocation || isServiceAvailable(s, mode));
   const listLoading = loadingCats || (isAll ? allLoading : loadingServices);
 
   // The category a card belongs to — its own category in "All" mode, otherwise
@@ -215,7 +229,7 @@ function Services({ navigation, route }) {
   };
 
   const openService = (service) => {
-    const target = { service, category: catForService(service) };
+    const target = { service, category: catForService(service), mode };
     // Ask for a location first — without it the detail screen can't price or add
     // the service, and would just send the user back here. Resume into the
     // service once a location is saved (see onSaved below).
@@ -299,6 +313,24 @@ function Services({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
+        {/* One Time / Recurring toggle */}
+        <View style={styles.modeToggleRow}>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, mode === 'oneTime' && styles.modeToggleBtnActive]}
+            activeOpacity={0.85}
+            onPress={() => setMode('oneTime')}
+          >
+            <Text style={[styles.modeToggleText, mode === 'oneTime' && styles.modeToggleTextActive]}>One Time</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeToggleBtn, mode === 'recurring' && styles.modeToggleBtnActive]}
+            activeOpacity={0.85}
+            onPress={() => setMode('recurring')}
+          >
+            <Text style={[styles.modeToggleText, mode === 'recurring' && styles.modeToggleTextActive]}>Recurring</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Category filter chips (All Categories first) */}
         {!loadingCats && (
           <ScrollView
@@ -328,7 +360,9 @@ function Services({ navigation, route }) {
         ) : services.length === 0 ? (
           <View style={styles.loadingBox}>
             <Icon name="search-off" size={40} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No services found in {isAll ? 'any category' : (activeCategory?.displayName || 'this category')}.</Text>
+            <Text style={styles.emptyText}>
+              No {mode === 'recurring' ? 'recurring' : 'one-time'} services found in {isAll ? 'any category' : (activeCategory?.displayName || 'this category')}.
+            </Text>
           </View>
         ) : (
           <View style={styles.grid}>
@@ -349,7 +383,7 @@ function Services({ navigation, route }) {
                     <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
                     <View style={styles.cardMetaRow}>
                       {hasLocation ? (
-                        <Text style={styles.cardPrice}>{priceText(s.pricing)}</Text>
+                        <Text style={styles.cardPrice}>{priceText(s.pricing, mode)}</Text>
                       ) : (
                         <Text style={styles.cardPriceHint} numberOfLines={1}>Set location for price</Text>
                       )}
@@ -466,6 +500,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4,
   },
+
+  modeToggleRow: {
+    flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 4,
+    marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9',
+  },
+  modeToggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: 'center' },
+  modeToggleBtnActive: { backgroundColor: '#20304C' },
+  modeToggleText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
+  modeToggleTextActive: { color: '#FFFFFF', fontFamily: typography.h4.fontFamily },
 
   chipsRow: { gap: 10, paddingRight: 8, paddingBottom: 18 },
   chip: {

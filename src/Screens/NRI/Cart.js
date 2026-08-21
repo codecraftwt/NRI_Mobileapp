@@ -114,6 +114,12 @@ function Cart({ navigation }) {
                   <View style={styles.itemBadge}>
                     <Text style={styles.itemBadgeText}>{(it.categoryName || '').toUpperCase()}</Text>
                   </View>
+                  {!!it.isRecurring && (
+                    <View style={styles.recurringBadge}>
+                      <Icon name="autorenew" size={11} color="#B45309" />
+                      <Text style={styles.recurringBadgeText}>RECURRING</Text>
+                    </View>
+                  )}
                   {!!it.durationLabel && (
                     <View style={styles.itemDuration}>
                       <Icon name="schedule" size={12} color="#94A3B8" />
@@ -260,6 +266,8 @@ const styles = StyleSheet.create({
   itemMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   itemBadge: { backgroundColor: '#EEF2FB', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   itemBadgeText: { fontSize: 9, letterSpacing: 0.5, color: '#20304C', fontFamily: typography.labelMedium.fontFamily },
+  recurringBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  recurringBadgeText: { fontSize: 9, letterSpacing: 0.5, color: '#B45309', fontFamily: typography.labelMedium.fontFamily },
   itemDuration: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   itemDurationText: { fontSize: 11, color: '#94A3B8' },
   itemPrice: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#D94625' },

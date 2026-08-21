@@ -70,9 +70,11 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
 // dispatch chained with .unwrap()). `verify` receives { paymentId, razorpay* }
 // with the same key names verifyPayment in paymentsApi.js expects. Throws with
 // a human-readable message if the SDK is cancelled/declined or verify fails.
+// Returns whatever `verify` resolves to (e.g. verifyPayment's { message, data }),
+// so callers can read fields like data.pendingRecurringBundle off the result.
 export async function runRazorpayPayment({ order, paymentId, name, description, user, verify }) {
   const rp = await openRazorpayCheckout({ order, name, description, user });
-  await verify({
+  return verify({
     paymentId,
     razorpayOrderId: rp.razorpayOrderId,
     razorpayPaymentId: rp.razorpayPaymentId,

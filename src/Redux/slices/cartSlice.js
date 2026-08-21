@@ -19,6 +19,12 @@ const initialState = {
   // reset), flips to 'loading'/'succeeded' the first time a signed-in session
   // uploads the guest cart, so useCart never re-runs the merge on later mounts.
   guestMergeStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  checkoutStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+  checkoutError: null,
+  // The account's saved service-location city that a 'city'-basis cart item
+  // was priced against (see pricingBasis on each item) — null until one's
+  // saved. Only ever updated from a full GET /customer/cart response.
+  pricedCity: null,
 };
 
 // Adopt the authoritative server cart rows into the local display list while
@@ -42,6 +48,10 @@ function mergeServerIntoLocal(state, serverItems) {
         cityName: existing.cityName ?? si.cityName,
         cityId: existing.cityId ?? si.cityId,
         pincode: existing.pincode ?? si.pincode,
+        // The server's billing_mode is authoritative once synced — corrects
+        // the guest-set isRecurring flag (e.g. after a "switch to recurring"
+        // re-add from another device/session).
+        isRecurring: si.billingMode ? si.billingMode === 'recurring' : existing.isRecurring,
       };
     }
     return si;
@@ -81,7 +91,7 @@ export const mergeGuestCart = createAsyncThunk('cart/mergeGuest', async (_, { ge
     for (const item of localItems) {
       if (item?.serviceId != null) {
         try {
-          await cartApi.addCartItem(item.serviceId);
+          await cartApi.addCartItem(item.serviceId, item.isRecurring ? 'recurring' : 'one_time');
         } catch (e) {
           // Keep syncing the rest; the closing GET reports the real state.
         }
@@ -93,9 +103,9 @@ export const mergeGuestCart = createAsyncThunk('cart/mergeGuest', async (_, { ge
   }
 });
 
-export const addServerCartItem = createAsyncThunk('cart/addServer', async (serviceId, { rejectWithValue }) => {
+export const addServerCartItem = createAsyncThunk('cart/addServer', async ({ serviceId, billingMode }, { rejectWithValue }) => {
   try {
-    return await cartApi.addCartItem(serviceId);
+    return await cartApi.addCartItem(serviceId, billingMode);
   } catch (error) {
     return rejectWithValue(error);
   }
@@ -117,14 +127,31 @@ export const clearServerCart = createAsyncThunk('cart/clearServer', async (servi
   }
 });
 
+// Turns the authenticated cart into service request(s) + starts payment for
+// them — see cartApi.checkoutCart for the response shape.
+export const checkoutCart = createAsyncThunk('cart/checkout', async (params, { rejectWithValue }) => {
+  try {
+    return await cartApi.checkoutCart(params);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
   reducers: {
+    // Re-adding a service already in the cart under a different mode (e.g.
+    // one-time → recurring) switches that line in place — matches the server
+    // contract (POST /customer/cart/items with a new billing_mode switches
+    // rather than duplicates). A same-mode re-add is a no-op, as before.
     addToCart: (state, action) => {
       const item = action.payload;
-      if (!state.items.some(i => i.serviceId === item.serviceId)) {
+      const idx = state.items.findIndex(i => i.serviceId === item.serviceId);
+      if (idx === -1) {
         state.items.push(item);
+      } else if (state.items[idx].isRecurring !== item.isRecurring) {
+        state.items[idx] = item;
       }
     },
     removeFromCart: (state, action) => {
@@ -163,6 +190,7 @@ const cartSlice = createSlice({
         }
         mergeServerIntoLocal(state, serverItems);
         if (action.payload?.count != null) state.serverCount = action.payload.count;
+        state.pricedCity = action.payload?.pricedCity ?? null;
       })
       // Guest cart uploaded on sign-in — adopt the merged server cart. If the
       // server came back empty (every push failed), keep the local guest items
@@ -175,6 +203,7 @@ const cartSlice = createSlice({
         const serverItems = action.payload?.items || [];
         if (serverItems.length > 0) mergeServerIntoLocal(state, serverItems);
         if (action.payload?.count != null) state.serverCount = action.payload.count;
+        state.pricedCity = action.payload?.pricedCity ?? null;
       })
       .addCase(mergeGuestCart.rejected, (state) => {
         state.guestMergeStatus = 'failed';
@@ -184,6 +213,17 @@ const cartSlice = createSlice({
       .addCase(clearServerCart.fulfilled, (state) => {
         state.items = [];
         state.serverCount = 0;
+      })
+      .addCase(checkoutCart.pending, (state) => {
+        state.checkoutStatus = 'loading';
+        state.checkoutError = null;
+      })
+      .addCase(checkoutCart.fulfilled, (state) => {
+        state.checkoutStatus = 'succeeded';
+      })
+      .addCase(checkoutCart.rejected, (state, action) => {
+        state.checkoutStatus = 'failed';
+        state.checkoutError = action.payload;
       });
   },
 });
@@ -194,6 +234,7 @@ export const { addToCart, removeFromCart, updateCartItemPrices, clearCart } = ca
 export const selectCartItems = (s) => s.cart.items;
 export const selectCartCount = (s) => s.cart.items.length;
 export const selectServerCartCount = (s) => s.cart.serverCount;
+export const selectPricedCity = (s) => s.cart.pricedCity;
 // Count for the header badges: the server count once signed in (authoritative,
 // fetched from GET /customer/cart), the local item count for guests.
 export const selectCartBadgeCount = (s) =>

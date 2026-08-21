@@ -9,6 +9,7 @@ import { useAddonPackages } from '../../Hooks/useAddonPackages';
 import { useMembershipCheckout } from '../../Hooks/useMembershipCheckout';
 import { useMembership } from '../../Hooks/useMembership';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon } from '../../Hooks/usePaymentGateways';
 import { lightColors as baseColors, typography, spacing, radius } from '../../theme';
@@ -56,6 +57,9 @@ function MembershipCheckout({ navigation, route }) {
   const [submitting, setSubmitting] = useState(false);
   const [showCouponsModal, setShowCouponsModal] = useState(false);
   const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info', btnText: 'Got it' });
+  // Set when a membership checkout leaves a recurring cart service unpaid —
+  // see pending_recurring_bundle in the verify() response.
+  const [pendingBundle, setPendingBundle] = useState(null);
 
   const showAlert = (title, message, type = 'info', options = {}) => {
     setCustomAlert({
@@ -171,7 +175,7 @@ function MembershipCheckout({ navigation, route }) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
-        await runRazorpayPayment({
+        const verifyResult = await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle Membership',
@@ -180,10 +184,15 @@ function MembershipCheckout({ navigation, route }) {
           verify: (params) => verifyPayment(params).unwrap(),
         });
         refetchMembership();
-        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-          btnText: 'OK',
-          onConfirm: () => navigation.goBack(),
-        });
+        const bundle = verifyResult?.data?.pendingRecurringBundle;
+        if (bundle) {
+          setPendingBundle(bundle);
+        } else {
+          showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+            btnText: 'OK',
+            onConfirm: () => navigation.goBack(),
+          });
+        }
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for PayPal's native subscription
         // SDK, which isn't built on mobile yet — steer the user to a supported
@@ -211,12 +220,17 @@ function MembershipCheckout({ navigation, route }) {
     setCheckoutSession(null);
     setSubmitting(true);
     try {
-      await verifyPayment({ paymentId, sessionId }).unwrap();
+      const verifyResult = await verifyPayment({ paymentId, sessionId }).unwrap();
       refetchMembership();
-      showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-        btnText: 'OK',
-        onConfirm: () => navigation.goBack(),
-      });
+      const bundle = verifyResult?.data?.pendingRecurringBundle;
+      if (bundle) {
+        setPendingBundle(bundle);
+      } else {
+        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+          btnText: 'OK',
+          onConfirm: () => navigation.goBack(),
+        });
+      }
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.', 'error');
     } finally {
@@ -448,6 +462,19 @@ function MembershipCheckout({ navigation, route }) {
         onSuccess={handleCheckoutSuccess}
         onCancel={handleCheckoutCancel}
         title="Secure Payment"
+      />
+
+      <PendingRecurringBundleModal
+        visible={!!pendingBundle}
+        bundle={pendingBundle}
+        onClose={() => { setPendingBundle(null); navigation.goBack(); }}
+        onSuccess={() => {
+          setPendingBundle(null);
+          showAlert('Subscription Activated', 'Your membership and recurring subscription are both active now.', 'success', {
+            btnText: 'OK',
+            onConfirm: () => navigation.goBack(),
+          });
+        }}
       />
     </View>
   );
