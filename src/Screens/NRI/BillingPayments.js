@@ -354,9 +354,12 @@ function BillingPayments({ navigation }) {
                 <View style={styles.autoRenewRow}>
                   <View style={styles.autoRenewInfo}>
                     <Text style={styles.autoRenewName}>{overview.autoRenewingMembership.planName}</Text>
-                    {!!overview.autoRenewingMembership.expiresAt && (
-                      <Text style={styles.autoRenewMeta}>Auto-renews on {formatDate(overview.autoRenewingMembership.expiresAt)}</Text>
-                    )}
+                    <Text style={styles.autoRenewMeta}>
+                      {overview.autoRenewingMembership.amount != null && (
+                        <Text style={styles.autoRenewPriceInline}>{formatUsd(overview.autoRenewingMembership.amount)}/yr{overview.autoRenewingMembership.expiresAt ? '  ·  ' : ''}</Text>
+                      )}
+                      {!!overview.autoRenewingMembership.expiresAt && `Auto-renews on ${formatDate(overview.autoRenewingMembership.expiresAt)}`}
+                    </Text>
                   </View>
                   <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopMembershipAutoRenew(overview.autoRenewingMembership)} disabled={stopAutoRenewLoading}>
                     {stopAutoRenewLoading ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
@@ -375,12 +378,17 @@ function BillingPayments({ navigation }) {
                   <View key={sub.id} style={styles.autoRenewRow}>
                     <View style={styles.autoRenewInfo}>
                       <Text style={styles.autoRenewName}>{(sub.services || []).map(s => s.name).join(', ') || 'Service subscription'}</Text>
-                      {!!sub.billingInterval && <Text style={styles.autoRenewMeta}>{sub.billingInterval} subscription</Text>}
-                      {!!sub.currentPeriodEndsAt && (
-                        <Text style={styles.autoRenewMeta}>
-                          {sub.autoRenew ? `Auto-renews on ${formatDate(sub.currentPeriodEndsAt)}` : `Active until ${formatDate(sub.currentPeriodEndsAt)} — stopped`}
-                        </Text>
-                      )}
+                      <Text style={styles.autoRenewMeta}>
+                        {sub.amount != null && (
+                          <Text style={styles.autoRenewPriceInline}>
+                            {formatUsd(sub.amount)}{sub.billingInterval ? `/${sub.billingInterval}` : ''}
+                            {sub.currentPeriodEndsAt ? '  ·  ' : ''}
+                          </Text>
+                        )}
+                        {!!sub.currentPeriodEndsAt && (
+                          sub.autoRenew ? `Auto-renews on ${formatDate(sub.currentPeriodEndsAt)}` : `Active until ${formatDate(sub.currentPeriodEndsAt)} — stopped`
+                        )}
+                      </Text>
                     </View>
                     {sub.autoRenew && (
                       <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopServiceSubAutoRenew(sub)} disabled={cancelingSubId === sub.id}>
@@ -576,6 +584,7 @@ const styles = StyleSheet.create({
   autoRenewName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   autoRenewType: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
   autoRenewMeta: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 4 },
+  autoRenewPriceInline: { fontFamily: typography.h4.fontFamily, color: colors.primary },
   stopRenewBtn: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   stopRenewBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
 

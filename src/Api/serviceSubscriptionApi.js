@@ -49,7 +49,10 @@ function mapSubscription(raw) {
     statusLabel: raw.status_label || null,
     autoRenew: !!raw.auto_renew,
     billingInterval: raw.billing_interval || null,
-    amount: raw.amount != null ? Number(raw.amount) : null,
+    // Confirmed live: this list item carries `total_recurring_price`, not
+    // `amount` — fall back to `amount` in case an older/other response shape
+    // still uses it.
+    amount: raw.total_recurring_price != null ? Number(raw.total_recurring_price) : (raw.amount != null ? Number(raw.amount) : null),
     currency: raw.currency || 'USD',
     currentPeriodEndsAt: raw.current_period_ends_at || null,
     services: (raw.services || []).map(s => ({ id: s.id, name: s.name })),

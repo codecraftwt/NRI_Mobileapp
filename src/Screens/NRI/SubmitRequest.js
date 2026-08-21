@@ -170,7 +170,13 @@ function SubmitRequest({ navigation }) {
   } = useTicketBooking();
   // Generic gateway-payment verification (shared with membership/billing
   // checkouts) — already extracts a pending_recurring_bundle when present.
-  const { verifyPayment, verifyLoading } = useBilling();
+  // `pay` is also reused here: confirmed live that POST /customer/cart/checkout
+  // does NOT itself start a gateway session — it only creates the ticket(s)
+  // (and validates the recurring/PayPal restriction) and returns
+  // payment_required/ticket_id/amount_due, same shape the old pre-cart ticket
+  // flow used. Actually starting Stripe/Razorpay is still the existing
+  // POST /customer/billing/ticket/{id}/pay call.
+  const { pay: payForTicket, payLoading, verifyPayment, verifyLoading } = useBilling();
   // A recurring cart service that wasn't (fully) paid for by this checkout —
   // either because the checkout itself is pure-recurring (payment_required:
   // false, nothing to pay via a ticket) or because it rode alongside a
@@ -205,10 +211,27 @@ function SubmitRequest({ navigation }) {
   const prioritySurcharge = Number(selectedPriority?.surcharge || 0);
 
   const oneTimeServiceIdsKey = oneTimeItems.map(i => i.serviceId).join(',');
+  // ALL cart items, not just one-time ones — confirmed live (same as
+  // OnboardingPayment.js) that /cart/checkout 422s ("The document.N field is
+  // required") for a recurring service's required document even though its
+  // ticket isn't created here; there's no other document-upload step for it
+  // before the deferred subscribe-recurring payment, so it has to be
+  // collected now.
+  const cartServiceIdsKey = items.map(i => i.serviceId).join(',');
   useEffect(() => {
-    if (oneTimeItems.length) fetchRequiredDocuments(oneTimeItems.map(i => i.serviceId));
+    if (items.length) fetchRequiredDocuments(items.map(i => i.serviceId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oneTimeServiceIdsKey]);
+  }, [cartServiceIdsKey]);
+
+  // Diagnostic: confirms whether GET /customer/tickets/required-documents
+  // actually returns a doc for a recurring-only service id, or whether the
+  // upload field never even shows up in the first place. Visible in Metro /
+  // `adb logcat`. Remove once confirmed.
+  useEffect(() => {
+    if (requiredDocuments.length) {
+      console.warn('[required-docs] fetched:', JSON.stringify(requiredDocuments.map(d => ({ id: d.id, name: d.name, required: d.required }))));
+    }
+  }, [requiredDocuments]);
 
   useEffect(() => {
     if (!reqForm.priority && priorities.length) {
@@ -269,7 +292,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submissionInProgress || checkoutLoading || verifyLoading;
+  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
@@ -451,6 +474,12 @@ function SubmitRequest({ navigation }) {
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
 
+      // Diagnostic: confirms exactly what's captured at submit time — if
+      // required doc 10 never appears in [required-docs] fetched above,
+      // documentFiles here will have nothing for it regardless of what file
+      // field name checkoutCart sends it under. Remove once confirmed.
+      console.warn('[submit] documentFiles keys:', JSON.stringify(Object.keys(documentFiles)), 'requiredDocuments ids:', JSON.stringify(requiredDocuments.map(d => d.id)));
+
       const result = await checkoutCart({
         gateway: paymentMethod,
         couponCode: couponCode.trim() || undefined,
@@ -465,28 +494,39 @@ function SubmitRequest({ navigation }) {
         documents: documentFiles,
       }).unwrap();
 
-      if (result.checkoutUrl) {
-        // Stripe — open the hosted checkout page; confirmed in
-        // handleCheckoutSuccess once it redirects back with a session_id.
-        // Carry the pending bundle (if any) through to that point.
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, pendingBundle: result.pendingRecurringBundle });
-        submissionLockRef.current = false;
-        setSubmissionInProgress(false);
-      } else if (result.order) {
-        // Razorpay — no hosted page; drive the native SDK then verify inline.
-        await runRazorpayPayment({
-          order: result.order,
-          paymentId: result.paymentId,
-          name: 'NRI Circle',
-          description: 'Service request',
-          user,
-          verify: (params) => verifyPayment(params).unwrap(),
-        });
-        await handlePostCheckout(result.pendingRecurringBundle);
+      if (result.paymentRequired && result.ticketId) {
+        // /cart/checkout only creates the ticket(s) and validates the
+        // recurring/PayPal restriction — confirmed live it does NOT start a
+        // gateway session itself (no checkout_url/order on its response).
+        // Pay the created ticket the same way the pre-cart flow always did.
+        const pay = await payForTicket('ticket', result.ticketId, paymentMethod).unwrap();
+        if (pay.checkoutUrl) {
+          // Stripe — open the hosted checkout page; confirmed in
+          // handleCheckoutSuccess once it redirects back with a session_id.
+          // Carry the pending bundle (if any) through to that point.
+          setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId, pendingBundle: result.pendingRecurringBundle });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+        } else if (pay.order) {
+          // Razorpay — no hosted page; drive the native SDK then verify inline.
+          await runRazorpayPayment({
+            order: pay.order,
+            paymentId: pay.paymentId,
+            name: 'NRI Circle',
+            description: 'Service request',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+          await handlePostCheckout(result.pendingRecurringBundle);
+        } else {
+          // Wallet covered it via the ticket-pay call itself.
+          await handlePostCheckout(result.pendingRecurringBundle);
+        }
       } else {
         // Nothing to pay via a gateway — either wallet covered a one-time
-        // ticket, or the cart was pure-recurring (payment_required: false,
-        // tickets: []) and the only thing left is the pending bundle prompt.
+        // ticket during checkout itself, or the cart was pure-recurring
+        // (payment_required: false, tickets: []) and the only thing left is
+        // the pending bundle prompt.
         await handlePostCheckout(result.pendingRecurringBundle);
       }
     } catch (error) {
@@ -802,15 +842,9 @@ function SubmitRequest({ navigation }) {
                 after you tap Submit, via a separate subscription payment.
               </Text>
             )}
-            {recurringItems.length > 0 && (
-              <SummaryRow
-                label={`Recurring (${recurringItems.length}) — not charged now`}
-                value={fmt(recurringSubtotal)}
-              />
-            )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
-              <Text style={styles.payValue}>{fmt(estTotal)}</Text>
+              <Text style={styles.payValue}>{fmt(recurringSubtotal)}</Text>
             </View>
 
             {loading ? (

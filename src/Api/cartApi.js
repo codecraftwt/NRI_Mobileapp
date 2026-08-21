@@ -162,21 +162,31 @@ export async function checkoutCart({
       preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
-    // Confirmed against the API contract: this endpoint takes a flat
-    // `attachments[]` array, NOT the `documents[{docId}]` keyed-by-required-
-    // document convention used by /customer/tickets and
-    // /customer/membership/checkout — don't copy that pattern here.
+    // `documents[{docId}]` (plural) — the one convention consistently used
+    // everywhere else this backend takes required-document uploads:
+    // ticketApi.createTicket, membershipApi.checkoutMembership, AND
+    // serviceSubscriptionApi's own subscription-creation endpoints. Neither
+    // the written spec's `attachments[]` nor a singular `document[{docId}]`
+    // changed the "document.10 field is required" error when tried live —
+    // consistent with both having been wrong, since the backend reports the
+    // same "still missing" message regardless of what unrecognized field
+    // name the file actually arrived under.
     const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
     let response;
     if (docEntries.length > 0) {
-      const uploadFiles = docEntries.map(([, file]) => ({
-        field: 'attachments[]', uri: file.uri, name: file.name, type: file.type,
+      const uploadFiles = docEntries.map(([docId, file]) => ({
+        field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
       }));
       response = await postMultipart('/customer/cart/checkout', fields, uploadFiles);
     } else {
       response = await apiClient.post('/customer/cart/checkout', fields);
     }
     const data = response.data?.data || {};
+    // Confirmed live: this response never carries checkout_url/order/
+    // payment_id — /cart/checkout only creates the ticket(s) + validates the
+    // recurring/PayPal restriction. Payment is started separately via
+    // POST /customer/billing/ticket/{id}/pay (billingApi.payBillableItem,
+    // see SubmitRequest.js) using the ticket_id returned here.
     return {
       tickets: (data.tickets || []).map(mapCheckoutTicket).filter(Boolean),
       ticketId: data.ticket_id ?? null,
