@@ -34,13 +34,13 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>NRI Circle requires camera access so you can take a profile photo or upload photos of your properties directly within the app.</string>
+	<string>The app captures photos to let you update your profile picture and add property images.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>NRI Circle requires your location to help you quickly find and select your address when adding a property or updating your profile.</string>
+	<string>The app uses your location to automatically find your address when adding a new property.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>NRI Circle requires photo library access so you can choose an existing photo for your profile or upload images of your properties.</string>
+	<string>The app accesses your photo library to let you select a profile picture and upload property images.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>NRI Circle requires permission to save edited photos or receipts to your device's photo library.</string>
+	<string>The app saves edited property photos and receipts directly to your photo library.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>
