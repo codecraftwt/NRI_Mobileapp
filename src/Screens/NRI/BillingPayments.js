@@ -210,71 +210,20 @@ function BillingPayments({ navigation }) {
         text: 'Stop Renewal',
         style: 'destructive',
         onPress: () => {
-          // One ID stamped on every log line for this attempt (request,
-          // response, both refetches) so it can be grepped as a single
-          // thread — vs. `startedAt` alone, which doesn't appear on the
-          // billingApi.js request/response lines.
-          const traceId = `mem-cancel-${Date.now()}`;
-          const startedAt = new Date().toISOString();
-          log('membership: requesting cancel', { traceId, membershipId: mem.id, startedAt, before: { status: membership?.status, autoRenew: membership?.autoRenew } });
-          stopAutoRenew(mem.id, traceId)
+          stopAutoRenew(mem.id)
             .unwrap()
-            .then((result) => {
-              log('membership: cancel API reported success', { traceId, membershipId: mem.id, result });
+            .then(() => {
               // A 200/success:true here doesn't prove the gateway-side
-              // cancellation actually completed (seen live: backend can mark
-              // its own success:true before/without confirming with the
-              // payment gateway). Re-fetch the persistent membership resource
-              // (GET /customer/membership) — same source used for the row
-              // below — to confirm the SERVER agrees, and to keep the row
-              // showing this membership as "stopped" rather than the
-              // overview.autoRenewingMembership field just going null and
-              // taking the whole row with it.
-              retryMembership()
-                .unwrap()
-                .then((fresh) => {
-                  const stillAutoRenewing = !!fresh?.membership?.autoRenew;
-                  log('membership: post-cancel membership refetch (immediate)', {
-                    traceId,
-                    membershipId: mem.id,
-                    startedAt,
-                    finishedAt: new Date().toISOString(),
-                    stillAutoRenewing,
-                    status: fresh?.membership?.status,
-                  });
-                  if (stillAutoRenewing) {
-                    console.warn('[BillingPayments][auto-renew] MISMATCH: backend reported the membership stop as successful, but the very next membership fetch still shows it auto-renewing.', { traceId, membershipId: mem.id });
-                    // Check again after a delay — if the backend cancels the
-                    // gateway subscription asynchronously (e.g. via a
-                    // webhook it fires and doesn't wait on), the immediate
-                    // refetch above will always race it and show stale
-                    // data. A second look a few seconds later tells us
-                    // whether this is "just slow to sync" (fixes itself) or
-                    // "genuinely never happened" (still mismatched) —
-                    // exactly the distinction the backend team needs to
-                    // know where to look.
-                    setTimeout(() => {
-                      retryMembership()
-                        .unwrap()
-                        .then((delayed) => {
-                          const stillAutoRenewingAfterDelay = !!delayed?.membership?.autoRenew;
-                          log('membership: post-cancel membership refetch (+5s delayed check)', {
-                            traceId,
-                            membershipId: mem.id,
-                            stillAutoRenewingAfterDelay,
-                            status: delayed?.membership?.status,
-                            verdict: stillAutoRenewingAfterDelay
-                              ? 'STILL MISMATCHED after 5s — not a sync-timing issue, cancel likely never reached the gateway'
-                              : 'RESOLVED after 5s — was a delayed/async sync on the backend side',
-                          });
-                        });
-                    }, 5000);
-                  }
-                });
+              // cancellation actually completed — re-fetch the persistent
+              // membership resource (GET /customer/membership) — same source
+              // used for the row below — so the row reflects what the server
+              // actually agrees the state is, rather than
+              // overview.autoRenewingMembership just going null and taking
+              // the whole row with it.
+              retryMembership();
               retry(); // keep the billing overview (outstanding total etc.) in sync too
             })
             .catch((error) => {
-              log('membership: cancel API failed', { traceId, membershipId: mem.id, error });
               showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
             });
         },
@@ -289,30 +238,19 @@ function BillingPayments({ navigation }) {
         text: 'Stop Renewal',
         style: 'destructive',
         onPress: () => {
-          log('addon: requesting cancel', { subscriptionId: sub.id, packageName: sub.packageName });
           setCancelingId(sub.id);
           cancelSubscription(sub.id)
             .unwrap()
-            .then((result) => {
-              log('addon: cancel API succeeded', result);
+            .then(() => {
               // cancelSubscription only updates the addonSubscription slice's
               // `packages` list — the row rendered here comes from
               // overview.addonSubscriptions (billing slice), a DIFFERENT
               // piece of state that this call never touches. Without this
               // refetch the row keeps showing "auto-renews" no matter what
               // the server actually did.
-              retry()
-                .unwrap()
-                .then((freshOverview) => {
-                  const stillThere = (freshOverview?.addonSubscriptions || []).find(s => s.id === sub.id);
-                  log('addon: post-cancel overview refetch', {
-                    subscriptionId: sub.id,
-                    stillAutoRenewing: !!stillThere?.autoRenew,
-                  });
-                });
+              retry();
             })
             .catch((error) => {
-              log('addon: cancel API failed', error);
               showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
             })
             .finally(() => setCancelingId(null));
@@ -329,30 +267,18 @@ function BillingPayments({ navigation }) {
         text: 'Stop Renewal',
         style: 'destructive',
         onPress: () => {
-          log('service subscription: requesting cancel', { subscriptionId: sub.id, label });
           setCancelingSubId(sub.id);
           cancelServiceSubAutoRenew(sub.id)
             .unwrap()
-            .then((result) => {
-              log('service subscription: cancel API succeeded', result);
+            .then(() => {
               // The slice's reducer optimistically sets autoRenew: false on
               // ANY 200 response, regardless of what the server actually did
               // with it — re-fetch here so a backend that silently no-ops
               // the cancel shows up as still-active instead of staying
               // hidden behind the optimistic flip.
-              fetchSubscriptions()
-                .unwrap()
-                .then((freshSubs) => {
-                  const fresh = (freshSubs || []).find(s => s.id === sub.id);
-                  log('service subscription: post-cancel refetch', {
-                    subscriptionId: sub.id,
-                    stillAutoRenewing: !!fresh?.autoRenew,
-                    status: fresh?.status,
-                  });
-                });
+              fetchSubscriptions();
             })
             .catch((error) => {
-              log('service subscription: cancel API failed', error);
               showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
             })
             .finally(() => setCancelingSubId(null));
@@ -371,28 +297,15 @@ function BillingPayments({ navigation }) {
           text: 'Cancel All',
           style: 'destructive',
           onPress: () => {
-            const traceId = `cancel-all-${Date.now()}`;
-            const startedAt = new Date().toISOString();
-            log('cancel-all: requesting', {
-              traceId,
-              startedAt,
-              before: {
-                membership: { status: membership?.status, autoRenew: membership?.autoRenew },
-                autoRenewingServiceSubs: autoRenewingServiceSubs.map(s => s.id),
-              },
-            });
-            cancelAllSubscriptions(traceId)
+            cancelAllSubscriptions()
               .unwrap()
               .then((result) => {
-                log('cancel-all: API responded', { traceId, result });
                 // This endpoint always resolves 200 with a per-item outcome —
                 // a top-level "success" doesn't mean every item actually
                 // cancelled. Surface any item whose own status isn't
                 // 'cancelled' instead of blanket-showing "Done".
                 const failedMembership = result.membership && result.membership.status !== 'cancelled' ? result.membership : null;
                 const failedSubs = (result.serviceSubscriptions || []).filter(s => s.status !== 'cancelled');
-                if (failedMembership) console.warn('[BillingPayments][auto-renew] cancel-all: membership item reported non-cancelled status', failedMembership);
-                if (failedSubs.length) console.warn('[BillingPayments][auto-renew] cancel-all: service subscription item(s) reported non-cancelled status', failedSubs);
 
                 if (failedMembership || failedSubs.length) {
                   showAlert('Partially Completed', [
@@ -404,82 +317,10 @@ function BillingPayments({ navigation }) {
                 }
 
                 retry();
-                retryMembership()
-                  .unwrap()
-                  .then((fresh) => {
-                    const stillAutoRenewingMembership = !!fresh?.membership?.autoRenew;
-                    log('cancel-all: post-cancel membership refetch (immediate)', {
-                      traceId,
-                      startedAt,
-                      finishedAt: new Date().toISOString(),
-                      stillAutoRenewingMembership,
-                      status: fresh?.membership?.status,
-                    });
-                    if (stillAutoRenewingMembership && !failedMembership) {
-                      console.warn('[BillingPayments][auto-renew] MISMATCH: cancel-all reported the membership as cancelled, but the very next membership fetch still shows it auto-renewing.', { traceId });
-                      // Same "is this a race with an async backend sync, or
-                      // a genuine no-op" check as the single stop-auto-renew
-                      // flow above — see the comment there for why.
-                      setTimeout(() => {
-                        retryMembership()
-                          .unwrap()
-                          .then((delayed) => {
-                            const stillAfterDelay = !!delayed?.membership?.autoRenew;
-                            log('cancel-all: post-cancel membership refetch (+5s delayed check)', {
-                              traceId,
-                              stillAutoRenewingAfterDelay: stillAfterDelay,
-                              status: delayed?.membership?.status,
-                              verdict: stillAfterDelay
-                                ? 'STILL MISMATCHED after 5s — not a sync-timing issue, cancel likely never reached the gateway'
-                                : 'RESOLVED after 5s — was a delayed/async sync on the backend side',
-                            });
-                          });
-                      }, 5000);
-                    }
-                  });
-                fetchSubscriptions()
-                  .unwrap()
-                  .then((freshSubs) => {
-                    const stillAutoRenewingIds = (freshSubs || []).filter(s => s.autoRenew).map(s => s.id);
-                    log('cancel-all: post-cancel subscriptions refetch (immediate)', {
-                      traceId,
-                      startedAt,
-                      finishedAt: new Date().toISOString(),
-                      stillAutoRenewing: stillAutoRenewingIds,
-                    });
-                    if (stillAutoRenewingIds.length && !failedSubs.length) {
-                      // Match back to the specific item(s) the cancel-all
-                      // response claimed were 'cancelled' — .raw carries
-                      // whatever id/gateway fields the backend attached to
-                      // that item, so this names the exact culprit instead
-                      // of a bare id array the backend has to cross-reference
-                      // by hand.
-                      const falselyCancelledItems = (result.serviceSubscriptions || []).filter(s => stillAutoRenewingIds.includes(s.id));
-                      console.warn('[BillingPayments][auto-renew] MISMATCH: cancel-all reported these service subscription item(s) as cancelled, but the very next refetch still shows them auto-renewing.', {
-                        traceId,
-                        stillAutoRenewingIds,
-                        falselyCancelledItems,
-                        falselyCancelledItemsJson: JSON.stringify(falselyCancelledItems),
-                      });
-                      setTimeout(() => {
-                        fetchSubscriptions()
-                          .unwrap()
-                          .then((delayedSubs) => {
-                            const stillAfterDelayIds = (delayedSubs || []).filter(s => s.autoRenew).map(s => s.id);
-                            log('cancel-all: post-cancel subscriptions refetch (+5s delayed check)', {
-                              traceId,
-                              stillAutoRenewingAfterDelay: stillAfterDelayIds,
-                              verdict: stillAfterDelayIds.length
-                                ? 'STILL MISMATCHED after 5s — not a sync-timing issue, cancel likely never reached the gateway'
-                                : 'RESOLVED after 5s — was a delayed/async sync on the backend side',
-                            });
-                          });
-                      }, 5000);
-                    }
-                  });
+                retryMembership();
+                fetchSubscriptions();
               })
               .catch((error) => {
-                log('cancel-all: API failed', { traceId, error });
                 showAlert('Failed', error?.message || 'Could not cancel subscriptions.');
               });
           },

@@ -31,29 +31,6 @@ function mapCartItem(raw) {
     ? (raw.recurring_price ?? pricing.recurring_price ?? raw.price ?? raw.customer_price ?? pricing.customer_price ?? svc.customer_price ?? 0)
     : (raw.price ?? raw.customer_price ?? pricing.customer_price ?? svc.customer_price ?? 0);
   const serviceId = raw.service_id ?? svc.id ?? raw.id;
-  // Diagnostic: confirms which field the price actually resolved from for a
-  // recurring line — remove once the $6.60-for-recurring report is confirmed
-  // fixed against a real cart response.
-  if (isRecurringLine) {
-    const candidates = {
-      raw_recurring_price: raw.recurring_price,
-      pricing_recurring_price: pricing.recurring_price,
-      raw_price: raw.price,
-      raw_customer_price: raw.customer_price,
-      pricing_customer_price: pricing.customer_price,
-      svc_customer_price: svc.customer_price,
-    };
-    console.log('[cartApi] recurring cart line price resolution', {
-      serviceId: raw.service_id ?? svc.id ?? raw.id,
-      billingMode,
-      resolvedPrice: price,
-      candidates,
-      // Console objects collapse to `{…}` when a log is copy-pasted out of
-      // devtools instead of expanded interactively — stringify too so the
-      // actual field values survive being pasted into a report.
-      candidatesJson: JSON.stringify(candidates),
-    });
-  }
   if (serviceId == null) return null;
   return {
     cartItemId: raw.cart_item_id ?? raw.item_id ?? raw.id ?? null,

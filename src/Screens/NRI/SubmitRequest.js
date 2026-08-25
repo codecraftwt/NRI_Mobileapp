@@ -239,16 +239,6 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartServiceIdsKey]);
 
-  // Diagnostic: confirms whether GET /customer/tickets/required-documents
-  // actually returns a doc for a recurring-only service id, or whether the
-  // upload field never even shows up in the first place. Visible in Metro /
-  // `adb logcat`. Remove once confirmed.
-  useEffect(() => {
-    if (requiredDocuments.length) {
-      console.warn('[required-docs] fetched:', JSON.stringify(requiredDocuments.map(d => ({ id: d.id, name: d.name, required: d.required }))));
-    }
-  }, [requiredDocuments]);
-
   useEffect(() => {
     if (!reqForm.priority && priorities.length) {
       const def = priorities.find(p => p.isDefault) || priorities[0];
@@ -320,37 +310,7 @@ function SubmitRequest({ navigation }) {
   const quoteUrgency = selectedPriority?.slug || 'standard';
   const quoteKey = `${oneTimeServiceIdsKey}|${quoteServiceId}|${quoteExtraServiceIds.join(',')}|${quoteAddonIds.join(',')}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
-    if (quoteServiceId == null || !quoteStateId || !quoteCityId) {
-      // Diagnostic: the cart-page price card ("Estimated Price for Your
-      // Address") depends entirely on this quote — if it never fires, that
-      // card is silently showing the locally-derived fallback total instead
-      // of the real server quote. mapCartItem (cartApi.js) does NOT return
-      // cityId/stateName/pincode on authenticated-cart items unless the line
-      // was carried over from a pre-login guest cart entry, so
-      // items[0]?.cityId below is normally undefined for a service added
-      // while already signed in — quoteCityId then depends entirely on
-      // savedLocation (account's saved service-location) being set already.
-      console.log('[SubmitRequest][quote] skipped — missing required id(s), quote will not be fetched', {
-        quoteServiceId,
-        quoteStateId,
-        quoteCityId,
-        reqFormState: reqForm.state,
-        reqFormCity: reqForm.city,
-        statesLoaded: states.length,
-        citiesLoaded: cities.length,
-        fallbacksTried: {
-          citiesListMatch: cities.find(c => c.name === reqForm.city)?.id ?? null,
-          pincodeLocationCityId: pincodeLocation?.cityId ?? null,
-          item0CityId: items[0]?.cityId ?? null,
-          savedLocationCityId: savedLocation?.cityId ?? null,
-        },
-      });
-      return;
-    }
-    console.log('[SubmitRequest][quote] fetching quote', {
-      quoteServiceId, quoteExtraServiceIds, quoteAddonIds, quoteStateId, quoteCityId, quoteUrgency,
-      couponCode: couponCode.trim() || undefined,
-    });
+    if (quoteServiceId == null || !quoteStateId || !quoteCityId) return;
     fetchQuote({
       serviceId: quoteServiceId,
       extraServices: quoteExtraServiceIds,
@@ -540,12 +500,6 @@ function SubmitRequest({ navigation }) {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
-
-      // Diagnostic: confirms exactly what's captured at submit time — if
-      // required doc 10 never appears in [required-docs] fetched above,
-      // documentFiles here will have nothing for it regardless of what file
-      // field name checkoutCart sends it under. Remove once confirmed.
-      console.warn('[submit] documentFiles keys:', JSON.stringify(Object.keys(documentFiles)), 'requiredDocuments ids:', JSON.stringify(requiredDocuments.map(d => d.id)));
 
       const result = await checkoutCart({
         gateway: paymentMethod,

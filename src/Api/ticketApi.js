@@ -95,31 +95,19 @@ export async function validateTicketCoupon({ code, addons, stateId, cityId }) {
 }
 
 export async function getTicketQuote({ serviceId, extraServices, addons, stateId, cityId, urgency, couponCode }) {
-  const payload = {
-    service_id: serviceId,
-    extra_services: extraServices || [],
-    addons: addons || [],
-    state_id: stateId,
-    // Now required by the backend — the quote 422s without a city.
-    city_id: cityId,
-    urgency,
-    coupon_code: couponCode || undefined,
-  };
-  // Diagnostic: confirms whether this actually reaches the network and what
-  // it comes back with — the caller's useEffect guard can pass (valid IDs)
-  // while the request itself still never resolves/422s/500s silently, which
-  // looks identical to "the quote never hit" from the UI's perspective.
-  console.log('[ticketApi] POST /customer/tickets/quote → sending', payload);
   try {
-    const response = await apiClient.post('/customer/tickets/quote', payload);
-    console.log('[ticketApi] POST /customer/tickets/quote ← response', { status: response.status, body: response.data });
+    const response = await apiClient.post('/customer/tickets/quote', {
+      service_id: serviceId,
+      extra_services: extraServices || [],
+      addons: addons || [],
+      state_id: stateId,
+      // Now required by the backend — the quote 422s without a city.
+      city_id: cityId,
+      urgency,
+      coupon_code: couponCode || undefined,
+    });
     return mapQuote(response.data?.data || response.data);
   } catch (error) {
-    console.log('[ticketApi] POST /customer/tickets/quote ✗ threw', {
-      status: error?.response?.status,
-      body: error?.response?.data,
-      message: error?.message,
-    });
     throw normalizeApiError(error);
   }
 }
