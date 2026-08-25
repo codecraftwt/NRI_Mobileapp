@@ -193,7 +193,7 @@ function BillingPayments({ navigation }) {
       showAlert(
         'Download Complete',
         Platform.OS === 'ios'
-          ? 'Your receipt has been saved. Find it in the Files app under On My iPhone/iPad > NRICircle, or use the share sheet to save it elsewhere.'
+          ? 'Your receipt has been saved. Find it in the Files under NRICircle, or use the share sheet to save it elsewhere.'
           : 'Your receipt has been saved to your Downloads folder.'
       );
     } catch (error) {
