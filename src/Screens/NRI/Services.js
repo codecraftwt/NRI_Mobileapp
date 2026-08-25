@@ -61,17 +61,19 @@ const priceValue = (p, mode) => {
   return mode === 'recurring' ? p.recurringPrice : p.customerPrice;
 };
 
-// Bookable in the chosen city, for the selected mode? Once a location is set,
-// a service is available only if it actually has a vendor price for that mode
-// — or it's an on-quote service. `customer_price`/`recurring_price: null` is
-// the "Not available in your area" case, so it's hidden. (Price presence is
-// used rather than the vendor_priced flags because those are null for
-// services that don't offer that mode at all, which a flag check mis-read as
-// available.) Only applied once a location is set (see below).
+// Bookable in the chosen city, for the selected mode? A service is available
+// only if its vendor-availability flag for that mode isn't explicitly false
+// (false = no vendor covers it here → would 422 at checkout) — or it's an
+// on-quote service. Matches ServiceDetail.js's isBookable and web's picker.
+// Safe to key off the flag directly here (rather than price presence)
+// because the mode-support filter below already drops services that don't
+// offer this mode at all — so a null flag reaching this check only ever
+// means "no location set yet," not "mode unsupported." Only applied once a
+// location is set (see below).
 const isServiceAvailable = (s, mode) => {
   const p = s.pricing;
   if (!p || p.isQuoted) return true;
-  return priceValue(p, mode) != null;
+  return mode === 'recurring' ? p.recurringVendorPriced !== false : p.vendorPriced !== false;
 };
 const priceText = (p, mode) => {
   if (!p) return '—';

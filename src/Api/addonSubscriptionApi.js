@@ -55,6 +55,14 @@ export async function subscribeAddonPackage(packageId, { gateway }) {
 export async function cancelAddonSubscription(subscriptionId) {
   try {
     const response = await apiClient.post(`/customer/addon-subscriptions/${subscriptionId}/cancel`);
+    // A 200 here does NOT mean the cancellation actually happened — this
+    // endpoint returns HTTP 200 with { success: false } when the gateway-side
+    // cancel call fails, and axios only rejects on a non-2xx status. Without
+    // this check the caller's optimistic reducer clears mySubscription even
+    // though it's still active with the gateway.
+    if (response.data?.success === false) {
+      throw { response: { status: response.status, data: response.data } };
+    }
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

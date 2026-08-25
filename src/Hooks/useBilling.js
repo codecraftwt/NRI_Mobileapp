@@ -39,10 +39,10 @@ export function useBilling() {
     verifyPayment: (params) => dispatch(verifyBillingPayment(params)),
 
     stopAutoRenewLoading,
-    stopAutoRenew: (membershipId) => dispatch(stopMembershipAutoRenew(membershipId)),
+    stopAutoRenew: (membershipId, traceId) => dispatch(stopMembershipAutoRenew({ membershipId, traceId })),
 
     cancelAllLoading,
-    cancelAllSubscriptions: () => dispatch(cancelAllSubscriptions()),
+    cancelAllSubscriptions: (traceId) => dispatch(cancelAllSubscriptions(traceId)),
 
     subscribeRecurringLoading,
     subscribeRecurring: (bundleId) => dispatch(subscribeRecurringBundle(bundleId)),

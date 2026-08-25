@@ -45,9 +45,10 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
 }
 
 // The gateways currently offerable to this customer. The backend list already
-// reflects NRI eligibility AND the super-admin enable/disable toggle, so it's
-// the single source of truth for the payment picker — don't hardcode or
-// re-gate client-side. Each item is { value, label } e.g.
+// reflects NRI eligibility AND the super-admin enable/disable toggle — this
+// now applies to Stripe/PayPal/Razorpay alike, so it's the single source of
+// truth for the payment picker; don't hardcode or re-gate (or force-inject a
+// gateway) client-side. Each item is { value, label } e.g.
 // { value: 'razorpay', label: 'Card (Razorpay)' }.
 export async function getPaymentGateways() {
   try {
@@ -71,9 +72,6 @@ export async function getPaymentGateways() {
         return { value, label: g.label ?? g.name ?? g.title ?? value };
       })
       .filter(g => !!g.value);
-    // Diagnostic: if the picker is missing a gateway, this shows exactly what
-    // the endpoint returned. Visible in Metro / `adb logcat`.
-    console.warn('[payment-gateways] raw:', JSON.stringify(response.data), '-> parsed:', JSON.stringify(mapped));
     return mapped;
   } catch (error) {
     throw normalizeApiError(error);

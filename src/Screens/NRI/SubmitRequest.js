@@ -165,7 +165,7 @@ function SubmitRequest({ navigation }) {
   const { loading: pincodeLoading, lookup: lookupPincode } = usePostalCodeLookup();
   const {
     requiredDocuments, fetchRequiredDocuments,
-    quote, quoteLoading, fetchQuote,
+    quote, quoteLoading, quoteFailed, quoteError, fetchQuote,
     reset,
   } = useTicketBooking();
   // Generic gateway-payment verification (shared with membership/billing
@@ -198,6 +198,22 @@ function SubmitRequest({ navigation }) {
   // bound to recurring_price via useCartPriceSync.
   const oneTimeItems = items.filter(i => !i.isRecurring);
   const recurringItems = items.filter(i => i.isRecurring);
+  // GET /customer/cart now returns is_base_service/is_addon/category_id
+  // inline on every line (backend fix) — classify straight off the cart item.
+  // extra_services must all be is_base_service; addons must all be is_addon;
+  // mixing them up 422s instead of silently mispricing/dropping the service.
+  // service_id itself does NOT have to be a base service — confirmed in the
+  // updated /customer/tickets/quote spec: an addon-only selection is valid,
+  // the first one just becomes the technical primary (same as web's cart
+  // checkout) — so no catalog lookup is needed to find an "implied" base for
+  // a category added via addons alone.
+  const oneTimeBaseItems = oneTimeItems.filter(i => i.isBaseService);
+  const oneTimeAddonItems = oneTimeItems.filter(i => i.isAddon);
+  const quoteServiceId = oneTimeBaseItems.length > 0 ? oneTimeBaseItems[0].serviceId : (oneTimeAddonItems[0]?.serviceId ?? null);
+  const quoteExtraServiceIds = oneTimeBaseItems.length > 0 ? oneTimeBaseItems.slice(1).map(i => i.serviceId) : [];
+  const quoteAddonIds = oneTimeBaseItems.length > 0
+    ? oneTimeAddonItems.map(i => i.serviceId)
+    : oneTimeAddonItems.slice(1).map(i => i.serviceId);
   // price is already GST-inclusive (price = base + gstAmount); each line
   // below shows its own base, with GST/total aggregated across all of them,
   // matching the one-time estimate's amount/GST/total breakdown above.
@@ -302,12 +318,43 @@ function SubmitRequest({ navigation }) {
   const quoteStateId = states.find(s => s.name === reqForm.state)?.id || null;
   const quoteCityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
   const quoteUrgency = selectedPriority?.slug || 'standard';
-  const quoteKey = `${oneTimeServiceIdsKey}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
+  const quoteKey = `${oneTimeServiceIdsKey}|${quoteServiceId}|${quoteExtraServiceIds.join(',')}|${quoteAddonIds.join(',')}|${quoteStateId}|${quoteCityId}|${quoteUrgency}|${couponCode.trim()}`;
   useEffect(() => {
-    if (!oneTimeItems.length || !quoteCityId) return;
+    if (quoteServiceId == null || !quoteStateId || !quoteCityId) {
+      // Diagnostic: the cart-page price card ("Estimated Price for Your
+      // Address") depends entirely on this quote — if it never fires, that
+      // card is silently showing the locally-derived fallback total instead
+      // of the real server quote. mapCartItem (cartApi.js) does NOT return
+      // cityId/stateName/pincode on authenticated-cart items unless the line
+      // was carried over from a pre-login guest cart entry, so
+      // items[0]?.cityId below is normally undefined for a service added
+      // while already signed in — quoteCityId then depends entirely on
+      // savedLocation (account's saved service-location) being set already.
+      console.log('[SubmitRequest][quote] skipped — missing required id(s), quote will not be fetched', {
+        quoteServiceId,
+        quoteStateId,
+        quoteCityId,
+        reqFormState: reqForm.state,
+        reqFormCity: reqForm.city,
+        statesLoaded: states.length,
+        citiesLoaded: cities.length,
+        fallbacksTried: {
+          citiesListMatch: cities.find(c => c.name === reqForm.city)?.id ?? null,
+          pincodeLocationCityId: pincodeLocation?.cityId ?? null,
+          item0CityId: items[0]?.cityId ?? null,
+          savedLocationCityId: savedLocation?.cityId ?? null,
+        },
+      });
+      return;
+    }
+    console.log('[SubmitRequest][quote] fetching quote', {
+      quoteServiceId, quoteExtraServiceIds, quoteAddonIds, quoteStateId, quoteCityId, quoteUrgency,
+      couponCode: couponCode.trim() || undefined,
+    });
     fetchQuote({
-      serviceId: oneTimeItems[0].serviceId,
-      extraServices: oneTimeItems.slice(1).map(i => i.serviceId),
+      serviceId: quoteServiceId,
+      extraServices: quoteExtraServiceIds,
+      addons: quoteAddonIds,
       stateId: quoteStateId,
       cityId: quoteCityId,
       urgency: quoteUrgency,
@@ -329,13 +376,32 @@ function SubmitRequest({ navigation }) {
   const estSurcharge = oneTimeItems.length === 0 ? 0 : (quote?.expressSurcharge != null ? Number(quote.expressSurcharge) : prioritySurcharge);
   const estDiscount = oneTimeItems.length === 0 ? 0 : Number(quote?.discount || 0);
   const fallbackTotal = Math.max(0, Math.round((selectedServicesTotal + estSurcharge - estDiscount) * 100) / 100);
-  const estTotal = oneTimeItems.length === 0 ? 0 : (hasQuoteTotal ? Number(quote.totalAmount) : fallbackTotal);
+  // customer_price/gst_amount can arrive even when total_amount doesn't (seen
+  // live on a combined base+extra_services+addons quote) — resolve amount/GST
+  // from the quote fields first, then derive the total from THOSE rather than
+  // re-deriving from the stale per-line cart price, which no longer reflects
+  // the address-specific vendor pricing the quote just returned.
   const estAmount = oneTimeItems.length === 0 ? 0 : (quote?.customerPrice != null
     ? Number(quote.customerPrice)
-    : (cartBaseTotal > 0 ? cartBaseTotal : Math.round((estTotal / (1 + GST_RATE)) * 100) / 100));
+    : (cartBaseTotal > 0 ? cartBaseTotal : Math.round((fallbackTotal / (1 + GST_RATE)) * 100) / 100));
   const estGst = oneTimeItems.length === 0 ? 0 : (quote?.gstAmount != null
     ? Number(quote.gstAmount)
-    : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((estTotal - estAmount) * 100) / 100)));
+    : (cartGstTotal > 0 ? cartGstTotal : Math.max(0, Math.round((fallbackTotal - estAmount) * 100) / 100)));
+  const estTotal = oneTimeItems.length === 0 ? 0 : (hasQuoteTotal
+    ? Number(quote.totalAmount)
+    : Math.max(0, Math.round((estAmount + estSurcharge - estDiscount + estGst) * 100) / 100));
+  // A failed quote (e.g. a category's base service has no vendor coverage in
+  // the selected city) must block Submit rather than fall back to a
+  // locally-computed total, since /cart/checkout enforces the same rule
+  // server-side anyway. Trust the LIVE quote result only — confirmed live
+  // that a cart item's category_base_bookable: false does NOT reliably
+  // predict quote failure: it reflects whether the category's true base
+  // service (e.g. id 282) has vendor coverage, which is irrelevant once an
+  // addon-only selection uses a different service as the technical primary
+  // (per the /customer/tickets/quote spec) — that request can still 200 even
+  // though category_base_bookable is false on every item in it.
+  const quoteBlocking = oneTimeItems.length > 0 && quoteFailed;
+  const quoteErrorMessage = quoteError?.message || 'One or more selected services aren\'t available for your selected city. Please review your cart.';
 
   const handleChooseDocument = async (docId) => {
     try {
@@ -466,6 +532,7 @@ function SubmitRequest({ navigation }) {
   const handleSubmit = async () => {
     if (loading || submissionLockRef.current) return;
     if (!validateDetails()) { setStep('details'); return; }
+    if (quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
 
     submissionLockRef.current = true;
     setSubmissionInProgress(true);
@@ -532,8 +599,17 @@ function SubmitRequest({ navigation }) {
     } catch (error) {
       // Surface the backend's exact reason (401 unauthenticated, 422 validation
       // / booking-rule / no-vendor-in-city / PayPal-rejects-recurring, etc.)
-      // so failures are diagnosable.
-      const fieldErrors = error?.errors ? Object.values(error.errors).flat().join('\n') : '';
+      // so failures are diagnosable. `errors.missing_base_service` (when a
+      // service_id/extra_services entry was addon-typed) is a structured
+      // object, not a string array — skip it here since error.message already
+      // states the fix in human-readable form; join would otherwise render it
+      // as "[object Object]".
+      const fieldErrors = error?.errors
+        ? Object.entries(error.errors)
+          .filter(([key]) => key !== 'missing_base_service')
+          .flatMap(([, v]) => v)
+          .join('\n')
+        : '';
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
         || 'Could not submit your request. Please try again.';
       showAlert('Submission Failed', msg);
@@ -620,13 +696,6 @@ function SubmitRequest({ navigation }) {
                     </View>
                   )}
                 </View>
-                {/* 'nationwide' = no saved account city yet, so this price is
-                    only a reference average and can differ from what's
-                    actually charged at checkout — 'city' is the real, final
-                    number (see cartApi.mapCartItem). */}
-                {it.pricingBasis === 'nationwide' && (
-                  <Text style={styles.estimateNote}>Estimate — set your location for the exact price</Text>
-                )}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
                 <TouchableOpacity onPress={() => { removeCartService(it.serviceId); showToast('Service removed from cart', 'success'); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -647,6 +716,17 @@ function SubmitRequest({ navigation }) {
             </View>
             {oneTimeItems.length > 0 ? (
               <>
+                {/* category_base_bookable: false degrades pricing_basis to
+                    "nationwide" (a reference estimate), it doesn't mean no
+                    price at all — web still shows one here, so mobile must
+                    too. The warning below explains why it's not final /
+                    can't be booked yet; it doesn't replace the estimate. */}
+                {quoteBlocking && (
+                  <View style={styles.quoteErrorBox}>
+                    <Icon name="error-outline" size={16} color="#B91C1C" />
+                    <Text style={styles.quoteErrorText}>{quoteErrorMessage}</Text>
+                  </View>
+                )}
                 <SummaryRow label="Estimated amount" value={fmt(estAmount)} />
                 {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
                 {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
@@ -830,6 +910,12 @@ function SubmitRequest({ navigation }) {
             <View style={styles.divider} />
             {oneTimeItems.length > 0 ? (
               <>
+                {quoteBlocking && (
+                  <View style={styles.quoteErrorBox}>
+                    <Icon name="error-outline" size={16} color="#B91C1C" />
+                    <Text style={styles.quoteErrorText}>{quoteErrorMessage}</Text>
+                  </View>
+                )}
                 <SummaryRow label="Services" value={String(oneTimeItems.length)} />
                 <SummaryRow label="Services total" value={fmt(estAmount)} />
                 {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
@@ -844,13 +930,18 @@ function SubmitRequest({ navigation }) {
             )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
-              <Text style={styles.payValue}>{fmt(recurringSubtotal)}</Text>
+              <Text style={styles.payValue}>{fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)}</Text>
             </View>
 
             {loading ? (
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
-              <TouchableOpacity style={styles.submitBtn} activeOpacity={0.9} onPress={handleSubmit}>
+              <TouchableOpacity
+                style={[styles.submitBtn, quoteBlocking && styles.submitBtnDisabled]}
+                activeOpacity={0.9}
+                onPress={handleSubmit}
+                disabled={quoteBlocking}
+              >
                 <Text style={styles.submitBtnText}>Submit Request</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </TouchableOpacity>
@@ -931,7 +1022,6 @@ const styles = StyleSheet.create({
   itemIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEF2FB', justifyContent: 'center', alignItems: 'center' },
   itemName: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', marginBottom: 6 },
   itemMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  estimateNote: { fontSize: 11, color: '#B45309', marginTop: 6 },
   itemBadge: { backgroundColor: '#EEF2FB', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   itemBadgeText: { fontSize: 9, letterSpacing: 0.5, color: '#20304C', fontFamily: typography.labelMedium.fontFamily },
   recurringBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
@@ -994,12 +1084,15 @@ const styles = StyleSheet.create({
   sumValueStrong: { fontFamily: typography.h4.fontFamily },
   divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 8 },
   disclaimer: { fontSize: 11, lineHeight: 16, color: '#94A3B8', marginTop: 10 },
+  quoteErrorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, borderWidth: 1, borderColor: '#FECACA', padding: 12 },
+  quoteErrorText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: '#B91C1C' },
 
   payBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EEF2FB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, marginTop: 12 },
   payLabel: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   payValue: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#20304C' },
 
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 16, marginTop: 16 },
+  submitBtnDisabled: { backgroundColor: '#F3A28F' },
   submitBtnText: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 
   footRow: { marginTop: 16, gap: 8 },

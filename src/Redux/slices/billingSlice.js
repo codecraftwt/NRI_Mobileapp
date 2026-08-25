@@ -34,9 +34,13 @@ export const verifyBillingPayment = createAsyncThunk(
 
 export const stopMembershipAutoRenew = createAsyncThunk(
   'billing/stopAutoRenew',
-  async (membershipId, { rejectWithValue }) => {
+  // Accepts either a bare membershipId (existing callers) or
+  // { membershipId, traceId } so the caller can correlate this dispatch with
+  // its own debug-log lines without changing every existing call site.
+  async (payload, { rejectWithValue }) => {
+    const { membershipId, traceId } = typeof payload === 'object' ? payload : { membershipId: payload };
     try {
-      return await billingApi.stopMembershipAutoRenew(membershipId);
+      return await billingApi.stopMembershipAutoRenew(membershipId, traceId);
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -45,9 +49,9 @@ export const stopMembershipAutoRenew = createAsyncThunk(
 
 export const cancelAllSubscriptions = createAsyncThunk(
   'billing/cancelAll',
-  async (_, { rejectWithValue }) => {
+  async (traceId, { rejectWithValue }) => {
     try {
-      return await billingApi.cancelAllSubscriptions();
+      return await billingApi.cancelAllSubscriptions(traceId);
     } catch (error) {
       return rejectWithValue(error);
     }

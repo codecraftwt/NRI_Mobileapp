@@ -163,6 +163,14 @@ export async function addSubscriptionDocuments(subscriptionId, documents) {
 export async function cancelServiceSubscription(subscriptionId) {
   try {
     const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/cancel`);
+    // A 200 here does NOT mean the cancellation actually happened — this
+    // endpoint returns HTTP 200 with { success: false } when the gateway-side
+    // cancel call fails, and axios only rejects on a non-2xx status. Without
+    // this check the caller's optimistic reducer flips autoRenew to false
+    // even though the subscription is still active with the gateway.
+    if (response.data?.success === false) {
+      throw { response: { status: response.status, data: response.data } };
+    }
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

@@ -44,17 +44,18 @@ function ServiceList({ route, navigation }) {
   );
 
   // Availability filtering only kicks in once a location is set: before that
-  // the user browses the FULL catalog ("starting from" prices). After a city is
-  // chosen we hide services with no vendor price there, for the selected mode
-  // ("Not available in your area", i.e. customer_price/recurring_price null).
-  // Price presence is used rather than the vendor_priced flags — those are
-  // null for services with no recurring option, which a flag check mis-read
-  // as available.
+  // the user browses the FULL catalog ("starting from" prices). After a city
+  // is chosen we hide services with no vendor covering them there, for the
+  // selected mode — keyed off the vendor-availability flag (false = no
+  // vendor here → would 422 at checkout), matching ServiceDetail.js's
+  // isBookable and web's picker. Safe to key off the flag directly (rather
+  // than price presence) because the mode-support filter below already drops
+  // services that don't offer this mode at all, so a null flag reaching this
+  // check only ever means "no location set yet."
   const isAvailable = (s) => {
     const p = s.pricing;
     if (!p || p.isQuoted) return true;
-    const v = mode === 'recurring' ? p.recurringPrice : p.customerPrice;
-    return v != null;
+    return mode === 'recurring' ? p.recurringVendorPriced !== false : p.vendorPriced !== false;
   };
 
   // Merge both buckets, de-duped by id, then keep only services offered in

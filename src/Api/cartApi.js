@@ -12,15 +12,57 @@ function mapCartItem(raw) {
     ?? (typeof raw.category === 'string' ? raw.category : null)
     ?? (typeof svc.category === 'string' ? svc.category : null)
     ?? '';
-  const price = raw.price ?? raw.customer_price ?? pricing.customer_price
-    ?? pricing.recurring_price ?? svc.customer_price ?? 0;
+  // is_base_service/is_addon/category_id are now returned inline on every
+  // cart line (backend fix) — same flags as the catalog. Needed to route a
+  // service into service_id/extra_services vs addons for POST
+  // /customer/tickets/quote; mixing them up now 422s instead of silently
+  // mispricing/dropping the service from the ticket.
+  const categoryId = raw.category_id ?? svc.category?.id ?? raw.category?.id ?? null;
+  const billingMode = raw.billing_mode ?? null;
+  const isRecurringLine = billingMode === 'recurring';
+  // For a recurring line, prefer the recurring-specific price fields FIRST —
+  // same precedence useCartPriceSync uses for the guest cart
+  // (`item.isRecurring ? recurringPrice : customerPrice`). The previous fixed
+  // order checked `pricing.customer_price` (one-time) before
+  // `pricing.recurring_price`, so a recurring cart line with no top-level
+  // `price`/`customer_price` (only `pricing.*`) silently priced itself off
+  // the one-time amount instead of the subscription amount.
+  const price = isRecurringLine
+    ? (raw.recurring_price ?? pricing.recurring_price ?? raw.price ?? raw.customer_price ?? pricing.customer_price ?? svc.customer_price ?? 0)
+    : (raw.price ?? raw.customer_price ?? pricing.customer_price ?? svc.customer_price ?? 0);
   const serviceId = raw.service_id ?? svc.id ?? raw.id;
+  // Diagnostic: confirms which field the price actually resolved from for a
+  // recurring line — remove once the $6.60-for-recurring report is confirmed
+  // fixed against a real cart response.
+  if (isRecurringLine) {
+    const candidates = {
+      raw_recurring_price: raw.recurring_price,
+      pricing_recurring_price: pricing.recurring_price,
+      raw_price: raw.price,
+      raw_customer_price: raw.customer_price,
+      pricing_customer_price: pricing.customer_price,
+      svc_customer_price: svc.customer_price,
+    };
+    console.log('[cartApi] recurring cart line price resolution', {
+      serviceId: raw.service_id ?? svc.id ?? raw.id,
+      billingMode,
+      resolvedPrice: price,
+      candidates,
+      // Console objects collapse to `{…}` when a log is copy-pasted out of
+      // devtools instead of expanded interactively — stringify too so the
+      // actual field values survive being pasted into a report.
+      candidatesJson: JSON.stringify(candidates),
+    });
+  }
   if (serviceId == null) return null;
   return {
     cartItemId: raw.cart_item_id ?? raw.item_id ?? raw.id ?? null,
     serviceId,
     name: svc.name ?? raw.name ?? 'Service',
     categoryName,
+    categoryId,
+    isBaseService: !!(raw.is_base_service ?? svc.is_base_service),
+    isAddon: !!(raw.is_addon ?? svc.is_addon),
     price: Number(price) || 0,
     base: raw.base != null ? Number(raw.base) : null,
     gstAmount: raw.gst_amount != null ? Number(raw.gst_amount) : null,
@@ -32,6 +74,11 @@ function mapCartItem(raw) {
     // only an average reference figure that CAN differ from what's actually
     // charged at checkout. null → quoted service, no fixed price at all.
     pricingBasis: raw.pricing_basis ?? null,
+    // Only present on addon-type lines. false → this item's category has no
+    // live vendor for its base service in the customer's city right now, so
+    // even a correctly-shaped request can't be quoted/booked yet — surface
+    // this before checkout. null when absent (base items, or older backend).
+    categoryBaseBookable: raw.category_base_bookable ?? null,
     currency: pricing.currency ?? raw.currency ?? 'USD',
     durationLabel: pricing.turnaround_label ?? svc.pricing?.turnaround_label ?? raw.duration ?? svc.duration ?? '',
     imageUrl: svc.image_url ?? raw.image_url ?? null,
