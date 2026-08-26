@@ -96,13 +96,17 @@ function mapCoupon(raw) {
   };
 }
 
-// Verified live: POST /customer/membership/coupons requires `plan_id` in the
-// body (422s without it) and returns the full list of offers applicable to
-// that plan (both eligible and ineligible, with a `reason` on the latter) —
-// same shape as the ticket-coupons endpoint in ticketApi.js.
-export async function getMembershipCoupons({ planId }) {
+// For the multi-plan regular/renew flow (MembershipCheckout.js), POST
+// /customer/membership/coupons requires `plan_id` in the body (422s without
+// it) so offers are scoped to the plan being purchased. The single
+// registration-gate plan checkout (OnboardingPayment.js) resolves its one
+// plan server-side and takes no parameters at all — omit plan_id there.
+// Returns the full list of offers (both eligible and ineligible, with a
+// `reason` on the latter) — same shape as the ticket-coupons endpoint in
+// ticketApi.js.
+export async function getMembershipCoupons({ planId } = {}) {
   try {
-    const response = await apiClient.post('/customer/membership/coupons', { plan_id: planId });
+    const response = await apiClient.post('/customer/membership/coupons', { plan_id: planId || undefined });
     const list = response.data?.data || response.data || [];
     return list.map(mapCoupon);
   } catch (error) {
@@ -120,8 +124,14 @@ export async function validateMembershipCoupon({ code }) {
   }
 }
 
-export async function checkoutMembership({ 
-  gateway, couponCode, autoRenew, useWallet, combinedCart,
+// combined_cart is NOT a request field — whether the customer's cart rides
+// along is resolved server-side from GET /customer/cart + auto_renew + gateway
+// (see the combinedCart field read back below). Passing one here was always
+// ignored by the JSON branch and actively harmful on the multipart (document
+// upload) branch, where it forced combined_cart=0 on every request regardless
+// of intent.
+export async function checkoutMembership({
+  gateway, couponCode, autoRenew, useWallet,
   familyMemberName, familyMemberRelationship,
   stateId, cityId, talukaId, address, pincode, urgency,
   preferredDate, customerNotes, documents
@@ -132,7 +142,6 @@ export async function checkoutMembership({
       coupon_code: couponCode || undefined,
       auto_renew: !!autoRenew ? 1 : 0,
       use_wallet: !!useWallet ? 1 : 0,
-      combined_cart: combinedCart ? 1 : 0,
       family_member_name: familyMemberName || undefined,
       family_member_relationship: familyMemberRelationship || undefined,
       state_id: stateId || undefined,
@@ -162,7 +171,6 @@ export async function checkoutMembership({
         ...payload,
         auto_renew: !!autoRenew,
         use_wallet: !!useWallet,
-        combined_cart: combinedCart || undefined,
       });
     }
     const data = response.data?.data || {};
@@ -180,6 +188,13 @@ export async function checkoutMembership({
       checkoutUrl: data.checkout_url || null,
       order: data.order || null,
       planId: data.plan_id || null,
+      // Whether the customer's cart (if any) actually got bundled into this
+      // same payment — a coupon no longer forces the cart out on its own, but
+      // PayPal / an already-false auto_renew still can, so callers with a
+      // non-empty cart should key off this instead of just "did I ask for
+      // combined_cart" before treating the cart as booked/cleared.
+      combinedCart: !!data.combined_cart,
+      bundle: data.bundle ?? null,
       message: response.data?.message,
     };
   } catch (error) {

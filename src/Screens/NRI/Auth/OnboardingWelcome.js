@@ -26,7 +26,7 @@ const NEXT_STEPS = [
 ];
 
 function OnboardingWelcome({ route, navigation }) {
-  const { plan, hasServiceRequests, pendingRecurringBundle } = route.params || {};
+  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked } = route.params || {};
   const dispatch = useDispatch();
   const [bundlePaid, setBundlePaid] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
@@ -73,6 +73,16 @@ function OnboardingWelcome({ route, navigation }) {
             Your {plan?.name || 'Family'} membership is active. Your dedicated Relationship Manager will reach out on WhatsApp within 24 hours to introduce themselves and confirm your family's details.
           </Text>
 
+          {!!cartNotBooked && (
+            <View style={styles.cartNotice}>
+              <Icon name="info-outline" size={16} color="#B45309" />
+              <Text style={styles.cartNoticeText}>
+                Your selected services couldn't be included with this payment method and are
+                still in your cart — please submit them separately from Services.
+              </Text>
+            </View>
+          )}
+
           {NEXT_STEPS.map(step => (
             <View key={step.title} style={styles.stepRow}>
               <Icon name={step.icon} size={20} color={C.primary} />
@@ -113,6 +123,8 @@ const styles = StyleSheet.create({
   activeBadgeText: { fontSize: 11, color: 'white', fontFamily: 'Montserrat-Bold', letterSpacing: 0.5 },
   title: { fontSize: 26, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', textAlign: 'center', lineHeight: 32 },
   desc: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 12, marginBottom: 24 },
+  cartNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF3C7', borderRadius: radius.lg, padding: 14, marginBottom: 20, width: '100%' },
+  cartNoticeText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
   pendingBundleCard: {
     flexDirection: 'row',
     alignItems: 'center',

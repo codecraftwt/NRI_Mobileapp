@@ -152,6 +152,49 @@ function mapCheckoutTicket(raw) {
   };
 }
 
+function mapCartCoupon(raw) {
+  return {
+    code: raw.code,
+    description: raw.description,
+    valueLabel: raw.value_label,
+    minOrder: raw.min_order,
+    validUntil: raw.valid_until,
+    eligible: raw.eligible,
+    reason: raw.reason,
+    savings: raw.savings,
+  };
+}
+
+// POST /customer/cart/coupons — eligible/ineligible offers for the current
+// server cart. No service ids needed (it reads GET /customer/cart itself) —
+// pass cityId when known so a min_order offer is checked against the real
+// vendor-priced subtotal rather than the nationwide reference price. Same
+// shape as ticketApi.getTicketCoupons.
+export async function getCartCoupons({ cityId } = {}) {
+  try {
+    const response = await apiClient.post('/customer/cart/coupons', { city_id: cityId || undefined });
+    const list = response.data?.data || response.data || [];
+    return list.map(mapCartCoupon);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /customer/cart/validate-coupon — validate one code before checkout,
+// same shape as ticketApi.validateTicketCoupon.
+export async function validateCartCoupon({ code, cityId } = {}) {
+  try {
+    const response = await apiClient.post('/customer/cart/validate-coupon', {
+      coupon_code: code,
+      city_id: cityId || undefined,
+    });
+    const data = response.data?.data || {};
+    return { code: data.code, discount: data.discount, message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // POST /customer/cart/checkout — turns the cart into service request(s) and
 // starts payment for them. `gateway` only matters when the cart has a
 // recurring item (PayPal is rejected with a 422 there — surface

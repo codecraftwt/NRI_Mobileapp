@@ -21,6 +21,12 @@ const initialState = {
   guestMergeStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   checkoutStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   checkoutError: null,
+  coupons: [],
+  couponsStatus: 'idle',
+  couponsError: null,
+  appliedCoupon: null,
+  couponApplyStatus: 'idle',
+  couponApplyError: null,
   // The account's saved service-location city that a 'city'-basis cart item
   // was priced against (see pricingBasis on each item) — null until one's
   // saved. Only ever updated from a full GET /customer/cart response.
@@ -137,6 +143,22 @@ export const checkoutCart = createAsyncThunk('cart/checkout', async (params, { r
   }
 });
 
+export const fetchCartCoupons = createAsyncThunk('cart/fetchCoupons', async (params, { rejectWithValue }) => {
+  try {
+    return await cartApi.getCartCoupons(params);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const applyCartCoupon = createAsyncThunk('cart/applyCoupon', async (params, { rejectWithValue }) => {
+  try {
+    return await cartApi.validateCartCoupon(params);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
@@ -170,6 +192,11 @@ const cartSlice = createSlice({
       });
     },
     clearCart: () => initialState,
+    clearAppliedCartCoupon: (state) => {
+      state.appliedCoupon = null;
+      state.couponApplyStatus = 'idle';
+      state.couponApplyError = null;
+    },
   },
   extraReducers: (builder) => {
     // POST/DELETE return only the authoritative count — keep it in sync (the
@@ -224,11 +251,36 @@ const cartSlice = createSlice({
       .addCase(checkoutCart.rejected, (state, action) => {
         state.checkoutStatus = 'failed';
         state.checkoutError = action.payload;
+      })
+      .addCase(fetchCartCoupons.pending, (state) => {
+        state.couponsStatus = 'loading';
+        state.couponsError = null;
+      })
+      .addCase(fetchCartCoupons.fulfilled, (state, action) => {
+        state.couponsStatus = 'succeeded';
+        state.coupons = action.payload;
+      })
+      .addCase(fetchCartCoupons.rejected, (state, action) => {
+        state.couponsStatus = 'failed';
+        state.couponsError = action.payload;
+      })
+      .addCase(applyCartCoupon.pending, (state) => {
+        state.couponApplyStatus = 'loading';
+        state.couponApplyError = null;
+      })
+      .addCase(applyCartCoupon.fulfilled, (state, action) => {
+        state.couponApplyStatus = 'succeeded';
+        state.appliedCoupon = action.payload;
+      })
+      .addCase(applyCartCoupon.rejected, (state, action) => {
+        state.couponApplyStatus = 'failed';
+        state.couponApplyError = action.payload;
+        state.appliedCoupon = null;
       });
   },
 });
 
-export const { addToCart, removeFromCart, updateCartItemPrices, clearCart } = cartSlice.actions;
+export const { addToCart, removeFromCart, updateCartItemPrices, clearCart, clearAppliedCartCoupon } = cartSlice.actions;
 
 // Selectors
 export const selectCartItems = (s) => s.cart.items;

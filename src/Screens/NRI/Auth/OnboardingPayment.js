@@ -326,9 +326,10 @@ function OnboardingPayment({ route, navigation }) {
     setPlanCouponCode('');
   };
 
+  // The registration-gate plan is resolved server-side — no plan_id needed
+  // (unlike the multi-plan MembershipCheckout.js flow).
   const handleViewCoupons = () => {
-    if (!plan?.id) return;
-    fetchCoupons({ planId: plan.id });
+    fetchCoupons({});
     setShowCouponsModal(true);
   };
 
@@ -462,7 +463,11 @@ function OnboardingPayment({ route, navigation }) {
   // welcome screen can prompt for it — a recurring cart service is priced
   // alongside the membership but can't ride the same checkout session, so it's
   // left unpaid until the customer completes it separately.
-  const finishUp = async (pendingRecurringBundle) => {
+  // `combinedCart` is the checkout response's own combined_cart flag — a
+  // coupon no longer forces it false on its own, but PayPal (never combines)
+  // still can, so only treat the cart as booked/clearable when the backend
+  // actually confirmed it rode along, not just because fromCart was true.
+  const finishUp = async (pendingRecurringBundle, combinedCart = true) => {
     dispatch(updateProfile({
       countryOfResidence: profile?.countryOfResidence,
       stateProvince: profile?.stateProvince,
@@ -488,15 +493,28 @@ function OnboardingPayment({ route, navigation }) {
       total: amountPayable,
     }));
 
-    // The backend now automatically creates the service requests via CartCheckoutService 
-    // when the combined Stripe session is paid successfully. We only need to clear the local cart.
-    if (fromCart) {
+    // The backend automatically creates the service requests via
+    // CartCheckoutService when the combined session is paid successfully — but
+    // only clear the local cart when it actually confirmed the cart rode
+    // along. If combinedCart came back false, the cart was left untouched
+    // server-side, so clearing it here would just lose what the customer
+    // selected.
+    const cartWasBooked = fromCart && combinedCart;
+    if (cartWasBooked) {
       dispatch(clearCart());
     }
 
-    // Tell the welcome screen whether service requests were created, so it can
-    // send the user to the Requests (tracking) tab instead of the dashboard.
-    navigation.replace('OnboardingWelcome', { plan, hasServiceRequests: fromCart, pendingRecurringBundle });
+    // Tell the welcome screen whether service requests were created (so it can
+    // send the user to the Requests tab), and — on the rare path where the
+    // cart didn't ride along (e.g. PayPal, which never combines) — that it's
+    // still sitting in their cart to submit separately, since we deliberately
+    // did NOT clear it above in that case.
+    navigation.replace('OnboardingWelcome', {
+      plan,
+      hasServiceRequests: cartWasBooked,
+      pendingRecurringBundle,
+      cartNotBooked: fromCart && !combinedCart,
+    });
   };
 
   const handlePay = async () => {
@@ -538,7 +556,6 @@ function OnboardingPayment({ route, navigation }) {
         couponCode: planCouponCode.trim() || undefined,
         autoRenew: true,
         useWallet: false,
-        combinedCart: fromCart,
         familyMemberName: reqForm.fullName?.trim() || undefined,
         familyMemberRelationship: reqForm.relation?.trim().toLowerCase() || undefined,
         stateId: states.find(s => s.name === reqForm.state)?.id || undefined,
@@ -557,7 +574,7 @@ function OnboardingPayment({ route, navigation }) {
         // in-app WebView; the payment is confirmed in handleCheckoutSuccess
         // once the gateway redirects back to the success_url with a session_id
         // (see StripeCheckoutModal).
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, combinedCart: result.combinedCart });
       } else if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
         // Auto-renew membership → order carries a subscription_id (verified
@@ -570,14 +587,14 @@ function OnboardingPayment({ route, navigation }) {
           user: { name: profile?.fullName, email: profile?.email, phone: profile?.phone },
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        await finishUp(verifyResult?.data?.pendingRecurringBundle);
+        await finishUp(verifyResult?.data?.pendingRecurringBundle, result.combinedCart);
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for a native SDK flow not built
         // on mobile — steer to a supported gateway instead of a false success.
         showAlert('Not Available', 'This payment method isn\'t supported in the app yet. Please choose Card (Stripe) or Razorpay.', 'error');
       } else {
         // Wallet credits / free plan covered the full amount — nothing to pay.
-        await finishUp();
+        await finishUp(undefined, result.combinedCart);
       }
     } catch (error) {
       // Diagnostic: surface the HTTP status so a gateway rejection can be told
@@ -594,12 +611,12 @@ function OnboardingPayment({ route, navigation }) {
   // The hosted Stripe page redirected back with a session_id — confirm
   // it with the backend, which is what actually activates the membership.
   const handleCheckoutSuccess = async (sessionId) => {
-    const paymentId = checkoutSession?.paymentId;
+    const session = checkoutSession;
     setCheckoutSession(null);
     setSubmitting(true);
     try {
-      const verifyResult = await verifyPayment({ paymentId, sessionId }).unwrap();
-      await finishUp(verifyResult?.data?.pendingRecurringBundle);
+      const verifyResult = await verifyPayment({ paymentId: session?.paymentId, sessionId }).unwrap();
+      await finishUp(verifyResult?.data?.pendingRecurringBundle, session?.combinedCart);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
     } finally {

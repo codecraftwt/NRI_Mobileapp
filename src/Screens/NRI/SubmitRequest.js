@@ -119,7 +119,12 @@ function SubmitRequest({ navigation }) {
   const { showToast } = useToast();
   // Signed-in cart — removing a line also hits DELETE /customer/cart/items/{id}
   // and refreshes the server count (useCart fetches it on mount).
-  const { remove: removeCartService, checkout: checkoutCart, checkoutLoading } = useCart();
+  const {
+    remove: removeCartService, checkout: checkoutCart, checkoutLoading,
+    coupons: cartCoupons, couponsLoading: cartCouponsLoading, fetchCoupons: fetchCartCoupons,
+    appliedCoupon: appliedCartCoupon, couponApplyLoading: cartCouponApplyLoading,
+    applyCoupon: applyCartCoupon, clearCoupon: clearCartCoupon,
+  } = useCart();
   const items = useSelector(selectCartItems);
   const savedLocation = useSelector(s => s.serviceLocation);
   const user = useSelector(s => s.user.user);
@@ -144,6 +149,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateways]);
   const [couponCode, setCouponCode] = useState('');
+  const [showCouponsModal, setShowCouponsModal] = useState(false);
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [goServicesOnAlertClose, setGoServicesOnAlertClose] = useState(false);
   const [submissionInProgress, setSubmissionInProgress] = useState(false);
@@ -587,6 +593,54 @@ function SubmitRequest({ navigation }) {
     }
   };
 
+  // Explicit validate-before-checkout feedback (POST /customer/cart/validate-coupon)
+  // — the typed code is also already fed into fetchQuote above so the discount
+  // shown in the estimate/order summary updates either way; this just confirms
+  // the code is valid and tells the customer the savings up front.
+  const handleApplyCoupon = () => {
+    if (!couponCode.trim()) return;
+    applyCartCoupon({ code: couponCode.trim(), cityId: quoteCityId })
+      .unwrap()
+      .then((result) => {
+        showAlert('Coupon Applied', `Code ${result.code} applied — you save ${fmt(result.discount)}.`);
+      })
+      .catch((error) => {
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+      });
+  };
+
+  const handleRemoveCoupon = () => {
+    clearCartCoupon();
+    setCouponCode('');
+  };
+
+  // Editing the code after a successful apply invalidates the applied result —
+  // clear it so the Apply/Remove button reflects the field again rather than
+  // still offering to "Remove" a code that's no longer what's typed.
+  const handleCouponTextChange = (text) => {
+    if (appliedCartCoupon) clearCartCoupon();
+    setCouponCode(text);
+  };
+
+  const handleViewCoupons = () => {
+    setShowCouponsModal(true);
+    fetchCartCoupons({ cityId: quoteCityId });
+  };
+
+  const handlePickCoupon = (coupon) => {
+    if (!coupon.eligible) return;
+    setCouponCode(coupon.code);
+    setShowCouponsModal(false);
+    applyCartCoupon({ code: coupon.code, cityId: quoteCityId })
+      .unwrap()
+      .then((result) => {
+        showAlert('Coupon Applied', `Code ${result.code} applied — you save ${fmt(result.discount)}.`);
+      })
+      .catch((error) => {
+        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.');
+      });
+  };
+
   const empty = items.length === 0;
   const handleClearCart = () => {
     // Optimistic: clear the local cart immediately so the UI responds instantly;
@@ -840,9 +894,27 @@ function SubmitRequest({ navigation }) {
             <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>Payment</Text></View>
 
             <Text style={styles.fieldLabel}>Have a coupon?</Text>
-            <TextInput style={styles.input} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={setCouponCode} />
+            <View style={styles.couponRow}>
+              <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
+                disabled={cartCouponApplyLoading}
+              >
+                {cartCouponApplyLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+              <Icon name="local-offer" size={14} color="#D94625" />
+              <Text style={styles.viewCouponsLink}>View available coupons</Text>
+              <Icon name="expand-more" size={16} color="#D94625" />
+            </TouchableOpacity>
 
-            <Text style={styles.fieldLabel}>Payment Method</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Payment Method</Text>
             {gateways.map(g => (
               <TouchableOpacity
                 key={g.value}
@@ -921,6 +993,42 @@ function SubmitRequest({ navigation }) {
         onClose={() => { setPendingBundle(null); finishSuccess(); }}
         onSuccess={() => { setPendingBundle(null); finishSuccess(); }}
       />
+
+      <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Available Coupons</Text>
+            {cartCouponsLoading ? (
+              <View style={styles.modalLoadingBox}>
+                <ActivityIndicator size="small" color="#D94625" />
+                <Text style={styles.disclaimer}>Loading coupons…</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={cartCoupons}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => handlePickCoupon(item)}
+                    disabled={!item.eligible}
+                  >
+                    <View style={styles.modalOptionTextWrap}>
+                      <Text style={[styles.couponCodeText, !item.eligible && styles.couponIneligibleText]}>
+                        {item.code}{item.valueLabel ? ` · ${item.valueLabel}` : ''}
+                      </Text>
+                      {!!item.description && <Text style={styles.couponDescText}>{item.description}</Text>}
+                      {!item.eligible && !!item.reason && <Text style={styles.couponReasonText}>{item.reason}</Text>}
+                    </View>
+                    {item.eligible && <Icon name="chevron-right" size={20} color="#20304C" />}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<Text style={styles.modalEmptyText}>No coupons available right now.</Text>}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* In-app image preview */}
       <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
@@ -1008,6 +1116,25 @@ const styles = StyleSheet.create({
   selectOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
   selectOptionText: { fontSize: 14, color: '#0F172A' },
   selectEmpty: { fontSize: 13, color: '#94A3B8', textAlign: 'center', padding: 20 },
+
+  couponRow: { flexDirection: 'row', gap: 10 },
+  couponInput: { flex: 1, marginBottom: 0 },
+  applyBtn: { backgroundColor: '#20304C', borderRadius: 12, paddingHorizontal: 20, height: 48, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
+  applyBtnText: { color: '#FFFFFF', fontFamily: typography.h4.fontFamily, fontSize: 13 },
+  viewCouponsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 10 },
+  viewCouponsLink: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#D94625' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '65%', paddingBottom: 24, paddingTop: 12 },
+  modalTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
+  modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  modalOptionTextWrap: { flex: 1 },
+  modalEmptyText: { fontSize: 13, color: '#94A3B8', padding: 24, textAlign: 'center' },
+  couponCodeText: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
+  couponIneligibleText: { color: '#9CA3AF' },
+  couponDescText: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 4 },
 
   docInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   docChooseBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 44, backgroundColor: '#F8FAFC' },

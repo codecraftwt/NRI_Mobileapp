@@ -8,6 +8,9 @@ import {
   addServerCartItem,
   removeServerCartItem,
   checkoutCart,
+  fetchCartCoupons,
+  applyCartCoupon,
+  clearAppliedCartCoupon,
   selectCartItems,
   selectServerCartCount,
 } from '../Redux/slices/cartSlice';
@@ -27,6 +30,11 @@ export function useCart({ autoFetch = true } = {}) {
   const serverCount = useSelector(selectServerCartCount);
   const guestMergeStatus = useSelector((s) => s.cart.guestMergeStatus);
   const checkoutLoading = useSelector((s) => s.cart.checkoutStatus === 'loading');
+  const coupons = useSelector((s) => s.cart.coupons);
+  const couponsLoading = useSelector((s) => s.cart.couponsStatus === 'loading');
+  const appliedCoupon = useSelector((s) => s.cart.appliedCoupon);
+  const couponApplyLoading = useSelector((s) => s.cart.couponApplyStatus === 'loading');
+  const couponApplyError = useSelector((s) => s.cart.couponApplyError);
   // A guest cart carried into a signed-in session: local items exist but the
   // server cart is still empty, so they were never uploaded.
   const hasUnsyncedGuestCart = items.length > 0 && serverCount === 0;
@@ -72,5 +80,15 @@ export function useCart({ autoFetch = true } = {}) {
   // see cartApi.checkoutCart for params/response shape.
   const checkout = (params) => dispatch(checkoutCart(params));
 
-  return { items, count, isAuthenticated, add, remove, refresh, checkout, checkoutLoading };
+  // Coupon offers/validation scoped to the current server cart — see
+  // cartApi.getCartCoupons/validateCartCoupon.
+  const fetchCoupons = (params) => dispatch(fetchCartCoupons(params));
+  const applyCoupon = (params) => dispatch(applyCartCoupon(params));
+  const clearCoupon = () => dispatch(clearAppliedCartCoupon());
+
+  return {
+    items, count, isAuthenticated, add, remove, refresh, checkout, checkoutLoading,
+    coupons, couponsLoading, fetchCoupons,
+    appliedCoupon, couponApplyLoading, couponApplyError, applyCoupon, clearCoupon,
+  };
 }
