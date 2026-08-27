@@ -8,6 +8,7 @@ import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
 import { useCart } from '../../Hooks/useCart';
+import { useProperties } from '../../Hooks/useProperties';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -29,6 +30,7 @@ const GST_RATE = 0.18;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 // Matches the family member API's relationship enum (same as CreateTicket).
 const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+const NO_PROPERTY = 'Not applicable';
 
 const fmt = (v) => `$${(Number(v) || 0).toFixed(2)}`;
 
@@ -130,9 +132,13 @@ function SubmitRequest({ navigation }) {
   const user = useSelector(s => s.user.user);
   // Available gateways come from the backend (already NRI + admin-toggle gated).
   const { gateways } = usePaymentGateways();
+  // Populates the Property dropdown below — same source AddProperty.js writes
+  // to, so a property added there shows up here without a manual refresh
+  // (both read the same Redux slice).
+  const { properties } = useProperties();
 
   const [reqForm, setReqForm] = useState({
-    fullName: '', relation: '', property: 'Not applicable',
+    fullName: '', relation: '', property: NO_PROPERTY,
     state: items[0]?.stateName || savedLocation?.stateName || '',
     city: items[0]?.cityName || savedLocation?.cityName || '',
     taluka: '',
@@ -800,7 +806,7 @@ function SubmitRequest({ navigation }) {
             <TextInput style={styles.input} placeholder="Family member's name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
 
             <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
-            <FormSelect label="Property (optional)" value={reqForm.property} placeholder="Not applicable" options={['Not applicable']} onSelect={v => setField('property', v)} />
+            <FormSelect label="Property (optional)" value={reqForm.property} placeholder="Not applicable" options={[NO_PROPERTY, ...properties.map(p => p.nickname)]} onSelect={v => setField('property', v)} />
             <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
             <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
             <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />

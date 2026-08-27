@@ -38,6 +38,21 @@ function initialsFor(name) {
   return (name || 'RM').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
+// india_address.state/city come back as a { id, name } relation object (same
+// shape as GET /geo/states|/geo/cities), not a flat string — rendering the
+// object directly as a child crashed ProfileAddress.js ("Objects are not
+// valid as a React child (found: object with keys {id, name})"). Stay
+// defensive here in case the backend ever flattens it to a plain string.
+function extractRelationName(val) {
+  if (!val) return null;
+  return typeof val === 'string' ? val : (val.name || null);
+}
+
+function extractRelationId(val, fallbackId) {
+  if (val && typeof val === 'object' && val.id != null) return val.id;
+  return fallbackId ?? null;
+}
+
 // Maps the API's auth-payload response into this app's canonical
 // `state.user.user` shape (see userSlice.js). Verified live against
 // GET /auth/me and PUT /auth/profile — the real shape nests the customer
@@ -117,8 +132,10 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     emergencyContactName: profileObj.emergency_contact_name || null,
     emergencyContactPhone: profileObj.emergency_contact_phone || null,
     indiaAddress: {
-      state: indiaAddr.state || null,
-      city: indiaAddr.city || null,
+      state: extractRelationName(indiaAddr.state),
+      stateId: extractRelationId(indiaAddr.state, indiaAddr.state_id ?? null),
+      city: extractRelationName(indiaAddr.city),
+      cityId: extractRelationId(indiaAddr.city, indiaAddr.city_id ?? null),
       pincode: indiaAddr.pincode || null,
       line1: indiaAddr.line_1 || null,
       line2: indiaAddr.line_2 || null,

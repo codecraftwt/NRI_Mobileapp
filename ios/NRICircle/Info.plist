@@ -34,13 +34,9 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>The app captures photos to let you update your profile picture and add property images.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>The app uses your location to automatically find your address when adding a new property.</string>
+	<string>The app uses the camera so you can take a new photo to set as your profile picture, or capture photos of your property to attach to a property listing.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>The app accesses your photo library to let you select a profile picture and upload property images.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>The app saves edited property photos and receipts directly to your photo library.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>
