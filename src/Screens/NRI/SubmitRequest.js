@@ -666,7 +666,7 @@ function SubmitRequest({ navigation }) {
             <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Submit Request</Text>
+            <Text style={styles.headerTitle}>{page === 'cart' ? 'My Cart' : 'Submit Request'}</Text>
             <Text style={styles.headerSub}>{items.length} service{items.length === 1 ? '' : 's'} selected</Text>
           </View>
           {!empty && (
@@ -692,7 +692,13 @@ function SubmitRequest({ navigation }) {
           <Text style={styles.sectionLabel}>SELECTED SERVICES</Text>
           {items.map((it) => (
             <View key={it.serviceId} style={styles.itemCard}>
-              <View style={styles.itemIcon}><Icon name="description" size={20} color="#20304C" /></View>
+              <View style={styles.itemIcon}>
+                {it.imageUrl ? (
+                  <Image source={{ uri: it.imageUrl }} style={styles.itemIconImage} resizeMode="cover" />
+                ) : (
+                  <Icon name="description" size={20} color="#20304C" />
+                )}
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName} numberOfLines={2}>{it.name}</Text>
                 <View style={styles.itemMetaRow}>
@@ -1087,7 +1093,8 @@ const styles = StyleSheet.create({
   backToDetailsText: { fontSize: 13, color: '#20304C', fontFamily: typography.h4.fontFamily },
 
   itemCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9' },
-  itemIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEF2FB', justifyContent: 'center', alignItems: 'center' },
+  itemIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#EEF2FB', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  itemIconImage: { width: '100%', height: '100%' },
   itemName: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', marginBottom: 6 },
   itemMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   itemBadge: { backgroundColor: '#EEF2FB', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },

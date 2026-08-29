@@ -112,6 +112,7 @@ function ServiceInfo({ route, navigation }) {
       serviceId: svc.id,
       name: svc.name,
       categoryName: category.name,
+      imageUrl: svc.imageUrl,
       price: priceValue(pricing, mode) ?? 0,
       currency: pricing?.currency || 'USD',
       durationLabel: durationLabel(pricing, mode),

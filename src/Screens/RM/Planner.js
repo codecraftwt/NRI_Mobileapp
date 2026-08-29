@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Modal, TextInput, Platform, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Modal, TextInput, Platform, Alert, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { typography } from '../../theme/typography';
@@ -180,7 +180,7 @@ function Planner({ navigation }) {
           after a picker had been opened once. Only one native Modal is ever
           presented now. */}
       <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Icon name="add-circle-outline" size={22} color="#20304C" />
@@ -313,7 +313,7 @@ function Planner({ navigation }) {
               </TouchableOpacity>
             </TouchableOpacity>
           )}
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Android's native system dialogs render outside the RN view tree, so

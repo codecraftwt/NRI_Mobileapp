@@ -251,7 +251,7 @@ function SupportTicketDetail({ route, navigation }) {
   const selStatusLabel = STATUS_CHOICES.find(o => o.key === selKey)?.label || ticket?.statusLabel || 'Select status';
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
       {NavyHeader}
 
       {/* Segmented tabs */}
@@ -373,14 +373,23 @@ function SupportTicketDetail({ route, navigation }) {
                   <Text style={styles.internalToggleText}>Internal note (staff only, hidden from customer)</Text>
                 </TouchableOpacity>
                 <View style={styles.replyRow}>
-                  <TextInput
-                    style={[styles.replyInput, internalNote && styles.replyInputInternal]}
-                    placeholder={internalNote ? 'Add an internal note...' : 'Type a reply to the customer...'}
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                    value={replyText}
-                    onChangeText={setReplyText}
-                  />
+                  <ScrollView
+                    style={[styles.replyInputScroll, internalNote && styles.replyInputInternal]}
+                    showsVerticalScrollIndicator
+                    persistentScrollbar
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <TextInput
+                      style={styles.replyInput}
+                      placeholder={internalNote ? 'Add an internal note...' : 'Type a reply to the customer...'}
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      scrollEnabled={false}
+                      value={replyText}
+                      onChangeText={setReplyText}
+                    />
+                  </ScrollView>
                   <TouchableOpacity style={[styles.sendBtn, internalNote && styles.sendBtnInternal, (!replyText.trim() || sending) && styles.sendBtnDisabled]} onPress={handleSend} disabled={!replyText.trim() || sending}>
                     {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Icon name="send" size={20} color="#FFFFFF" />}
                   </TouchableOpacity>
@@ -677,7 +686,8 @@ const styles = StyleSheet.create({
   checkboxOn: { backgroundColor: '#B45309', borderColor: '#B45309' },
   internalToggleText: { fontSize: 12, color: '#64748B' },
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 110, minHeight: 44 },
+  replyInputScroll: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, backgroundColor: '#F8FAFC', maxHeight: 110, minHeight: 44 },
+  replyInput: { paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', minHeight: 44 },
   replyInputInternal: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
   sendBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#D94625', justifyContent: 'center', alignItems: 'center' },
   sendBtnInternal: { backgroundColor: '#B45309' },

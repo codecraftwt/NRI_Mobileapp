@@ -776,7 +776,7 @@ const styles = StyleSheet.create({
   // Tabs
   tabBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, backgroundColor: '#FDFBF7' },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0' },
-  tabBtnActive: { backgroundColor: '#20304C', borderColor: '#20304C' },
+  tabBtnActive: { backgroundColor: '#D94625', borderColor: '#D94625' },
   tabLabel: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
   tabLabelActive: { color: '#FFFFFF' },
   tabCount: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' },

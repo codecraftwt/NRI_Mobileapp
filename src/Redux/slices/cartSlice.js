@@ -54,6 +54,7 @@ function mergeServerIntoLocal(state, serverItems) {
         cityName: existing.cityName ?? si.cityName,
         cityId: existing.cityId ?? si.cityId,
         pincode: existing.pincode ?? si.pincode,
+        imageUrl: si.imageUrl ?? existing.imageUrl,
         // The server's billing_mode is authoritative once synced — corrects
         // the guest-set isRecurring flag (e.g. after a "switch to recurring"
         // re-add from another device/session).
