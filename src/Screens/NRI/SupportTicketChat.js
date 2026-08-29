@@ -225,7 +225,7 @@ function SupportTicketChat({ route, navigation }) {
   const isClosed = ['resolved', 'closed'].includes((ticket.status || '').toLowerCase());
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
       <Header navigation={navigation} title="Support Chat" showBack />
 
       {showCreatedBanner && (
@@ -270,6 +270,7 @@ function SupportTicketChat({ route, navigation }) {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {replies.map(msg => {
               // A reply that carries a proposed price is a Custom Plan proposal —
@@ -389,6 +390,7 @@ const styles = StyleSheet.create({
   chatWrap: { flex: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
   bannerWrap: { paddingHorizontal: 20, paddingTop: 12 },
   card: {
+    flexShrink: 1,
     maxHeight: '100%',
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
