@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, StatusBar, TextInput, Modal, ActivityIndicator, RefreshControl, Image, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, KeyboardAvoidingView, StatusBar, TextInput, Modal, ActivityIndicator, RefreshControl, Image, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -245,10 +245,9 @@ function Reports({ navigation }) {
 
       {/* Review modal */}
       <Modal visible={!!reviewFor} transparent animationType="fade" onRequestClose={() => setReviewFor(null)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setReviewFor(null)}>
+            <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Review Report</Text>
                 <Text style={styles.modalSub}>Add an optional review comment, then mark this report reviewed.</Text>
                 <TextInput
@@ -272,9 +271,8 @@ function Reports({ navigation }) {
                     {reviewingId ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalBtnPrimaryText}>Mark Reviewed</Text>}
                   </TouchableOpacity>
                 </View>
-              </View>
             </View>
-          </TouchableWithoutFeedback>
+          </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
 

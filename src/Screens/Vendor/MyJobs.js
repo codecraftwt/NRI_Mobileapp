@@ -13,7 +13,7 @@ const TABS = [
 
 function getStatusPill(status) {
   switch (status) {
-    case 'Completed': return { bg: '#E8ECF3', text: '#20304C', accent: '#20304C', label: 'Completed' };
+    case 'Completed': return { bg: '#D1FAE5', text: '#059669', accent: '#059669', label: 'Completed' };
     case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C', accent: '#F97316', label: 'In Progress' };
     case 'New': return { bg: '#DBEAFE', text: '#1D4ED8', accent: '#3B82F6', label: 'New' };
     case 'Assigned': return { bg: '#EDE9FE', text: '#6D28D9', accent: '#8B5CF6', label: 'Assigned' };

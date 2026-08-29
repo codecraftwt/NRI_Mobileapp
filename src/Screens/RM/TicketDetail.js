@@ -205,7 +205,7 @@ function TicketDetail({ navigation, route }) {
       ) : (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={80}
         >
           {/* Segmented tabs */}
@@ -588,14 +588,23 @@ function TicketDetail({ navigation, route }) {
                   )}
 
                   <View style={styles.composerRow}>
-                    <TextInput
-                      style={styles.composerInput}
-                      placeholder="Add an internal note..."
-                      placeholderTextColor="#94A3B8"
-                      value={noteText}
-                      onChangeText={setNoteText}
-                      multiline
-                    />
+                    <ScrollView
+                      style={styles.composerInputScroll}
+                      showsVerticalScrollIndicator
+                      persistentScrollbar
+                      nestedScrollEnabled
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      <TextInput
+                        style={styles.composerInput}
+                        placeholder="Add an internal note..."
+                        placeholderTextColor="#94A3B8"
+                        value={noteText}
+                        onChangeText={setNoteText}
+                        multiline
+                        scrollEnabled={false}
+                      />
+                    </ScrollView>
                     <TouchableOpacity
                       style={[styles.composerBtn, (!noteText.trim() || addingNote) && styles.btnDisabled]}
                       onPress={handleAddNote}
@@ -883,7 +892,8 @@ const styles = StyleSheet.create({
   emptyBlockText: { fontSize: 13, color: '#94A3B8' },
 
   composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  composerInput: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#1E293B', maxHeight: 100, minHeight: 44 },
+  composerInputScroll: { flex: 1, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, maxHeight: 100, minHeight: 44 },
+  composerInput: { paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#1E293B', minHeight: 44 },
   composerBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#20304C', justifyContent: 'center', alignItems: 'center' },
   btnDisabled: { opacity: 0.5 },
 

@@ -137,7 +137,7 @@ function SupportChat({ route, navigation }) {
   const pill = getStatusPill(chat?.statusLabel);
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Header navigation={navigation} title="Support Chat" showBack />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -182,14 +182,23 @@ function SupportChat({ route, navigation }) {
             </View>
           ) : (
             <View style={styles.replyRow}>
-              <TextInput
-                style={styles.replyInput}
-                placeholder={chat ? 'Type a reply...' : 'Type your message...'}
-                placeholderTextColor="#94A3B8"
-                multiline
-                value={replyText}
-                onChangeText={setReplyText}
-              />
+              <ScrollView
+                style={styles.replyInputScroll}
+                showsVerticalScrollIndicator
+                persistentScrollbar
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                <TextInput
+                  style={styles.replyInput}
+                  placeholder={chat ? 'Type a reply...' : 'Type your message...'}
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  scrollEnabled={false}
+                  value={replyText}
+                  onChangeText={setReplyText}
+                />
+              </ScrollView>
               <TouchableOpacity style={[styles.sendBtn, (!replyText.trim() || sending) && styles.sendBtnDisabled]} onPress={handleSend} disabled={!replyText.trim() || sending}>
                 {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
                   <>
@@ -244,7 +253,8 @@ const styles = StyleSheet.create({
   resolvedNoteText: { fontSize: 13, color: '#059669', fontFamily: typography.labelMedium.fontFamily },
 
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },
+  replyInputScroll: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, backgroundColor: '#F8FAFC', maxHeight: 100, minHeight: 44 },
+  replyInput: { paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', minHeight: 44 },
   sendBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D94625', borderRadius: 20, paddingHorizontal: 16, height: 44 },
   sendBtnDisabled: { opacity: 0.5 },
   sendBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
