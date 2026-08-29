@@ -385,7 +385,7 @@ function Services({ navigation, route }) {
                     <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
                     <View style={styles.cardMetaRow}>
                       {hasLocation ? (
-                        <Text style={styles.cardPrice}>{priceText(s.pricing, mode)}</Text>
+                        <Text style={styles.cardPrice} numberOfLines={1}>{priceText(s.pricing, mode)}</Text>
                       ) : (
                         <Text style={styles.cardPriceHint} numberOfLines={1}>Set location for price</Text>
                       )}
@@ -533,9 +533,9 @@ const styles = StyleSheet.create({
   cardName: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
   cardCat: { fontSize: 11, color: '#94A3B8' },
   cardMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  cardPrice: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#D94625' },
+  cardPrice: { flexShrink: 1, fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#D94625' },
   cardPriceHint: { flex: 1, fontSize: 11, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
-  cardDurationChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  cardDurationChip: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
   cardDuration: { fontSize: 10, color: '#94A3B8' },
 
   loadingBox: { paddingVertical: 50, alignItems: 'center', gap: 10 },
