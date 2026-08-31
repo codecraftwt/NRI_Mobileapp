@@ -655,6 +655,22 @@ function SubmitRequest({ navigation }) {
     dispatch(clearCart());
     showToast('Cart cleared', 'success');
   };
+  const confirmClearCart = () => {
+    showAlert('Clear Cart', 'Remove all services from your cart?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: handleClearCart },
+    ]);
+  };
+  const confirmRemoveItem = (item) => {
+    showAlert('Remove Service', `Remove "${item.name}" from your cart?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => { removeCartService(item.serviceId); showToast('Service removed from cart', 'success'); },
+      },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -670,7 +686,7 @@ function SubmitRequest({ navigation }) {
             <Text style={styles.headerSub}>{items.length} service{items.length === 1 ? '' : 's'} selected</Text>
           </View>
           {!empty && (
-            <TouchableOpacity style={styles.clearBtn} onPress={handleClearCart}>
+            <TouchableOpacity style={styles.clearBtn} onPress={confirmClearCart}>
               <Icon name="delete-outline" size={16} color="#FFFFFF" />
               <Text style={styles.clearBtnText}>Clear</Text>
             </TouchableOpacity>
@@ -718,7 +734,7 @@ function SubmitRequest({ navigation }) {
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                <TouchableOpacity onPress={() => { removeCartService(it.serviceId); showToast('Service removed from cart', 'success'); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => confirmRemoveItem(it)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="delete-outline" size={20} color="#EF4444" />
                 </TouchableOpacity>
               </View>

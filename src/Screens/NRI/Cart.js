@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -62,6 +62,20 @@ function Cart({ navigation }) {
 
   const empty = items.length === 0;
 
+  const confirmRemoveItem = (item) => {
+    Alert.alert('Remove Service', `Remove "${item.name}" from your cart?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => dispatch(removeFromCart(item.serviceId)) },
+    ]);
+  };
+
+  const confirmClearCart = () => {
+    Alert.alert('Clear Cart', 'Remove all services from your cart?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => dispatch(clearCart()) },
+    ]);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
@@ -82,7 +96,7 @@ function Cart({ navigation }) {
             <Text style={styles.headerSub}>{items.length} service{items.length === 1 ? '' : 's'} added</Text>
           </View>
           {!empty && (
-            <TouchableOpacity style={styles.clearBtn} onPress={() => dispatch(clearCart())}>
+            <TouchableOpacity style={styles.clearBtn} onPress={confirmClearCart}>
               <Icon name="delete-outline" size={16} color="#FFFFFF" />
               <Text style={styles.clearBtnText}>Clear cart</Text>
             </TouchableOpacity>
@@ -129,7 +143,7 @@ function Cart({ navigation }) {
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                <TouchableOpacity onPress={() => dispatch(removeFromCart(it.serviceId))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => confirmRemoveItem(it)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Icon name="delete-outline" size={20} color="#EF4444" />
                 </TouchableOpacity>
               </View>

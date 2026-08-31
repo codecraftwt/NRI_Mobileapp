@@ -197,10 +197,12 @@ function TicketDetail({ navigation, route }) {
       ) : failed && !detail ? (
         <View style={styles.centerFill}>
           <Icon name="error-outline" size={44} color="#CBD5E1" />
-          <Text style={styles.errorText}>{error?.message || 'Could not load this request.'}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={refresh}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+          <Text style={styles.errorText}>{error?.status === 403 ? 'This request is assigned to another RM.' : (error?.message || 'Could not load this request.')}</Text>
+          {error?.status !== 403 && (
+            <TouchableOpacity style={styles.retryBtn} onPress={refresh}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <KeyboardAvoidingView
