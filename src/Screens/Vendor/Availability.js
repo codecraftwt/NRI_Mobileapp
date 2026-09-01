@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography } from '../../theme/typography';
@@ -35,14 +35,6 @@ function Availability({ navigation }) {
       setReason(profile.availability.reason || '');
     }
   }, [profile]);
-
-  const onDateChange = (event, selected) => {
-    const field = picker;
-    setPicker(null);
-    if (event.type === 'dismissed' || !selected) return;
-    if (field === 'from') setFromDate(selected);
-    else if (field === 'to') setToDate(selected);
-  };
 
   const handleMarkAvailable = async () => {
     try {
@@ -141,15 +133,16 @@ function Availability({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {picker && (
-            <DateTimePicker
-              value={(picker === 'from' ? fromDate : toDate) || new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              minimumDate={picker === 'to' && fromDate ? fromDate : undefined}
-              onChange={onDateChange}
-            />
-          )}
+          <CustomDateTimePicker
+            visible={!!picker}
+            mode="date"
+            value={picker === 'from' ? fromDate : toDate}
+            minimumDate={picker === 'to' && fromDate ? fromDate : undefined}
+            disablePastDates
+            title={picker === 'from' ? 'From Date' : 'To Date'}
+            onConfirm={(date) => { if (picker === 'from') setFromDate(date); else setToDate(date); setPicker(null); }}
+            onCancel={() => setPicker(null)}
+          />
         </View>
       </ScrollView>
       <AppAlert {...alertProps} />

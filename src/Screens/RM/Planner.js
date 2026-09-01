@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Modal, TextInput, Platform, Alert, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import { typography } from '../../theme/typography';
 import { useRmPlanner } from '../../Hooks/RM/useRmPlanner';
 import { useRmCustomers } from '../../Hooks/RM/useRmCustomers';
@@ -44,34 +44,9 @@ function Planner({ navigation }) {
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showCustomerPicker, setShowCustomerPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [pendingDate, setPendingDate] = useState(null);
 
   const resetForm = () => {
     setTitle(''); setType('follow_up'); setDueAt(null); setCustomerId(null); setCustomerName(''); setNotes('');
-  };
-
-  const handleDateChange = (event, selected) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-      if (event.type === 'dismissed' || !selected) return;
-      setPendingDate(selected);
-      setShowTimePicker(true);
-    } else if (selected) {
-      // iOS spinner fires onChange continuously as the wheels are scrolled —
-      // closing here (like Android's dialog) would dismiss after the first
-      // tick. Keep it open; the Done button below closes it.
-      setDueAt(selected);
-    }
-  };
-
-  const handleTimeChange = (event, selected) => {
-    setShowTimePicker(false);
-    if (event.type === 'dismissed' || !selected || !pendingDate) { setPendingDate(null); return; }
-    const combined = new Date(pendingDate);
-    combined.setHours(selected.getHours(), selected.getMinutes());
-    setDueAt(combined);
-    setPendingDate(null);
   };
 
   const submit = () => {
@@ -296,44 +271,18 @@ function Planner({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {/* iOS date/time picker overlay — spinner fires onChange continuously
-              while scrolling, so it stays open until Done is tapped. */}
-          {Platform.OS === 'ios' && showDatePicker && (
-            <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)}>
-              <TouchableOpacity activeOpacity={1} style={styles.iosPickerSheet} onPress={() => {}}>
-                <DateTimePicker
-                  value={dueAt || new Date()}
-                  mode="datetime"
-                  display="spinner"
-                  onChange={handleDateChange}
-                />
-                <TouchableOpacity style={styles.iosPickerDoneBtn} onPress={() => setShowDatePicker(false)} activeOpacity={0.8}>
-                  <Text style={styles.iosPickerDoneText}>Done</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          )}
+          <CustomDateTimePicker
+            inline
+            visible={showDatePicker}
+            mode="datetime"
+            value={dueAt}
+            disablePastDates
+            title="When"
+            onConfirm={(date) => { setDueAt(date); setShowDatePicker(false); }}
+            onCancel={() => setShowDatePicker(false)}
+          />
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* Android's native system dialogs render outside the RN view tree, so
-          they don't need to live inside the Add modal like the overlays above. */}
-      {Platform.OS === 'android' && showDatePicker && (
-        <DateTimePicker
-          value={dueAt || new Date()}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
-      )}
-      {Platform.OS === 'android' && showTimePicker && (
-        <DateTimePicker
-          value={pendingDate || dueAt || new Date()}
-          mode="time"
-          display="default"
-          onChange={handleTimeChange}
-        />
-      )}
     </View>
   );
 }
@@ -400,9 +349,6 @@ const styles = StyleSheet.create({
   pickerOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 28 },
   pickerSheet: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16 },
   pickerTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 8 },
-  iosPickerSheet: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingTop: 8, paddingBottom: 16, paddingHorizontal: 16 },
-  iosPickerDoneBtn: { backgroundColor: '#20304C', borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 8 },
-  iosPickerDoneText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
   pickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   pickerRowText: { flex: 1, fontSize: 15, color: '#334155' },
 });

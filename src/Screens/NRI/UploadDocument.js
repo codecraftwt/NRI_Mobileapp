@@ -8,12 +8,11 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
@@ -182,17 +181,15 @@ function UploadDocument({ navigation }) {
               </Text>
               <Icon name="event" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={expiryDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event, selected) => {
-                  setShowDatePicker(false);
-                  if (selected) setExpiryDate(selected);
-                }}
-              />
-            )}
+            <CustomDateTimePicker
+              visible={showDatePicker}
+              mode="date"
+              value={expiryDate}
+              disablePastDates
+              title="Expiry Date"
+              onConfirm={(date) => { setExpiryDate(date); setShowDatePicker(false); }}
+              onCancel={() => setShowDatePicker(false)}
+            />
           </View>
 
           <TouchableOpacity

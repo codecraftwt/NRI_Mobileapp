@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Platform, Alert, Image } from 'react-native';
 import RNBlobUtil from 'react-native-blob-util';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -17,6 +16,7 @@ import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
@@ -167,8 +167,6 @@ function SubmitRequest({ navigation }) {
   // Preferred date/time picker (past dates disabled — today onward only).
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [pendingDate, setPendingDate] = useState(null);
 
   const { stateNames, states } = useStates();
   const { cityNames, cities } = useCities(reqForm.state);
@@ -390,26 +388,6 @@ function SubmitRequest({ navigation }) {
   };
   const handleRemoveDocument = (docId) => setDocumentFiles(prev => { const n = { ...prev }; delete n[docId]; return n; });
 
-  // Preferred date/time. Android needs date-then-time chaining; iOS does both
-  // in one spinner. Past dates are blocked via minimumDate on the picker.
-  const handleDateChange = (event, selected) => {
-    setShowDatePicker(false);
-    if (event.type === 'dismissed' || !selected) return;
-    if (Platform.OS === 'android') {
-      setPendingDate(selected);
-      setShowTimePicker(true);
-    } else {
-      setPreferredDate(selected);
-    }
-  };
-  const handleTimeChange = (event, selected) => {
-    setShowTimePicker(false);
-    if (event.type === 'dismissed' || !selected || !pendingDate) { setPendingDate(null); return; }
-    const combined = new Date(pendingDate);
-    combined.setHours(selected.getHours(), selected.getMinutes());
-    setPreferredDate(combined);
-    setPendingDate(null);
-  };
   const formattedPreferred = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
@@ -862,23 +840,15 @@ function SubmitRequest({ navigation }) {
               </Text>
               <Icon name="event" size={18} color="#64748B" />
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={preferredDate || new Date()}
-                mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
-                onChange={handleDateChange}
-              />
-            )}
-            {showTimePicker && (
-              <DateTimePicker
-                value={pendingDate || preferredDate || new Date()}
-                mode="time"
-                display="default"
-                onChange={handleTimeChange}
-              />
-            )}
+            <CustomDateTimePicker
+              visible={showDatePicker}
+              mode="datetime"
+              value={preferredDate}
+              minimumDate={new Date()}
+              title="Preferred Date & Time"
+              onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
+              onCancel={() => setShowDatePicker(false)}
+            />
 
             <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
 

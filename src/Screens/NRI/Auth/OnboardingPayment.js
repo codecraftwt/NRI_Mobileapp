@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, Alert, Image } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../../Components/CustomDateTimePicker';
 import RNBlobUtil from 'react-native-blob-util';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../../Utils/localFileCopy';
@@ -193,8 +193,6 @@ function OnboardingPayment({ route, navigation }) {
   // Preferred date/time picker state.
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [pendingDate, setPendingDate] = useState(null);
 
   // "Who / Where — for your cart's service requests" form. Location prefilled
   // from the first cart item (the city the services were priced for).
@@ -385,26 +383,6 @@ function OnboardingPayment({ route, navigation }) {
     Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
   };
 
-  // Preferred date/time. Android can't do a one-step datetime picker, so pick
-  // the date first then chain the time picker; iOS does both in one spinner.
-  const handleDateChange = (event, selected) => {
-    setShowDatePicker(false);
-    if (event.type === 'dismissed' || !selected) return;
-    if (Platform.OS === 'android') {
-      setPendingDate(selected);
-      setShowTimePicker(true);
-    } else {
-      setPreferredDate(selected);
-    }
-  };
-  const handleTimeChange = (event, selected) => {
-    setShowTimePicker(false);
-    if (event.type === 'dismissed' || !selected || !pendingDate) { setPendingDate(null); return; }
-    const combined = new Date(pendingDate);
-    combined.setHours(selected.getHours(), selected.getMinutes());
-    setPreferredDate(combined);
-    setPendingDate(null);
-  };
   const formattedPreferred = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
@@ -715,23 +693,15 @@ function OnboardingPayment({ route, navigation }) {
               </Text>
               <Icon name="event" size={18} color="#64748B" />
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={preferredDate || new Date()}
-                mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
-                onChange={handleDateChange}
-              />
-            )}
-            {showTimePicker && (
-              <DateTimePicker
-                value={pendingDate || preferredDate || new Date()}
-                mode="time"
-                display="default"
-                onChange={handleTimeChange}
-              />
-            )}
+            <CustomDateTimePicker
+              visible={showDatePicker}
+              mode="datetime"
+              value={preferredDate}
+              minimumDate={new Date()}
+              title="Preferred Date & Time"
+              onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
+              onCancel={() => setShowDatePicker(false)}
+            />
 
             <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Platform, Modal, FlatList, KeyboardAvoidingView } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
@@ -145,17 +145,16 @@ export default function ProfilePersonal({ navigation }) {
             <Text style={[styles.selectText, !formattedDob && styles.placeholderText]}>{formattedDob || 'dd-mm-yyyy'}</Text>
             <Icon name="event" size={20} color="#64748B" />
           </TouchableOpacity>
-          {showDobPicker && (
-            <DateTimePicker
-              value={dob || new Date(1990, 0, 1)}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selected) => {
-                setShowDobPicker(false);
-                if (selected) setDob(selected);
-              }}
-            />
-          )}
+          <CustomDateTimePicker
+            visible={showDobPicker}
+            mode="date"
+            value={dob}
+            initialDate={new Date(1990, 0, 1)}
+            maximumDate={new Date()}
+            title="Date of Birth"
+            onConfirm={(date) => { setDob(date); setShowDobPicker(false); }}
+            onCancel={() => setShowDobPicker(false)}
+          />
 
           <SelectField label="Gender" value={gender} placeholder="Select Gender" options={GENDERS} onSelect={setGender} />
 

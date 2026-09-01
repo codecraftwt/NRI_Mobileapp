@@ -8,13 +8,12 @@ import {
   TextInput,
   Modal,
   FlatList,
-  Platform,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
@@ -192,8 +191,6 @@ function CreateTicket({ route, navigation }) {
   const [notes, setNotes] = useState('');
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [pendingDate, setPendingDate] = useState(null);
   const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
@@ -616,35 +613,6 @@ function CreateTicket({ route, navigation }) {
       delete next[docId];
       return next;
     });
-  };
-
-  // Android's native picker has no combined "datetime" mode — a single
-  // `mode="datetime"` component crashes there ("Cannot read property
-  // 'dismiss' of undefined") because it tries to chain two native pickers
-  // internally without properly wiring up dismissal. iOS's spinner display
-  // does support "datetime" in one step, so only Android needs the
-  // date-then-time flow.
-  const handleDateChange = (event, selected) => {
-    setShowDatePicker(false);
-    if (event.type === 'dismissed' || !selected) return;
-    if (Platform.OS === 'android') {
-      setPendingDate(selected);
-      setShowTimePicker(true);
-    } else {
-      setPreferredDate(selected);
-    }
-  };
-
-  const handleTimeChange = (event, selected) => {
-    setShowTimePicker(false);
-    if (event.type === 'dismissed' || !selected || !pendingDate) {
-      setPendingDate(null);
-      return;
-    }
-    const combined = new Date(pendingDate);
-    combined.setHours(selected.getHours(), selected.getMinutes());
-    setPreferredDate(combined);
-    setPendingDate(null);
   };
 
   // After a successful booking/payment, land on the main Services page (the
@@ -1190,22 +1158,15 @@ function CreateTicket({ route, navigation }) {
               </Text>
               <Icon name="event" size={18} color="#666" />
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={preferredDate || new Date()}
-                mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={handleDateChange}
-              />
-            )}
-            {showTimePicker && (
-              <DateTimePicker
-                value={pendingDate || preferredDate || new Date()}
-                mode="time"
-                display="default"
-                onChange={handleTimeChange}
-              />
-            )}
+            <CustomDateTimePicker
+              visible={showDatePicker}
+              mode="datetime"
+              value={preferredDate}
+              disablePastDates
+              title="Preferred Date & Time"
+              onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
+              onCancel={() => setShowDatePicker(false)}
+            />
           </View>
 
           <View style={styles.fieldWrap}>

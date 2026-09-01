@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { addFamilyMember, updateFamilyMember } from '../../Redux/slices/familySlice';
@@ -288,18 +288,16 @@ function AddFamilyMember({ navigation, route }) {
                   </Text>
                   <Icon name="event" size={20} color="#64748B" />
                 </TouchableOpacity>
-                {showDobPicker && (
-                  <DateTimePicker
-                    value={dob || new Date(1980, 0, 1)}
-                    mode="date"
-                    maximumDate={new Date()}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={(event, selected) => {
-                      setShowDobPicker(false);
-                      if (selected) setDob(selected);
-                    }}
-                  />
-                )}
+                <CustomDateTimePicker
+                  visible={showDobPicker}
+                  mode="date"
+                  value={dob}
+                  initialDate={new Date(1980, 0, 1)}
+                  maximumDate={new Date()}
+                  title="Date of Birth"
+                  onConfirm={(date) => { setDob(date); setShowDobPicker(false); }}
+                  onCancel={() => setShowDobPicker(false)}
+                />
               </View>
 
               <View style={styles.fieldWrap}>

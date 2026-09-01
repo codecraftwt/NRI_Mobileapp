@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import Config from 'react-native-config';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
@@ -10,6 +9,8 @@ import { ToastProvider } from './src/context/ToastContext';
 import AppNavigator from './src/Navigations/AppNavigator';
 import { navigationRef } from './src/Navigations/navigationRef';
 import NetworkStatusBanner from './src/Components/NetworkStatusBanner';
+import AppUpdateModal from './src/Components/AppUpdateModal';
+import useAppVersionCheck from './src/Hooks/useAppVersionCheck';
 import {
   requestUserPermission,
   listenTokenRefresh,
@@ -25,6 +26,8 @@ import {
 import { handleNotificationNavigation } from './src/Services/firebase/notificationRouting';
 
 function App() {
+  const appUpdate = useAppVersionCheck();
+
   useEffect(() => {
     // Ask for permission, then fetch the token (send this to your backend so
     // the device can be targeted). Listeners are torn down on unmount.
@@ -78,6 +81,13 @@ function App() {
                 <AppNavigator />
               </NavigationContainer>
               <NetworkStatusBanner />
+              <AppUpdateModal
+                visible={appUpdate.visible}
+                forceUpdate={appUpdate.forceUpdate}
+                message={appUpdate.message}
+                onUpdate={appUpdate.onUpdate}
+                onClose={appUpdate.onClose}
+              />
             </ToastProvider>
         </SafeAreaProvider>
       </PersistGate>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { typography } from '../../theme/typography';
@@ -41,8 +41,6 @@ function JobDetail({ route, navigation }) {
   // Accept — ETA commitment
   const [committedEta, setCommittedEta] = useState(null);
   const [showEtaPicker, setShowEtaPicker] = useState(false);
-  const [showEtaTimePicker, setShowEtaTimePicker] = useState(false);
-  const [pendingEta, setPendingEta] = useState(null);
 
   // Reject — mandatory reason (revealed on first tap)
   const [rejecting, setRejecting] = useState(false);
@@ -174,31 +172,8 @@ function JobDetail({ route, navigation }) {
     }
   };
 
-  const onEtaDateChange = (event, selected) => {
-    setShowEtaPicker(false);
-    if (event.type === 'dismissed' || !selected) return;
-    if (Platform.OS === 'android') {
-      setPendingEta(selected);
-      setShowEtaTimePicker(true);
-    } else {
-      setCommittedEta(selected);
-    }
-  };
-
-  const onEtaTimeChange = (event, selected) => {
-    setShowEtaTimePicker(false);
-    if (event.type === 'dismissed' || !selected || !pendingEta) {
-      setPendingEta(null);
-      return;
-    }
-    const combined = new Date(pendingEta);
-    combined.setHours(selected.getHours(), selected.getMinutes());
-    setCommittedEta(combined);
-    setPendingEta(null);
-  };
-
   const formattedEta = committedEta
-    ? committedEta.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    ? committedEta.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
     : '';
 
   const handleDownloadInvoice = async () => {
@@ -413,22 +388,15 @@ function JobDetail({ route, navigation }) {
                 </Text>
                 <Icon name="event" size={18} color="#64748B" />
               </TouchableOpacity>
-              {showEtaPicker && (
-                <DateTimePicker
-                  value={committedEta || new Date()}
-                  mode={Platform.OS === 'ios' ? 'datetime' : 'date'}
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onEtaDateChange}
-                />
-              )}
-              {showEtaTimePicker && (
-                <DateTimePicker
-                  value={pendingEta || committedEta || new Date()}
-                  mode="time"
-                  display="default"
-                  onChange={onEtaTimeChange}
-                />
-              )}
+              <CustomDateTimePicker
+                visible={showEtaPicker}
+                mode="datetime"
+                value={committedEta}
+                disablePastDates
+                title="Committed Completion Time"
+                onConfirm={(date) => { setCommittedEta(date); setShowEtaPicker(false); }}
+                onCancel={() => setShowEtaPicker(false)}
+              />
               <View style={styles.slaRow}>
                 <Icon name="info-outline" size={14} color="#94A3B8" />
                 <Text style={styles.slaHint}>SLA deadline: {job.completeBy}</Text>
