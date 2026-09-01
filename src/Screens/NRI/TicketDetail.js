@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Alert, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -158,11 +158,15 @@ function TicketDetail({ route, navigation }) {
     : (preGstSubtotal > 0 && gstAmount > 0 ? gstAmount / preGstSubtotal : null);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <Header navigation={navigation} title={ticket.ticketNumber} showBack />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
         <TouchableOpacity
@@ -478,7 +482,7 @@ function TicketDetail({ route, navigation }) {
         </View>
       </Modal>
       {attachmentPreview}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -513,7 +517,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  scrollContent: { paddingBottom: 60, paddingHorizontal: 16, paddingTop: 16, gap: 16 },
+  scrollContent: { paddingBottom: 120, paddingHorizontal: 16, paddingTop: 16, gap: 16 },
   
   card: { 
     backgroundColor: '#FFFFFF',

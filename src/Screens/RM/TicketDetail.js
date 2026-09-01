@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Linking, Alert, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
 import { typography } from '../../theme/typography';
 import { useToast } from '../../context/ToastContext';
@@ -71,6 +72,7 @@ const TABS = [
 ];
 
 function TicketDetail({ navigation, route }) {
+  const scrollRef = useRef(null);
   const ticketId = route?.params?.ticketId;
   const {
     detail, loading, failed, error, refresh,
@@ -159,6 +161,12 @@ function TicketDetail({ navigation, route }) {
     }).catch(() => {});
   };
 
+  const handleNoteFocus = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd?.({ animated: true });
+    }, 250);
+  };
+
   const cur = statusStyle(detail?.status);
   const sla = detail ? slaBadge(detail.slaDeadline, detail.overdue, detail.status) : null;
 
@@ -208,7 +216,6 @@ function TicketDetail({ navigation, route }) {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={80}
         >
           {/* Segmented tabs */}
           <View style={styles.tabBar}>
@@ -229,7 +236,15 @@ function TicketDetail({ navigation, route }) {
             })}
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <KeyboardAwareScrollView
+            innerRef={(ref) => { scrollRef.current = ref; }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            enableOnAndroid={false}
+            extraScrollHeight={180}
+            extraHeight={180}
+          >
 
             {/* ---------- OVERVIEW ---------- */}
             {tab === 'overview' && (
@@ -590,23 +605,16 @@ function TicketDetail({ navigation, route }) {
                   )}
 
                   <View style={styles.composerRow}>
-                    <ScrollView
-                      style={styles.composerInputScroll}
-                      showsVerticalScrollIndicator
-                      persistentScrollbar
-                      nestedScrollEnabled
-                      keyboardShouldPersistTaps="handled"
-                    >
-                      <TextInput
-                        style={styles.composerInput}
-                        placeholder="Add an internal note..."
-                        placeholderTextColor="#94A3B8"
-                        value={noteText}
-                        onChangeText={setNoteText}
-                        multiline
-                        scrollEnabled={false}
-                      />
-                    </ScrollView>
+                    <TextInput
+                      style={[styles.composerInputScroll, styles.composerInput]}
+                      placeholder="Add an internal note..."
+                      placeholderTextColor="#94A3B8"
+                      value={noteText}
+                      onChangeText={setNoteText}
+                      onFocus={handleNoteFocus}
+                      multiline
+                      scrollEnabled
+                    />
                     <TouchableOpacity
                       style={[styles.composerBtn, (!noteText.trim() || addingNote) && styles.btnDisabled]}
                       onPress={handleAddNote}
@@ -646,7 +654,7 @@ function TicketDetail({ navigation, route }) {
               </>
             )}
 
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </KeyboardAvoidingView>
       )}
 
