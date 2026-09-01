@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Header from '../../Components/Header';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
@@ -163,10 +164,13 @@ function TicketDetail({ route, navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Header navigation={navigation} title={ticket.ticketNumber} showBack />
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        enableOnAndroid={false}
+        extraScrollHeight={80}
+        extraHeight={80}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
         <TouchableOpacity
@@ -448,7 +452,7 @@ function TicketDetail({ route, navigation }) {
             )}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Styled "Thank You" confirmation after a rating is submitted */}
       <Modal

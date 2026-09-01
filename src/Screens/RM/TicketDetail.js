@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Linking, Alert, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -72,7 +72,6 @@ const TABS = [
 ];
 
 function TicketDetail({ navigation, route }) {
-  const scrollRef = useRef(null);
   const ticketId = route?.params?.ticketId;
   const {
     detail, loading, failed, error, refresh,
@@ -161,12 +160,6 @@ function TicketDetail({ navigation, route }) {
     }).catch(() => {});
   };
 
-  const handleNoteFocus = () => {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd?.({ animated: true });
-    }, 250);
-  };
-
   const cur = statusStyle(detail?.status);
   const sla = detail ? slaBadge(detail.slaDeadline, detail.overdue, detail.status) : null;
 
@@ -237,13 +230,12 @@ function TicketDetail({ navigation, route }) {
           </View>
 
           <KeyboardAwareScrollView
-            innerRef={(ref) => { scrollRef.current = ref; }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             enableOnAndroid={false}
-            extraScrollHeight={180}
-            extraHeight={180}
+            extraScrollHeight={80}
+            extraHeight={80}
           >
 
             {/* ---------- OVERVIEW ---------- */}
@@ -611,7 +603,6 @@ function TicketDetail({ navigation, route }) {
                       placeholderTextColor="#94A3B8"
                       value={noteText}
                       onChangeText={setNoteText}
-                      onFocus={handleNoteFocus}
                       multiline
                       scrollEnabled
                     />
