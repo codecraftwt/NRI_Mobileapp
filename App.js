@@ -83,7 +83,6 @@ function App() {
               <NetworkStatusBanner />
               <AppUpdateModal
                 visible={appUpdate.visible}
-                forceUpdate={appUpdate.forceUpdate}
                 message={appUpdate.message}
                 onUpdate={appUpdate.onUpdate}
                 onClose={appUpdate.onClose}

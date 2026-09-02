@@ -3,39 +3,27 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors, typography, radius, spacing } from '../theme';
 
-// Update prompt shown from a startup version-check (see App.js). Two modes:
-// forceUpdate = true blocks the app (no "Later" button, no backdrop/back-button
-// dismiss) since current_version is below the admin-configured min_version.
-// forceUpdate = false is a dismissible nudge for a merely-available update.
-export default function AppUpdateModal({ visible, forceUpdate, message, onUpdate, onClose }) {
+// Dismissible update prompt shown from a startup version-check (see App.js)
+// when current_version is below the admin-configured latest_version.
+export default function AppUpdateModal({ visible, message, onUpdate, onClose }) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={forceUpdate ? () => {} : onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.card}>
           <View style={styles.iconWrap}>
             <Icon name="system-update" size={30} color={colors.primary} />
           </View>
-          <Text style={styles.title}>{forceUpdate ? 'Update Required' : 'Update Available'}</Text>
+          <Text style={styles.title}>Update Available</Text>
           <Text style={styles.desc}>
-            {message ||
-              (forceUpdate
-                ? 'A new version of NRI Circle is required to continue using the app. Please update now.'
-                : 'A new version of NRI Circle is available with improvements and fixes.')}
+            {message || 'A new version of NRI Circle is available with improvements and fixes.'}
           </Text>
           <TouchableOpacity style={styles.updateBtn} onPress={onUpdate} activeOpacity={0.85}>
             <Icon name="system-update-alt" size={16} color="#FFFFFF" />
             <Text style={styles.updateBtnText}>Update Now</Text>
           </TouchableOpacity>
-          {!forceUpdate && (
-            <TouchableOpacity style={styles.laterBtn} onPress={onClose}>
-              <Text style={styles.laterBtnText}>Later</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.laterBtn} onPress={onClose}>
+            <Text style={styles.laterBtnText}>Later</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>

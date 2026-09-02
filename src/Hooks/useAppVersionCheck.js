@@ -10,7 +10,6 @@ const STORE_URLS = {
 
 export default function useAppVersionCheck() {
   const [visible, setVisible] = useState(false);
-  const [forceUpdate, setForceUpdate] = useState(false);
   const [message, setMessage] = useState('');
   const [storeUrl, setStoreUrl] = useState(STORE_URLS[Platform.OS]);
 
@@ -26,9 +25,8 @@ export default function useAppVersionCheck() {
         console.log('[AppVersionCheck] response:', JSON.stringify(result, null, 2));
         if (cancelled) return;
 
-        if (result.updateAvailable || result.forceUpdate) {
-          console.log('[AppVersionCheck] -> showing modal | forceUpdate:', result.forceUpdate);
-          setForceUpdate(result.forceUpdate);
+        if (result.updateAvailable) {
+          console.log('[AppVersionCheck] -> showing modal');
           setMessage(result.message || '');
           setStoreUrl(result.storeUrl || STORE_URLS[Platform.OS]);
           setVisible(true);
@@ -51,5 +49,5 @@ export default function useAppVersionCheck() {
     setVisible(false);
   }, []);
 
-  return { visible, forceUpdate, message, onUpdate, onClose };
+  return { visible, message, onUpdate, onClose };
 }
