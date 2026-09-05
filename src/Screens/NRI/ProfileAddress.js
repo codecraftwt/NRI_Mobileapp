@@ -100,6 +100,7 @@ export default function ProfileAddress({ navigation }) {
   const [addressLine2, setAddressLine2] = useState(indiaAddress.line2 || '');
   const [pincode, setPincode] = useState(indiaAddress.pincode || '');
   const [saving, setSaving] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const { showAlert, alertProps } = useAppAlert();
 
   const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(selectedState);
@@ -145,11 +146,16 @@ export default function ProfileAddress({ navigation }) {
         >
           <View style={styles.sectionCard}>
             {/* Info banner */}
-            <View style={styles.banner}>
-              <Icon name="info-outline" size={16} color="#64748B" style={{ marginTop: 1 }} />
-              <Text style={styles.bannerText}>
-                Your address in India — where services and correspondence are directed. Your country of residence abroad is set under the NRI & Membership tab.
-              </Text>
+            <View style={styles.bannerRow}>
+              <TouchableOpacity
+                style={styles.infoBtn}
+                onPress={() => setInfoOpen(true)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icon name="info-outline" size={16} color="#1E3A8A" />
+                <Text style={styles.infoBtnText}>About this address</Text>
+              </TouchableOpacity>
             </View>
 
             {/* Country (fixed to India, not editable) */}
@@ -228,6 +234,24 @@ export default function ProfileAddress({ navigation }) {
           </View>
       </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={infoOpen} transparent animationType="fade" onRequestClose={() => setInfoOpen(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setInfoOpen(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => {}}>
+            <View style={styles.infoIconCircle}>
+              <Icon name="info-outline" size={26} color="#1E3A8A" />
+            </View>
+            <Text style={styles.infoModalTitle}>About This Address</Text>
+            <Text style={styles.infoModalText}>
+              Your address in India — where services and correspondence are directed. Your country of residence abroad is set under the NRI & Membership tab.
+            </Text>
+            <TouchableOpacity style={styles.infoModalCloseBtn} onPress={() => setInfoOpen(false)} activeOpacity={0.9}>
+              <Text style={styles.infoModalCloseText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <AppAlert {...alertProps} />
     </View>
   );
@@ -242,8 +266,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 24, elevation: 4,
     borderWidth: 1, borderColor: '#E0E7FF'
   },
-  banner: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: '#F1F5F9', borderRadius: 12, padding: 12, marginBottom: 4 },
-  bannerText: { flex: 1, fontSize: 12, color: '#64748B', lineHeight: 17 },
+  bannerRow: { flexDirection: 'row', marginBottom: 4 },
+  infoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#F1F5F9', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  infoBtnText: { fontSize: 12, fontWeight: '600', color: '#1E3A8A' },
   inputLabel: { fontSize: 14, fontWeight: '600', color: '#334155', marginBottom: 8, marginTop: 12 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 16, height: 52, fontSize: 16, color: '#0F172A' },
   row: { flexDirection: 'row', gap: 12 },
@@ -258,7 +286,7 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: '#A64416', height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   saveBtnDisabled: { opacity: 0.7 },
   saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 14 },
   modalCard: { width: '100%', maxWidth: 420, maxHeight: '78%', backgroundColor: '#FFFFFF', borderRadius: 24, paddingTop: 18, paddingBottom: 12, overflow: 'hidden', elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
   modalTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', textAlign: 'center' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', marginHorizontal: 20, marginVertical: 12, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
@@ -270,4 +298,11 @@ const styles = StyleSheet.create({
   modalOptionText: { fontSize: 15, color: '#334155' },
   modalOptionTextActive: { color: '#1E3A8A', fontWeight: '700' },
   emptyText: { textAlign: 'center', color: '#94A3B8', marginTop: 24, paddingHorizontal: 20, paddingBottom: 12 },
+
+  infoModalCard: { width: '90%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, alignItems: 'center', gap: 8, elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+  infoIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#E0E7FF', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  infoModalTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  infoModalText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  infoModalCloseBtn: { backgroundColor: '#A64416', borderRadius: 16, paddingHorizontal: 28, paddingVertical: 12, marginTop: 10 },
+  infoModalCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

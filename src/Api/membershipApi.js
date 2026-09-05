@@ -132,6 +132,8 @@ export async function validateMembershipCoupon({ code }) {
 // of intent.
 export async function checkoutMembership({
   gateway, couponCode, autoRenew, useWallet,
+  acceptTerms, signerName, signatureData,
+  customQuoteServiceId, customQuoteSubject, customQuoteMessage,
   familyMemberName, familyMemberRelationship,
   stateId, cityId, talukaId, address, pincode, urgency,
   preferredDate, customerNotes, documents
@@ -142,6 +144,18 @@ export async function checkoutMembership({
       coupon_code: couponCode || undefined,
       auto_renew: !!autoRenew ? 1 : 0,
       use_wallet: !!useWallet ? 1 : 0,
+      // New required e-signature fields on the membership checkout endpoint —
+      // 1/0 here (not true/false) to match the multipart-branch convention
+      // below, since HTML form fields are always strings.
+      accept_terms: acceptTerms ? 1 : 0,
+      signer_name: signerName || undefined,
+      signature_data: signatureData || undefined,
+      // Bundles a pending custom-plan request fee (from POST /customer/custom-plans
+      // returning requires_membership) into this same membership charge —
+      // echoed straight back from that response, per the API contract.
+      custom_quote_service_id: customQuoteServiceId || undefined,
+      custom_quote_subject: customQuoteSubject || undefined,
+      custom_quote_message: customQuoteMessage || undefined,
       family_member_name: familyMemberName || undefined,
       family_member_relationship: familyMemberRelationship || undefined,
       state_id: stateId || undefined,
@@ -171,6 +185,7 @@ export async function checkoutMembership({
         ...payload,
         auto_renew: !!autoRenew,
         use_wallet: !!useWallet,
+        accept_terms: !!acceptTerms,
       });
     }
     const data = response.data?.data || {};

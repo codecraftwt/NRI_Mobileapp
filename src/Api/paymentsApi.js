@@ -35,9 +35,29 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
     const data = response.data?.data || null;
     return {
       message: response.data?.message,
-      // A membership checkout that left a recurring service unpaid — null on
-      // every other payment.
-      data: data ? { ...data, pendingRecurringBundle: mapPendingRecurringBundle(data.pending_recurring_bundle) } : null,
+      data: data ? {
+        ...data,
+        // A membership checkout that left a recurring service unpaid — null on
+        // every other payment.
+        pendingRecurringBundle: mapPendingRecurringBundle(data.pending_recurring_bundle),
+        // Set when this payment just raised (or was for) a custom plan
+        // request — e.g. a membership checkout that bundled a pending
+        // custom-quote fee (custom_quote_service_id/subject/message).
+        // null on every other payment. Use it to deep-link the user into
+        // SupportTicketChat with { ticketId, kind: 'custom_plan' }.
+        customPlanTicket: data.custom_plan_ticket
+          ? { id: data.custom_plan_ticket.id, ticketNumber: data.custom_plan_ticket.ticket_number }
+          : null,
+        // Set only in the rare window where the payment cleared via webhook
+        // before PaymentActivationService::activateCustomQuoteRequest() has
+        // raised the SupportTicket — normally activate() runs synchronously in
+        // this same verify() call, so customPlanTicket is already populated
+        // instead. When this is non-null there's nothing to submit; just call
+        // verify() again shortly (see paymentId below).
+        pendingCustomPlan: data.pending_custom_plan
+          ? { paymentId: data.pending_custom_plan.payment_id, subject: data.pending_custom_plan.subject }
+          : null,
+      } : null,
     };
   } catch (error) {
     throw normalizeApiError(error);

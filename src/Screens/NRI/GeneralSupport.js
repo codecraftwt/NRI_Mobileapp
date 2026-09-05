@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -54,6 +54,7 @@ function buildPages(current, last) {
 function GeneralSupport({ navigation }) {
   const { tickets, meta, loading, failed, retry, fetchPage } = useSupportTickets();
   const [refreshing, setRefreshing] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -85,11 +86,16 @@ function GeneralSupport({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} tintColor={colors.accent} />}
       >
-        <View style={styles.noteBanner}>
-          <Text style={styles.noteText}>
-            Questions not about a specific service request. For a request you've already made, use the{' '}
-            <Text style={styles.noteBold}>Support Chat</Text> card on that request's page instead.
-          </Text>
+        <View style={styles.infoRow}>
+          <TouchableOpacity
+            style={styles.infoBtn}
+            onPress={() => setInfoOpen(true)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="info-outline" size={18} color="#D94625" />
+            <Text style={styles.infoBtnText}>What's General Support for?</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Primary action */}
@@ -207,6 +213,24 @@ function GeneralSupport({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={infoOpen} transparent animationType="fade" onRequestClose={() => setInfoOpen(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setInfoOpen(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => {}}>
+            <View style={styles.infoIconCircle}>
+              <Icon name="info-outline" size={26} color="#D94625" />
+            </View>
+            <Text style={styles.infoModalTitle}>What's General Support for?</Text>
+            <Text style={styles.infoModalText}>
+              Questions not about a specific service request. For a request you've already made, use the{' '}
+              <Text style={styles.infoModalTextBold}>Support Chat</Text> card on that request's page instead.
+            </Text>
+            <TouchableOpacity style={styles.infoModalCloseBtn} onPress={() => setInfoOpen(false)} activeOpacity={0.9}>
+              <Text style={styles.infoModalCloseText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -215,9 +239,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 60, gap: 16 },
 
-  noteBanner: { paddingHorizontal: 4 },
-  noteText: { ...typography.small, color: '#64748B', lineHeight: 20 },
-  noteBold: { fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
+  infoRow: { flexDirection: 'row', paddingHorizontal: 4 },
+  infoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFF1E8', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  infoBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#D94625' },
 
   newTicketBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -276,6 +303,15 @@ const styles = StyleSheet.create({
   pagerNumTextActive: { color: '#FFFFFF' },
   pagerEllipsis: { width: 24, height: 34, justifyContent: 'center', alignItems: 'center' },
   pagerEllipsisText: { fontSize: 14, color: '#94A3B8', fontWeight: '700' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  infoModalCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, alignItems: 'center', gap: 8, elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+  infoIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  infoModalTitle: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
+  infoModalText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  infoModalTextBold: { fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
+  infoModalCloseBtn: { backgroundColor: '#D94625', borderRadius: 16, paddingHorizontal: 28, paddingVertical: 12, marginTop: 10 },
+  infoModalCloseText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 });
 
 export default GeneralSupport;

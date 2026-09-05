@@ -8,20 +8,25 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import StripeCheckoutModal from '../../../Components/StripeCheckoutModal';
+import TermsPrivacyModal from '../../../Components/TermsPrivacyModal';
+import SignaturePad from '../../../Components/SignaturePad';
 import { runRazorpayPayment } from '../../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../../Hooks/usePaymentGateways';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
+import { setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems } from '../../../Redux/slices/cartSlice';
 import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
 import { addCartItem } from '../../../Api/cartApi';
+import { getServices } from '../../../Api/catalogApi';
 import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
 import apiClient from '../../../Api/client';
 import { useFamilyMembers } from '../../../Hooks/useFamilyMembers';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
+import { createCustomPlan as createCustomPlanRequestAction } from '../../../Redux/slices/customPlanSlice';
 import { useStates } from '../../../Hooks/useStates';
 import { useCities } from '../../../Hooks/useCities';
 import { useTalukas } from '../../../Hooks/useTalukas';
@@ -47,6 +52,14 @@ function toAmount(value) {
 
 function formatUsd(amount) {
   return `$${toAmount(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// The bundled custom-plan opening fee (see `customQuote` below) comes back
+// in its own currency from POST /customer/custom-plans, not necessarily USD
+// like the rest of this screen — format it with its own symbol.
+function formatMoney(amount, currency) {
+  const symbol = currency === 'INR' ? '₹' : '$';
+  return `${symbol}${toAmount(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function convertPlanAmountToUsd(amount, plan) {
@@ -147,7 +160,7 @@ function FormSelect({ label, required, value, placeholder, options, disabled, lo
 }
 
 function OnboardingPayment({ route, navigation }) {
-  const { profile } = route.params || {};
+  const { profile, customQuote: routeCustomQuote } = route.params || {};
   const dispatch = useDispatch();
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
@@ -156,6 +169,60 @@ function OnboardingPayment({ route, navigation }) {
     couponResult, couponLoading, validateCoupon, clearCoupon,
     checkoutLoading, checkout, verifyLoading, verifyPayment,
   } = useMembershipCheckout();
+
+  // Set by Services.js when a guest tapped "Request a Quote" before signing
+  // in. Once the wizard reaches this screen, auto-request a quote for the
+  // "Custom Task" catalog service (the generic "need something custom" entry
+  // point) via POST /customer/custom-plans — with no membership yet, that
+  // returns { requires_membership: true, service_id, subject, message, fee }
+  // (see customPlanApi.createCustomPlan), which becomes the same bundled
+  // `customQuote` a service-linked quote screen would pass via route params.
+  const pendingCustomPlanRequest = useSelector(s => s.onboarding.pendingCustomPlanRequest);
+  const [autoCustomQuote, setAutoCustomQuote] = useState(null);
+  const [customQuoteLoading, setCustomQuoteLoading] = useState(false);
+  const [customQuoteError, setCustomQuoteError] = useState(null);
+  // Set if the auto-request came back already created (no fee owed / already
+  // covered) instead of requiring membership — rare for a brand-new guest,
+  // but if it happens there's nothing to bundle; just deep-link to it once
+  // membership checkout finishes normally.
+  const [preCreatedCustomPlanTicket, setPreCreatedCustomPlanTicket] = useState(null);
+  const customQuote = routeCustomQuote || autoCustomQuote;
+
+  useEffect(() => {
+    if (!pendingCustomPlanRequest || routeCustomQuote || autoCustomQuote || customQuoteLoading) return;
+    let cancelled = false;
+    setCustomQuoteLoading(true);
+    setCustomQuoteError(null);
+    (async () => {
+      try {
+        const services = await getServices({ search: 'Custom Task' });
+        const target = services.find(s => s.pricing?.isQuoted) || services[0];
+        if (!target) throw new Error("Couldn't find the Custom Task service.");
+        const result = await dispatch(createCustomPlanRequestAction({
+          subject: `${target.name} (consultation fee)`,
+          message: "I'd like to request a custom quote for something not in the service catalog.",
+          serviceId: target.id,
+        })).unwrap();
+        if (cancelled) return;
+        if (result.requiresMembership) {
+          setAutoCustomQuote({ serviceId: result.serviceId, subject: result.subject, message: result.message, fee: result.fee });
+        } else if (result.ticket) {
+          // No fee owed / already covered — already created, nothing to bundle.
+          setPreCreatedCustomPlanTicket({ id: result.ticket.id, ticketNumber: result.ticket.ticketNumber });
+        }
+        // result.requiresPayment shouldn't happen for a brand-new guest (it
+        // means an active membership already exists) — nothing to bundle
+        // into membership checkout here if it does; just proceed normally.
+        dispatch(setPendingCustomPlanRequest(false));
+      } catch (err) {
+        if (!cancelled) setCustomQuoteError(err?.message || "Couldn't prepare your custom quote — you can still finish membership and try again from Custom Plan afterward.");
+      } finally {
+        if (!cancelled) setCustomQuoteLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCustomPlanRequest]);
 
   // Cart-driven purchase path. When the user reached this step from the cart
   // (or a direct service purchase), Step 2 also collects the service-request
@@ -177,7 +244,11 @@ function OnboardingPayment({ route, navigation }) {
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
-  const { gateways } = usePaymentGateways();
+  const { gateways: allGateways } = usePaymentGateways();
+  // PayPal never combines a pending custom-quote fee into this checkout
+  // (same rule as it never combining a cart) — drop it from the picker
+  // whenever a customQuote is bundled in.
+  const gateways = customQuote ? allGateways.filter(g => g.value !== 'paypal') : allGateways;
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   useEffect(() => {
     if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
@@ -273,6 +344,17 @@ function OnboardingPayment({ route, navigation }) {
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [customAlert, setCustomAlert] = useState({ visible: false, title: '', message: '', type: 'info' });
 
+  // Required e-signature (POST /customer/membership/checkout now 422s
+  // without accept_terms/signer_name/signature_data) — checking the box
+  // reveals the "type to sign" field, which live-renders into signatureData.
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [signerName, setSignerName] = useState('');
+  const [signatureData, setSignatureData] = useState('');
+  const [legalModal, setLegalModal] = useState({ visible: false, tab: 'terms' });
+  const openLegalModal = (tab) => setLegalModal({ visible: true, tab });
+  const closeLegalModal = () => setLegalModal(prev => ({ ...prev, visible: false }));
+  const readyToPay = acceptTerms && !!signerName.trim() && !!signatureData;
+
   const showAlert = (title, message, type = 'info') => {
     setCustomAlert({ visible: true, title, message, type });
   };
@@ -299,7 +381,16 @@ function OnboardingPayment({ route, navigation }) {
   const servicesBase = servicesSubtotal + prioritySurcharge;
   const servicesGst = 0; // Math.round(servicesBase * GST_RATE * 100) / 100;
   const servicesPayable = servicesBase + servicesGst;
-  const amountPayable = membershipPayable + (fromCart ? servicesPayable : 0);
+  // A pending custom-plan request fee (see customQuote above) rides along
+  // with this same membership checkout, one combined charge — mirrors how a
+  // cart's one-time services are bundled in. Summed directly into the USD
+  // total like cart item prices already are elsewhere on this screen — this
+  // assumes the fee comes back in the customer's USD billing currency (same
+  // assumption the rest of this screen makes); it's only ever shown/added
+  // for display, the backend computes the real combined charge itself.
+  const customQuoteFee = toAmount(customQuote?.fee?.amount);
+  const customQuoteCurrency = customQuote?.fee?.currency || 'USD';
+  const amountPayable = membershipPayable + (fromCart ? servicesPayable : 0) + customQuoteFee;
 
   const handleApplyPlanCoupon = () => {
     if (!planCouponCode.trim()) return;
@@ -445,7 +536,10 @@ function OnboardingPayment({ route, navigation }) {
   // coupon no longer forces it false on its own, but PayPal (never combines)
   // still can, so only treat the cart as booked/clearable when the backend
   // actually confirmed it rode along, not just because fromCart was true.
-  const finishUp = async (pendingRecurringBundle, combinedCart = true) => {
+  const finishUp = async (pendingRecurringBundle, combinedCart = true, customPlanTicket = null) => {
+    // Fall back to the ticket the auto-quote effect already created above
+    // (the rare "no fee owed" branch) if this payment itself didn't raise one.
+    const resolvedCustomPlanTicket = customPlanTicket || preCreatedCustomPlanTicket;
     dispatch(updateProfile({
       countryOfResidence: profile?.countryOfResidence,
       stateProvince: profile?.stateProvince,
@@ -492,12 +586,24 @@ function OnboardingPayment({ route, navigation }) {
       hasServiceRequests: cartWasBooked,
       pendingRecurringBundle,
       cartNotBooked: fromCart && !combinedCart,
+      // Set when this payment also raised the bundled custom-plan request
+      // (see customQuote above) — lets the welcome screen deep-link into
+      // SupportTicketChat with { ticketId, kind: 'custom_plan' }.
+      customPlanTicket: resolvedCustomPlanTicket,
     });
   };
 
   const handlePay = async () => {
     if (!plan) {
       showAlert('No Plan Selected', 'Please go back and choose a membership plan.', 'error');
+      return;
+    }
+    if (!acceptTerms) {
+      showAlert('Terms Required', 'Please agree to the Terms & Conditions and Privacy Policy to continue.', 'error');
+      return;
+    }
+    if (!signerName.trim() || !signatureData) {
+      showAlert('Signature Required', 'Please type your full legal name to sign before paying.', 'error');
       return;
     }
     setSubmitting(true);
@@ -534,6 +640,12 @@ function OnboardingPayment({ route, navigation }) {
         couponCode: planCouponCode.trim() || undefined,
         autoRenew: true,
         useWallet: false,
+        acceptTerms: true,
+        signerName: signerName.trim(),
+        signatureData,
+        customQuoteServiceId: customQuote?.serviceId || undefined,
+        customQuoteSubject: customQuote?.subject || undefined,
+        customQuoteMessage: customQuote?.message || undefined,
         familyMemberName: reqForm.fullName?.trim() || undefined,
         familyMemberRelationship: reqForm.relation?.trim().toLowerCase() || undefined,
         stateId: states.find(s => s.name === reqForm.state)?.id || undefined,
@@ -565,7 +677,7 @@ function OnboardingPayment({ route, navigation }) {
           user: { name: profile?.fullName, email: profile?.email, phone: profile?.phone },
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        await finishUp(verifyResult?.data?.pendingRecurringBundle, result.combinedCart);
+        await finishUp(verifyResult?.data?.pendingRecurringBundle, result.combinedCart, verifyResult?.data?.customPlanTicket);
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for a native SDK flow not built
         // on mobile — steer to a supported gateway instead of a false success.
@@ -594,7 +706,7 @@ function OnboardingPayment({ route, navigation }) {
     setSubmitting(true);
     try {
       const verifyResult = await verifyPayment({ paymentId: session?.paymentId, sessionId }).unwrap();
-      await finishUp(verifyResult?.data?.pendingRecurringBundle, session?.combinedCart);
+      await finishUp(verifyResult?.data?.pendingRecurringBundle, session?.combinedCart, verifyResult?.data?.customPlanTicket);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
     } finally {
@@ -746,10 +858,10 @@ function OnboardingPayment({ route, navigation }) {
           </TouchableOpacity>
         )}
 
-        {showSummary && (plansLoading ? (
+        {showSummary && (plansLoading || (pendingCustomPlanRequest && customQuoteLoading) ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="small" color={C.primary} />
-            <Text style={styles.loadingText}>Loading your plan…</Text>
+            <Text style={styles.loadingText}>{customQuoteLoading ? 'Preparing your custom quote…' : 'Loading your plan…'}</Text>
           </View>
         ) : plansFailed || !plan ? (
           <TouchableOpacity style={styles.retryBox} onPress={retryPlans}>
@@ -757,6 +869,12 @@ function OnboardingPayment({ route, navigation }) {
           </TouchableOpacity>
         ) : (
           <>
+            {!!customQuoteError && !customQuote && (
+              <View style={styles.customQuoteErrorBanner}>
+                <Icon name="error-outline" size={16} color="#B45309" />
+                <Text style={styles.customQuoteErrorText}>{customQuoteError}</Text>
+              </View>
+            )}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <Icon name="receipt-long" size={16} color={C.primary} />
@@ -783,11 +901,11 @@ function OnboardingPayment({ route, navigation }) {
                 </View>
               )}
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>{fromCart ? 'Membership GST (18%)' : 'GST (18%)'}</Text>
+                <Text style={styles.rowLabel}>{fromCart || customQuote ? 'Membership GST (18%)' : 'GST (18%)'}</Text>
                 <Text style={styles.rowValue}>{formatUsd(gstAmount)}</Text>
               </View>
 
-              {fromCart && (
+              {(fromCart || !!customQuote) && (
                 <>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Membership Total</Text>
@@ -844,6 +962,28 @@ function OnboardingPayment({ route, navigation }) {
                       </Text>
                     </>
                   )}
+                </>
+              )}
+
+              {!!customQuote && (
+                <>
+                  <View style={styles.divider} />
+                  <View style={styles.servicesChip}>
+                    <Icon name="chat-bubble-outline" size={13} color={C.accent} />
+                    <Text style={styles.servicesChipText}>Custom Quote Request</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel} numberOfLines={2}>{customQuote.subject || 'Custom plan request fee'}</Text>
+                    <Text style={styles.rowValue}>{formatMoney(customQuoteFee, customQuoteCurrency)}</Text>
+                  </View>
+                  <View style={styles.customQuoteNoteRow}>
+                    <Icon name="info-outline" size={13} color="#94A3B8" />
+                    <Text style={styles.customQuoteNoteText}>
+                      This fee only opens your request — it is <Text style={styles.combinedNoteStrong}>not</Text> the
+                      price for the work itself. Our team reviews what you describe and quotes that
+                      separately, once your membership is active.
+                    </Text>
+                  </View>
                 </>
               )}
 
@@ -906,10 +1046,51 @@ function OnboardingPayment({ route, navigation }) {
                 </TouchableOpacity>
               ))}
 
+              <TouchableOpacity style={styles.agreeRow} onPress={() => setAcceptTerms(v => !v)} activeOpacity={0.7}>
+                <View style={[styles.checkbox, acceptTerms && styles.checkboxChecked]}>
+                  {acceptTerms && <Icon name="check" size={14} color="#FFFFFF" />}
+                </View>
+                <Text style={styles.agreeText}>
+                  I've read and agree to the{' '}
+                  <Text style={styles.agreeLink} onPress={() => openLegalModal('terms')}>Terms & Conditions</Text>
+                  {' '}and{' '}
+                  <Text style={styles.agreeLink} onPress={() => openLegalModal('privacy')}>Privacy Policy</Text>.
+                </Text>
+              </TouchableOpacity>
+
+              {acceptTerms && (
+                <View style={styles.signatureSection}>
+                  <View style={styles.divider} />
+                  <Text style={styles.signatureTitle}>Type your full legal name to sign</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Priya Sharma"
+                    placeholderTextColor="#94A3B8"
+                    value={signerName}
+                    onChangeText={setSignerName}
+                    autoCapitalize="words"
+                  />
+                  <View style={styles.signatureBox}>
+                    <View style={styles.signatureBoxLabelWrap}>
+                      <Text style={styles.signatureBoxLabelText} numberOfLines={1}>YOUR</Text>
+                      <Text style={styles.signatureBoxLabelText} numberOfLines={1}>SIGNATURE</Text>
+                    </View>
+                    <View style={styles.signatureBoxDivider} />
+                    <SignaturePad name={signerName} onChange={setSignatureData} />
+                  </View>
+                  <Text style={styles.signatureFootnote}>Typing your name above counts as your electronic signature on this agreement.</Text>
+                </View>
+              )}
+
               {loading ? (
                 <ActivityIndicator size="large" color={C.accent} style={styles.payLoading} />
               ) : (
-                <TouchableOpacity style={styles.payBtn} onPress={() => handlePay()}>
+                <TouchableOpacity
+                  style={[styles.payBtn, !readyToPay && styles.payBtnDisabled]}
+                  onPress={() => handlePay()}
+                  disabled={!readyToPay}
+                  activeOpacity={readyToPay ? 0.8 : 1}
+                >
                   <Icon name="lock" size={16} color="white" />
                   <Text style={styles.payBtnText}>Secure Payment & Activation</Text>
                 </TouchableOpacity>
@@ -985,6 +1166,13 @@ function OnboardingPayment({ route, navigation }) {
         </View>
       </Modal>
 
+      <TermsPrivacyModal
+        visible={legalModal.visible}
+        initialTab={legalModal.tab}
+        onClose={closeLegalModal}
+        onAgree={() => setAcceptTerms(true)}
+      />
+
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
@@ -1039,9 +1227,14 @@ const styles = StyleSheet.create({
   servicesChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: colors.accent + '15', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
   servicesChipText: { fontSize: 13, color: colors.accent, fontFamily: 'Montserrat-Bold' },
   combinedNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17, marginTop: 8 },
+  combinedNoteStrong: { fontFamily: 'Montserrat-Bold', color: '#64748B' },
+  customQuoteNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
+  customQuoteNoteText: { flex: 1, fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17 },
   recurringChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#FEF3C7', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
   recurringChipText: { fontSize: 13, color: '#B45309', fontFamily: 'Montserrat-Bold' },
   recurringNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#B45309', lineHeight: 17, marginTop: 8 },
+  customQuoteErrorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFFBEB', borderRadius: radius.lg, padding: 12, borderWidth: 1, borderColor: '#FEF3C7' },
+  customQuoteErrorText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
 
   // Two-step sub-flow indicator
   subStepsRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
@@ -1126,7 +1319,23 @@ const styles = StyleSheet.create({
   gatewayDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 4 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1' },
   radioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20, paddingTop: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  agreeText: { flex: 1, fontSize: 13.5, fontFamily: 'Montserrat-SemiBold', color: '#1E293B', lineHeight: 20 },
+  agreeLink: { color: colors.accent, fontFamily: 'Montserrat-Bold' },
+  signatureSection: { marginTop: 6 },
+  signatureTitle: { fontSize: 13.5, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 10 },
+  signatureBox: {
+    flexDirection: 'row', alignItems: 'stretch', height: 92, backgroundColor: '#F8FAFC',
+    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, overflow: 'hidden',
+  },
+  signatureBoxLabelWrap: { width: 76, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  signatureBoxLabelText: { fontSize: 10, fontFamily: 'Montserrat-Bold', color: '#94A3B8', letterSpacing: 0.3, lineHeight: 15, textAlign: 'center' },
+  signatureBoxDivider: { width: 1, alignSelf: 'center', height: '60%', backgroundColor: '#E2E8F0' },
+  signatureFootnote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', marginTop: 10, lineHeight: 16 },
   payBtn: { flexDirection: 'row', backgroundColor: colors.accent, height: 56, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 24, shadowColor: colors.accent, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 5 },
+  payBtnDisabled: { opacity: 0.45, shadowOpacity: 0 },
   payBtnText: { color: 'white', fontSize: 16, fontFamily: 'Montserrat-Bold' },
   payLoading: { marginTop: 20 },
   trustRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 20 },

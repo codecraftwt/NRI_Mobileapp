@@ -5,13 +5,16 @@ import apiClient, { normalizeApiError } from './client';
 // excludes nothing) — so a brand-new category like `vendor` or `telecaller`
 // never appears in the response until someone has created one. This is the
 // full catalog the backend supports, always shown so the customer can pick
-// any of them. 'custom_plan' is the only one that also needs state + city.
+// any of them.
+// NOTE: 'custom_plan' was removed here — Customize Plan is its own section
+// now (see customPlanApi.js / GET/POST /customer/custom-plans), not a
+// support-ticket category. POST /customer/support-tickets 422s on
+// category: "custom_plan" as of the breaking change that split it out.
 export const DEFAULT_SUPPORT_CATEGORIES = [
   { value: 'general', label: 'General Support' },
   { value: 'rm', label: 'Relationship Manager' },
   { value: 'vendor', label: 'Vendor' },
   { value: 'telecaller', label: 'Telecaller' },
-  { value: 'custom_plan', label: 'Customize Plan' },
 ];
 
 function normalizeCategory(raw) {
@@ -112,6 +115,11 @@ export function mapSupportReply(raw) {
     proposedPrice: raw.proposed_price ?? null,
     canAcceptPlan: !!raw.can_accept_plan,
     convertedTicket: raw.converted_ticket ?? null,
+    // Google Meet link for a scheduled call — only ever set by staff on Custom
+    // Plan tickets (never on general support tickets), and only on the one
+    // reply where they scheduled the call. Null on every other reply.
+    meetLink: raw.meet_link ?? null,
+    meetScheduledAt: raw.meet_scheduled_at ?? null,
   };
 }
 

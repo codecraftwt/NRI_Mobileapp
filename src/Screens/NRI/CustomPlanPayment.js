@@ -16,20 +16,21 @@ function formatUsd(value) {
 // proposal, before the Stripe checkout opens. Base price comes from the
 // accepted proposal; GST is added at 18% (matching the web invoice).
 function CustomPlanPayment({ route, navigation }) {
-  const { jobId, ticketNumber, basePrice, replyId, supportTicketId } = route.params || {};
+  const { jobId, ticketNumber, basePrice, replyId, supportTicketId, kind } = route.params || {};
   const { pay: payBill, verifyPayment } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
 
-  // Return to the support chat, flagging this proposal reply as paid so its
-  // "Pay Now" button is removed. Navigate with the ticket id explicitly (not a
-  // bare merge:true) so we always land on the correct thread — this screen
-  // lives in the Dashboard stack, so the chat opened from another tab isn't in
-  // this stack for merge to find, and a fresh instance needs the id to load.
+  // Return to the support/custom-plan chat, flagging this proposal reply as
+  // paid so its "Pay Now" button is removed. Navigate with the ticket id
+  // explicitly (not a bare merge:true) so we always land on the correct
+  // thread — this screen lives in the Dashboard stack, so the chat opened
+  // from another tab isn't in this stack for merge to find, and a fresh
+  // instance needs the id (and kind, so it fetches from the right API) to load.
   const goBackPaid = () => {
     if (supportTicketId != null) {
-      navigation.navigate('SupportTicketChat', { ticketId: supportTicketId, paidReplyId: replyId });
+      navigation.navigate('SupportTicketChat', { ticketId: supportTicketId, paidReplyId: replyId, kind });
     } else if (replyId != null) {
-      navigation.navigate({ name: 'SupportTicketChat', params: { paidReplyId: replyId }, merge: true });
+      navigation.navigate({ name: 'SupportTicketChat', params: { paidReplyId: replyId, kind }, merge: true });
     } else {
       navigation.goBack();
     }

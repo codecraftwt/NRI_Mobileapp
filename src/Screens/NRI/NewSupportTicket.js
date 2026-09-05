@@ -4,15 +4,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useSupportTickets } from '../../Hooks/useSupportTickets';
-import { useStates } from '../../Hooks/useStates';
-import { useCities } from '../../Hooks/useCities';
 import { typography } from '../../theme/typography';
 
-// Picking the "Customize Plan" category routes the ticket through the
-// backend's Custom Plan flow (category=custom_plan), which also needs the
-// state + city where the plan would take place. The list of "Raise Ticket to"
-// options itself comes from the support-tickets API (category / category_label).
-const CUSTOM_PLAN_VALUE = 'custom_plan';
 const GENERAL_VALUE = 'general';
 
 // Reusable bottom-sheet dropdown field (same pattern as AddProperty's SelectField).
@@ -73,24 +66,14 @@ function NewSupportTicket({ navigation }) {
   const [raiseTo, setRaiseTo] = useState(GENERAL_VALUE);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [stateVal, setStateVal] = useState('');
-  const [city, setCity] = useState('');
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // Options come from the API (category / category_label); we track the
   // selected category `value` but show its `label` in the dropdown.
   const categoryLabels = categories.map(c => c.label);
   const selectedLabel = categories.find(c => c.value === raiseTo)?.label || '';
-  const isCustomPlan = raiseTo === CUSTOM_PLAN_VALUE;
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
-  const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(stateVal);
-
-  const stateId = stateVal ? states.find(s => s.name === stateVal)?.id : null;
-  const cityId = city ? cities.find(c => c.name === city)?.id : null;
-
-  const isValid = subject.trim().length > 0
-    && message.trim().length > 0
-    && (!isCustomPlan || (!!stateId && !!cityId));
+  const isValid = subject.trim().length > 0 && message.trim().length > 0;
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -99,13 +82,11 @@ function NewSupportTicket({ navigation }) {
         subject: subject.trim(),
         message: message.trim(),
         category: raiseTo || GENERAL_VALUE,
-        stateId: isCustomPlan ? stateId : undefined,
-        cityId: isCustomPlan ? cityId : undefined,
       }).unwrap();
       resetCreate();
       showAlert(
         'Ticket Created',
-        `Your ${isCustomPlan ? 'custom plan request' : 'support ticket'} ${result.ticket.ticketNumber} has been created.`,
+        `Your support ticket ${result.ticket.ticketNumber} has been created.`,
         [{ text: 'OK', onPress: () => navigation.replace('SupportTicketChat', { ticketId: result.ticket.id, createdTicketNumber: result.ticket.ticketNumber }) }]
       );
     } catch (error) {
@@ -117,10 +98,16 @@ function NewSupportTicket({ navigation }) {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Header navigation={navigation} title="New Support Ticket" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.noteBanner}>
-          <Text style={styles.noteText}>
-            For a question about a specific service request, use the <Text style={styles.noteBold}>Support Chat</Text> card on that request's page instead — this form is for general questions not tied to any request.
-          </Text>
+        <View style={styles.infoRow}>
+          <TouchableOpacity
+            style={styles.infoBtn}
+            onPress={() => setInfoOpen(true)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="info-outline" size={18} color="#D94625" />
+            <Text style={styles.infoBtnText}>What's this form for?</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
@@ -131,52 +118,9 @@ function NewSupportTicket({ navigation }) {
             options={categoryLabels}
             onSelect={(label) => {
               const picked = categories.find(c => c.label === label);
-              const value = picked?.value || GENERAL_VALUE;
-              setRaiseTo(value);
-              // Clear location when switching away from Custom Plan so a stale
-              // state/city can't be submitted.
-              if (value !== CUSTOM_PLAN_VALUE) { setStateVal(''); setCity(''); }
+              setRaiseTo(picked?.value || GENERAL_VALUE);
             }}
           />
-
-          {isCustomPlan && (
-            <>
-              <Text style={styles.customPlanNote}>
-                Where would this custom plan take place? This helps us check vendor availability there.
-              </Text>
-              <View style={styles.row}>
-                <SelectField
-                  label="State"
-                  value={stateVal}
-                  placeholder="Select State..."
-                  options={stateNames}
-                  loading={loadingStates}
-                  onSelect={(v) => { setStateVal(v); setCity(''); }}
-                  style={styles.rowItem}
-                />
-                <SelectField
-                  label="City"
-                  value={city}
-                  placeholder="Select City..."
-                  options={cityNames}
-                  disabled={!stateVal}
-                  loading={loadingCities}
-                  onSelect={setCity}
-                  style={styles.rowItem}
-                />
-              </View>
-              {statesFailed && (
-                <TouchableOpacity onPress={retryStates}>
-                  <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
-                </TouchableOpacity>
-              )}
-              {citiesFailed && (
-                <TouchableOpacity onPress={retryCities}>
-                  <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
 
           <View style={styles.fieldWrap}>
             <Text style={styles.label}>Subject</Text>
@@ -216,6 +160,25 @@ function NewSupportTicket({ navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={infoOpen} transparent animationType="fade" onRequestClose={() => setInfoOpen(false)}>
+        <TouchableOpacity style={styles.infoModalOverlay} activeOpacity={1} onPress={() => setInfoOpen(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => {}}>
+            <View style={styles.infoIconCircle}>
+              <Icon name="info-outline" size={26} color="#D94625" />
+            </View>
+            <Text style={styles.infoModalTitle}>What's this form for?</Text>
+            <Text style={styles.infoModalText}>
+              For a question about a specific service request, use the{' '}
+              <Text style={styles.infoModalTextBold}>Support Chat</Text> card on that request's page instead — this form is for general questions not tied to any request.
+            </Text>
+            <TouchableOpacity style={styles.infoModalCloseBtn} onPress={() => setInfoOpen(false)} activeOpacity={0.9}>
+              <Text style={styles.infoModalCloseText}>Got it</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
@@ -225,9 +188,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 60, gap: 16 },
 
-  noteBanner: { paddingHorizontal: 4 },
-  noteText: { ...typography.small, color: '#64748B', lineHeight: 20 },
-  noteBold: { fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
+  infoRow: { flexDirection: 'row', paddingHorizontal: 4 },
+  infoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#FFF1E8', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  infoBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#D94625' },
 
   card: {
     backgroundColor: '#FFFFFF',
@@ -283,11 +249,6 @@ const styles = StyleSheet.create({
   selectText: { fontSize: 15, color: '#0F172A', flex: 1 },
   placeholderText: { color: '#94A3B8' },
 
-  customPlanNote: { ...typography.small, color: '#64748B', lineHeight: 20, marginTop: -8 },
-  row: { flexDirection: 'row', gap: 12 },
-  rowItem: { flex: 1 },
-  retryText: { fontSize: 13, color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
-
   // dropdown bottom sheet
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, maxHeight: '60%' },
@@ -295,6 +256,16 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#0F172A', marginBottom: 8 },
   modalOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalOptionText: { fontSize: 15, color: '#0F172A' },
+
+  // "What's this form for?" info modal — centered, distinct from the bottom-sheet dropdown above.
+  infoModalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  infoModalCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, alignItems: 'center', gap: 8, elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+  infoIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFF1E8', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  infoModalTitle: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
+  infoModalText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  infoModalTextBold: { fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
+  infoModalCloseBtn: { backgroundColor: '#D94625', borderRadius: 16, paddingHorizontal: 28, paddingVertical: 12, marginTop: 10 },
+  infoModalCloseText: { color: '#FFFFFF', fontSize: 14, fontFamily: typography.labelMedium.fontFamily },
 
   actionsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
   cancelBtn: { borderWidth: 1.5, borderColor: '#3B82F6', borderRadius: 20, paddingHorizontal: 22, paddingVertical: 12, justifyContent: 'center' },

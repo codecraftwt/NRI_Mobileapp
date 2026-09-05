@@ -138,6 +138,7 @@ function Dashboard({ navigation }) {
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
     { id: 'support', name: 'General Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#D94625' },
+    { id: 'customPlan', name: 'Custom Plan', icon: 'tune', screen: 'CustomPlanRequests', color: '#15803D' },
   ];
 
   const getServiceIconColor = (serviceName) => {
@@ -357,10 +358,11 @@ function Dashboard({ navigation }) {
             </View>
             <View style={styles.actionGrid}>
               {exploreActions.map((action, index) => {
-                // The trailing two cards (Wallet, General Support) sit alone on
-                // the last row — widen them (and trim their height a touch) so
-                // the pair fills the row instead of leaving a gap.
-                const isLastPair = index >= exploreActions.length - 2;
+                // With 3 squares per row, a last row of exactly 2 sits alone —
+                // widen those two (and trim their height a touch) so the pair
+                // fills the row instead of leaving a gap. A full row of 3
+                // (e.g. 6 total) needs no widening.
+                const isLastPair = exploreActions.length % 3 === 2 && index >= exploreActions.length - 2;
                 return (
                   <TouchableOpacity
                     key={action.id}

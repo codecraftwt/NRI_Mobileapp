@@ -26,7 +26,7 @@ const NEXT_STEPS = [
 ];
 
 function OnboardingWelcome({ route, navigation }) {
-  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked } = route.params || {};
+  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked, customPlanTicket } = route.params || {};
   const dispatch = useDispatch();
   const [bundlePaid, setBundlePaid] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
@@ -72,6 +72,16 @@ function OnboardingWelcome({ route, navigation }) {
           <Text style={styles.desc}>
             Your {plan?.name || 'Family'} membership is active. Your dedicated Relationship Manager will reach out on WhatsApp within 24 hours to introduce themselves and confirm your family's details.
           </Text>
+
+          {!!customPlanTicket && (
+            <View style={styles.customPlanNotice}>
+              <Icon name="auto-awesome" size={16} color="#15803D" />
+              <Text style={styles.customPlanNoticeText}>
+                Your custom plan request {customPlanTicket.ticketNumber} has been sent to our team —
+                find it under Custom Plan on your dashboard.
+              </Text>
+            </View>
+          )}
 
           {!!cartNotBooked && (
             <View style={styles.cartNotice}>
@@ -125,6 +135,8 @@ const styles = StyleSheet.create({
   desc: { fontSize: 14, fontFamily: 'Poppins-Regular', color: colors.textSecondary, textAlign: 'center', lineHeight: 22, marginTop: 12, marginBottom: 24 },
   cartNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF3C7', borderRadius: radius.lg, padding: 14, marginBottom: 20, width: '100%' },
   cartNoticeText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
+  customPlanNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#DCFCE7', borderRadius: radius.lg, padding: 14, marginBottom: 20, width: '100%' },
+  customPlanNoticeText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#15803D', lineHeight: 18 },
   pendingBundleCard: {
     flexDirection: 'row',
     alignItems: 'center',

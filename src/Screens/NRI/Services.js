@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Animated, Image, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearServiceLocation } from '../../Redux/slices/serviceLocationSlice';
+import { setPendingCustomPlanRequest } from '../../Redux/slices/onboardingSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -12,6 +13,7 @@ import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { getServiceGroups } from '../../Api/catalogApi';
 import LocationPickerModal from '../../Components/LocationPickerModal';
+import CustomQuoteCard from '../../Components/CustomQuoteCard';
 
 const categoryDetails = {
   // Original Mappings
@@ -140,18 +142,6 @@ function Services({ navigation, route }) {
       refreshCartRef.current?.();
     }, [])
   );
-
-  // Promo banner: gently animate the background between two light peach shades.
-  const bannerAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(bannerAnim, { toValue: 1, duration: 2600, useNativeDriver: false }),
-      Animated.timing(bannerAnim, { toValue: 0, duration: 2600, useNativeDriver: false }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [bannerAnim]);
-  const bannerBg = bannerAnim.interpolate({ inputRange: [0, 1], outputRange: ['#FFF1E8', '#FBDCC7'] });
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const geoStates = useSelector(s => s.geo.states);
@@ -287,16 +277,22 @@ function Services({ navigation, route }) {
           <RefreshControl refreshing={refreshing && !listLoading} onRefresh={onRefresh} tintColor="#D94625" colors={['#D94625']} />
         }
       >
-        {/* Promo banner */}
-        <Animated.View style={[styles.banner, { backgroundColor: bannerBg }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.bannerTitle}>Trusted help,{'\n'}near your family</Text>
-            <Text style={styles.bannerSub}>Verified local vendors · Photo proof · RM support</Text>
-          </View>
-          <View style={styles.bannerIcon}>
-            <Icon name="verified-user" size={30} color="#D94625" />
-          </View>
-        </Animated.View>
+        <CustomQuoteCard onPress={() => {
+          if (!isAuthenticated) {
+            // Custom Plan requires an authenticated account — POST
+            // /customer/custom-plans is under /customer/*. Send guests to
+            // Registration first; OnboardingPayment.js reads this flag (it
+            // survives registerUser.fulfilled wiping the rest of the store)
+            // to auto-request the quote and bundle its fee into membership
+            // checkout once the wizard reaches the payment step.
+            dispatch(setPendingCustomPlanRequest(true));
+            navigation.navigate('Register');
+            return;
+          }
+          // Cross into the Dashboard tab's stack, where the Custom Plan
+          // screens live (same pattern the tab bar itself uses).
+          navigation.navigate('Dashboard', { screen: 'CustomPlanRequests' });
+        }} />
 
         {/* Search + filter */}
         <View style={styles.searchRow}>
@@ -477,18 +473,6 @@ const styles = StyleSheet.create({
   cartBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
-
-  banner: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20, padding: 18, marginBottom: 18,
-    borderWidth: 1, borderColor: '#F6D3BE',
-  },
-  bannerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#7A2E12', lineHeight: 26 },
-  bannerSub: { fontSize: 12, color: '#A65A3A', marginTop: 6, fontFamily: typography.labelMedium.fontFamily },
-  bannerIcon: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(217,70,37,0.12)',
-    justifyContent: 'center', alignItems: 'center', marginLeft: 12,
-  },
 
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   searchBox: {

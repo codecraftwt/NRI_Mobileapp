@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Linking } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useSupportTicketDetail } from '../../Hooks/useSupportTicketDetail';
+import { useCustomPlanDetail } from '../../Hooks/useCustomPlanDetail';
 import { useBilling } from '../../Hooks/useBilling';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -52,7 +53,17 @@ function isJobPaid(job) {
 
 function SupportTicketChat({ route, navigation }) {
   const { ticketId, createdTicketNumber } = route.params || {};
-  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = useSupportTicketDetail(ticketId);
+  // Custom Plan tickets now live under their own /customer/custom-plans
+  // resource (POST /customer/support-tickets stopped accepting
+  // category: "custom_plan") — this screen is otherwise identical for both,
+  // so it just switches which detail hook feeds it based on `kind`. Both
+  // hooks are called unconditionally (rules of hooks); the inactive one is
+  // given a null id so it never fetches.
+  const kind = route.params?.kind === 'custom_plan' ? 'custom_plan' : 'support';
+  const isCustomPlan = kind === 'custom_plan';
+  const supportBundle = useSupportTicketDetail(isCustomPlan ? null : ticketId);
+  const customPlanBundle = useCustomPlanDetail(isCustomPlan ? ticketId : null);
+  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = isCustomPlan ? customPlanBundle : supportBundle;
   const { overview: billing, retry: refreshBilling } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
   const [replyText, setReplyText] = useState('');
@@ -165,10 +176,18 @@ function SupportTicketChat({ route, navigation }) {
       return;
     }
     const ticketNumber = job && typeof job === 'object' ? (job.ticket_number || job.ticketNumber || null) : null;
-    // Pass this support ticket's id so the payment screen can navigate back to
-    // the correct chat thread (CustomPlanPayment lives in the Dashboard stack,
-    // so a plain merge:true can't find a chat opened from another tab).
-    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id, supportTicketId: ticketId });
+    // Pass this ticket's id (and kind, so it routes back to the right detail
+    // hook) so the payment screen can navigate back to the correct chat
+    // thread (CustomPlanPayment lives in the Dashboard stack, so a plain
+    // merge:true can't find a chat opened from another tab).
+    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id, supportTicketId: ticketId, kind });
+  };
+
+  // Opens the Google Meet URL — the OS handles routing it to the Meet app if
+  // installed, or the browser otherwise (both register meet.google.com as a
+  // universal/app link).
+  const handleJoinMeet = (link) => {
+    Linking.openURL(link).catch(() => showAlert('Could Not Open', 'Please try again.'));
   };
 
   const handleEscalate = () => {
@@ -193,10 +212,12 @@ function SupportTicketChat({ route, navigation }) {
     );
   };
 
+  const screenTitle = isCustomPlan ? 'Custom Plan Request' : 'Support Ticket';
+
   if (loading && !ticket) {
     return (
       <View style={styles.container}>
-        <Header navigation={navigation} title="Support Ticket" showBack />
+        <Header navigation={navigation} title={screenTitle} showBack />
         <View style={styles.emptyState}>
           <ActivityIndicator size="small" color={colors.accent} />
           <Text style={styles.emptyText}>Loading ticket...</Text>
@@ -210,7 +231,7 @@ function SupportTicketChat({ route, navigation }) {
   if (!ticket) {
     return (
       <View style={styles.container}>
-        <Header navigation={navigation} title="Support Ticket" showBack />
+        <Header navigation={navigation} title={screenTitle} showBack />
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>{failed ? "Couldn't load this ticket." : 'Ticket not found.'}</Text>
           <TouchableOpacity onPress={failed ? retry : () => navigation.goBack()}>
@@ -226,12 +247,12 @@ function SupportTicketChat({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
-      <Header navigation={navigation} title="Support Chat" showBack />
+      <Header navigation={navigation} title={isCustomPlan ? 'Custom Plan Chat' : 'Support Chat'} showBack />
 
       {showCreatedBanner && (
         <View style={styles.bannerWrap}>
           <View style={styles.createdBanner}>
-            <Text style={styles.createdBannerText}>Support ticket {createdTicketNumber} created.</Text>
+            <Text style={styles.createdBannerText}>{isCustomPlan ? 'Custom plan request' : 'Support ticket'} {createdTicketNumber} created.</Text>
             <TouchableOpacity onPress={() => setShowCreatedBanner(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Icon name="close" size={18} color="#059669" />
             </TouchableOpacity>
@@ -335,11 +356,35 @@ function SupportTicketChat({ route, navigation }) {
               }
 
               const mine = isMine(msg);
+              // Google Meet links only ever come back on Custom Plan replies —
+              // staff can't schedule a call against a general support ticket.
+              const hasMeet = isCustomPlan && !!msg.meetLink;
               return (
                 <View key={msg.id} style={[styles.bubbleRow, mine && styles.bubbleRowMe]}>
                   <View style={[styles.bubble, mine ? styles.bubbleMe : styles.bubbleSupport]}>
                     {!!msg.authorName && <Text style={[styles.bubbleAuthor, mine && styles.bubbleAuthorMe]}>{msg.authorName}</Text>}
                     <Text style={[styles.bubbleText, mine && styles.bubbleTextMe]}>{msg.message}</Text>
+                    {hasMeet && (
+                      <View style={styles.meetCard}>
+                        <View style={styles.meetCardHeader}>
+                          <View style={styles.meetIconBox}>
+                            <Icon name="videocam" size={18} color="#15803D" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.meetCardTitle}>Google Meet scheduled</Text>
+                            {!!msg.authorName && <Text style={styles.meetCardBy}>by {msg.authorName}</Text>}
+                          </View>
+                        </View>
+
+                        <View style={styles.meetDivider} />
+
+                        <TouchableOpacity style={styles.meetJoinBtn} onPress={() => handleJoinMeet(msg.meetLink)} activeOpacity={0.88}>
+                          <Icon name="videocam" size={16} color="#FFFFFF" />
+                          <Text style={styles.meetJoinBtnText}>Join meeting</Text>
+                          <Icon name="open-in-new" size={14} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
                     <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMe]}>{formatTime(msg.createdAt)}</Text>
                   </View>
                 </View>
@@ -426,6 +471,26 @@ const styles = StyleSheet.create({
   bubbleTextMe: { color: '#FFFFFF' },
   bubbleTime: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
   bubbleTimeMe: { color: 'rgba(255,255,255,0.7)' },
+
+  meetCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 12, gap: 10, marginTop: 8,
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  meetCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  meetIconBox: {
+    width: 34, height: 34, borderRadius: 9, backgroundColor: '#DCFCE7',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  meetCardTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700' },
+  meetCardBy: { fontSize: 11.5, color: '#94A3B8', marginTop: 1 },
+  meetDivider: { height: 1, backgroundColor: '#F1F5F9' },
+  meetJoinBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#15803D', borderRadius: 12, height: 42,
+    shadowColor: '#15803D', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+  },
+  meetJoinBtnText: { color: '#FFFFFF', fontSize: 13.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   // Custom Plan proposal card (full-width, matches admin proposal UI)
   proposalCard: {

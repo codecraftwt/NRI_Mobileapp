@@ -8,6 +8,13 @@ import { registerUser } from './userSlice';
 // of being dropped onto the dashboard.
 const initialState = {
   completedByUser: {}, // { [userId]: boolean }
+  // Set when a guest taps "Request a Quote" (Services.js) before signing in —
+  // survives the auth-identity store reset (this slice is exempt, see
+  // store.js) so OnboardingPayment.js can still see it after
+  // registerUser.fulfilled wipes everything else, and use it to auto-request
+  // a custom-plan quote (POST /customer/custom-plans) once the wizard reaches
+  // the payment step, bundling the fee into membership checkout.
+  pendingCustomPlanRequest: false,
 };
 
 // Stable key for a user across register/login (id preferred, email fallback).
@@ -26,6 +33,9 @@ const onboardingSlice = createSlice({
     markOnboardingIncomplete: (state, action) => {
       const userId = action.payload;
       if (userId != null) state.completedByUser[userId] = false;
+    },
+    setPendingCustomPlanRequest: (state, action) => {
+      state.pendingCustomPlanRequest = !!action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -78,5 +88,5 @@ export function selectAuthenticatedRoute(state) {
   return selectOnboardingRoute(state);
 }
 
-export const { markOnboardingComplete, markOnboardingIncomplete } = onboardingSlice.actions;
+export const { markOnboardingComplete, markOnboardingIncomplete, setPendingCustomPlanRequest } = onboardingSlice.actions;
 export default onboardingSlice.reducer;
