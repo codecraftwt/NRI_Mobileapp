@@ -7,6 +7,7 @@ function mapCategory(raw) {
     slug: raw.slug,
     icon: raw.icon,
     description: raw.description,
+    disclaimer: raw.disclaimer,
     baseServicesCount: raw.base_services_count,
     addonServicesCount: raw.addon_services_count,
   };
@@ -96,7 +97,7 @@ function mapService(raw) {
     allowsRecurring: raw.allows_recurring,
     allowsEmergency: raw.allows_emergency,
     imageUrl: raw.image_url || raw.image || null,
-    category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon } : null,
+    category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon, description: raw.category.description, disclaimer: raw.category.disclaimer } : null,
     pricing: mapPricing(raw.pricing),
   };
 }

@@ -217,7 +217,13 @@ function Services({ navigation, route }) {
   const catForService = (s) => {
     if (!isAll) return activeCategory;
     const nm = s.category?.name;
-    return { id: s.category?.id, name: nm, ...detailsFor(nm), displayName: nm || 'Service' };
+    // GET /services never embeds the category's `description` (only
+    // GET /services/categories does) — look the category up there so the
+    // detail screen still gets it. Falls back to the old shape if the
+    // service's category id has no match (shouldn't normally happen).
+    const catMeta = displayCategories.find(c => c.id === s.category?.id);
+    if (catMeta) return { ...catMeta, disclaimer: s.category?.disclaimer || catMeta.disclaimer };
+    return { id: s.category?.id, name: nm, disclaimer: s.category?.disclaimer, ...detailsFor(nm), displayName: nm || 'Service' };
   };
 
   const openService = (service) => {

@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image, ImageBackground } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image, ImageBackground, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -60,6 +60,7 @@ function ServiceInfo({ route, navigation }) {
   const { showToast } = useToast();
   // Cart binds the server APIs when signed in; local-only for guests (onboarding).
   const { count: cartCount, add: addServiceToCart } = useCart();
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
@@ -83,6 +84,12 @@ function ServiceInfo({ route, navigation }) {
   const inCartSameMode = !!cartLine && cartLine.isRecurring === (mode === 'recurring');
   const inOtherMode = !!cartLine && !inCartSameMode;
   const pricing = svc.pricing;
+  // Category description/disclaimer — come back on the service's own
+  // `category` object (GET /services, /services/{service}); fall back to the
+  // category passed in from the listing screen (GET /services/categories)
+  // if that's missing.
+  const categoryDescription = svc.category?.description || category?.description;
+  const disclaimer = svc.category?.disclaimer || category?.disclaimer;
 
   // Bookable in the chosen city only when there's a real vendor price (or it's
   // an on-quote service). `customer_price: null` + `vendor_priced: false` means
@@ -177,12 +184,24 @@ function ServiceInfo({ route, navigation }) {
       <ScrollView style={styles.sheet} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.eyebrowRow}>
           <Text style={styles.eyebrow}>{category.name.toUpperCase()}</Text>
-          <View style={styles.modeBadge}>
-            <Text style={styles.modeBadgeText}>{mode === 'recurring' ? 'RECURRING' : 'ONE TIME'}</Text>
+          <View style={styles.eyebrowRight}>
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeBadgeText}>{mode === 'recurring' ? 'RECURRING' : 'ONE TIME'}</Text>
+            </View>
+            {!!disclaimer && (
+              <TouchableOpacity
+                style={styles.disclaimerInfoBtn}
+                onPress={() => setDisclaimerOpen(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Icon name="info" size={16} color="#F97316" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <Text style={styles.title}>{svc.name}</Text>
         {!!svc.description && <Text style={styles.desc}>{svc.description}</Text>}
+        {!!categoryDescription && <Text style={styles.categoryDesc}>{categoryDescription}</Text>}
 
         {/* Price + Duration */}
         <View style={styles.metaRow}>
@@ -240,6 +259,24 @@ function ServiceInfo({ route, navigation }) {
           <Text style={styles.ctaText}>{ctaLabel}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Disclaimer modal — opened from the "i" icon next to the mode badge */}
+      <Modal visible={disclaimerOpen} transparent animationType="fade" onRequestClose={() => setDisclaimerOpen(false)}>
+        <TouchableOpacity style={styles.disclaimerOverlay} activeOpacity={1} onPress={() => setDisclaimerOpen(false)}>
+          <TouchableOpacity style={styles.disclaimerBox} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.disclaimerHeader}>
+              <View style={styles.disclaimerHeaderLeft}>
+                <Icon name="warning" size={14} color="#F97316" />
+                <Text style={styles.disclaimerLabel}>PLEASE NOTE</Text>
+              </View>
+              <TouchableOpacity onPress={() => setDisclaimerOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="close" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.disclaimerText}>{disclaimer}</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -281,10 +318,29 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 120 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   eyebrow: { fontSize: 11, letterSpacing: 1.5, color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
+  eyebrowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modeBadge: { backgroundColor: '#EEF2FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   modeBadgeText: { fontSize: 10, letterSpacing: 0.5, color: '#1E3A8A', fontFamily: typography.labelMedium.fontFamily },
+  disclaimerInfoBtn: {
+    width: 22, height: 22, borderRadius: 11, backgroundColor: '#FDECE7',
+    justifyContent: 'center', alignItems: 'center',
+  },
   title: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A', letterSpacing: -0.5, marginBottom: 10 },
   desc: { fontSize: 14, lineHeight: 21, color: '#64748B', marginBottom: 20 },
+  categoryDesc: { fontSize: 13, lineHeight: 19, color: '#94A3B8', marginTop: -12, marginBottom: 20 },
+  disclaimerOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24,
+  },
+  disclaimerBox: {
+    width: '100%', maxWidth: 400,
+    backgroundColor: '#132038', borderWidth: 1, borderColor: 'rgba(249,115,22,0.5)', borderRadius: 16,
+    padding: 18,
+  },
+  disclaimerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  disclaimerHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  disclaimerLabel: { fontSize: 12, letterSpacing: 1, color: '#F97316', fontFamily: typography.h4.fontFamily },
+  disclaimerText: { fontSize: 13, lineHeight: 20, color: '#F1F5F9', fontFamily: typography.labelMedium.fontFamily, fontStyle: 'italic' },
 
   metaRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   metaBox: { flex: 1, backgroundColor: '#EEF2FB', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16 },
