@@ -197,32 +197,64 @@ function mapTicket(raw) {
   };
 }
 
-// Sends multipart when there are attachments (required by the API for file
-// upload), plain JSON otherwise.
+// Pay-first: POST /customer/tickets no longer creates anything — it only
+// prices the selection and starts payment. Nothing is created server-side
+// until the returned payment_id is confirmed via finalizeTicket() below, so
+// there are no files/who-where fields on this call at all — always plain JSON.
+function mapPayFirstCheckout(raw, message) {
+  return {
+    requiresPayment: !!raw.requires_payment,
+    paymentId: raw.payment_id,
+    gateway: raw.gateway,
+    amount: raw.amount,
+    currency: raw.currency,
+    gstRate: raw.gst_rate,
+    gstAmount: raw.gst_amount,
+    checkoutUrl: raw.checkout_url || null,
+    order: raw.order || null,
+    message,
+  };
+}
+
 export async function createTicket({
-  serviceId, extraServices, addons, couponCode, familyMemberId, propertyId,
-  stateId, cityId, talukaId, address, urgency, preferredDate, customerNotes, files, documents,
+  serviceId, extraServices, addons, couponCode, stateId, cityId, pincode, urgency, gateway,
+}) {
+  try {
+    const response = await apiClient.post('/customer/tickets', {
+      service_id: serviceId,
+      extra_services: extraServices && extraServices.length > 0 ? extraServices : undefined,
+      addons: addons && addons.length > 0 ? addons : undefined,
+      coupon_code: couponCode || undefined,
+      state_id: stateId,
+      city_id: cityId || undefined,
+      pincode: pincode || undefined,
+      urgency,
+      gateway,
+    });
+    return mapPayFirstCheckout(response.data?.data || {}, response.data?.message);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Actually creates (and sends) the ticket, once the payment from createTicket()
+// above has cleared. Safe to call twice — an already-finalized payment_id just
+// returns the existing ticket. Sends multipart when there are
+// attachments/required-documents to upload, plain JSON otherwise.
+export async function finalizeTicket(paymentId, {
+  familyMemberId, propertyId, talukaId, address, preferredDate, customerNotes, files, documents,
 }) {
   try {
     const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    // Multipart is required whenever there are generic attachments OR keyed
-    // required-documents to upload; plain JSON otherwise.
     const hasFiles = (files && files.length > 0) || docEntries.length > 0;
     let response;
 
     if (hasFiles) {
       const fields = {
-        service_id: serviceId,
-        'extra_services[]': extraServices || [],
-        'addons[]': addons || [],
-        coupon_code: couponCode || undefined,
         family_member_id: familyMemberId || undefined,
         property_id: propertyId || undefined,
-        state_id: stateId,
-        city_id: cityId || undefined,
         taluka_id: talukaId || undefined,
         address,
-        urgency,
         preferred_date: preferredDate || undefined,
         customer_notes: customerNotes || undefined,
       };
@@ -230,20 +262,13 @@ export async function createTicket({
         ...(files || []).map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type })),
         ...docEntries.map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type })),
       ];
-      response = await postMultipart('/customer/tickets', fields, uploadFiles);
+      response = await postMultipart(`/customer/tickets/${paymentId}/finalize`, fields, uploadFiles);
     } else {
-      response = await apiClient.post('/customer/tickets', {
-        service_id: serviceId,
-        extra_services: extraServices && extraServices.length > 0 ? extraServices : undefined,
-        addons: addons && addons.length > 0 ? addons : undefined,
-        coupon_code: couponCode || undefined,
+      response = await apiClient.post(`/customer/tickets/${paymentId}/finalize`, {
         family_member_id: familyMemberId || undefined,
         property_id: propertyId || undefined,
-        state_id: stateId,
-        city_id: cityId || undefined,
         taluka_id: talukaId || undefined,
         address,
-        urgency,
         preferred_date: preferredDate || undefined,
         customer_notes: customerNotes || undefined,
       });
@@ -251,9 +276,7 @@ export async function createTicket({
 
     const data = response.data?.data || {};
     return {
-      ticket: mapTicket(data.ticket),
-      paymentRequired: !!data.payment_required,
-      amountDue: data.amount_due,
+      ticket: mapTicket(data.ticket || data),
       message: response.data?.message,
     };
   } catch (error) {

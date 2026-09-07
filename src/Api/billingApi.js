@@ -1,4 +1,5 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
+import { extractDocumentList, mapRequiredDocument } from './serviceSubscriptionApi';
 
 function mapBillingItem(raw) {
   return {
@@ -133,6 +134,68 @@ export async function subscribeRecurringBundle(bundleId) {
       currency: data.currency,
       checkoutUrl: data.checkout_url || null,
       order: data.order || null,
+      message: response.data?.message,
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+function mapCheckoutBundleService(raw) {
+  if (!raw) return null;
+  return { id: raw.id ?? null, name: raw.name || raw.service_name || 'Service' };
+}
+
+// A registration/membership checkout that bundled the customer's cart
+// (combined_cart: true) doesn't create any tickets at payment time anymore —
+// this returns what's still owed on the "finish" step: status, the service
+// list, and the documents required across all of them (already resolved
+// server-side, unlike the ticket-finalize path which resolves its own
+// required documents from serviceIds).
+export async function getCheckoutBundle(bundleId) {
+  try {
+    const response = await apiClient.get(`/customer/billing/checkout-bundles/${bundleId}`);
+    const data = response.data?.data || response.data || {};
+    return {
+      bundleId: data.bundle_id ?? bundleId,
+      status: data.status || null,
+      services: (data.services || []).map(mapCheckoutBundleService).filter(Boolean),
+      requiredDocuments: extractDocumentList({ data: data.required_documents ?? data.documents ?? [] }).map(mapRequiredDocument),
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Submits who/where + documents for a checkout-bundle — this is what actually
+// creates the tickets for a combined-cart registration/membership checkout.
+export async function finishCheckoutBundle(bundleId, {
+  familyMemberName, familyMemberRelationship, propertyId, talukaId, address,
+  preferredDate, customerNotes, documents,
+}) {
+  try {
+    const fields = {
+      family_member_name: familyMemberName || undefined,
+      family_member_relationship: familyMemberRelationship || undefined,
+      property_id: propertyId || undefined,
+      taluka_id: talukaId || undefined,
+      address,
+      preferred_date: preferredDate || undefined,
+      customer_notes: customerNotes || undefined,
+    };
+    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
+    let response;
+    if (docEntries.length > 0) {
+      const uploadFiles = docEntries.map(([docId, file]) => ({
+        field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
+      }));
+      response = await postMultipart(`/customer/billing/checkout-bundles/${bundleId}/finish`, fields, uploadFiles);
+    } else {
+      response = await apiClient.post(`/customer/billing/checkout-bundles/${bundleId}/finish`, fields);
+    }
+    const data = response.data?.data || {};
+    return {
+      tickets: data.tickets || [],
       message: response.data?.message,
     };
   } catch (error) {

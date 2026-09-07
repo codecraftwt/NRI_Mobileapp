@@ -57,6 +57,16 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
         pendingCustomPlan: data.pending_custom_plan
           ? { paymentId: data.pending_custom_plan.payment_id, subject: data.pending_custom_plan.subject }
           : null,
+        // Reopened-app safety net: if the payment cleared but the client never
+        // recorded the pay-first pending state (killed mid-flow before it
+        // could), these tell the caller to route into FinishRequest anyway.
+        // null on every payment that's already fully finalized/booked.
+        pendingTicketFinalize: data.pending_ticket_finalize
+          ? { paymentId: data.pending_ticket_finalize.payment_id, serviceNames: data.pending_ticket_finalize.service_names }
+          : null,
+        pendingCheckoutBundleFinish: data.pending_checkout_bundle_finish
+          ? { bundleId: data.pending_checkout_bundle_finish.bundle_id, serviceNames: data.pending_checkout_bundle_finish.service_names }
+          : null,
       } : null,
     };
   } catch (error) {

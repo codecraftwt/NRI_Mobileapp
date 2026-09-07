@@ -80,6 +80,7 @@ import UploadDocument from '../Screens/NRI/UploadDocument';
 
 // Import Requests Screen
 import Requests from '../Screens/NRI/Requests';
+import FinishRequest from '../Screens/NRI/FinishRequest';
 
 // Import Vendor Screens
 import VendorNavigator from './Vendor/VendorNavigator';
@@ -162,6 +163,7 @@ function MainServicesStack() {
       <Stack.Screen name="ServiceDetail" component={ServiceDetail} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
     </Stack.Navigator>
@@ -175,6 +177,7 @@ function RequestsStack() {
       <Stack.Screen name="RequestsMain" component={Requests} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
     </Stack.Navigator>
@@ -441,6 +444,7 @@ export default function AppNavigator() {
       <Stack.Screen name="OnboardingProfile" component={OnboardingProfile} />
       <Stack.Screen name="OnboardingPayment" component={OnboardingPayment} />
       <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcome} />
+      <Stack.Screen name="FinishRequest" component={FinishRequest} />
 
       {/* Guest Browse + Cart Flow — the landing experience after onboarding */}
       <Stack.Screen name="GuestHome" component={GuestStack} />

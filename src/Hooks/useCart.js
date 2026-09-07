@@ -8,6 +8,7 @@ import {
   addServerCartItem,
   removeServerCartItem,
   checkoutCart,
+  payFirstCheckoutCart,
   fetchCartCoupons,
   applyCartCoupon,
   clearAppliedCartCoupon,
@@ -80,6 +81,10 @@ export function useCart({ autoFetch = true } = {}) {
   // see cartApi.checkoutCart for params/response shape.
   const checkout = (params) => dispatch(checkoutCart(params));
 
+  // Pay-first checkout for a cart with no recurring item — see
+  // cartApi.payFirstCartCheckout. Nothing is created until finalizeTicket().
+  const checkoutPayFirst = (params) => dispatch(payFirstCheckoutCart(params));
+
   // Coupon offers/validation scoped to the current server cart — see
   // cartApi.getCartCoupons/validateCartCoupon.
   const fetchCoupons = (params) => dispatch(fetchCartCoupons(params));
@@ -87,7 +92,7 @@ export function useCart({ autoFetch = true } = {}) {
   const clearCoupon = () => dispatch(clearAppliedCartCoupon());
 
   return {
-    items, count, isAuthenticated, add, remove, refresh, checkout, checkoutLoading,
+    items, count, isAuthenticated, add, remove, refresh, checkout, checkoutPayFirst, checkoutLoading,
     coupons, couponsLoading, fetchCoupons,
     appliedCoupon, couponApplyLoading, couponApplyError, applyCoupon, clearCoupon,
   };

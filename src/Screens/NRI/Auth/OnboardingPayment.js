@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Platform, Alert, Image } from 'react-native';
-import CustomDateTimePicker from '../../../Components/CustomDateTimePicker';
-import RNBlobUtil from 'react-native-blob-util';
-import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
-import { resolveLocalCopies } from '../../../Utils/localFileCopy';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -15,21 +11,19 @@ import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../../Hooks/us
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
-import { setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
+import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems } from '../../../Redux/slices/cartSlice';
-import { fetchTicketRequiredDocuments, submitTicket } from '../../../Redux/slices/ticketBookingSlice';
+import { setPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { getServices } from '../../../Api/catalogApi';
 import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
 import apiClient from '../../../Api/client';
-import { useFamilyMembers } from '../../../Hooks/useFamilyMembers';
 import { usePlans } from '../../../Hooks/usePlans';
 import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
 import { createCustomPlan as createCustomPlanRequestAction } from '../../../Redux/slices/customPlanSlice';
 import { useStates } from '../../../Hooks/useStates';
 import { useCities } from '../../../Hooks/useCities';
-import { useTalukas } from '../../../Hooks/useTalukas';
 import { usePriorities } from '../../../Hooks/usePriorities';
 import { lightColors as baseColors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../../theme';
 
@@ -43,7 +37,6 @@ const colors = C;
 const { width: W, height: H } = Dimensions.get('window');
 
 const GST_RATE = 0.18;
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function toAmount(value) {
   const amount = Number(value);
@@ -72,42 +65,25 @@ function convertPlanAmountToUsd(amount, plan) {
   return sourceAmount;
 }
 
-// A single required-document row with a "Choose File" picker + preview pill.
-function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
-  return (
-    <View style={styles.docUploadWrap}>
-      <Text style={styles.fieldLabel}>
-        {document.name}{document.required ? <Text style={styles.required}> *</Text> : null}
-      </Text>
-      {!!document.description && <Text style={styles.fieldHint}>{document.description}</Text>}
-      <View style={styles.docInputRow}>
-        <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
-          <Icon name="attach-file" size={16} color={C.primary} />
-          <Text style={styles.docChooseBtnText}>{file ? 'Replace' : 'Choose File'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.docFileName} numberOfLines={1}>{file ? file.name : 'No file chosen'}</Text>
-      </View>
-      {!!file && (
-        <View style={styles.filePill}>
-          <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color={C.primary} />
-          <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
-          <TouchableOpacity onPress={onView} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.filePillView}>
-            <Icon name="visibility" size={16} color={C.primary} />
-            <Text style={styles.filePillViewText}>View</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Icon name="close" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
+// The checkout response's own `data.bundle` only ever carries service names/
+// count, per the backend — no id. The actual bundle id only shows up on the
+// PAYMENT VERIFY response, as `pending_checkout_bundle_finish.bundle_id`
+// (mapped to `pendingCheckoutBundleFinish` in paymentsApi.js). Prefer that;
+// fall back to the checkout bundle only for its service names, and only when
+// there's truly nothing from verify (e.g. no gateway payment was needed at
+// all, so verify() was never called).
+function resolveBundleInfo(verifyData, checkoutBundle) {
+  if (verifyData?.pendingCheckoutBundleFinish?.bundleId != null) {
+    return {
+      bundleId: verifyData.pendingCheckoutBundleFinish.bundleId,
+      serviceNames: verifyData.pendingCheckoutBundleFinish.serviceNames,
+    };
+  }
+  const bundleId = checkoutBundle?.id ?? checkoutBundle?.bundle_id ?? null;
+  if (bundleId == null) return null;
+  return { bundleId, serviceNames: checkoutBundle?.serviceNames ?? checkoutBundle?.service_names };
 }
 
-// Relations offered for a cart service request (who the service is for).
-// Matches the family member API's `relationship` enum — same list the ticket
-// booking form (CreateTicket) offers.
-const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 // Labelled select that opens a centered, searchable list of options — used by
 // the cart service-request form (State / City / Taluka / Relation / Priority).
@@ -230,6 +206,7 @@ function OnboardingPayment({ route, navigation }) {
   // empty cart this is a plain membership registration — unchanged.
   const cartItems = useSelector(selectCartItems);
   const savedLocation = useSelector(s => s.serviceLocation);
+  const userId = useSelector(s => onboardingUserKey(s.user.user));
   const fromCart = cartItems.length > 0;
 
   // A recurring cart service can't ride this membership checkout session (a
@@ -257,40 +234,27 @@ function OnboardingPayment({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateways]);
   const [submitting, setSubmitting] = useState(false);
-  // Two-step sub-flow for the cart path: 'details' (who/where + documents) then
+  // Two-step sub-flow for the cart path: 'details' (booking location) then
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
   const [step, setStep] = useState('details');
-  const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
-  // Preferred date/time picker state.
-  const [preferredDate, setPreferredDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // "Who / Where — for your cart's service requests" form. Location prefilled
-  // from the first cart item (the city the services were priced for).
+  // "Where — for your cart's service requests" — just enough to price/pay.
+  // Who this is for, the exact address, and documents are collected on
+  // FinishRequest, after payment. Location prefilled from the first cart item
+  // (the city the services were priced for).
   const firstItem = cartItems[0] || {};
   const [reqForm, setReqForm] = useState({
-    // Left blank on purpose — this is the NRI's family member (who the service
-    // is for), not the account holder, so it must be entered manually.
-    fullName: '',
-    relation: '',
-    property: 'Not applicable',
     state: firstItem.stateName || savedLocation?.stateName || '',
     city: firstItem.cityName || savedLocation?.cityName || '',
-    taluka: '',
-    address: '',
     // Prefill the PIN code the guest picked when choosing services (carried on
     // the cart item), so they don't re-enter it after registering.
     pincode: firstItem.pincode || savedLocation?.pincode || '',
-    preferredAt: '',
     priority: '',
-    notes: '',
   });
   const setField = (key, val) => setReqForm(prev => ({ ...prev, [key]: val }));
 
   const { stateNames, states } = useStates();
   const { cityNames, cities } = useCities(reqForm.state);
-  const { talukaNames, talukas } = useTalukas(null, reqForm.city);
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { priorities } = usePriorities();
   const priorityLabelOf = (p) => `${p.name} — ${toAmount(p.surcharge) > 0 ? formatUsd(p.surcharge) : 'Free'}`;
   const priorityLabels = priorities.map(priorityLabelOf);
@@ -317,23 +281,6 @@ function OnboardingPayment({ route, navigation }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCart, priorities]);
-
-  // Required documents for the selected (cart) services — displayed on this
-  // step so the customer knows what to prepare. Fetched from the same endpoint
-  // the ticket booking form uses. (User is authenticated by this step.)
-  // ALL cart items, not just one-time ones — confirmed live that the checkout
-  // endpoint 422s ("The documents.N field is required") for a recurring
-  // service's required document even though its ticket isn't created here;
-  // there's no other document-upload step for it before the deferred
-  // subscribe-recurring payment, so it has to be collected now.
-  const requiredDocuments = useSelector(state => state.ticketBooking.requiredDocuments);
-  const cartServiceIdsKey = cartItems.map(i => i.serviceId).join(',');
-  useEffect(() => {
-    if (fromCart && cartItems.length > 0) {
-      dispatch(fetchTicketRequiredDocuments(cartItems.map(i => i.serviceId)));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromCart, cartServiceIdsKey]);
 
   // Re-bind the EXACT vendor price for every cart service from the live
   // GET /services?city_id=<id> response, so the Order Summary and Amount Payable
@@ -439,93 +386,6 @@ function OnboardingPayment({ route, navigation }) {
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
-  const handleChooseDocument = async (docId) => {
-    try {
-      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
-      const picked = results[0];
-      if (!picked) return;
-      if (picked.size && picked.size > MAX_FILE_SIZE_BYTES) {
-        Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
-        return;
-      }
-      const [local] = await resolveLocalCopies([picked]);
-      setDocumentFiles(prev => ({ ...prev, [docId]: { name: picked.name, uri: local.uri, type: picked.type, size: picked.size } }));
-    } catch (err) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
-    }
-  };
-
-  const handleRemoveDocument = (docId) => {
-    setDocumentFiles(prev => { const next = { ...prev }; delete next[docId]; return next; });
-  };
-
-  // View an uploaded document: images preview in-app; PDFs/others open in the
-  // device document viewer.
-  const [previewImage, setPreviewImage] = useState(null);
-  const handleViewDocument = (file) => {
-    if (!file?.uri) return;
-    const isImage = (file.type || '').startsWith('image') || /\.(png|jpe?g|gif|webp|heic)$/i.test(file.name || '');
-    if (isImage) { setPreviewImage(file); return; }
-    const path = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-    const opening = Platform.OS === 'ios'
-      ? RNBlobUtil.ios.previewDocument(path)
-      : RNBlobUtil.android.actionViewIntent(path, file.type || 'application/pdf');
-    Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
-  };
-
-  const formattedPreferred = preferredDate
-    ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
-
-  // The ticket API only accepts an existing family_member_id, not raw
-  // name/relation — reuse a matching saved member if one exists, otherwise
-  // create one from what was entered on the Who/Where form.
-  const resolveFamilyMemberId = async () => {
-    const name = reqForm.fullName.trim();
-    const relationship = reqForm.relation.toLowerCase();
-    if (!name || !relationship) return undefined;
-    const existing = familyMembers.find(
-      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
-    );
-    if (existing) return existing.id;
-    const created = await createFamilyMember({ name, relationship }).unwrap();
-    return created.id;
-  };
-
-  // Once payment is done, turn each cart service into an actual service request
-  // (POST /customer/tickets) using the Who/Where form details, so it shows up
-  // in the customer's Requests tab on the dashboard. Reuses the same booking
-  // API the in-app CreateTicket screen uses.
-  const submitCartServiceRequests = async () => {
-    const stateId = states.find(s => s.name === reqForm.state)?.id;
-    const cityId = cities.find(c => c.name === reqForm.city)?.id || cartItems[0]?.cityId || savedLocation?.cityId || null;
-    const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
-    const address = reqForm.pincode.trim()
-      ? `${reqForm.address.trim()} - ${reqForm.pincode.trim()}`
-      : reqForm.address.trim();
-    const familyMemberId = await resolveFamilyMemberId();
-    const urgency = selectedPriority?.slug || 'standard';
-    const preferred = preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined;
-
-    // Each selected service becomes its own request (mirrors the web + the
-    // "each service becomes its own request" note on the form).
-    for (const item of cartItems) {
-      await dispatch(submitTicket({
-        serviceId: item.serviceId,
-        familyMemberId,
-        stateId,
-        cityId,
-        talukaId,
-        address,
-        urgency,
-        preferredDate: preferred,
-        customerNotes: reqForm.notes || undefined,
-        documents: documentFiles,
-      })).unwrap();
-    }
-  };
-
   // Activates the membership locally, creates the cart's service requests, then
   // moves on to the welcome screen once the gateway payment is confirmed.
   // `pendingRecurringBundle` (from the verify() response) is forwarded so the
@@ -536,7 +396,13 @@ function OnboardingPayment({ route, navigation }) {
   // coupon no longer forces it false on its own, but PayPal (never combines)
   // still can, so only treat the cart as booked/clearable when the backend
   // actually confirmed it rode along, not just because fromCart was true.
-  const finishUp = async (pendingRecurringBundle, combinedCart = true, customPlanTicket = null) => {
+  // `bundleInfo` is { bundleId, serviceNames } resolved via resolveBundleInfo()
+  // — present whenever combined_cart rode along. Under the new pay-first
+  // contract nothing is created yet even though the membership payment
+  // cleared: who/where + documents still need to go through FinishRequest
+  // (mode: 'bundle') via POST /billing/checkout-bundles/{id}/finish before
+  // OnboardingWelcome.
+  const finishUp = async (pendingRecurringBundle, combinedCart = true, customPlanTicket = null, bundleInfo = null) => {
     // Fall back to the ticket the auto-quote effect already created above
     // (the rare "no fee owed" branch) if this payment itself didn't raise one.
     const resolvedCustomPlanTicket = customPlanTicket || preCreatedCustomPlanTicket;
@@ -565,22 +431,41 @@ function OnboardingPayment({ route, navigation }) {
       total: amountPayable,
     }));
 
-    // The backend automatically creates the service requests via
-    // CartCheckoutService when the combined session is paid successfully — but
-    // only clear the local cart when it actually confirmed the cart rode
-    // along. If combinedCart came back false, the cart was left untouched
-    // server-side, so clearing it here would just lose what the customer
-    // selected.
+    // Membership itself is confirmed at this point regardless of the bundle —
+    // only clear the local cart once its tickets actually exist though (see
+    // the bundleId branch below); a combinedCart:false cart (e.g. PayPal,
+    // which never combines) was left untouched server-side, so it's never
+    // cleared here.
     const cartWasBooked = fromCart && combinedCart;
-    if (cartWasBooked) {
-      dispatch(clearCart());
+
+    const bundleId = bundleInfo?.bundleId ?? null;
+    if (cartWasBooked && bundleId) {
+      dispatch(setPendingBundleFinish({
+        userId,
+        bundleId,
+        serviceNames: bundleInfo?.serviceNames ?? oneTimeCartItems.map(it => it.name).join(', '),
+        stateId: states.find(s => s.name === reqForm.state)?.id || null,
+        cityId: cities.find(c => c.name === reqForm.city)?.id || cartItems[0]?.cityId || savedLocation?.cityId || null,
+        stateName: reqForm.state,
+        cityName: reqForm.city,
+      }));
+      // FinishRequest (who/where + documents) comes right after payment —
+      // OnboardingWelcome only shows once that's actually done (see its
+      // success navigation to 'OnboardingWelcome').
+      navigation.navigate('FinishRequest', {
+        mode: 'bundle',
+        bundleId,
+        plan,
+        pendingRecurringBundle,
+        customPlanTicket: resolvedCustomPlanTicket,
+      });
+      return;
     }
 
-    // Tell the welcome screen whether service requests were created (so it can
-    // send the user to the Requests tab), and — on the rare path where the
-    // cart didn't ride along (e.g. PayPal, which never combines) — that it's
-    // still sitting in their cart to submit separately, since we deliberately
-    // did NOT clear it above in that case.
+    // No bundle to finish (no cart, or the cart didn't ride along) — nothing
+    // left to clear/create, go straight to the welcome screen as before.
+    if (cartWasBooked) dispatch(clearCart());
+
     navigation.replace('OnboardingWelcome', {
       plan,
       hasServiceRequests: cartWasBooked,
@@ -646,17 +531,10 @@ function OnboardingPayment({ route, navigation }) {
         customQuoteServiceId: customQuote?.serviceId || undefined,
         customQuoteSubject: customQuote?.subject || undefined,
         customQuoteMessage: customQuote?.message || undefined,
-        familyMemberName: reqForm.fullName?.trim() || undefined,
-        familyMemberRelationship: reqForm.relation?.trim().toLowerCase() || undefined,
         stateId: states.find(s => s.name === reqForm.state)?.id || undefined,
         cityId: cities.find(c => c.name === reqForm.city)?.id || (fromCart ? (cartItems[0]?.cityId || savedLocation?.cityId) : undefined) || undefined,
-        talukaId: talukas.find(t => t.name === reqForm.taluka)?.id || undefined,
-        address: reqForm.address?.trim() || undefined,
         pincode: reqForm.pincode?.trim() || undefined,
         urgency: selectedPriority?.slug || 'standard',
-        preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
-        customerNotes: reqForm.notes || undefined,
-        documents: documentFiles,
       }).unwrap();
 
       if (result.checkoutUrl) {
@@ -664,7 +542,7 @@ function OnboardingPayment({ route, navigation }) {
         // in-app WebView; the payment is confirmed in handleCheckoutSuccess
         // once the gateway redirects back to the success_url with a session_id
         // (see StripeCheckoutModal).
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, combinedCart: result.combinedCart });
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, combinedCart: result.combinedCart, bundle: result.bundle });
       } else if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
         // Auto-renew membership → order carries a subscription_id (verified
@@ -677,14 +555,16 @@ function OnboardingPayment({ route, navigation }) {
           user: { name: profile?.fullName, email: profile?.email, phone: profile?.phone },
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        await finishUp(verifyResult?.data?.pendingRecurringBundle, result.combinedCart, verifyResult?.data?.customPlanTicket);
+        await finishUp(verifyResult?.data?.pendingRecurringBundle, result.combinedCart, verifyResult?.data?.customPlanTicket, resolveBundleInfo(verifyResult?.data, result.bundle));
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for a native SDK flow not built
         // on mobile — steer to a supported gateway instead of a false success.
         showAlert('Not Available', 'This payment method isn\'t supported in the app yet. Please choose Card (Stripe) or Razorpay.', 'error');
       } else {
-        // Wallet credits / free plan covered the full amount — nothing to pay.
-        await finishUp(undefined, result.combinedCart);
+        // Wallet credits / free plan covered the full amount — nothing to pay,
+        // so verify() was never called; fall back to the checkout bundle
+        // (names only, but there's no gateway payment id to look up anyway).
+        await finishUp(undefined, result.combinedCart, undefined, resolveBundleInfo(null, result.bundle));
       }
     } catch (error) {
       // Diagnostic: surface the HTTP status so a gateway rejection can be told
@@ -706,7 +586,7 @@ function OnboardingPayment({ route, navigation }) {
     setSubmitting(true);
     try {
       const verifyResult = await verifyPayment({ paymentId: session?.paymentId, sessionId }).unwrap();
-      await finishUp(verifyResult?.data?.pendingRecurringBundle, session?.combinedCart, verifyResult?.data?.customPlanTicket);
+      await finishUp(verifyResult?.data?.pendingRecurringBundle, session?.combinedCart, verifyResult?.data?.customPlanTicket, resolveBundleInfo(verifyResult?.data, session?.bundle));
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'We could not confirm your payment. If you were charged, please contact support.', 'error');
     } finally {
@@ -719,30 +599,25 @@ function OnboardingPayment({ route, navigation }) {
     setSubmitting(false);
   };
 
-  // Validate the required Who/Where fields + required documents before moving
-  // to payment; show a popup listing anything still missing.
+  // Validate the pre-pay booking-details fields (location + priority) before
+  // moving to payment — who/where + documents are collected afterward on
+  // FinishRequest, once the membership payment (and the cart bundle it
+  // creates) has actually cleared.
   const handleContinueToPayment = () => {
     const missing = [];
-    if (!reqForm.fullName.trim()) missing.push('Full Name');
-    if (!reqForm.relation) missing.push('Relation');
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
-    if (!reqForm.address.trim()) missing.push('Full Address');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
     if (!reqForm.priority) missing.push('Priority');
-    const missingDocs = requiredDocuments.filter(d => d.required && !documentFiles[d.id]).map(d => d.name);
 
-    if (missing.length || missingDocs.length) {
-      const parts = [];
-      if (missing.length) parts.push(`Please fill: ${missing.join(', ')}.`);
-      if (missingDocs.length) parts.push(`Please upload: ${missingDocs.join(', ')}.`);
-      showAlert('Missing Details', parts.join('\n\n'), 'error');
+    if (missing.length) {
+      showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`, 'error');
       return;
     }
     setStep('summary');
   };
 
-  // Cart path splits Step 2 into: details (who/where + documents) → summary
+  // Cart path splits Step 2 into: details (booking location) → summary
   // (order + payment). Plain membership shows the summary directly.
   const showDetails = fromCart && step === 'details';
   const showSummary = !fromCart || step === 'summary';
@@ -764,7 +639,7 @@ function OnboardingPayment({ route, navigation }) {
         {fromCart && (
           <View style={styles.subStepsRow}>
             <View style={[styles.subStep, showDetails && styles.subStepActive]}>
-              <Text style={[styles.subStepText, showDetails && styles.subStepTextActive]}>1 · Details & Documents</Text>
+              <Text style={[styles.subStepText, showDetails && styles.subStepTextActive]}>1 · Where</Text>
             </View>
             <View style={[styles.subStep, showSummary && styles.subStepActive]}>
               <Text style={[styles.subStepText, showSummary && styles.subStepTextActive]}>2 · Order & Payment</Text>
@@ -772,75 +647,26 @@ function OnboardingPayment({ route, navigation }) {
           </View>
         )}
 
+        {/* Pay-first: only what's needed to price/pay the cart's service
+            requests. Who this is for, the exact address, and any documents
+            are collected on FinishRequest, right after payment. */}
         {showDetails && (
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Icon name="place" size={16} color={C.primary} />
-              <Text style={styles.cardHeaderText}>Who / Where — for your cart's service requests</Text>
+              <Text style={styles.cardHeaderText}>Where — for your cart's service requests</Text>
             </View>
-
-            <Text style={styles.fieldLabel}>Full Name *</Text>
-            <TextInput style={styles.input} placeholder="Full name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
-
-            <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
-
-            <FormSelect label="Property (optional)" value={reqForm.property} placeholder="Not applicable" options={['Not applicable']} onSelect={v => setField('property', v)} />
 
             <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
 
             <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
 
-            <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
-
-            <Text style={styles.fieldLabel}>Full Address *</Text>
-            <TextInput style={[styles.input, styles.inputMultiline]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={reqForm.address} onChangeText={t => setField('address', t)} />
-
             <Text style={styles.fieldLabel}>PIN Code *</Text>
             <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
 
-            <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
-            <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
-              <Text style={[styles.selectText, !formattedPreferred && styles.selectPlaceholder]}>
-                {formattedPreferred || 'dd-mm-yyyy --:--'}
-              </Text>
-              <Icon name="event" size={18} color="#64748B" />
-            </TouchableOpacity>
-            <CustomDateTimePicker
-              visible={showDatePicker}
-              mode="datetime"
-              value={preferredDate}
-              minimumDate={new Date()}
-              title="Preferred Date & Time"
-              onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
-              onCancel={() => setShowDatePicker(false)}
-            />
-
             <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
 
-            <Text style={styles.fieldLabel}>Additional Notes</Text>
-            <TextInput style={[styles.input, styles.inputMultiline]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={reqForm.notes} onChangeText={t => setField('notes', t)} />
-
-            <Text style={styles.fieldHint}>Each service becomes its own request, priced from real vendor rates for this address — updated live as you fill this in.</Text>
-          </View>
-        )}
-
-        {showDetails && requiredDocuments.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Icon name="folder-open" size={16} color={C.primary} />
-              <Text style={styles.cardHeaderText}>Required Documents</Text>
-            </View>
-            <Text style={styles.gatewayIntro}>Upload the documents needed for your selected services.</Text>
-            {requiredDocuments.map((doc) => (
-              <DocumentUploadField
-                key={String(doc.id)}
-                document={doc}
-                file={documentFiles[doc.id]}
-                onChoose={() => handleChooseDocument(doc.id)}
-                onRemove={() => handleRemoveDocument(doc.id)}
-                onView={() => handleViewDocument(documentFiles[doc.id])}
-              />
-            ))}
+            <Text style={styles.fieldHint}>Who this is for, the exact address, and any notes/attachments are collected on the next step, after payment.</Text>
           </View>
         )}
 
@@ -854,7 +680,7 @@ function OnboardingPayment({ route, navigation }) {
         {showSummary && fromCart && (
           <TouchableOpacity style={styles.backToDetails} onPress={() => setStep('details')} activeOpacity={0.7}>
             <Icon name="arrow-back" size={16} color={C.primary} />
-            <Text style={styles.backToDetailsText}>Back to details & documents</Text>
+            <Text style={styles.backToDetailsText}>Back to details</Text>
           </TouchableOpacity>
         )}
 
@@ -1181,18 +1007,6 @@ function OnboardingPayment({ route, navigation }) {
         title="Secure Payment"
       />
 
-      {/* In-app image preview */}
-      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={styles.previewOverlay}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewName} numberOfLines={1}>{previewImage?.name}</Text>
-            <TouchableOpacity onPress={() => setPreviewImage(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="close" size={26} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          {!!previewImage && <Image source={{ uri: previewImage.uri }} style={styles.previewImage} resizeMode="contain" />}
-        </View>
-      </Modal>
     </View>
   );
 }

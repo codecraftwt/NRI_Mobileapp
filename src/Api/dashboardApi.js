@@ -34,6 +34,30 @@ function mapRecentTicket(raw) {
   };
 }
 
+// A pay-first ticket booking that's been paid but not yet described (who/
+// where + documents) — recovered here (in addition to the one-off signal on
+// POST /payments/{payment}/verify) so it's visible even if that response was
+// missed (app killed mid-flow, or the payment was made from another device/
+// session, e.g. the web app).
+function mapPendingTicketFinalization(raw) {
+  return {
+    paymentId: raw.payment_id,
+    serviceNames: raw.service_names,
+    amount: raw.display_amount,
+    currency: raw.display_currency,
+  };
+}
+
+// A paid combined membership+cart checkout still missing its who-it's-for/
+// address details — same recovery purpose as above, for the checkout-bundle
+// finish flow instead of a plain ticket.
+function mapPendingCheckoutBundle(raw) {
+  return {
+    bundleId: raw.bundle_id,
+    serviceNames: raw.service_names,
+  };
+}
+
 function mapRecentReport(raw) {
   return {
     id: raw.id,
@@ -83,6 +107,11 @@ function mapDashboard(raw) {
     // Every unpaid recurring bundle for the customer, not just the most
     // recent one — stays populated until each is paid via subscribe-recurring.
     pendingRecurringBundles: (raw.pending_recurring_bundles || []).map(mapPendingRecurringBundle),
+    // Every paid-but-unfinalized ticket/checkout-bundle for the customer —
+    // the authoritative, cross-device source useDashboard reconciles into
+    // pendingRequestsSlice (see there for why local-only tracking isn't enough).
+    pendingTicketFinalizations: (raw.pending_ticket_finalizations || []).map(mapPendingTicketFinalization),
+    pendingCheckoutBundles: (raw.pending_checkout_bundles || []).map(mapPendingCheckoutBundle),
   };
 }
 

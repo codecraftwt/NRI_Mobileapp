@@ -1,10 +1,24 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StatusBar } from 'react-native';
+import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMyTickets } from '../../Hooks/useMyTickets';
+import { useDashboard } from '../../Hooks/useDashboard';
+import { selectPendingTicketFinalizes, selectPendingBundleFinishes } from '../../Redux/slices/pendingRequestsSlice';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
+
+function fmtAmount(amount, currency) {
+  if (amount == null) return '';
+  const symbol = currency === 'INR' ? '₹' : '$';
+  return `${symbol}${Number(amount).toFixed(2)}`;
+}
+
+function joinNames(names) {
+  if (!names) return 'your service request';
+  return Array.isArray(names) ? names.join(', ') : String(names);
+}
 
 const TABS = ['All', 'New', 'Assigned', 'Completed'];
 
@@ -66,6 +80,28 @@ function Requests({ navigation }) {
   const { tickets, meta, loading, loadingMore, failed, retry, fetchPage } = useMyTickets();
   const [activeTab, setActiveTab] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
+  // Every request that's been paid for but not yet finalized (who/where +
+  // documents not yet submitted) has no ticket row server-side yet, so none
+  // of them show up in `tickets` above — surface them here instead, and let
+  // the customer jump straight back into finishing whichever one they pick.
+  // A customer can have more than one at once (e.g. paid for a cart request,
+  // then separately paid for a single-service request, without finishing
+  // either), so this is a list, not a single item.
+  const ticketFinalizes = useSelector(selectPendingTicketFinalizes);
+  const bundleFinishes = useSelector(selectPendingBundleFinishes);
+  // Refreshing the dashboard re-reconciles the pending lists above (see
+  // useDashboard) — this is what surfaces a request paid for from another
+  // device/session (e.g. the web app) that this device never saw locally.
+  const { retry: retryDashboard } = useDashboard();
+  const pendingFinishes = [
+    ...ticketFinalizes.map(t => ({ type: 'ticket', key: `ticket-${t.paymentId}`, paymentId: t.paymentId, serviceNames: t.serviceNames, amount: t.amount, currency: t.currency })),
+    ...bundleFinishes.map(b => ({ type: 'bundle', key: `bundle-${b.bundleId}`, bundleId: b.bundleId, serviceNames: b.serviceNames, amount: null, currency: null })),
+  ];
+  const handleFinishRequest = (item) => {
+    navigation.navigate('FinishRequest', item.type === 'bundle'
+      ? { mode: 'bundle', bundleId: item.bundleId }
+      : { mode: 'ticket', paymentId: item.paymentId });
+  };
 
   // Infinite scroll: pull the next page (appended by the slice) only when there
   // is one and nothing is already in flight — one API call per page, as needed.
@@ -83,7 +119,7 @@ function Requests({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await retry(STATUS_BY_TAB[activeTab]);
+    await Promise.all([retry(STATUS_BY_TAB[activeTab]), retryDashboard()]);
     setRefreshing(false);
   };
 
@@ -94,6 +130,7 @@ function Requests({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       retry(STATUS_BY_TAB[activeTab]);
+      retryDashboard();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab])
   );
@@ -136,13 +173,25 @@ function Requests({ navigation }) {
         onMomentumScrollEnd={handleScroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
+        {pendingFinishes.map(item => (
+          <TouchableOpacity key={item.key} style={styles.finishBanner} activeOpacity={0.8} onPress={() => handleFinishRequest(item)}>
+            <Icon name="error-outline" size={18} color="#B45309" />
+            <Text style={styles.finishBannerText} numberOfLines={2}>
+              <Text style={styles.finishBannerBold}>Finish your service request</Text> — {joinNames(item.serviceNames)}
+              {item.amount != null ? ` (paid ${fmtAmount(item.amount, item.currency)})` : ''}.
+              {' '}A few more details are needed before it's sent to our team.
+            </Text>
+            <Text style={styles.finishBannerAction}>Finish Request</Text>
+          </TouchableOpacity>
+        ))}
+
         {loading && tickets.length === 0 && (
           <View style={[styles.loadingBox, { flex: 1, justifyContent: 'center' }]}>
             <ActivityIndicator size="large" color="#D94625" />
             <Text style={styles.loadingText}>Loading requests...</Text>
           </View>
         )}
-        
+
         {failed && (
           <TouchableOpacity style={styles.retryBox} onPress={retry}>
             <Text style={styles.retryText}>Failed to load. Tap to retry.</Text>
@@ -215,6 +264,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 15, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  finishBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 16, borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 16, paddingVertical: 14 },
+  finishBannerText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: '#92400E' },
+  finishBannerBold: { fontFamily: typography.h4.fontFamily },
+  finishBannerAction: { fontSize: 12.5, fontFamily: typography.h4.fontFamily, color: '#B45309', textDecorationLine: 'underline' },
   tabsContainer: { paddingTop: 20, paddingBottom: 12 },
   tabsScroll: { paddingHorizontal: 20, gap: 12 },
   tab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },

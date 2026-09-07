@@ -72,6 +72,17 @@ export const submitTicket = createAsyncThunk(
   }
 );
 
+export const finalizeTicket = createAsyncThunk(
+  'ticketBooking/finalize',
+  async ({ paymentId, ...params }, { rejectWithValue }) => {
+    try {
+      return await ticketApi.finalizeTicket(paymentId, params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const payForTicket = createAsyncThunk(
   'ticketBooking/pay',
   async ({ ticketId, gateway, useWallet }, { rejectWithValue }) => {
@@ -111,6 +122,8 @@ const initialState = {
   docsUploadError: null,
   submitStatus: 'idle',
   submitError: null,
+  finalizeStatus: 'idle',
+  finalizeError: null,
   payStatus: 'idle',
   payError: null,
   verifyStatus: 'idle',
@@ -205,6 +218,17 @@ const ticketBookingSlice = createSlice({
       .addCase(submitTicket.rejected, (state, action) => {
         state.submitStatus = 'failed';
         state.submitError = action.payload;
+      })
+      .addCase(finalizeTicket.pending, (state) => {
+        state.finalizeStatus = 'loading';
+        state.finalizeError = null;
+      })
+      .addCase(finalizeTicket.fulfilled, (state) => {
+        state.finalizeStatus = 'succeeded';
+      })
+      .addCase(finalizeTicket.rejected, (state, action) => {
+        state.finalizeStatus = 'failed';
+        state.finalizeError = action.payload;
       })
       .addCase(payForTicket.pending, (state) => {
         state.payStatus = 'loading';

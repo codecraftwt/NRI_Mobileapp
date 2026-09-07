@@ -69,6 +69,28 @@ export const subscribeRecurringBundle = createAsyncThunk(
   }
 );
 
+export const fetchCheckoutBundle = createAsyncThunk(
+  'billing/fetchCheckoutBundle',
+  async (bundleId, { rejectWithValue }) => {
+    try {
+      return await billingApi.getCheckoutBundle(bundleId);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const finishCheckoutBundle = createAsyncThunk(
+  'billing/finishCheckoutBundle',
+  async ({ bundleId, ...params }, { rejectWithValue }) => {
+    try {
+      return await billingApi.finishCheckoutBundle(bundleId, params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const fetchPaymentHistory = createAsyncThunk(
   'billing/fetchPaymentHistory',
   async (params, { rejectWithValue }) => {
@@ -94,6 +116,11 @@ const initialState = {
   cancelAllError: null,
   subscribeRecurringStatus: 'idle',
   subscribeRecurringError: null,
+  checkoutBundle: null,
+  checkoutBundleStatus: 'idle',
+  checkoutBundleError: null,
+  finishBundleStatus: 'idle',
+  finishBundleError: null,
   payments: [],
   paymentsMeta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   paymentsStatus: 'idle',
@@ -176,6 +203,29 @@ const billingSlice = createSlice({
       .addCase(subscribeRecurringBundle.rejected, (state, action) => {
         state.subscribeRecurringStatus = 'failed';
         state.subscribeRecurringError = action.payload;
+      })
+      .addCase(fetchCheckoutBundle.pending, (state) => {
+        state.checkoutBundleStatus = 'loading';
+        state.checkoutBundleError = null;
+      })
+      .addCase(fetchCheckoutBundle.fulfilled, (state, action) => {
+        state.checkoutBundleStatus = 'succeeded';
+        state.checkoutBundle = action.payload;
+      })
+      .addCase(fetchCheckoutBundle.rejected, (state, action) => {
+        state.checkoutBundleStatus = 'failed';
+        state.checkoutBundleError = action.payload;
+      })
+      .addCase(finishCheckoutBundle.pending, (state) => {
+        state.finishBundleStatus = 'loading';
+        state.finishBundleError = null;
+      })
+      .addCase(finishCheckoutBundle.fulfilled, (state) => {
+        state.finishBundleStatus = 'succeeded';
+      })
+      .addCase(finishCheckoutBundle.rejected, (state, action) => {
+        state.finishBundleStatus = 'failed';
+        state.finishBundleError = action.payload;
       })
       .addCase(fetchPaymentHistory.pending, (state) => {
         state.paymentsStatus = 'loading';

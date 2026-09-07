@@ -144,6 +144,16 @@ export const checkoutCart = createAsyncThunk('cart/checkout', async (params, { r
   }
 });
 
+// Pay-first checkout for a cart with no recurring-mode item — see
+// cartApi.payFirstCartCheckout for the request/response shape.
+export const payFirstCheckoutCart = createAsyncThunk('cart/checkoutPayFirst', async (params, { rejectWithValue }) => {
+  try {
+    return await cartApi.payFirstCartCheckout(params);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 export const fetchCartCoupons = createAsyncThunk('cart/fetchCoupons', async (params, { rejectWithValue }) => {
   try {
     return await cartApi.getCartCoupons(params);
@@ -250,6 +260,17 @@ const cartSlice = createSlice({
         state.checkoutStatus = 'succeeded';
       })
       .addCase(checkoutCart.rejected, (state, action) => {
+        state.checkoutStatus = 'failed';
+        state.checkoutError = action.payload;
+      })
+      .addCase(payFirstCheckoutCart.pending, (state) => {
+        state.checkoutStatus = 'loading';
+        state.checkoutError = null;
+      })
+      .addCase(payFirstCheckoutCart.fulfilled, (state) => {
+        state.checkoutStatus = 'succeeded';
+      })
+      .addCase(payFirstCheckoutCart.rejected, (state, action) => {
         state.checkoutStatus = 'failed';
         state.checkoutError = action.payload;
       })

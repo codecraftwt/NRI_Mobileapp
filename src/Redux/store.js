@@ -44,6 +44,7 @@ import serviceLocationReducer from './slices/serviceLocationSlice';
 import cartReducer from './slices/cartSlice';
 import notificationsReducer from './slices/notificationsSlice';
 import onboardingReducer from './slices/onboardingSlice';
+import pendingRequestsReducer from './slices/pendingRequestsSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
@@ -61,7 +62,11 @@ const persistConfig = {
   // falls back to a plain membership registration. It's still cleared on logout
   // (the auth-identity reset drops it — see CART_KEEP_TYPES) and after a
   // successful checkout (clearCart), so the next fresh guest starts empty.
-  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation', 'cart'],
+  // `pendingRequests` persists (and survives the auth reset below, like
+  // `onboarding`) so a paid-but-not-yet-finalized request/bundle can still be
+  // resumed from the Requests.js banner after the app is killed or the user
+  // logs out and back in mid-flow.
+  whitelist: ['user', 'tickets', 'wallet', 'onboarding', 'serviceLocation', 'cart', 'pendingRequests'],
   migrate: (state) => {
     if (state && state._persist && state._persist.version !== 2) {
       return Promise.resolve(undefined);
@@ -146,6 +151,7 @@ const appReducer = combineReducers({
   cart: cartReducer,
   notifications: notificationsReducer,
   onboarding: onboardingReducer,
+  pendingRequests: pendingRequestsReducer,
 });
 
 const rootReducer = (state, action) => {
@@ -212,6 +218,10 @@ const rootReducer = (state, action) => {
 
     state = {
       onboarding: state?.onboarding,
+      // A pending finalize/bundle belongs to a specific account and is keyed
+      // by user id (see pendingRequestsSlice) — safe to carry through every
+      // auth-identity change the same way `onboarding` is.
+      pendingRequests: state?.pendingRequests,
       cart: keepCart ? state?.cart : undefined,
       serviceLocation: nextServiceLocation,
     };

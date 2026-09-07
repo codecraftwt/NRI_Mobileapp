@@ -6,6 +6,8 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
+import { setPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
+import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useProperties } from '../../Hooks/useProperties';
 import { useStates } from '../../Hooks/useStates';
@@ -122,7 +124,7 @@ function SubmitRequest({ navigation }) {
   // Signed-in cart — removing a line also hits DELETE /customer/cart/items/{id}
   // and refreshes the server count (useCart fetches it on mount).
   const {
-    remove: removeCartService, checkout: checkoutCart, checkoutLoading,
+    remove: removeCartService, checkout: checkoutCart, checkoutPayFirst, checkoutLoading,
     coupons: cartCoupons, couponsLoading: cartCouponsLoading, fetchCoupons: fetchCartCoupons,
     appliedCoupon: appliedCartCoupon, couponApplyLoading: cartCouponApplyLoading,
     applyCoupon: applyCartCoupon, clearCoupon: clearCartCoupon,
@@ -130,6 +132,7 @@ function SubmitRequest({ navigation }) {
   const items = useSelector(selectCartItems);
   const savedLocation = useSelector(s => s.serviceLocation);
   const user = useSelector(s => s.user.user);
+  const userId = useSelector(s => onboardingUserKey(s.user.user));
   // Available gateways come from the backend (already NRI + admin-toggle gated).
   const { gateways } = usePaymentGateways();
   // Populates the Property dropdown below — same source AddProperty.js writes
@@ -208,6 +211,11 @@ function SubmitRequest({ navigation }) {
   // bound to recurring_price via useCartPriceSync.
   const oneTimeItems = items.filter(i => !i.isRecurring);
   const recurringItems = items.filter(i => i.isRecurring);
+  // Pay-first (booking-details → payment → FinishRequest) only applies to a
+  // cart with no recurring-mode item — per the backend, a cart containing a
+  // recurring item still goes through the old details→payment→checkoutCart
+  // flow below, completely unchanged.
+  const payFirstEligible = recurringItems.length === 0;
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -464,6 +472,93 @@ function SubmitRequest({ navigation }) {
 
   const handleContinue = () => { if (validateDetails()) setStep('payment'); };
 
+  // Pay-first path (payFirstEligible only): validates just the booking-details
+  // fields (location + priority), prices/pays the whole cart as one combined
+  // ticket via POST /customer/cart/checkout, then hands off to FinishRequest —
+  // nothing is created server-side until that screen's finalize call succeeds.
+  const validateBookingDetails = () => {
+    const missing = [];
+    if (!reqForm.state) missing.push('State');
+    if (!reqForm.city) missing.push('City / District');
+    if (!reqForm.pincode.trim()) missing.push('PIN Code');
+    if (!reqForm.priority) missing.push('Priority');
+    if (missing.length) {
+      showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
+      return false;
+    }
+    return true;
+  };
+
+  const handlePayFirst = async () => {
+    if (loading || submissionLockRef.current) return;
+    if (!validateBookingDetails()) return;
+    if (quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
+
+    submissionLockRef.current = true;
+    setSubmissionInProgress(true);
+    try {
+      const stateId = states.find(s => s.name === reqForm.state)?.id;
+      const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
+
+      const result = await checkoutPayFirst({
+        gateway: paymentMethod,
+        couponCode: couponCode.trim() || undefined,
+        stateId,
+        cityId,
+        pincode: reqForm.pincode.trim(),
+        urgency: selectedPriority?.slug || 'standard',
+      }).unwrap();
+
+      if (result.paymentId) {
+        dispatch(setPendingTicketFinalize({
+          userId,
+          paymentId: result.paymentId,
+          serviceIds: oneTimeItems.map(i => i.serviceId),
+          serviceNames: oneTimeItems.map(i => i.name),
+          stateId, cityId,
+          stateName: reqForm.state, cityName: reqForm.city,
+          amount: result.amount, currency: result.currency,
+          origin: 'cart',
+        }));
+      }
+
+      if (result.requiresPayment && result.checkoutUrl) {
+        // Stripe — open the hosted checkout page; handleCheckoutSuccess routes
+        // to FinishRequest once it redirects back with a session_id.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, payFirst: true });
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
+      if (result.requiresPayment && result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: 'Service request',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+      }
+      // Either nothing was owed (requires_payment: false, e.g. wallet/free) or
+      // the Razorpay payment above just cleared — either way, finish the
+      // request on FinishRequest (it reads the pending state we just set).
+      navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: result.paymentId });
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
+    } catch (error) {
+      const fieldErrors = error?.errors
+        ? Object.entries(error.errors).flatMap(([, v]) => v).join('\n')
+        : '';
+      const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
+        || 'Could not start payment. Please try again.';
+      showAlert('Payment Failed', msg);
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
+    }
+  };
+
   // A recurring cart item that's still unpaid after checkout (either the
   // whole cart was pure-recurring — nothing to pay via a ticket — or it rode
   // alongside a one-time gateway payment as a leftover) surfaces its own
@@ -569,6 +664,12 @@ function SubmitRequest({ navigation }) {
     setSubmissionInProgress(true);
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+      if (session?.payFirst) {
+        navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: session.paymentId });
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
       await handlePostCheckout(session?.pendingBundle);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify the payment yet. If charged, check Requests shortly.');
@@ -776,7 +877,118 @@ function SubmitRequest({ navigation }) {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Page 2 — two-step request form */}
+          {payFirstEligible ? (
+          <>
+          {/* Pay-first: booking details + payment in one step (booking-details.png).
+              Who/where + documents are collected AFTER payment, on FinishRequest. */}
+          <View style={styles.card}>
+            <View style={styles.cardHeadRow}><Icon name="place" size={16} color="#20304C" /><Text style={styles.cardTitle}>Where</Text></View>
+
+            <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
+            <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
+
+            <Text style={styles.fieldLabel}>PIN Code *</Text>
+            <View style={styles.pincodeRow}>
+              <TextInput
+                style={[styles.input, styles.pincodeInput]}
+                placeholder="e.g. 416002"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={reqForm.pincode}
+                onChangeText={t => setField('pincode', t.replace(/[^0-9]/g, ''))}
+              />
+              {pincodeLoading && <ActivityIndicator size="small" color="#D94625" />}
+            </View>
+            {!!pincodeLocation?.cityName && (
+              <Text style={styles.pincodeHint}>
+                {pincodeLocation.cityName}{pincodeLocation.stateName ? `, ${pincodeLocation.stateName}` : ''}
+              </Text>
+            )}
+
+            <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>Payment</Text></View>
+
+            <Text style={styles.fieldLabel}>Have a coupon?</Text>
+            <View style={styles.couponRow}>
+              <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
+                disabled={cartCouponApplyLoading}
+              >
+                {cartCouponApplyLoading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+              <Icon name="local-offer" size={14} color="#D94625" />
+              <Text style={styles.viewCouponsLink}>View available coupons</Text>
+              <Icon name="expand-more" size={16} color="#D94625" />
+            </TouchableOpacity>
+
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Payment Method</Text>
+            {gateways.map(g => (
+              <TouchableOpacity
+                key={g.value}
+                style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
+                activeOpacity={0.8}
+                onPress={() => setPaymentMethod(g.value)}
+              >
+                <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.gatewayName}>{g.label}</Text>
+                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                </View>
+                <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.divider} />
+            {oneTimeItems.length > 0 && (
+              <>
+                {quoteBlocking && (
+                  <View style={styles.quoteErrorBox}>
+                    <Icon name="error-outline" size={16} color="#B91C1C" />
+                    <Text style={styles.quoteErrorText}>{quoteErrorMessage}</Text>
+                  </View>
+                )}
+                <SummaryRow label="Services" value={String(oneTimeItems.length)} />
+                <SummaryRow label="Services total" value={fmt(estAmount)} />
+                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                <SummaryRow label="Services GST" sub="(18%)" value={fmt(estGst)} />
+              </>
+            )}
+            <View style={styles.payBox}>
+              <Text style={styles.payLabel}>You'll pay</Text>
+              <Text style={styles.payValue}>{fmt(estTotal)}</Text>
+            </View>
+
+            {loading ? (
+              <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
+            ) : (
+              <TouchableOpacity
+                style={[styles.submitBtn, quoteBlocking && styles.submitBtnDisabled]}
+                activeOpacity={0.9}
+                onPress={handlePayFirst}
+                disabled={quoteBlocking}
+              >
+                <Text style={styles.submitBtnText}>Continue to Payment</Text>
+                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+          </View>
+          </>
+          ) : (
+          <>
+          {/* Cart has a recurring item — old details→payment flow, unchanged. */}
           {/* Step indicator */}
           <View style={styles.stepper}>
             <View style={styles.stepRow}>
@@ -972,6 +1184,8 @@ function SubmitRequest({ navigation }) {
             )}
 
           </View>
+          </>
+          )}
           </>
           )}
         </ScrollView>

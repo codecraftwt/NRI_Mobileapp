@@ -175,11 +175,14 @@ function Dashboard({ navigation }) {
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.userName}>Hello {user?.name || 'NRI Circle Member'} </Text>
-            <Animated.Text style={[styles.userName, { transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
+          <View style={styles.greetingRow}>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">Hello {user?.name || 'NRI Circle Member'} </Text>
+            <Animated.Text style={[styles.userName, { flexShrink: 0, transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
           </View>
-          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
+          {/* Absolutely positioned, independent of the greeting text's layout —
+              guarantees the bell stays fixed top-right no matter how long the
+              name is or how flex/ellipsis behaves on a given device. */}
+          <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="notifications-none" size={26} color="#FFFFFF" />
             <View style={styles.badgeDot} />
           </TouchableOpacity>
@@ -411,10 +414,22 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 0,
   },
+  // `position: relative` makes this the positioning context for bellBtn below
+  // — the bell is pinned here independent of the greeting's own layout, so it
+  // can never be pushed out or overlapped by a long name.
   headerTop: {
+    position: 'relative',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  // paddingRight reserves the bell's footprint (44 width + 12 right offset +
+  // some breathing room) so the name truncates before reaching it, instead of
+  // rendering underneath the (higher-zIndex) absolutely-positioned bell.
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 60,
   },
   welcomeText: {
     ...typography.tiny,
@@ -430,6 +445,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 4,
     textTransform: 'capitalize',
+    flexShrink: 1,
   },
   premiumText: {
     ...typography.small,
@@ -437,6 +453,10 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
   },
   bellBtn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,

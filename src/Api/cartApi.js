@@ -271,3 +271,37 @@ export async function checkoutCart({
     throw normalizeApiError(error);
   }
 }
+
+// Pay-first cart checkout — ONLY valid for a cart with no recurring-mode item
+// (a recurring item must still go through checkoutCart() above, unchanged).
+// Prices the whole cart as one combined ticket and starts payment; nothing is
+// created server-side until the returned payment_id is confirmed via
+// ticketApi.finalizeTicket(). Same reduced body / response shape as the
+// single-service POST /customer/tickets pay-first call.
+export async function payFirstCartCheckout({ gateway, couponCode, stateId, cityId, pincode, urgency }) {
+  try {
+    const response = await apiClient.post('/customer/cart/checkout', {
+      gateway,
+      coupon_code: couponCode || undefined,
+      state_id: stateId,
+      city_id: cityId || undefined,
+      pincode: pincode || undefined,
+      urgency,
+    });
+    const data = response.data?.data || {};
+    return {
+      requiresPayment: !!data.requires_payment,
+      paymentId: data.payment_id,
+      gateway: data.gateway,
+      amount: data.amount,
+      currency: data.currency,
+      gstRate: data.gst_rate,
+      gstAmount: data.gst_amount,
+      checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
+      message: response.data?.message,
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
