@@ -184,24 +184,24 @@ function ServiceInfo({ route, navigation }) {
       <ScrollView style={styles.sheet} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.eyebrowRow}>
           <Text style={styles.eyebrow}>{category.name.toUpperCase()}</Text>
-          <View style={styles.eyebrowRight}>
-            <View style={styles.modeBadge}>
-              <Text style={styles.modeBadgeText}>{mode === 'recurring' ? 'RECURRING' : 'ONE TIME'}</Text>
-            </View>
-            {!!disclaimer && (
-              <TouchableOpacity
-                style={styles.disclaimerInfoBtn}
-                onPress={() => setDisclaimerOpen(true)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Icon name="info" size={16} color="#F97316" />
-              </TouchableOpacity>
-            )}
+          <View style={styles.modeBadge}>
+            <Text style={styles.modeBadgeText}>{mode === 'recurring' ? 'RECURRING' : 'ONE TIME'}</Text>
           </View>
         </View>
         <Text style={styles.title}>{svc.name}</Text>
         {!!svc.description && <Text style={styles.desc}>{svc.description}</Text>}
         {!!categoryDescription && <Text style={styles.categoryDesc}>{categoryDescription}</Text>}
+
+        {!!disclaimer && (
+          <TouchableOpacity
+            style={styles.noteRow}
+            onPress={() => setDisclaimerOpen(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.noteRowText}>Please note</Text>
+            <Icon name="info" size={16} color="#F97316" />
+          </TouchableOpacity>
+        )}
 
         {/* Price + Duration */}
         <View style={styles.metaRow}>
@@ -318,16 +318,13 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 120 },
   eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   eyebrow: { fontSize: 11, letterSpacing: 1.5, color: '#D94625', fontFamily: typography.labelMedium.fontFamily },
-  eyebrowRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modeBadge: { backgroundColor: '#EEF2FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   modeBadgeText: { fontSize: 10, letterSpacing: 0.5, color: '#1E3A8A', fontFamily: typography.labelMedium.fontFamily },
-  disclaimerInfoBtn: {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: '#FDECE7',
-    justifyContent: 'center', alignItems: 'center',
-  },
   title: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A', letterSpacing: -0.5, marginBottom: 10 },
   desc: { fontSize: 14, lineHeight: 21, color: '#64748B', marginBottom: 20 },
   categoryDesc: { fontSize: 13, lineHeight: 19, color: '#94A3B8', marginTop: -12, marginBottom: 20 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -12, marginBottom: 20 },
+  noteRowText: { fontSize: 13, color: '#F97316', fontFamily: typography.h4.fontFamily },
   disclaimerOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24,

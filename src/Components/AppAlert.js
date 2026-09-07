@@ -40,10 +40,21 @@ export function useAppAlert() {
 
 function AppAlert({ visible, title, message, buttons, onRequestClose, onButtonPress }) {
   const stacked = buttons.length > 2;
+  // Alerts with no 'cancel' button (e.g. a lone "OK") have nothing to cancel
+  // into — every button IS the acknowledgement. Dismissing by tapping outside
+  // must fire that same action, otherwise the screen is left in whatever
+  // state it was in before the alert (e.g. a stale form after a success
+  // alert whose OK button was supposed to navigate away). Alerts that DO
+  // have a 'cancel' button keep native behavior: backdrop tap just closes.
+  const handleBackdropPress = () => {
+    const hasCancelButton = buttons.some(b => b.style === 'cancel');
+    if (hasCancelButton || !buttons.length) { onRequestClose(); return; }
+    onButtonPress(buttons[0]);
+  };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onRequestClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onRequestClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleBackdropPress}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleBackdropPress}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           {!!title && <Text style={styles.title}>{title}</Text>}
           {!!message && <Text style={styles.message}>{message}</Text>}
