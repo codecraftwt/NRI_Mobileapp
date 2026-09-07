@@ -25,6 +25,48 @@ export const escalateRmRequest = createAsyncThunk('rmRequestDetail/escalate', as
   }
 });
 
+// Additional-payment mutations — each refetches the detail on success so the
+// charge history / vendor-disputes list reflects the new state without a
+// manual reload (same pattern as vendorJobsSlice's job mutations).
+export const requestRmAdditionalPayment = createAsyncThunk(
+  'rmRequestDetail/requestAdditionalPayment',
+  async ({ ticket, amount, reason }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.requestRmAdditionalPayment(ticket, { amount, reason });
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const cancelRmAdditionalCharge = createAsyncThunk(
+  'rmRequestDetail/cancelAdditionalCharge',
+  async ({ ticket, chargeId }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.cancelRmAdditionalCharge(ticket, chargeId);
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
+export const convertRmVendorDispute = createAsyncThunk(
+  'rmRequestDetail/convertVendorDispute',
+  async ({ ticket, disputeId, amount, reason }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.convertRmVendorDispute(ticket, disputeId, { amount, reason });
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   detail: null,
   status: 'idle',
@@ -33,6 +75,8 @@ const initialState = {
   addNoteError: null,
   escalateStatus: 'idle',
   escalateError: null,
+  additionalPaymentStatus: 'idle',
+  additionalPaymentError: null,
 };
 
 const rmRequestDetailSlice = createSlice({
@@ -85,6 +129,24 @@ const rmRequestDetailSlice = createSlice({
         state.escalateStatus = 'failed';
         state.escalateError = action.payload;
       });
+
+    // Shared pending/fulfilled/rejected handling for the three additional-
+    // payment mutations — each refetches the detail itself on success, so
+    // this slice only needs to track a shared loading/error flag.
+    [requestRmAdditionalPayment, cancelRmAdditionalCharge, convertRmVendorDispute].forEach((thunk) => {
+      builder
+        .addCase(thunk.pending, (state) => {
+          state.additionalPaymentStatus = 'loading';
+          state.additionalPaymentError = null;
+        })
+        .addCase(thunk.fulfilled, (state) => {
+          state.additionalPaymentStatus = 'succeeded';
+        })
+        .addCase(thunk.rejected, (state, action) => {
+          state.additionalPaymentStatus = 'failed';
+          state.additionalPaymentError = action.payload;
+        });
+    });
   },
 });
 

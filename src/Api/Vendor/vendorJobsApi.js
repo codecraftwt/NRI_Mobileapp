@@ -49,6 +49,22 @@ export function mapJob(raw) {
   };
 }
 
+// One entry in a job's cost-flag history (GET /vendor/jobs/{ticket}'s
+// vendor_disputes array) — the vendor's own past "Flag Cost Issue" submissions
+// on this job, resolved or still awaiting review.
+function mapVendorDispute(raw) {
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    amount: raw.amount != null ? Number(raw.amount) : null,
+    reason: raw.reason || '',
+    status: raw.status || 'pending',
+    resolutionNotes: raw.resolution_notes || null,
+    createdAt: raw.created_at || null,
+    resolvedAt: raw.resolved_at || null,
+  };
+}
+
 // Full job detail.
 export function mapJobDetail(raw) {
   if (!raw) return null;
@@ -113,6 +129,7 @@ export function mapJobDetail(raw) {
       date: formatDateTime(h.at || h.created_at || h.date),
       note: h.note || h.description || h.message || '',
     })),
+    vendorDisputes: (raw.vendor_disputes || []).map(mapVendorDispute).filter(Boolean),
   };
 }
 

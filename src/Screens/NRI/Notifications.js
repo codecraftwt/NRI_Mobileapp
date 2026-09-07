@@ -11,7 +11,7 @@ import { handleNotificationNavigation } from '../../Services/firebase/notificati
 function getVisual(n) {
   const key = `${n.type || ''} ${n.event || ''}`.toLowerCase();
   if (/complete|success|paid|resolved/.test(key)) return { icon: 'check-circle', color: '#059669', bg: '#D1FAE5' };
-  if (/warn|action|required|sla|overdue|reject/.test(key)) return { icon: 'warning', color: '#D94625', bg: '#FBEAE5' };
+  if (/warn|action|required|sla|overdue|reject|cancel/.test(key)) return { icon: 'warning', color: '#D94625', bg: '#FBEAE5' };
   if (/offer|package|promo|coupon/.test(key)) return { icon: 'local-offer', color: '#3B82F6', bg: '#EFF6FF' };
   if (/chat|message|support/.test(key)) return { icon: 'chat', color: '#8B5CF6', bg: '#F3E8FF' };
   return { icon: 'notifications', color: '#3B82F6', bg: '#EFF6FF' };

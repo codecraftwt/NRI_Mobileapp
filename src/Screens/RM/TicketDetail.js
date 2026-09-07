@@ -54,6 +54,47 @@ function inr(v) {
   return `₹${Number(v).toFixed(2)}`;
 }
 
+// gst_rate may arrive as a fraction (0.18) or whole percent (18) — normalize
+// to a "GST (18%)" label (matches the same helper on the NRI ticket detail).
+function formatGstLabel(rate) {
+  if (rate == null) return 'GST';
+  const pct = rate <= 1 ? rate * 100 : rate;
+  const rounded = Number.isInteger(pct) ? pct : Number(pct.toFixed(2));
+  return `GST (${rounded}%)`;
+}
+
+// Finer-grained than ago() (which buckets anything under a day as "today") —
+// used for the Vendor Cost Flags timestamp, which needs minute/hour precision
+// since a flag is often only minutes old when the RM opens the ticket.
+function agoShort(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  if (isNaN(diff) || diff < 0) return 'just now';
+  const minute = 60000;
+  const hour = 3600000;
+  const day = 86400000;
+  if (diff < minute) return 'just now';
+  if (diff < hour) {
+    const m = Math.floor(diff / minute);
+    return `${m} minute${m > 1 ? 's' : ''} ago`;
+  }
+  if (diff < day) {
+    const h = Math.floor(diff / hour);
+    return `${h} hour${h > 1 ? 's' : ''} ago`;
+  }
+  return ago(iso);
+}
+
+function chargeStatusStyle(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'paid':
+    case 'settled': return { bg: '#D1FAE5', text: '#059669', label: 'Paid' };
+    case 'cancelled':
+    case 'canceled': return { bg: '#F1F5F9', text: '#64748B', label: 'Cancelled' };
+    default: return { bg: '#FEF3E7', text: '#C2410C', label: 'Pending' };
+  }
+}
+
 // Glanceable SLA badge: red when overdue, amber when due, green when done.
 function slaBadge(deadline, overdue, status) {
   const s = norm(status);
@@ -77,6 +118,8 @@ function TicketDetail({ navigation, route }) {
     detail, loading, failed, error, refresh,
     addNote, addingNote,
     escalate, escalating, escalateError,
+    requestAdditionalPayment, cancelAdditionalCharge, convertVendorDispute,
+    additionalPaymentLoading,
   } = useRmRequestDetail(ticketId);
 
   const dispatch = useDispatch();
@@ -110,6 +153,16 @@ function TicketDetail({ navigation, route }) {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewing, setReviewing] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Additional payment: request / cancel / convert-a-vendor-flag.
+  const [requestPayVisible, setRequestPayVisible] = useState(false);
+  const [requestAmount, setRequestAmount] = useState('');
+  const [requestReason, setRequestReason] = useState('');
+  // Vendor Cost Flags are edited inline (amount/reason fields right on each
+  // flag's row, per the design) rather than in a modal — keyed by dispute id
+  // so multiple pending flags can be edited independently.
+  const [disputeDrafts, setDisputeDrafts] = useState({});
+  const [convertingId, setConvertingId] = useState(null);
 
   const report = detail?.vendorReport;
 
@@ -160,6 +213,69 @@ function TicketDetail({ navigation, route }) {
     }).catch(() => {});
   };
 
+  const openRequestPay = () => {
+    setRequestAmount('');
+    setRequestReason('');
+    setRequestPayVisible(true);
+  };
+
+  const handleRequestPayment = () => {
+    const amt = Number(requestAmount);
+    if (!amt || amt <= 0 || !requestReason.trim() || additionalPaymentLoading) return;
+    requestAdditionalPayment({ amount: amt, reason: requestReason.trim() }).unwrap?.()
+      .then(() => {
+        setRequestPayVisible(false);
+        showToast('Additional payment requested from the customer', 'success');
+      })
+      .catch((e) => Alert.alert('Could Not Request Payment', e?.message || 'Please try again.'));
+  };
+
+  const handleCancelCharge = (charge) => {
+    Alert.alert(
+      'Cancel Request',
+      `Withdraw the ₹${(charge.amount || 0).toFixed(2)} additional payment request? The customer will no longer owe it.`,
+      [
+        { text: 'Keep It', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: () => {
+            cancelAdditionalCharge(charge.id).unwrap?.()
+              .then(() => showToast('Additional payment request cancelled', 'success'))
+              .catch((e) => Alert.alert('Could Not Cancel', e?.message || 'Please try again.'));
+          },
+        },
+      ]
+    );
+  };
+
+  // Draft defaults to exactly what the vendor submitted; the RM can edit
+  // either field inline before sending.
+  const getDisputeDraft = (dispute) => disputeDrafts[dispute.id] || {
+    amount: dispute.amount != null ? String(dispute.amount) : '',
+    reason: dispute.reason || '',
+  };
+  const setDisputeDraft = (dispute, patch) => {
+    setDisputeDrafts(prev => ({ ...prev, [dispute.id]: { ...getDisputeDraft(dispute), ...patch } }));
+  };
+
+  const handleConvertDispute = (dispute) => {
+    if (convertingId === dispute.id) return;
+    const draft = getDisputeDraft(dispute);
+    setConvertingId(dispute.id);
+    convertVendorDispute(dispute.id, { amount: draft.amount, reason: draft.reason.trim() }).unwrap?.()
+      .then(() => {
+        setDisputeDrafts(prev => {
+          const next = { ...prev };
+          delete next[dispute.id];
+          return next;
+        });
+        showToast('Additional payment requested from the customer', 'success');
+      })
+      .catch((e) => Alert.alert('Could Not Request Payment', e?.status === 422 ? 'This flag was already handled.' : (e?.message || 'Please try again.')))
+      .finally(() => setConvertingId(null));
+  };
+
   const cur = statusStyle(detail?.status);
   const sla = detail ? slaBadge(detail.slaDeadline, detail.overdue, detail.status) : null;
 
@@ -174,11 +290,13 @@ function TicketDetail({ navigation, route }) {
   const pricingRows = detail ? [
     ['Customer Price', inr(detail.pricing.customerPrice)],
     ['Express Surcharge', inr(detail.pricing.expressSurcharge)],
-    ['GST', inr(detail.pricing.gst)],
+    [formatGstLabel(detail.pricing.gstRate), inr(detail.pricing.gstAmount)],
   ].filter(r => r[1] != null) : [];
 
   const noteCount = detail?.internalNotes?.length || 0;
   const activityCount = noteCount + (detail?.statusHistory?.length || 0) + (detail?.escalations?.length || 0);
+  const additionalCharges = detail?.additionalCharges || [];
+  const hasPendingCharge = additionalCharges.some(c => c.status === 'pending');
 
   return (
     <View style={styles.container}>
@@ -378,7 +496,15 @@ function TicketDetail({ navigation, route }) {
                 {/* Pricing */}
                 {(pricingRows.length > 0 || inr(detail?.pricing.total)) && (
                   <>
-                    <CardTitle icon="receipt-long" title="Pricing" />
+                    <View style={styles.sectionHeaderRow}>
+                      <CardTitle icon="receipt-long" title="Pricing" />
+                      {!hasPendingCharge && (
+                        <TouchableOpacity style={styles.requestPayPill} onPress={openRequestPay} activeOpacity={0.85}>
+                          <Icon name="request-quote" size={14} color="#B45309" />
+                          <Text style={styles.requestPayPillText}>Request Additional Payment</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                     <View style={styles.card}>
                       {pricingRows.map(([label, value]) => (
                         <View key={label} style={styles.priceRow}>
@@ -537,6 +663,104 @@ function TicketDetail({ navigation, route }) {
             {/* ---------- ACTIVITY ---------- */}
             {tab === 'activity' && (
               <>
+                {/* Vendor-flagged cost issue(s) awaiting RM action */}
+                {detail?.vendorDisputes?.length > 0 && (
+                  <>
+                    <CardTitle icon="flag" title="Vendor Cost Flags" />
+                    <View style={[styles.card, styles.disputeCard]}>
+                      {detail.vendorDisputes.map((d, i) => {
+                        const draft = getDisputeDraft(d);
+                        const submitting = convertingId === d.id;
+                        return (
+                          <View key={d.id} style={[styles.disputeRow, i < detail.vendorDisputes.length - 1 && styles.rowBorder]}>
+                            <Text style={styles.disputeVendor}>{d.vendorName} flagged {d.amount != null ? `₹${d.amount.toFixed(2)}` : 'a cost issue'}</Text>
+                            {!!d.reason && <Text style={styles.disputeReason}>{d.reason}</Text>}
+                            <Text style={styles.disputeDate}>{agoShort(d.createdAt)}</Text>
+
+                            <View style={styles.disputeEditRow}>
+                              <View style={styles.disputeEditField}>
+                                <Text style={styles.disputeEditLabel}>Amount (₹)</Text>
+                                <TextInput
+                                  style={styles.disputeEditInput}
+                                  value={draft.amount}
+                                  onChangeText={(t) => setDisputeDraft(d, { amount: t })}
+                                  keyboardType="numeric"
+                                  placeholder="0.00"
+                                  placeholderTextColor="#94A3B8"
+                                />
+                              </View>
+                              <View style={[styles.disputeEditField, { flex: 1.4 }]}>
+                                <Text style={styles.disputeEditLabel}>Reason</Text>
+                                <TextInput
+                                  style={styles.disputeEditInput}
+                                  value={draft.reason}
+                                  onChangeText={(t) => setDisputeDraft(d, { reason: t })}
+                                  placeholder="Reason"
+                                  placeholderTextColor="#94A3B8"
+                                />
+                              </View>
+                              <TouchableOpacity
+                                style={[styles.disputeActionBtn, (submitting || additionalPaymentLoading) && styles.btnDisabled]}
+                                onPress={() => handleConvertDispute(d)}
+                                disabled={submitting || additionalPaymentLoading}
+                                activeOpacity={0.85}
+                              >
+                                {submitting ? <ActivityIndicator size="small" color="#B45309" /> : (
+                                  <>
+                                    <Icon name="request-quote" size={14} color="#B45309" />
+                                    <Text style={styles.disputeActionBtnText}>Request Payment</Text>
+                                  </>
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {/* Additional Charges history */}
+                <CardTitle icon="request-quote" title="Additional Charges" />
+                <View style={styles.card}>
+                  {additionalCharges.length > 0 ? (
+                    additionalCharges.map((c, i) => {
+                      const cs = chargeStatusStyle(c.status);
+                      return (
+                        <View key={c.id} style={[styles.chargeRow, i < additionalCharges.length - 1 && styles.rowBorder]}>
+                          <View style={styles.chargeTopRow}>
+                            <Text style={styles.chargeAmount}>{c.amount != null ? `₹${c.amount.toFixed(2)}` : '—'}</Text>
+                            <View style={[styles.chargeStatusPill, { backgroundColor: cs.bg }]}>
+                              <Text style={[styles.chargeStatusText, { color: cs.text }]}>{cs.label}</Text>
+                            </View>
+                          </View>
+                          {!!c.reason && <Text style={styles.chargeReason}>{c.reason}</Text>}
+                          <Text style={styles.chargeMeta}>
+                            {c.requestedBy ? `Requested by ${c.requestedBy}` : 'Requested'}{c.createdAt ? ` · ${fmt(c.createdAt)}` : ''}
+                            {c.status === 'cancelled' && c.cancelledBy ? ` · Cancelled by ${c.cancelledBy}` : ''}
+                          </Text>
+                          {c.status === 'pending' && (
+                            <TouchableOpacity
+                              style={[styles.chargeCancelBtn, additionalPaymentLoading && styles.btnDisabled]}
+                              onPress={() => handleCancelCharge(c)}
+                              disabled={additionalPaymentLoading}
+                              activeOpacity={0.8}
+                            >
+                              <Icon name="close" size={13} color="#DC2626" />
+                              <Text style={styles.chargeCancelBtnText}>Cancel Request</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })
+                  ) : (
+                    <View style={styles.emptyBlock}>
+                      <Icon name="request-quote" size={30} color="#CBD5E1" />
+                      <Text style={styles.emptyBlockText}>No additional payments requested yet.</Text>
+                    </View>
+                  )}
+                </View>
+
                 <CardTitle icon="history" title="Status History" />
                 <View style={styles.card}>
                   {detail?.statusHistory?.length > 0 ? (
@@ -727,6 +951,46 @@ function TicketDetail({ navigation, route }) {
           </View>
         </View>
       </Modal>
+
+      {/* Request Additional Payment Modal */}
+      <Modal visible={requestPayVisible} transparent animationType="fade" onRequestClose={() => setRequestPayVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Request Additional Payment</Text>
+            <Text style={styles.modalSub}>The customer will see this on their request and get notified to pay it.</Text>
+            <TextInput
+              style={[styles.modalInput, styles.modalInputShort]}
+              placeholder="Amount (₹)"
+              placeholderTextColor="#94A3B8"
+              value={requestAmount}
+              onChangeText={setRequestAmount}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Reason (e.g. extra parts, more labor)..."
+              placeholderTextColor="#94A3B8"
+              value={requestReason}
+              onChangeText={setRequestReason}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost]} onPress={() => setRequestPayVisible(false)} activeOpacity={0.8}>
+                <Text style={styles.modalBtnGhostText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnPrimary, (!Number(requestAmount) || !requestReason.trim() || additionalPaymentLoading) && styles.btnDisabled]}
+                onPress={handleRequestPayment}
+                disabled={!Number(requestAmount) || !requestReason.trim() || additionalPaymentLoading}
+                activeOpacity={0.85}
+              >
+                {additionalPaymentLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.modalBtnDangerText}>Request</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -901,6 +1165,35 @@ const styles = StyleSheet.create({
   escalateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#FCA5A5', backgroundColor: '#FEF2F2', borderRadius: 14, paddingVertical: 13, marginTop: 14 },
   escalateBtnText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
 
+  // Vendor Cost Flags
+  disputeCard: { borderColor: '#FDE68A' },
+  disputeRow: { paddingVertical: 12, gap: 4 },
+  disputeVendor: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  disputeReason: { fontSize: 13, color: '#475569', lineHeight: 18 },
+  disputeDate: { fontSize: 12, color: '#3B82F6' },
+  disputeEditRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  disputeEditField: { flex: 1, minWidth: 90, gap: 4 },
+  disputeEditLabel: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily, color: '#334155' },
+  disputeEditInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, fontSize: 13, color: '#1E293B' },
+  disputeActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
+  disputeActionBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
+
+  // Pricing header "Request Additional Payment" pill
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  requestPayPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
+  requestPayPillText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
+
+  // Additional Charges history
+  chargeRow: { paddingVertical: 12, gap: 4 },
+  chargeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  chargeAmount: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  chargeStatusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  chargeStatusText: { fontSize: 11, fontFamily: typography.labelMedium.fontFamily },
+  chargeReason: { fontSize: 13, color: '#475569', lineHeight: 18 },
+  chargeMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  chargeCancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
+  chargeCancelBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
+
   // Timeline (matches NRI request timeline)
   timelineWrapper: { marginTop: 4 },
   timelineRow: { flexDirection: 'row', gap: 14 },
@@ -929,6 +1222,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
   modalSub: { fontSize: 12, color: '#64748B', marginTop: 4, lineHeight: 18 },
   modalInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#1E293B', marginTop: 14, minHeight: 80, textAlignVertical: 'top' },
+  modalInputShort: { minHeight: 0, textAlignVertical: 'auto' },
   modalErrorText: { fontSize: 12, color: '#DC2626', marginTop: 8 },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalBtn: { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },

@@ -90,6 +90,27 @@ function TicketDetail({ route, navigation }) {
     openAttachment(url);
   };
 
+  // Pay Now on the "Additional Payment Requested" card hands off to a
+  // dedicated breakdown + gateway-picker screen (mirrors CustomPlanPayment.js)
+  // rather than starting checkout inline. TicketDetail's own useFocusEffect
+  // below already refetches on every focus, so simply returning here (goBack)
+  // after a successful payment is enough to clear this card.
+  const handlePayNowPress = () => {
+    if (!ticket?.pendingAdditionalCharge) return;
+    const addonsTotalForNav = ticket.addons.reduce((sum, a) => sum + Number(a.customerPrice || 0), 0);
+    navigation.navigate('AdditionalPaymentBreakdown', {
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      serviceName: ticket.serviceName,
+      reason: ticket.pendingAdditionalCharge.reason,
+      baseAmount: Math.max(0, Number(ticket.pricing?.customerPrice || 0) - addonsTotalForNav),
+      alreadyPaidAmount: ticket.pricing?.totalAmount,
+      additionalAmount: ticket.pendingAdditionalCharge.amount,
+      gstAmount: ticket.pricing?.amountDueGst,
+      gstRate: ticket.pricing?.gstRate,
+    });
+  };
+
   useFocusEffect(
     useCallback(() => {
       if (ticketId) retry();
@@ -282,6 +303,32 @@ function TicketDetail({ route, navigation }) {
             </View>
           )}
         </View>
+
+        {!!ticket.pendingAdditionalCharge && (
+          <View style={styles.extraChargeCard}>
+            <View style={styles.extraChargeHeader}>
+              <Icon name="request-quote" size={18} color="#B45309" />
+              <Text style={styles.extraChargeHeaderText}>Additional Payment Requested</Text>
+            </View>
+            <View style={styles.extraChargeBody}>
+              <View style={styles.extraChargeTopRow}>
+                <View>
+                  <Text style={styles.extraChargeAmount}>{formatUsd(ticket.pendingAdditionalCharge.amount)}</Text>
+                  <Text style={styles.extraChargeSub}>{ticket.pendingAdditionalCharge.reason || 'extra cost'}</Text>
+                </View>
+                <Text style={styles.extraChargeDate}>{formatDateTime(ticket.pendingAdditionalCharge.requestedAt)}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.payChargeBtn}
+                onPress={handlePayNowPress}
+                activeOpacity={0.85}
+              >
+                <Icon name="credit-card" size={16} color="#B45309" />
+                <Text style={styles.payChargeBtnText}>Pay Now</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {!!ticket.pricing && (
           <View style={styles.card}>
@@ -485,6 +532,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
       {attachmentPreview}
     </KeyboardAvoidingView>
   );
@@ -562,6 +610,48 @@ const styles = StyleSheet.create({
   overdueBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
   
   sectionTitle: { ...typography.sectionTitle, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 4 },
+
+  // Additional Payment Requested card
+  extraChargeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F5C542',
+    overflow: 'hidden',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  extraChargeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF9C3',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  extraChargeHeaderText: { ...typography.labelLarge, fontFamily: typography.h2.fontFamily, color: '#92400E' },
+  extraChargeBody: { padding: 20, gap: 14 },
+  extraChargeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  extraChargeAmount: { ...typography.h2, color: '#0F172A' },
+  extraChargeSub: { ...typography.small, color: '#64748B', marginTop: 2 },
+  extraChargeDate: { ...typography.small, color: '#64748B' },
+  payChargeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEF3E2',
+    borderWidth: 1,
+    borderColor: '#F5C542',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+  },
+  payChargeBtnText: { ...typography.labelMedium, color: '#B45309', fontWeight: '700' },
 
   supportChatBar: {
     flexDirection: 'row',

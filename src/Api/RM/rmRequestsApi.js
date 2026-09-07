@@ -9,6 +9,16 @@ function pick(...vals) {
   return vals.find(v => v !== undefined && v !== null) ?? null;
 }
 
+// Safely pulls a display name out of a field that may be a plain string, a
+// {name}/{business_name}/{full_name} object, or missing — never returns the
+// raw object itself (which would crash React as an invalid child).
+function personName(val) {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') return val.name || val.business_name || val.full_name || null;
+  return null;
+}
+
 // One row in the "my assigned service requests" list.
 export function mapRequest(raw = {}) {
   return {
@@ -54,7 +64,7 @@ function mapEscalation(raw = {}, index = 0) {
     ticket: raw.ticket_number || raw.ticket?.ticket_number || (typeof raw.ticket === 'string' ? raw.ticket : '') || '',
     customer: raw.customer_name || raw.customer?.name || (typeof raw.customer === 'string' ? raw.customer : '') || '',
     reason: raw.reason || raw.issue || raw.note || '',
-    escalatedTo: raw.escalated_to_name || raw.escalated_to?.name || raw.escalated_to || null,
+    escalatedTo: raw.escalated_to_name || personName(raw.escalated_to),
     level: raw.level || raw.escalation_level || null,
     priority: raw.priority || raw.urgency || null,
     status: raw.status || 'Open',
@@ -141,9 +151,14 @@ export function mapRequestDetail(raw = {}) {
     pricing: {
       customerPrice: pick(raw.pricing?.customer_price, raw.customer_price),
       expressSurcharge: pick(raw.pricing?.express_surcharge, raw.express_surcharge),
-      gst: pick(raw.pricing?.gst, raw.gst),
+      // Verified live: the backend sends gst_rate/gst_amount (not a plain
+      // `gst` field) — gstAmount is kept for display, gst is the older
+      // fallback shape in case some responses still send it.
+      gstRate: pick(raw.pricing?.gst_rate, raw.gst_rate),
+      gstAmount: pick(raw.pricing?.gst_amount, raw.gst_amount, raw.pricing?.gst, raw.gst),
       total: pick(raw.pricing?.total, raw.total),
       vendorCost: pick(raw.pricing?.vendor_cost, raw.vendor_cost),
+      amountDueNow: pick(raw.pricing?.amount_due_now, raw.amount_due_now),
     },
     vendor,
     rmName: raw.rm?.name || raw.relationship_manager?.name || null,
@@ -153,6 +168,8 @@ export function mapRequestDetail(raw = {}) {
     statusHistory: rawLogs.map(mapHistory),
     internalNotes: (raw.internal_notes || raw.notes || []).map(mapNote),
     escalations: (raw.escalations || []).map(mapEscalation),
+    additionalCharges: (raw.additional_charges || []).map(mapAdditionalCharge),
+    vendorDisputes: (raw.vendor_disputes || []).map(mapVendorDispute),
     // Lightweight support-chat summary (when present) so the detail screen can
     // show a "Support Chat" entry with an unread badge without a second call.
     supportChat: raw.support_chat ? {
@@ -161,6 +178,34 @@ export function mapRequestDetail(raw = {}) {
       escalated: !!raw.support_chat.escalated,
       unreadCount: raw.support_chat.unread_count ?? 0,
     } : null,
+  };
+}
+
+// One entry in a ticket's additional-charge history (RM's own
+// request-additional-payment calls, and any converted from a vendor flag).
+function mapAdditionalCharge(raw = {}, index = 0) {
+  return {
+    id: raw.id ?? index,
+    amount: raw.amount != null ? Number(raw.amount) : null,
+    reason: raw.reason || '',
+    status: raw.status || 'pending',
+    requestedBy: personName(raw.requested_by),
+    cancelledBy: personName(raw.cancelled_by),
+    createdAt: raw.created_at || null,
+    cancelledAt: raw.cancelled_at || null,
+    resolvedAt: raw.resolved_at || raw.settled_at || raw.paid_at || null,
+  };
+}
+
+// A pending cost-overrun flag raised by the vendor on this ticket (still
+// awaiting RM action — resolved ones drop off this list on the vendor's side).
+function mapVendorDispute(raw = {}, index = 0) {
+  return {
+    id: raw.id ?? index,
+    vendorName: personName(raw.vendor) || personName(raw.vendor_name) || 'Vendor',
+    reason: raw.reason || '',
+    amount: raw.amount != null ? Number(raw.amount) : null,
+    createdAt: raw.created_at || null,
   };
 }
 
@@ -259,6 +304,47 @@ export async function sendRmRequestSupportChat(ticket, message) {
       // This endpoint is the RM sending, so force the reply to our side.
       reply: rawReply ? { ...mapSupportReply(rawReply), fromRm: true } : null,
     };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/request-additional-payment — asks the customer
+// to pay an extra amount on top of the original quote. Creates a pending
+// charge; the customer sees it as pending_additional_charge on their ticket.
+export async function requestRmAdditionalPayment(ticket, { amount, reason }) {
+  try {
+    const response = await apiClient.post(`/rm/requests/${ticket}/request-additional-payment`, { amount, reason });
+    const data = response.data?.data || response.data || {};
+    return { charge: mapAdditionalCharge(data.charge || data), message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/additional-charges/{charge}/cancel — withdraws a
+// request raised in error. No body; 422/409 if it's no longer pending.
+export async function cancelRmAdditionalCharge(ticket, chargeId) {
+  try {
+    const response = await apiClient.post(`/rm/requests/${ticket}/additional-charges/${chargeId}/cancel`);
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/disputes/{dispute}/request-additional-payment —
+// converts a vendor's pending cost-overrun flag into a real charge. amount/
+// reason are both optional — omit either to use exactly what the vendor
+// submitted. 422 if the dispute was already handled by someone else.
+export async function convertRmVendorDispute(ticket, disputeId, { amount, reason } = {}) {
+  try {
+    const response = await apiClient.post(`/rm/requests/${ticket}/disputes/${disputeId}/request-additional-payment`, {
+      amount: amount != null && amount !== '' ? Number(amount) : undefined,
+      reason: reason || undefined,
+    });
+    const data = response.data?.data || response.data || {};
+    return { charge: mapAdditionalCharge(data.charge || data), message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

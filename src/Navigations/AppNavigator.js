@@ -70,6 +70,7 @@ import Cart from '../Screens/NRI/Cart';
 // Import Ticket Screens
 import CreateTicket from '../Screens/NRI/CreateTicket';
 import TicketDetail from '../Screens/NRI/TicketDetail';
+import AdditionalPaymentBreakdown from '../Screens/NRI/AdditionalPaymentBreakdown';
 
 // Import Family Screens
 import AddFamilyMember from '../Screens/NRI/AddFamilyMember';
@@ -141,6 +142,7 @@ function DashboardStack() {
       <Stack.Screen name="ServicesCatalog" component={ServicesStack} options={{ unmountOnBlur: true }} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="AdditionalPaymentBreakdown" component={AdditionalPaymentBreakdown} />
       <Stack.Screen name="Customer" component={Customer} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
@@ -163,6 +165,7 @@ function MainServicesStack() {
       <Stack.Screen name="ServiceDetail" component={ServiceDetail} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="AdditionalPaymentBreakdown" component={AdditionalPaymentBreakdown} />
       <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
@@ -177,6 +180,7 @@ function RequestsStack() {
       <Stack.Screen name="RequestsMain" component={Requests} />
       <Stack.Screen name="CreateTicket" component={CreateTicket} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="AdditionalPaymentBreakdown" component={AdditionalPaymentBreakdown} />
       <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />

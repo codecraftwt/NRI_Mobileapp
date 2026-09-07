@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as vendorJobsApi from '../../Api/Vendor/vendorJobsApi';
+import * as vendorSupportApi from '../../Api/Vendor/vendorSupportApi';
 
 export const fetchVendorJobs = createAsyncThunk('vendorJobs/fetchAll', async (params, { rejectWithValue }) => {
   try {
@@ -62,6 +63,19 @@ export const addReportAttachments = createAsyncThunk('vendorJobs/addAttachments'
 export const saveTracking = createAsyncThunk('vendorJobs/saveTracking', async ({ ticket, trackingNumber, trackingUrl }, { dispatch, rejectWithValue }) => {
   try {
     const res = await vendorJobsApi.saveVendorJobTracking(ticket, { trackingNumber, trackingUrl });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+// "Flag Cost Issue" on the job screen — reuses the existing POST /vendor/support
+// dispute endpoint (tied to this ticket), then refetches the job so its
+// vendor_disputes history/pending state updates without a manual reload.
+export const flagJobCostIssue = createAsyncThunk('vendorJobs/flagCostIssue', async ({ ticket, reason, amount }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorSupportApi.raiseVendorDispute({ ticketId: ticket, reason, amount });
     await dispatch(fetchVendorJobDetail(ticket));
     return res;
   } catch (error) {
@@ -148,7 +162,7 @@ const vendorJobsSlice = createSlice({
       });
 
     // Shared pending/fulfilled/rejected handling for every job mutation.
-    [acceptJob, rejectJob, completeJob, addReportAttachments, saveTracking].forEach((thunk) => {
+    [acceptJob, rejectJob, completeJob, addReportAttachments, saveTracking, flagJobCostIssue].forEach((thunk) => {
       builder
         .addCase(thunk.pending, (state) => {
           state.actionStatus = 'loading';

@@ -126,12 +126,32 @@ function mapTicketPricing(raw) {
     gstAmount: raw.gst_amount,
     totalAmount: raw.total_amount,
     amountDueNow: raw.amount_due_now,
+    // GST portion of amount_due_now specifically — verified live: when a
+    // pending additional charge exists, amount_due_now/amount_due_gst are
+    // exactly that charge's total/GST (not the original booking's).
+    amountDueGst: raw.amount_due_gst,
     isPaid: raw.is_paid,
   };
 }
 
 function mapTimelineEvent(raw) {
   return { from: raw.from, to: raw.to, note: raw.note, at: raw.at };
+}
+
+// A staff-requested extra charge awaiting customer payment (RM's
+// request-additional-payment). Verified live: it's nested under `pricing`
+// (not the ticket root), and carries no id of its own — amount_due_now/
+// amount_due_gst on the same pricing object already reflect this exact
+// amount, so it's settled through the existing generic "pay this ticket's
+// current balance" flow (payBillableItem('ticket', id, ...)), not a
+// dedicated additional-charge endpoint. Goes back to null once paid/cancelled.
+function mapPendingAdditionalCharge(raw) {
+  if (!raw) return null;
+  return {
+    amount: raw.amount,
+    reason: raw.reason || null,
+    requestedAt: raw.created_at || raw.requested_at || null,
+  };
 }
 
 // Verified live via the backend's OpenAPI spec (POST /customer/tickets/{id}/rate
@@ -194,6 +214,7 @@ function mapTicket(raw) {
     slaDeadline: raw.sla_deadline || null,
     serviceStartedAt: raw.service_started_at || null,
     serviceCompletedAt: raw.service_completed_at || null,
+    pendingAdditionalCharge: mapPendingAdditionalCharge(raw.pricing?.pending_additional_charge),
   };
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
@@ -17,6 +17,21 @@ import { downloadDocumentFile } from '../../Utils/fileDownload';
 const MAX_MEDIA_FILES = 8;
 const MAX_MEDIA_SIZE_BYTES = 25 * 1024 * 1024;
 
+function getDisputeStatusStyle(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'resolved': return { bg: '#D1FAE5', text: '#059669', label: 'Resolved' };
+    case 'rejected': return { bg: '#FEE2E2', text: '#DC2626', label: 'Rejected' };
+    default: return { bg: '#FFEDD5', text: '#C2410C', label: 'Pending' };
+  }
+}
+
+function formatDisputeDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function getStatusStyle(status) {
   switch (status) {
     case 'Completed': return { bg: '#D1FAE5', text: '#059669' };
@@ -31,7 +46,7 @@ function JobDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
   const {
     detail: job, loading, failed, error, retry,
-    actionLoading, accept, reject, complete, addAttachments, saveTracking,
+    actionLoading, accept, reject, complete, addAttachments, saveTracking, flagCostIssue,
   } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
   const { showAlert, alertProps } = useAppAlert();
@@ -53,6 +68,12 @@ function JobDetail({ route, navigation }) {
   // Tracking (prefilled from the job once it loads)
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
+
+  // Flag Cost Issue — raises a dispute tied to this job (POST /vendor/support).
+  const [flagModalVisible, setFlagModalVisible] = useState(false);
+  const [flagAmount, setFlagAmount] = useState('');
+  const [flagReason, setFlagReason] = useState('');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
 
   useEffect(() => {
     if (job?.tracking) {
@@ -189,6 +210,29 @@ function JobDetail({ route, navigation }) {
     }
   };
 
+  const handleOpenFlagModal = () => {
+    setFlagAmount('');
+    setFlagReason('');
+    setFlagModalVisible(true);
+  };
+
+  const handleSubmitFlag = async () => {
+    if (!flagReason.trim()) {
+      showAlert('Reason Required', "Please describe what's higher, and why.");
+      return;
+    }
+    setFlagSubmitting(true);
+    try {
+      await flagCostIssue({ reason: flagReason.trim(), amount: flagAmount }).unwrap();
+      setFlagModalVisible(false);
+      showToast('Cost issue flagged — your RM will review it', 'success');
+    } catch (e) {
+      showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setFlagSubmitting(false);
+    }
+  };
+
   const handleCallCustomer = () => {
     Linking.openURL(`tel:${job.customer.phone}`).catch(() =>
       showAlert('Could Not Call', 'Unable to open the dialer.')
@@ -247,6 +291,8 @@ function JobDetail({ route, navigation }) {
   const isInProgress = job.status === 'In Progress';
   const isCompleted = job.status === 'Completed';
   const statusStyle = getStatusStyle(job.status);
+  const vendorDisputes = job.vendorDisputes || [];
+  const hasPendingDispute = vendorDisputes.some(d => d.status === 'pending');
 
   return (
     <View style={styles.container}>
@@ -519,6 +565,53 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
+        {!isCompleted && (
+          <View style={[styles.card, styles.flagCard]}>
+            <View style={styles.sectionHeader}>
+              <Icon name="flag" size={18} color="#B45309" />
+              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
+            </View>
+            <Text style={styles.actionDesc}>
+              If the actual cost of this job is higher than what was quoted, flag it here — your RM will review it and request the difference from the customer.
+            </Text>
+
+            {vendorDisputes.length > 0 && (
+              <View style={styles.disputeHistory}>
+                {vendorDisputes.map((d) => {
+                  const dStyle = getDisputeStatusStyle(d.status);
+                  return (
+                    <View key={d.id} style={styles.disputeHistoryRow}>
+                      <View style={styles.disputeHistoryTop}>
+                        <Text style={styles.disputeHistoryAmount}>{d.amount != null ? `₹${d.amount.toFixed(2)}` : 'No extra amount'}</Text>
+                        <View style={[styles.disputeStatusPill, { backgroundColor: dStyle.bg }]}>
+                          <Text style={[styles.disputeStatusText, { color: dStyle.text }]}>{dStyle.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.disputeHistoryReason}>{d.reason}</Text>
+                      {!!d.resolutionNotes && (
+                        <Text style={styles.disputeHistoryResolution}>{d.resolutionNotes}</Text>
+                      )}
+                      <Text style={styles.disputeHistoryDate}>Raised {formatDisputeDate(d.createdAt)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {hasPendingDispute ? (
+              <View style={styles.awaitingReviewPill}>
+                <Icon name="hourglass-empty" size={16} color="#C2410C" />
+                <Text style={styles.awaitingReviewText}>Awaiting review</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.flagBtn} onPress={handleOpenFlagModal} activeOpacity={0.85}>
+                <Icon name="flag" size={16} color="#B45309" />
+                <Text style={styles.flagBtnText}>Flag Cost Issue</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Shipment / Tracking */}
         {(isInProgress || isCompleted) && (
           <View style={styles.card}>
@@ -685,6 +778,64 @@ function JobDetail({ route, navigation }) {
           <Text style={styles.backToJobsText}>Back to My Jobs</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={flagModalVisible} transparent animationType="fade" onRequestClose={() => setFlagModalVisible(false)}>
+        <View style={styles.flagModalOverlay}>
+          <View style={styles.flagModalCard}>
+            <View style={styles.flagModalHeader}>
+              <Text style={styles.flagModalTitle} numberOfLines={1}>Flag a Cost Issue — {job.ticket}</Text>
+              <TouchableOpacity onPress={() => setFlagModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Additional Amount (₹) <Text style={styles.optionalText}>(optional)</Text></Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="0.00"
+                placeholderTextColor="#94A3B8"
+                value={flagAmount}
+                onChangeText={setFlagAmount}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>What's higher, and why? *</Text>
+              <TextInput
+                style={styles.reportInput}
+                placeholder="e.g. Client needed extra parts not in the original quote..."
+                placeholderTextColor="#94A3B8"
+                value={flagReason}
+                onChangeText={setFlagReason}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+
+            <View style={styles.flagModalActions}>
+              <TouchableOpacity
+                style={[styles.flagSubmitBtn, flagSubmitting && styles.btnDisabled]}
+                onPress={handleSubmitFlag}
+                disabled={flagSubmitting}
+                activeOpacity={0.85}
+              >
+                {flagSubmitting ? <ActivityIndicator size="small" color="#B45309" /> : (
+                  <>
+                    <Icon name="send" size={15} color="#B45309" />
+                    <Text style={styles.flagSubmitBtnText}>Submit</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.flagCancelBtn} onPress={() => setFlagModalVisible(false)} disabled={flagSubmitting} activeOpacity={0.85}>
+                <Text style={styles.flagCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <AppAlert {...alertProps} />
       {attachmentPreview}
     </View>
@@ -932,6 +1083,51 @@ const styles = StyleSheet.create({
   },
   docIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#E0F2FE', justifyContent: 'center', alignItems: 'center' },
   docName: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0F172A' },
+
+  // Cost Higher Than Quoted? (Flag Cost Issue)
+  flagCard: { borderColor: '#FDE68A' },
+  disputeHistory: { gap: 10 },
+  disputeHistoryRow: {
+    backgroundColor: '#FFFBEB', borderRadius: 12, padding: 12, gap: 4,
+    borderWidth: 1, borderColor: '#FEF3C7',
+  },
+  disputeHistoryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  disputeHistoryAmount: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
+  disputeStatusPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  disputeStatusText: { fontSize: 11, fontWeight: '700' },
+  disputeHistoryReason: { fontSize: 13, color: '#334155', lineHeight: 18 },
+  disputeHistoryResolution: { fontSize: 12, color: '#059669', lineHeight: 17, fontStyle: 'italic' },
+  disputeHistoryDate: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
+  awaitingReviewPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    backgroundColor: '#FFEDD5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10,
+  },
+  awaitingReviewText: { fontSize: 14, fontWeight: '700', color: '#C2410C' },
+  flagBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'flex-start',
+    backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 20,
+    paddingHorizontal: 18, paddingVertical: 11,
+  },
+  flagBtnText: { fontSize: 14, fontWeight: '700', color: '#B45309' },
+
+  flagModalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 20 },
+  flagModalCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 16,
+    elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20,
+  },
+  flagModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  flagModalTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: '#0F172A' },
+  flagModalActions: { flexDirection: 'row', gap: 12 },
+  flagSubmitBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 20, paddingVertical: 13,
+  },
+  flagSubmitBtnText: { fontSize: 14, fontWeight: '700', color: '#B45309' },
+  flagCancelBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 20, paddingVertical: 13,
+  },
+  flagCancelBtnText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
 });
 
 export default JobDetail;

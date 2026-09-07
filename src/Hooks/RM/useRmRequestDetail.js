@@ -4,6 +4,9 @@ import {
   fetchRmRequestDetail,
   addRmRequestNote,
   escalateRmRequest,
+  requestRmAdditionalPayment,
+  cancelRmAdditionalCharge,
+  convertRmVendorDispute,
   resetRmRequestDetail,
 } from '../../Redux/slices/rmRequestDetailSlice';
 
@@ -16,6 +19,8 @@ export function useRmRequestDetail(ticket) {
   const addNoteError = useSelector(s => s.rmRequestDetail.addNoteError);
   const escalateStatus = useSelector(s => s.rmRequestDetail.escalateStatus);
   const escalateError = useSelector(s => s.rmRequestDetail.escalateError);
+  const additionalPaymentStatus = useSelector(s => s.rmRequestDetail.additionalPaymentStatus);
+  const additionalPaymentError = useSelector(s => s.rmRequestDetail.additionalPaymentError);
 
   // Refetch whenever the ticket changes; reset on unmount so the next request
   // never flashes the previous one's data.
@@ -39,5 +44,11 @@ export function useRmRequestDetail(ticket) {
     escalate: ({ reason, escalatedTo }) => dispatch(escalateRmRequest({ ticket, reason, escalatedTo })),
     escalating: escalateStatus === 'loading',
     escalateError,
+
+    requestAdditionalPayment: ({ amount, reason }) => dispatch(requestRmAdditionalPayment({ ticket, amount, reason })),
+    cancelAdditionalCharge: (chargeId) => dispatch(cancelRmAdditionalCharge({ ticket, chargeId })),
+    convertVendorDispute: (disputeId, { amount, reason } = {}) => dispatch(convertRmVendorDispute({ ticket, disputeId, amount, reason })),
+    additionalPaymentLoading: additionalPaymentStatus === 'loading',
+    additionalPaymentError,
   };
 }
