@@ -104,6 +104,7 @@ function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
 // combined-cart checkout).
 function FinishRequest({ route, navigation }) {
   const mode = route?.params?.mode || 'ticket';
+  const returnTo = route?.params?.returnTo;
   // A customer can have more than one paid-but-unfinalized item at once — the
   // caller (SubmitRequest/CreateTicket/OnboardingPayment, or the Requests.js
   // banner for a specific one) always passes which one this screen is for.
@@ -142,6 +143,13 @@ function FinishRequest({ route, navigation }) {
   const [files, setFiles] = useState([]);
   const [previewImage, setPreviewImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const goBackTarget = useCallback(() => {
+    if (returnTo === 'Requests') {
+      navigation.navigate('Requests', { screen: 'RequestsMain' });
+      return;
+    }
+    navigation.navigate('Services', { screen: 'ServicesMain' });
+  }, [navigation, returnTo]);
 
   // The payment for this request is already done — going "back" must never
   // return to the payment screen (there's nothing left to pay, and the cart
@@ -153,12 +161,12 @@ function FinishRequest({ route, navigation }) {
     useCallback(() => {
       if (mode !== 'ticket') return undefined;
       const onBackPress = () => {
-        navigation.navigate('Services', { screen: 'ServicesMain' });
+        goBackTarget();
         return true;
       };
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [mode, navigation])
+    }, [goBackTarget, mode])
   );
 
   useEffect(() => {
@@ -322,7 +330,7 @@ function FinishRequest({ route, navigation }) {
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
           {mode === 'ticket' && (
-            <TouchableOpacity style={styles.headerBack} onPress={() => navigation.navigate('Services', { screen: 'ServicesMain' })}>
+            <TouchableOpacity style={styles.headerBack} onPress={goBackTarget}>
               <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
             </TouchableOpacity>
           )}

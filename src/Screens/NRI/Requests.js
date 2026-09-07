@@ -99,8 +99,8 @@ function Requests({ navigation }) {
   ];
   const handleFinishRequest = (item) => {
     navigation.navigate('FinishRequest', item.type === 'bundle'
-      ? { mode: 'bundle', bundleId: item.bundleId }
-      : { mode: 'ticket', paymentId: item.paymentId });
+      ? { mode: 'bundle', bundleId: item.bundleId, returnTo: 'Requests' }
+      : { mode: 'ticket', paymentId: item.paymentId, returnTo: 'Requests' });
   };
 
   // Infinite scroll: pull the next page (appended by the slice) only when there
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 15, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
-  finishBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 16, borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 16, paddingVertical: 14 },
+  finishBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fae8e1', borderRadius: 16, borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 16, paddingVertical: 14 },
   finishBannerText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: '#92400E' },
   finishBannerBold: { fontFamily: typography.h4.fontFamily },
   finishBannerAction: { fontSize: 12.5, fontFamily: typography.h4.fontFamily, color: '#B45309', textDecorationLine: 'underline' },

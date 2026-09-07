@@ -61,6 +61,7 @@ function ServiceInfo({ route, navigation }) {
   // Cart binds the server APIs when signed in; local-only for guests (onboarding).
   const { count: cartCount, add: addServiceToCart } = useCart();
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
   const savedLocation = useSelector(s => s.serviceLocation);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
@@ -80,9 +81,22 @@ function ServiceInfo({ route, navigation }) {
   // let the user tap through and switch it (POST /customer/cart/items with a
   // new billing_mode switches the line rather than duplicating it) — only a
   // same-mode re-add should just jump to the cart.
-  const cartLine = useSelector(selectCartItems).find(i => i.serviceId === svc.id);
+  const cartItems = useSelector(selectCartItems);
+  const cartLine = cartItems.find(i => i.serviceId === svc.id);
   const inCartSameMode = !!cartLine && cartLine.isRecurring === (mode === 'recurring');
   const inOtherMode = !!cartLine && !inCartSameMode;
+
+  // A cart is one-time-only or recurring-only, never mixed — checkout (and
+  // the backend) treats a recurring service as a separate subscription flow
+  // from the rest of the cart, so keeping them apart from the start avoids a
+  // confusing "some of your cart didn't ride along" surprise at payment.
+  // Only OTHER services (not this one) lock the cart's mode — switching this
+  // same service's own mode is still allowed by the checks above.
+  const otherCartItems = cartItems.filter(i => i.serviceId !== svc.id);
+  const cartLockedMode = otherCartItems.length > 0 ? (otherCartItems[0].isRecurring ? 'recurring' : 'oneTime') : null;
+  const modeConflict = cartLockedMode != null && cartLockedMode !== mode;
+  const cartModeLabel = cartLockedMode === 'recurring' ? 'Recurring' : 'One-time';
+  const serviceModeLabel = mode === 'recurring' ? 'Recurring' : 'One-time';
   const pricing = svc.pricing;
   // Category description/disclaimer — come back on the service's own
   // `category` object (GET /services, /services/{service}); fall back to the
@@ -107,6 +121,10 @@ function ServiceInfo({ route, navigation }) {
       const routes = navigation.getState().routes;
       const target = routes.find(r => r.name === 'GuestServices' || r.name === 'ServicesMain') || routes[0];
       navigation.navigate(target.name, { openLocation: true });
+      return;
+    }
+    if (modeConflict) {
+      setConflictModalOpen(true);
       return;
     }
     if (inCartSameMode) { navigation.navigate('Cart'); return; }
@@ -138,13 +156,13 @@ function ServiceInfo({ route, navigation }) {
   const ctaDisabled = hasLocation && !canBook;
   const ctaLabel = !hasLocation
     ? 'Set your location to add'
-    : !canBook
-      ? 'Not available in your area'
-      : inCartSameMode
-        ? 'Go to Cart'
-        : inOtherMode
-          ? `Switch to ${mode === 'recurring' ? 'Recurring' : 'One Time'}`
-          : 'Add to Cart';
+      : !canBook
+        ? 'Not available in your area'
+        : inCartSameMode
+          ? 'Go to Cart'
+          : inOtherMode
+            ? `Switch to ${mode === 'recurring' ? 'Recurring' : 'One Time'}`
+            : 'Add to Cart';
   const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCartSameMode ? 'shopping-cart' : inOtherMode ? 'sync-alt' : 'add-shopping-cart';
 
   const renderTopRow = () => (
@@ -256,7 +274,7 @@ function ServiceInfo({ route, navigation }) {
         </View>
         <TouchableOpacity style={[styles.cta, ctaDisabled && styles.ctaDisabled]} activeOpacity={0.85} onPress={handleAdd} disabled={ctaDisabled}>
           <Icon name={ctaIcon} size={18} color="#FFFFFF" />
-          <Text style={styles.ctaText}>{ctaLabel}</Text>
+          <Text style={styles.ctaText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{ctaLabel}</Text>
         </TouchableOpacity>
       </View>
 
@@ -274,6 +292,44 @@ function ServiceInfo({ route, navigation }) {
               </TouchableOpacity>
             </View>
             <Text style={styles.disclaimerText}>{disclaimer}</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={conflictModalOpen} transparent animationType="fade" onRequestClose={() => setConflictModalOpen(false)}>
+        <TouchableOpacity style={styles.conflictOverlay} activeOpacity={1} onPress={() => setConflictModalOpen(false)}>
+          <TouchableOpacity style={styles.conflictBox} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.conflictIconWrap}>
+              <Icon name="shopping-cart" size={22} color="#D94625" />
+            </View>
+            <Text style={styles.conflictTitle}>Separate cart needed</Text>
+            <Text style={styles.conflictMessage}>
+              Your cart already has {cartModeLabel.toLowerCase()} services. Please clear your cart or checkout before adding a {serviceModeLabel.toLowerCase()} service.
+            </Text>
+            <View style={styles.conflictModeRow}>
+              <View style={styles.conflictModePill}>
+                <Text style={styles.conflictModeLabel}>CART</Text>
+                <Text style={styles.conflictModeValue}>{cartModeLabel}</Text>
+              </View>
+              <Icon name="sync-alt" size={18} color="#CBD5E1" />
+              <View style={[styles.conflictModePill, styles.conflictModePillMuted]}>
+                <Text style={styles.conflictModeLabel}>SERVICE</Text>
+                <Text style={styles.conflictModeValue}>{serviceModeLabel}</Text>
+              </View>
+            </View>
+            <View style={styles.conflictBtnRow}>
+              <TouchableOpacity style={styles.conflictSecondaryBtn} onPress={() => setConflictModalOpen(false)} activeOpacity={0.85}>
+                <Text style={styles.conflictSecondaryText}>Got it</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.conflictPrimaryBtn}
+                onPress={() => { setConflictModalOpen(false); navigation.navigate('Cart'); }}
+                activeOpacity={0.85}
+              >
+                <Icon name="shopping-cart" size={16} color="#FFFFFF" />
+                <Text style={styles.conflictPrimaryText}>View Cart</Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -338,6 +394,41 @@ const styles = StyleSheet.create({
   disclaimerHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   disclaimerLabel: { fontSize: 12, letterSpacing: 1, color: '#F97316', fontFamily: typography.h4.fontFamily },
   disclaimerText: { fontSize: 13, lineHeight: 20, color: '#F1F5F9', fontFamily: typography.labelMedium.fontFamily, fontStyle: 'italic' },
+  conflictOverlay: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.56)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24,
+  },
+  conflictBox: {
+    width: '100%', maxWidth: 340,
+    backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18,
+    alignItems: 'center',
+    shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 14,
+  },
+  conflictIconWrap: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: '#FDECE7', justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+  },
+  conflictTitle: { fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#0F172A', textAlign: 'center' },
+  conflictMessage: { fontSize: 13, lineHeight: 19, color: '#64748B', textAlign: 'center', marginTop: 7 },
+  conflictModeRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 15 },
+  conflictModePill: {
+    flex: 1, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA',
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center',
+  },
+  conflictModePillMuted: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+  conflictModeLabel: { fontSize: 10, letterSpacing: 1, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily, marginBottom: 3 },
+  conflictModeValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.h4.fontFamily },
+  conflictBtnRow: { width: '100%', flexDirection: 'row', gap: 8, marginTop: 16 },
+  conflictSecondaryBtn: {
+    flex: 1, backgroundColor: '#F1F5F9', borderRadius: 12,
+    paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
+  },
+  conflictPrimaryBtn: {
+    flex: 1.15, flexDirection: 'row', gap: 6, backgroundColor: '#D94625', borderRadius: 12,
+    paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
+  },
+  conflictSecondaryText: { fontSize: 14, color: '#334155', fontFamily: typography.labelMedium.fontFamily },
+  conflictPrimaryText: { fontSize: 14, color: '#FFFFFF', fontFamily: typography.labelMedium.fontFamily },
 
   metaRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   metaBox: { flex: 1, backgroundColor: '#EEF2FB', borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16 },
