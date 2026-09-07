@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Modal } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -30,6 +30,9 @@ function Cart({ navigation }) {
   const items = useSelector(selectCartItems);
   const servicesTotal = useSelector(selectCartSubtotal);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  // Remove-item / clear-cart confirm modal — { title, message, confirmLabel, onConfirm } | null.
+  // Declared before the early return (like the hooks below) so hook order stays stable.
+  const [confirmState, setConfirmState] = useState(null);
   // Live membership plan — read here (before any early return) so the hook order
   // stays stable across the guest/authenticated branches. Only used by the guest
   // summary below; the authenticated branch ignores it.
@@ -63,17 +66,21 @@ function Cart({ navigation }) {
   const empty = items.length === 0;
 
   const confirmRemoveItem = (item) => {
-    Alert.alert('Remove Service', `Remove "${item.name}" from your cart?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => dispatch(removeFromCart(item.serviceId)) },
-    ]);
+    setConfirmState({
+      title: 'Remove Service',
+      message: `Remove "${item.name}" from your cart?`,
+      confirmLabel: 'Remove',
+      onConfirm: () => dispatch(removeFromCart(item.serviceId)),
+    });
   };
 
   const confirmClearCart = () => {
-    Alert.alert('Clear Cart', 'Remove all services from your cart?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => dispatch(clearCart()) },
-    ]);
+    setConfirmState({
+      title: 'Clear Cart',
+      message: 'Remove all services from your cart?',
+      confirmLabel: 'Clear Cart',
+      onConfirm: () => dispatch(clearCart()),
+    });
   };
 
   return (
@@ -234,6 +241,30 @@ function Cart({ navigation }) {
           </View>
         </ScrollView>
       )}
+
+      {/* Remove-item / clear-cart confirmation */}
+      <Modal visible={!!confirmState} transparent animationType="fade" onRequestClose={() => setConfirmState(null)}>
+        <TouchableOpacity style={styles.confirmOverlay} activeOpacity={1} onPress={() => setConfirmState(null)}>
+          <TouchableOpacity style={styles.confirmBox} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.confirmIconWrap}>
+              <Icon name="delete-outline" size={24} color="#EF4444" />
+            </View>
+            <Text style={styles.confirmTitle}>{confirmState?.title}</Text>
+            <Text style={styles.confirmMessage}>{confirmState?.message}</Text>
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity style={styles.confirmCancelBtn} onPress={() => setConfirmState(null)}>
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmDestructiveBtn}
+                onPress={() => { confirmState?.onConfirm?.(); setConfirmState(null); }}
+              >
+                <Text style={styles.confirmDestructiveText}>{confirmState?.confirmLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -351,6 +382,29 @@ const styles = StyleSheet.create({
   emptyDesc: { fontSize: 14, color: '#94A3B8', textAlign: 'center' },
   browseBtn: { backgroundColor: '#F97316', borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14, marginTop: 12 },
   browseBtnText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+
+  confirmOverlay: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.55)',
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28,
+  },
+  confirmBox: {
+    width: '100%', maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 20,
+    padding: 24, alignItems: 'center',
+  },
+  confirmIconWrap: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEE2E2',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 14,
+  },
+  confirmTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 8, textAlign: 'center' },
+  confirmMessage: { fontSize: 14, lineHeight: 20, color: '#64748B', textAlign: 'center', marginBottom: 22 },
+  confirmBtnRow: { flexDirection: 'row', gap: 12, width: '100%' },
+  confirmCancelBtn: {
+    flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  confirmCancelText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
+  confirmDestructiveBtn: { flex: 1, backgroundColor: '#EF4444', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  confirmDestructiveText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 });
 
 export default Cart;
