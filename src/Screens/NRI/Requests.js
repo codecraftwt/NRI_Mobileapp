@@ -175,13 +175,18 @@ function Requests({ navigation }) {
       >
         {pendingFinishes.map(item => (
           <TouchableOpacity key={item.key} style={styles.finishBanner} activeOpacity={0.8} onPress={() => handleFinishRequest(item)}>
-            <Icon name="error-outline" size={18} color="#B45309" />
-            <Text style={styles.finishBannerText} numberOfLines={2}>
-              <Text style={styles.finishBannerBold}>Finish your service request</Text> — {joinNames(item.serviceNames)}
-              {item.amount != null ? ` (paid ${fmtAmount(item.amount, item.currency)})` : ''}.
-              {' '}A few more details are needed before it's sent to our team.
-            </Text>
-            <Text style={styles.finishBannerAction}>Finish Request</Text>
+            <View style={styles.finishBannerIcon}>
+              <Icon name="schedule" size={20} color="#7C2D12" />
+            </View>
+            <View style={styles.finishBannerCopy}>
+              <Text style={styles.finishBannerTitle} numberOfLines={1}>Finish your service request</Text>
+              <Text style={styles.finishBannerText} numberOfLines={2}>
+                {joinNames(item.serviceNames)}
+              </Text>
+            </View>
+            <View style={styles.finishBannerAction}>
+              <Text style={styles.finishBannerActionText}>Finish</Text>
+            </View>
           </TouchableOpacity>
         ))}
 
@@ -264,10 +269,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: { paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 15, backgroundColor: '#20304C' },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
-  finishBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fae8e1', borderRadius: 16, borderWidth: 1, borderColor: '#FDE68A', paddingHorizontal: 16, paddingVertical: 14 },
-  finishBannerText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: '#92400E' },
-  finishBannerBold: { fontFamily: typography.h4.fontFamily },
-  finishBannerAction: { fontSize: 12.5, fontFamily: typography.h4.fontFamily, color: '#B45309', textDecorationLine: 'underline' },
+  finishBanner: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: '#FFF1EC', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 11 },
+  finishBannerIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#FDA58D', justifyContent: 'center', alignItems: 'center' },
+  finishBannerCopy: { flex: 1, minWidth: 0, paddingRight: 2 },
+  finishBannerTitle: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#4B1F18', marginBottom: 2 },
+  finishBannerText: { fontSize: 11.5, lineHeight: 15, color: '#B23A1F' },
+  finishBannerAction: { flexShrink: 0, backgroundColor: '#DF5A34', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
+  finishBannerActionText: { fontSize: 12, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
   tabsContainer: { paddingTop: 20, paddingBottom: 12 },
   tabsScroll: { paddingHorizontal: 20, gap: 12 },
   tab: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#64748B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },

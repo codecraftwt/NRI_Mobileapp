@@ -358,7 +358,7 @@ function FinishRequest({ route, navigation }) {
         <View style={styles.paidBanner}>
           <Icon name="check-circle" size={18} color="#059669" />
           <Text style={styles.paidBannerText}>
-            Payment received{amount != null ? ` (${fmt(amount, currency)})` : ''}. Just a few more details and your request is on its way.
+            Payment received. Just a few more details and your request is on its way.
           </Text>
         </View>
 

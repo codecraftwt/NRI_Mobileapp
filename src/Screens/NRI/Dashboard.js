@@ -133,12 +133,12 @@ function Dashboard({ navigation }) {
   ];
 
   const exploreActions = [
-    { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: '#3B82F6' },
+    { id: 'customPlan', name: 'Custom Plan', icon: 'tune', screen: 'CustomPlanRequests', color: '#15803D' },
     { id: 'billing', name: 'Billing', icon: 'receipt-long', screen: 'Billing & Payments', color: '#1E3A8A' },
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
     { id: 'support', name: 'General Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#D94625' },
-    { id: 'customPlan', name: 'Custom Plan', icon: 'tune', screen: 'CustomPlanRequests', color: '#15803D' },
+    { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: '#3B82F6' },
   ];
 
   const getServiceIconColor = (serviceName) => {
