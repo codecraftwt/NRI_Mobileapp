@@ -307,7 +307,7 @@ function TicketDetail({ route, navigation }) {
         {!!ticket.pendingAdditionalCharge && (
           <View style={styles.extraChargeCard}>
             <View style={styles.extraChargeHeader}>
-              <Icon name="request-quote" size={18} color="#B45309" />
+              <Icon name="request-quote" size={18} color="#92400E" />
               <Text style={styles.extraChargeHeaderText}>Additional Payment Requested</Text>
             </View>
             <View style={styles.extraChargeBody}>
@@ -323,7 +323,7 @@ function TicketDetail({ route, navigation }) {
                 onPress={handlePayNowPress}
                 activeOpacity={0.85}
               >
-                <Icon name="credit-card" size={16} color="#B45309" />
+                <Icon name="credit-card" size={16} color="#FFFFFF" />
                 <Text style={styles.payChargeBtnText}>Pay Now</Text>
               </TouchableOpacity>
             </View>
@@ -614,9 +614,9 @@ const styles = StyleSheet.create({
   // Additional Payment Requested card
   extraChargeCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F5C542',
+    borderColor: '#F1F5F9',
     overflow: 'hidden',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 6 },
@@ -628,12 +628,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF9C3',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    backgroundColor: '#f9f1e0',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
   },
   extraChargeHeaderText: { ...typography.labelLarge, fontFamily: typography.h2.fontFamily, color: '#92400E' },
-  extraChargeBody: { padding: 20, gap: 14 },
+  extraChargeBody: { padding: 16, gap: 12 },
   extraChargeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   extraChargeAmount: { ...typography.h2, color: '#0F172A' },
   extraChargeSub: { ...typography.small, color: '#64748B', marginTop: 2 },
@@ -644,14 +644,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     alignSelf: 'flex-start',
-    backgroundColor: '#FEF3E2',
-    borderWidth: 1,
-    borderColor: '#F5C542',
+    backgroundColor: '#bf6119',
     borderRadius: 24,
     paddingHorizontal: 20,
-    paddingVertical: 11,
+    paddingVertical: 12,
   },
-  payChargeBtnText: { ...typography.labelMedium, color: '#B45309', fontWeight: '700' },
+  payChargeBtnText: { ...typography.labelMedium, color: '#FFFFFF', fontWeight: '700' },
 
   supportChatBar: {
     flexDirection: 'row',
