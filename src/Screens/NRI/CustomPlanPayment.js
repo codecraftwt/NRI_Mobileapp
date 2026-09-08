@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { useBilling } from '../../Hooks/useBilling';
+import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { typography } from '../../theme/typography';
 
 // Amounts here follow the booking flow's USD convention (same as Billing).
@@ -13,12 +16,25 @@ function formatUsd(value) {
 }
 
 // Invoice-settlement screen shown after a customer accepts a Custom Plan
-// proposal, before the Stripe checkout opens. Base price comes from the
-// accepted proposal; GST is added at 18% (matching the web invoice).
+// proposal, before the chosen gateway's checkout opens. Base price comes from
+// the accepted proposal; GST is added at 18% (matching the web invoice).
 function CustomPlanPayment({ route, navigation }) {
   const { jobId, ticketNumber, basePrice, replyId, supportTicketId, kind } = route.params || {};
   const { pay: payBill, verifyPayment } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
+  const user = useSelector(s => s.user.user);
+  // Gateway list is backend-driven (already NRI + admin-toggle gated) — this
+  // screen used to hardcode Stripe, so a customer whose account/region had
+  // Stripe disabled server-side hit a dead-end "Stripe payments are currently
+  // unavailable" error with no way to pick a different gateway.
+  const { gateways } = usePaymentGateways();
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  useEffect(() => {
+    if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
+      setPaymentMethod(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateways]);
 
   // Return to the support/custom-plan chat, flagging this proposal reply as
   // paid so its "Pay Now" button is removed. Navigate with the ticket id
@@ -52,9 +68,22 @@ function CustomPlanPayment({ route, navigation }) {
     }
     setPaying(true);
     try {
-      const result = await payBill('ticket', jobId, 'stripe', false).unwrap();
+      const result = await payBill('ticket', jobId, paymentMethod, false).unwrap();
       if (result.checkoutUrl) {
+        // Stripe / PayPal — hosted checkout page.
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
+      } else if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
+        await runRazorpayPayment({
+          order: result.order,
+          paymentId: result.paymentId,
+          name: 'NRI Circle',
+          description: 'Custom plan payment',
+          user,
+          verify: (params) => verifyPayment(params).unwrap(),
+        });
+        setPaid(true);
+        goBackPaid();
       } else {
         // Paid outright (no checkout step) — mark paid and go straight to chat.
         setPaid(true);
@@ -121,21 +150,31 @@ function CustomPlanPayment({ route, navigation }) {
             <Text style={styles.cardTitle}>Choose Payment Method</Text>
           </View>
 
-          <View style={styles.methodRow}>
-            <View style={styles.methodIconBox}>
-              <Icon name="credit-card" size={18} color="#4F46E5" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.methodTitle}>Card (Stripe)</Text>
-              <Text style={styles.methodSub}>Recommended for international cards (Visa, Mastercard, Amex)</Text>
-            </View>
-            <View style={styles.radioOuter}>
-              <View style={styles.radioInner} />
-            </View>
-          </View>
+          {gateways.map(g => {
+            const active = paymentMethod === g.value;
+            return (
+              <TouchableOpacity
+                key={g.value}
+                style={[styles.methodRow, active && styles.methodRowActive]}
+                activeOpacity={0.8}
+                onPress={() => setPaymentMethod(g.value)}
+              >
+                <View style={styles.methodIconBox}>
+                  <Icon name={gatewayIcon(g.value)} size={18} color="#4F46E5" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.methodTitle}>{g.label}</Text>
+                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.methodSub}>{GATEWAY_META[g.value].desc}</Text>}
+                </View>
+                <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
+                  {active && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={[styles.payBtn, (paying || paid) && styles.payBtnDisabled]} onPress={handlePay} disabled={paying || paid} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.payBtn, (paying || paid || !paymentMethod) && styles.payBtnDisabled]} onPress={handlePay} disabled={paying || paid || !paymentMethod} activeOpacity={0.85}>
               {paying ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
                 <>
                   <Icon name="lock" size={15} color="#FFFFFF" />
@@ -208,11 +247,13 @@ const styles = StyleSheet.create({
   payableLabel: { fontSize: 16, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
   payableValue: { fontSize: 18, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
 
-  methodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#C7D2FE', borderRadius: 14, padding: 14, backgroundColor: '#FBFBFE' },
+  methodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FBFBFE' },
+  methodRowActive: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
   methodIconBox: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
   methodTitle: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   methodSub: { fontSize: 12, color: '#64748B', marginTop: 2, lineHeight: 16 },
-  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
+  radioOuterActive: { borderColor: '#2563EB' },
   radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563EB' },
 
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
