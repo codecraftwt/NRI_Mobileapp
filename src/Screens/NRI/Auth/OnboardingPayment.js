@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Alert } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
@@ -218,6 +218,11 @@ function OnboardingPayment({ route, navigation }) {
   const oneTimeCartItems = cartItems.filter(i => !i.isRecurring);
   const recurringCartItems = cartItems.filter(i => i.isRecurring);
   const servicesSubtotal = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.price) || 0), 0);
+  // Priority/urgency only applies to a one-time service request — a cart
+  // that's entirely recurring has nothing being booked at registration time
+  // to apply it to (the recurring item is priced/paid separately later), so
+  // the field is pointless and gets hidden for it.
+  const pureRecurringCart = fromCart && oneTimeCartItems.length === 0 && recurringCartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -259,7 +264,7 @@ function OnboardingPayment({ route, navigation }) {
   const priorityLabelOf = (p) => `${p.name} — ${toAmount(p.surcharge) > 0 ? formatUsd(p.surcharge) : 'Free'}`;
   const priorityLabels = priorities.map(priorityLabelOf);
   const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
-  const prioritySurcharge = fromCart ? toAmount(selectedPriority?.surcharge) : 0;
+  const prioritySurcharge = fromCart && !pureRecurringCart ? toAmount(selectedPriority?.surcharge) : 0;
 
   useEffect(() => {
     const stateName = firstItem.stateName || savedLocation?.stateName || '';
@@ -275,7 +280,7 @@ function OnboardingPayment({ route, navigation }) {
 
   // Default the Priority field to the standard/default tier once tiers load.
   useEffect(() => {
-    if (fromCart && !reqForm.priority && priorities.length) {
+    if (fromCart && !pureRecurringCart && !reqForm.priority && priorities.length) {
       const def = priorities.find(p => p.isDefault) || priorities[0];
       if (def) setField('priority', priorityLabelOf(def));
     }
@@ -608,7 +613,7 @@ function OnboardingPayment({ route, navigation }) {
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
-    if (!reqForm.priority) missing.push('Priority');
+    if (!pureRecurringCart && !reqForm.priority) missing.push('Priority');
 
     if (missing.length) {
       showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`, 'error');
@@ -628,6 +633,11 @@ function OnboardingPayment({ route, navigation }) {
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
       <OnboardingTopBar navigation={navigation} onBack={() => navigation.goBack()} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
+      >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={2} />
 
@@ -664,7 +674,9 @@ function OnboardingPayment({ route, navigation }) {
             <Text style={styles.fieldLabel}>PIN Code *</Text>
             <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
 
-            <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            {!pureRecurringCart && (
+              <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            )}
 
             <Text style={styles.fieldHint}>Who this is for, the exact address, and any notes/attachments are collected on the next step, after payment.</Text>
           </View>
@@ -781,11 +793,20 @@ function OnboardingPayment({ route, navigation }) {
                           <Text style={styles.rowValue}>{formatUsd(it.price)}{it.billingInterval ? '/mo' : ''}</Text>
                         </View>
                       ))}
-                      <Text style={styles.recurringNote}>
-                        Not included in the amount payable below — a recurring service is billed
-                        separately from your membership/platform fee. Once your registration payment
-                        is confirmed, you'll see a "Pay Now" prompt for these on your dashboard.
-                      </Text>
+                      <TouchableOpacity
+                        style={styles.recurringNoteRow}
+                        activeOpacity={0.7}
+                        onPress={() => showAlert(
+                          'About Recurring Services',
+                          'Not included in the amount payable below — a recurring service is billed separately from your membership/platform fee.\n\nA checkout session can only ever produce one subscription, and the membership itself is already that one, so a recurring cart item can\'t be charged alongside it here.\n\nOnce your registration payment is confirmed, you\'ll see a "Pay Now" prompt for these on your dashboard to complete their payment separately.',
+                          'info'
+                        )}
+                      >
+                        <Icon name="info-outline" size={13} color="#B45309" />
+                        <Text style={styles.recurringNote}>
+                          Not included in the amount payable below — billed separately. Tap to learn more.
+                        </Text>
+                      </TouchableOpacity>
                     </>
                   )}
                 </>
@@ -895,6 +916,10 @@ function OnboardingPayment({ route, navigation }) {
                     value={signerName}
                     onChangeText={setSignerName}
                     autoCapitalize="words"
+                    autoCorrect={false}
+                    spellCheck={false}
+                    textContentType="none"
+                    importantForAutofill="no"
                   />
                   <View style={styles.signatureBox}>
                     <View style={styles.signatureBoxLabelWrap}>
@@ -940,6 +965,7 @@ function OnboardingPayment({ route, navigation }) {
           </>
         ))}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
@@ -981,7 +1007,7 @@ function OnboardingPayment({ route, navigation }) {
         <View style={styles.alertOverlay}>
           <View style={styles.alertBox}>
             <View style={[styles.alertIconWrap, customAlert.type === 'error' ? styles.alertIconError : styles.alertIconSuccess]}>
-              <Icon name={customAlert.type === 'error' ? "error-outline" : "check-circle-outline"} size={36} color={customAlert.type === 'error' ? '#EF4444' : '#10B981'} />
+              <Icon name={customAlert.type === 'error' ? "error-outline" : "check-circle-outline"} size={30} color={customAlert.type === 'error' ? '#EF4444' : '#10B981'} />
             </View>
             <Text style={styles.alertTitle}>{customAlert.title}</Text>
             <Text style={styles.alertMessage}>{customAlert.message}</Text>
@@ -1046,7 +1072,8 @@ const styles = StyleSheet.create({
   customQuoteNoteText: { flex: 1, fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17 },
   recurringChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#FEF3C7', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
   recurringChipText: { fontSize: 13, color: '#B45309', fontFamily: 'Montserrat-Bold' },
-  recurringNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#B45309', lineHeight: 17, marginTop: 8 },
+  recurringNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
+  recurringNote: { flex: 1, fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#B45309', lineHeight: 17 },
   customQuoteErrorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFFBEB', borderRadius: radius.lg, padding: 12, borderWidth: 1, borderColor: '#FEF3C7' },
   customQuoteErrorText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
 
@@ -1156,14 +1183,14 @@ const styles = StyleSheet.create({
   trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   trustText: { fontSize: 11, fontFamily: 'Montserrat-SemiBold', color: '#64748B' },
   alertOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  alertBox: { backgroundColor: '#fff', borderRadius: radius.xl, padding: 24, width: '100%', maxWidth: 340, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 },
-  alertIconWrap: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  alertBox: { backgroundColor: '#fff', borderRadius: radius.xl, padding: 20, width: '100%', maxWidth: 310, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20 },
+  alertIconWrap: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   alertIconSuccess: { backgroundColor: '#D1FAE5' },
   alertIconError: { backgroundColor: '#FEE2E2' },
-  alertTitle: { fontSize: 18, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 8, textAlign: 'center' },
-  alertMessage: { fontSize: 14, fontFamily: 'Poppins-Regular', color: '#64748B', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
-  alertBtn: { backgroundColor: C.primary, width: '100%', height: 48, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
-  alertBtnText: { color: 'white', fontSize: 15, fontFamily: 'Montserrat-Bold' },
+  alertTitle: { fontSize: 16, fontFamily: 'Montserrat-Bold', color: '#1E293B', marginBottom: 6, textAlign: 'center' },
+  alertMessage: { fontSize: 13, fontFamily: 'Poppins-Regular', color: '#64748B', textAlign: 'center', marginBottom: 20, lineHeight: 19 },
+  alertBtn: { backgroundColor: C.primary, width: '100%', height: 44, borderRadius: radius.full, justifyContent: 'center', alignItems: 'center' },
+  alertBtnText: { color: 'white', fontSize: 14, fontFamily: 'Montserrat-Bold' },
 });
 
 export default OnboardingPayment;

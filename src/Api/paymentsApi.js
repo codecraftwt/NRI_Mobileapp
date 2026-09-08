@@ -67,6 +67,19 @@ export async function verifyPayment(paymentId, { razorpayOrderId, razorpayPaymen
         pendingCheckoutBundleFinish: data.pending_checkout_bundle_finish
           ? { bundleId: data.pending_checkout_bundle_finish.bundle_id, serviceNames: data.pending_checkout_bundle_finish.service_names }
           : null,
+        // Non-null when a checkout-bundle's recurring payment auto-activated
+        // (who/where was already collected earlier in that checkout) —
+        // nothing more to call. Null on every other payment.
+        activatedRecurringSubscription: data.activated_recurring_subscription
+          ? { id: data.activated_recurring_subscription.id, displayName: data.activated_recurring_subscription.display_name }
+          : null,
+        // Recurring-subscription analogue of pendingTicketFinalize above: the
+        // payment cleared but who/where hasn't been submitted yet, so the
+        // subscription doesn't exist server-side until
+        // finalizeServiceSubscription() succeeds.
+        pendingSubscriptionFinalize: data.pending_subscription_finalize
+          ? { paymentId: data.pending_subscription_finalize.payment_id, serviceNames: data.pending_subscription_finalize.service_names }
+          : null,
       } : null,
     };
   } catch (error) {

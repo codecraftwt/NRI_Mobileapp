@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMyTickets } from '../../Hooks/useMyTickets';
 import { useDashboard } from '../../Hooks/useDashboard';
-import { selectPendingTicketFinalizes, selectPendingBundleFinishes } from '../../Redux/slices/pendingRequestsSlice';
+import { selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes } from '../../Redux/slices/pendingRequestsSlice';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
@@ -89,6 +89,7 @@ function Requests({ navigation }) {
   // either), so this is a list, not a single item.
   const ticketFinalizes = useSelector(selectPendingTicketFinalizes);
   const bundleFinishes = useSelector(selectPendingBundleFinishes);
+  const subscriptionFinalizes = useSelector(selectPendingSubscriptionFinalizes);
   // Refreshing the dashboard re-reconciles the pending lists above (see
   // useDashboard) — this is what surfaces a request paid for from another
   // device/session (e.g. the web app) that this device never saw locally.
@@ -96,11 +97,12 @@ function Requests({ navigation }) {
   const pendingFinishes = [
     ...ticketFinalizes.map(t => ({ type: 'ticket', key: `ticket-${t.paymentId}`, paymentId: t.paymentId, serviceNames: t.serviceNames, amount: t.amount, currency: t.currency })),
     ...bundleFinishes.map(b => ({ type: 'bundle', key: `bundle-${b.bundleId}`, bundleId: b.bundleId, serviceNames: b.serviceNames, amount: null, currency: null })),
+    ...subscriptionFinalizes.map(s => ({ type: 'subscription', key: `subscription-${s.paymentId}`, paymentId: s.paymentId, serviceNames: s.serviceNames, amount: s.amount, currency: s.currency })),
   ];
   const handleFinishRequest = (item) => {
     navigation.navigate('FinishRequest', item.type === 'bundle'
       ? { mode: 'bundle', bundleId: item.bundleId, returnTo: 'Requests' }
-      : { mode: 'ticket', paymentId: item.paymentId, returnTo: 'Requests' });
+      : { mode: item.type === 'subscription' ? 'subscription' : 'ticket', paymentId: item.paymentId, returnTo: 'Requests' });
   };
 
   // Infinite scroll: pull the next page (appended by the slice) only when there
@@ -179,7 +181,9 @@ function Requests({ navigation }) {
               <Icon name="schedule" size={20} color="#7C2D12" />
             </View>
             <View style={styles.finishBannerCopy}>
-              <Text style={styles.finishBannerTitle} numberOfLines={1}>Finish your service request</Text>
+              <Text style={styles.finishBannerTitle} numberOfLines={1}>
+                {item.type === 'subscription' ? 'Finish your subscription' : 'Finish your service request'}
+              </Text>
               <Text style={styles.finishBannerText} numberOfLines={2}>
                 {joinNames(item.serviceNames)}
               </Text>

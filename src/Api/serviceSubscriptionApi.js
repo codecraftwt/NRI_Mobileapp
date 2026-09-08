@@ -82,30 +82,52 @@ export async function getServiceSubscriptions() {
   }
 }
 
-// Multipart when the selection requires documents, JSON otherwise. All the
-// selected services must share the same billing interval and allow recurring.
-// `documents` is keyed by required-document id: { [docId]: { uri, name, type } }.
-export async function createServiceSubscription({
-  serviceIds, gateway, familyMemberId, propertyId, stateId, cityId, talukaId,
-  address, customerNotes, documents,
+// Pay-first: this only prices the selection and starts payment — nothing is
+// created server-side until the returned payment_id is confirmed via
+// finalizeServiceSubscription() below, so there's no who/where or documents
+// on this call at all — always plain JSON. All the selected services must
+// share the same billing interval and allow recurring.
+export async function createServiceSubscription({ serviceIds, gateway, stateId, cityId, pincode }) {
+  try {
+    const response = await apiClient.post('/customer/service-subscriptions', {
+      service_ids: serviceIds,
+      gateway,
+      state_id: stateId,
+      city_id: cityId || undefined,
+      pincode: pincode || undefined,
+    });
+
+    const data = response.data?.data || {};
+    return {
+      paymentId: data.payment_id || null,
+      // Stripe/PayPal return checkout_url; Razorpay returns `order`
+      // ({ subscription_id, key }) for the native SDK — fed to runRazorpayPayment,
+      // then confirmed via /payments/{payment}/verify with the payment id above.
+      checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
+      planId: data.plan_id || null,
+      message: response.data?.message,
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Actually creates the subscription, once the payment from
+// createServiceSubscription() above has cleared. Safe to call twice — an
+// already-finalized payment_id just returns the existing subscription. Sends
+// multipart when there are required documents to upload, plain JSON otherwise.
+export async function finalizeServiceSubscription(paymentId, {
+  familyMemberId, propertyId, talukaId, address, customerNotes, documents,
 }) {
   try {
     const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    const hasDocs = docEntries.length > 0;
     let response;
 
-    if (hasDocs) {
-      // postMultipart (react-native-blob-util) rather than axios/FormData —
-      // axios's multipart body stalls against this backend until the request
-      // times out, surfacing as a "Network error" (same issue fixed for other
-      // uploads).
+    if (docEntries.length > 0) {
       const fields = {
-        'service_ids[]': serviceIds || [],
-        gateway,
         family_member_id: familyMemberId,
         property_id: propertyId || undefined,
-        state_id: stateId,
-        city_id: cityId || undefined,
         taluka_id: talukaId || undefined,
         address,
         customer_notes: customerNotes || undefined,
@@ -113,15 +135,11 @@ export async function createServiceSubscription({
       const files = docEntries.map(([docId, file]) => ({
         field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
       }));
-      response = await postMultipart('/customer/service-subscriptions', fields, files);
+      response = await postMultipart(`/customer/service-subscriptions/${paymentId}/finalize`, fields, files);
     } else {
-      response = await apiClient.post('/customer/service-subscriptions', {
-        service_ids: serviceIds,
-        gateway,
+      response = await apiClient.post(`/customer/service-subscriptions/${paymentId}/finalize`, {
         family_member_id: familyMemberId,
         property_id: propertyId || undefined,
-        state_id: stateId,
-        city_id: cityId || undefined,
         taluka_id: talukaId || undefined,
         address,
         customer_notes: customerNotes || undefined,
@@ -131,13 +149,6 @@ export async function createServiceSubscription({
     const data = response.data?.data || {};
     return {
       subscription: mapSubscription(data.subscription || data),
-      paymentId: data.payment_id || null,
-      // Stripe/PayPal return checkout_url; Razorpay returns `order`
-      // ({ subscription_id, key }) for the native SDK — fed to runRazorpayPayment,
-      // then confirmed via /payments/{payment}/verify with the payment id above.
-      checkoutUrl: data.checkout_url || null,
-      order: data.order || null,
-      planId: data.plan_id || null,
       message: response.data?.message,
     };
   } catch (error) {

@@ -14,7 +14,7 @@ import { onboardingUserKey } from './onboardingSlice';
 // either), and each needs its own entry rather than the newest silently
 // overwriting the last.
 const initialState = {
-  byUser: {}, // { [userId]: { ticketFinalizes: [...], bundleFinishes: [...] } }
+  byUser: {}, // { [userId]: { ticketFinalizes: [...], bundleFinishes: [...], subscriptionFinalizes: [...] } }
 };
 
 // Defensively normalizes the shape, not just presence — this slice's shape
@@ -28,6 +28,7 @@ function entryFor(state, userId) {
   const entry = state.byUser[userId];
   if (!Array.isArray(entry.ticketFinalizes)) entry.ticketFinalizes = [];
   if (!Array.isArray(entry.bundleFinishes)) entry.bundleFinishes = [];
+  if (!Array.isArray(entry.subscriptionFinalizes)) entry.subscriptionFinalizes = [];
   return entry;
 }
 
@@ -68,6 +69,23 @@ const pendingRequestsSlice = createSlice({
       const entry = entryFor(state, userId);
       entry.bundleFinishes = entry.bundleFinishes.filter(b => b.bundleId !== bundleId);
     },
+    // payload: { userId, paymentId, serviceIds, serviceNames, stateId, cityId,
+    //            stateName, cityName }
+    setPendingSubscriptionFinalize: (state, action) => {
+      const { userId, ...fields } = action.payload || {};
+      if (userId == null || fields.paymentId == null) return;
+      const entry = entryFor(state, userId);
+      const idx = entry.subscriptionFinalizes.findIndex(s => s.paymentId === fields.paymentId);
+      if (idx >= 0) entry.subscriptionFinalizes[idx] = fields;
+      else entry.subscriptionFinalizes.push(fields);
+    },
+    // payload: { userId, paymentId }
+    clearPendingSubscriptionFinalize: (state, action) => {
+      const { userId, paymentId } = action.payload || {};
+      if (userId == null) return;
+      const entry = entryFor(state, userId);
+      entry.subscriptionFinalizes = entry.subscriptionFinalizes.filter(s => s.paymentId !== paymentId);
+    },
     // Reconciles against the authoritative, cross-device server lists from
     // GET /customer/dashboard (`pending_ticket_finalizations` /
     // `pending_checkout_bundles`) — this is what surfaces an item paid from
@@ -81,9 +99,10 @@ const pendingRequestsSlice = createSlice({
     // context (serviceIds, state/city) a same-device finalize normally has.
     // FinishRequest/etc. degrade gracefully without it (e.g. no required-
     // documents lookup, no taluka options) rather than failing.
-    // payload: { userId, ticketFinalizations: [{paymentId,...}], checkoutBundles: [{bundleId,...}] }
+    // payload: { userId, ticketFinalizations: [{paymentId,...}], checkoutBundles: [{bundleId,...}],
+    //            subscriptionFinalizations: [{paymentId,...}] }
     setPendingFromDashboard: (state, action) => {
-      const { userId, ticketFinalizations = [], checkoutBundles = [] } = action.payload || {};
+      const { userId, ticketFinalizations = [], checkoutBundles = [], subscriptionFinalizations = [] } = action.payload || {};
       if (userId == null) return;
       const entry = entryFor(state, userId);
 
@@ -112,6 +131,19 @@ const pendingRequestsSlice = createSlice({
         if (!localBundleIds.has(server.bundleId)) mergedBundles.push(server);
       });
       entry.bundleFinishes = mergedBundles;
+
+      const serverSubscriptionIds = new Set(subscriptionFinalizations.map(s => s.paymentId));
+      const mergedSubscriptions = entry.subscriptionFinalizes
+        .filter(s => serverSubscriptionIds.has(s.paymentId))
+        .map(local => {
+          const server = subscriptionFinalizations.find(s => s.paymentId === local.paymentId);
+          return { ...local, serviceNames: server.serviceNames ?? local.serviceNames, amount: server.amount ?? local.amount, currency: server.currency ?? local.currency };
+        });
+      const localSubscriptionIds = new Set(mergedSubscriptions.map(s => s.paymentId));
+      subscriptionFinalizations.forEach(server => {
+        if (!localSubscriptionIds.has(server.paymentId)) mergedSubscriptions.push(server);
+      });
+      entry.subscriptionFinalizes = mergedSubscriptions;
     },
   },
 });
@@ -121,6 +153,8 @@ export const {
   clearPendingTicketFinalize,
   setPendingBundleFinish,
   clearPendingBundleFinish,
+  setPendingSubscriptionFinalize,
+  clearPendingSubscriptionFinalize,
   setPendingFromDashboard,
 } = pendingRequestsSlice.actions;
 
@@ -136,12 +170,22 @@ export function selectPendingBundleFinishes(state) {
   return state.pendingRequests.byUser[userId]?.bundleFinishes || [];
 }
 
+export function selectPendingSubscriptionFinalizes(state) {
+  const userId = onboardingUserKey(state.user.user);
+  if (userId == null) return [];
+  return state.pendingRequests.byUser[userId]?.subscriptionFinalizes || [];
+}
+
 export function selectPendingTicketFinalizeByPaymentId(paymentId) {
   return (state) => selectPendingTicketFinalizes(state).find(t => t.paymentId === paymentId) || null;
 }
 
 export function selectPendingBundleFinishByBundleId(bundleId) {
   return (state) => selectPendingBundleFinishes(state).find(b => b.bundleId === bundleId) || null;
+}
+
+export function selectPendingSubscriptionFinalizeByPaymentId(paymentId) {
+  return (state) => selectPendingSubscriptionFinalizes(state).find(s => s.paymentId === paymentId) || null;
 }
 
 export default pendingRequestsSlice.reducer;

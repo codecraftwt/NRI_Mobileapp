@@ -36,6 +36,17 @@ export const createServiceSubscription = createAsyncThunk(
   }
 );
 
+export const finalizeServiceSubscription = createAsyncThunk(
+  'serviceSubscription/finalize',
+  async ({ paymentId, ...params }, { rejectWithValue }) => {
+    try {
+      return await serviceSubscriptionApi.finalizeServiceSubscription(paymentId, params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const cancelServiceSubscription = createAsyncThunk(
   'serviceSubscription/cancel',
   async (subscriptionId, { rejectWithValue }) => {
@@ -56,6 +67,8 @@ const initialState = {
   listError: null,
   createStatus: 'idle',
   createError: null,
+  finalizeStatus: 'idle',
+  finalizeError: null,
   cancelStatus: 'idle',
   cancelError: null,
 };
@@ -107,6 +120,17 @@ const serviceSubscriptionSlice = createSlice({
       .addCase(createServiceSubscription.rejected, (state, action) => {
         state.createStatus = 'failed';
         state.createError = action.payload;
+      })
+      .addCase(finalizeServiceSubscription.pending, (state) => {
+        state.finalizeStatus = 'loading';
+        state.finalizeError = null;
+      })
+      .addCase(finalizeServiceSubscription.fulfilled, (state) => {
+        state.finalizeStatus = 'succeeded';
+      })
+      .addCase(finalizeServiceSubscription.rejected, (state, action) => {
+        state.finalizeStatus = 'failed';
+        state.finalizeError = action.payload;
       })
       .addCase(cancelServiceSubscription.pending, (state) => {
         state.cancelStatus = 'loading';

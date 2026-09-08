@@ -33,7 +33,7 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
       if (result.checkoutUrl) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else if (result.order) {
-        await runRazorpayPayment({
+        const verifyResult = await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle Subscription',
@@ -41,13 +41,17 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        onSuccess?.();
+        // pendingSubscriptionFinalize is non-null when who/where still needs
+        // collecting (nothing was created server-side until that finalize
+        // call succeeds) — the caller (OnboardingWelcome) routes to
+        // FinishRequest for it. Null means it auto-activated already.
+        onSuccess?.({ pendingSubscriptionFinalize: verifyResult?.data?.pendingSubscriptionFinalize || null });
       }
     } catch (err) {
       // A subscription for this bundle is already active (e.g. a retried
       // tap) — nothing to do, treat it as success rather than an error.
       if (err?.status === 409) {
-        onSuccess?.();
+        onSuccess?.({});
         return;
       }
       setError(err?.message || 'Could not start payment. Please try again.');
@@ -59,8 +63,8 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
     setCheckoutSession(null);
     setVerifying(true);
     try {
-      await verifyPayment({ paymentId, sessionId }).unwrap();
-      onSuccess?.();
+      const verifyResult = await verifyPayment({ paymentId, sessionId }).unwrap();
+      onSuccess?.({ pendingSubscriptionFinalize: verifyResult?.data?.pendingSubscriptionFinalize || null });
     } catch (err) {
       setError(err?.message || 'Could not confirm this payment yet. Please try again.');
     } finally {

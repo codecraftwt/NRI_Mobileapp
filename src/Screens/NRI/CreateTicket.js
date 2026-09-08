@@ -12,12 +12,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { setPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
+import { setPendingTicketFinalize, setPendingSubscriptionFinalize } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
-import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
-import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import Header from '../../Components/Header';
 import { getWallet } from '../../Api/walletApi';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
@@ -26,7 +23,6 @@ import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
-import { useTalukas } from '../../Hooks/useTalukas';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { usePriorities } from '../../Hooks/usePriorities';
 import { useServicesByCategory } from '../../Hooks/useServicesByCategory';
@@ -34,16 +30,11 @@ import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useMembership } from '../../Hooks/useMembership';
-import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
-import { useProperties } from '../../Hooks/useProperties';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 
-const MAX_FILES = 5;
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const NO_PROPERTY = 'Not applicable';
 const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
 const REQUEST_TYPES = [ONE_TIME, RECURRING];
@@ -76,9 +67,6 @@ const formatGstLabel = (rate) => {
   const rounded = Number.isInteger(pct) ? pct : Number(pct.toFixed(2));
   return `GST (${rounded}%)`;
 };
-// Matches the family member API's `relationship` enum (parent/sibling/spouse/child/other).
-const RELATION_OPTIONS = ['Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
-
 function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
   const [open, setOpen] = useState(false);
 
@@ -135,65 +123,21 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
   );
 }
 
-// A single required-document field: label + description + a web-style
-// "Choose File / No file chosen" row, plus a preview pill once a file is
-// picked. Used for the recurring-subscription Required Documents section.
-function DocumentUploadField({ document, file, onChoose, onRemove }) {
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.docLabel}>
-        {document.name}
-        {document.required ? <Text style={styles.required}> *</Text> : null}
-      </Text>
-      {!!document.description && <Text style={styles.docDesc}>{document.description}</Text>}
-
-      <View style={styles.docInputRow}>
-        <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
-          <Text style={styles.docChooseBtnText}>Choose File</Text>
-        </TouchableOpacity>
-        <Text style={styles.docFileName} numberOfLines={1}>
-          {file ? file.name : 'No file chosen'}
-        </Text>
-      </View>
-
-      {!!file && (
-        <View style={styles.filePill}>
-          <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#3298D4" />
-          <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
-          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Icon name="close" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-}
-
 function CreateTicket({ route, navigation }) {
   const [requestType, setRequestType] = useState(route.params?.requestType === 'recurring' ? RECURRING : ONE_TIME);
   const [serviceCategory, setServiceCategory] = useState(route.params?.initialCategory || '');
   const [selectedBaseServiceIds, setSelectedBaseServiceIds] = useState(route.params?.initialBaseServiceIds || []);
   const [selectedAddonIds, setSelectedAddonIds] = useState(route.params?.initialAddons || []);
   const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState(route.params?.initialSubscriptionServiceIds || []);
-  const [documentFiles, setDocumentFiles] = useState({}); // { [requiredDocId]: file }
   const isRecurring = requestType === RECURRING;
   // The selected one-time priority tier's slug (posted as `urgency`). Defaults
   // to 'standard' so quotes work before the /priorities list loads; corrected
   // to the API's default tier once available.
   const [prioritySlug, setPrioritySlug] = useState('standard');
-  const [fullName, setFullName] = useState('');
-  const [relation, setRelation] = useState('');
-  const [property, setProperty] = useState(NO_PROPERTY);
   // State/city are pre-filled from the location gate (Services → ServiceDetail).
   const [state, setState] = useState(route.params?.initialState || '');
   const [city, setCity] = useState(route.params?.initialCity || '');
-  const [taluka, setTaluka] = useState('');
-  const [fullAddress, setFullAddress] = useState('');
   const [pincode, setPincode] = useState('');
-  const [notes, setNotes] = useState('');
-  const [preferredDate, setPreferredDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('stripe');
@@ -206,7 +150,6 @@ function CreateTicket({ route, navigation }) {
   // Real geo cities (GET /geo/cities?state_id=) — vendor availability and
   // pricing are keyed on the city, and city_id is now required at checkout.
   const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state);
-  const { talukas, talukaNames, loading: loadingTalukas, failed: talukasFailed, retry: retryTalukas } = useTalukas('', city);
   const { categoryNames, loading: loadingCategories, failed: categoriesFailed, retry: retryCategories } = useServiceCategories();
 
   // Resolved geo ids — needed by the service/quote calls below. cityId prefers
@@ -218,8 +161,6 @@ function CreateTicket({ route, navigation }) {
   // changed here — the fetched services are specific to that location.
   const locationLocked = !!(route.params?.initialState && route.params?.initialCity);
   const { priorities, loading: prioritiesLoading, failed: prioritiesFailed, retry: retryPriorities } = usePriorities();
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
-  const { properties } = useProperties();
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
   const { membership, usage } = useMembership();
   const user = useSelector(s => s.user.user);
@@ -248,14 +189,7 @@ function CreateTicket({ route, navigation }) {
 
   // Recurring services for the subscription flow (Service.allows_recurring).
   const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state, cityId);
-  const {
-    requiredDocuments: subRequiredDocuments,
-    fetchRequiredDocuments: fetchSubRequiredDocuments,
-    clearRequiredDocuments: clearSubRequiredDocuments,
-    createLoading: subscribeLoading,
-    createSubscription,
-    reset: resetSubscription,
-  } = useServiceSubscription();
+  const { createLoading: subscribeLoading, createSubscription } = useServiceSubscription();
 
   // Available coupons come from the customer wallet (GET /customer/wallet),
   // fetched on demand when the coupons modal opens.
@@ -277,13 +211,6 @@ function CreateTicket({ route, navigation }) {
     reset: resetBooking,
   } = useTicketBooking();
 
-  // Required documents are only collected pre-pay for the (unaffected)
-  // recurring-subscription flow. A one-time request's required documents now
-  // move to FinishRequest, post-payment — see the finalize step there.
-  const requiredDocuments = isRecurring ? subRequiredDocuments : [];
-
-  const talukaId = taluka ? talukas.find(t => t.name === taluka)?.id : null;
-  const propertyId = property !== NO_PROPERTY ? properties.find(p => p.nickname === property)?.id : null;
   const primaryBaseServiceId = selectedBaseServiceIds[0] || null;
   const selectedService = baseServices.find(s => s.id === primaryBaseServiceId) || null;
 
@@ -412,33 +339,12 @@ function CreateTicket({ route, navigation }) {
   // --- Recurring subscription selection ---
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
   const subscriptionMonthlyTotal = selectedSubscriptionServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
-  const subscriptionIdsKey = selectedSubscriptionIds.join(',');
 
-  // Which documents the current subscription selection requires — refreshed
-  // whenever the selected recurring services change (empty = none required).
-  useEffect(() => {
-    if (!isRecurring || selectedSubscriptionIds.length === 0) {
-      clearSubRequiredDocuments();
-      return;
-    }
-    fetchSubRequiredDocuments(selectedSubscriptionIds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecurring, subscriptionIdsKey]);
-
-
-  const formattedDate = preferredDate
-    ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
-
-  const missingRequiredDoc = isRecurring && requiredDocuments.some(d => d.required && !documentFiles[d.id]);
-
-  // city_id (a resolved city) is required by the backend for both flows. The
-  // one-time (pay-first) branch only needs what's priced/paid up front —
-  // who/where + documents are collected afterward on FinishRequest.
+  // city_id (a resolved city) is required by the backend for both flows. Both
+  // are pay-first now: who/where + documents are collected afterward on
+  // FinishRequest, once the payment started here has cleared.
   const isValid = isRecurring
-    ? (serviceCategory && selectedSubscriptionIds.length > 0
-        && fullName.trim().length > 0 && relation && state && !!cityId
-        && fullAddress.trim().length > 0 && !missingRequiredDoc)
+    ? (serviceCategory && selectedSubscriptionIds.length > 0 && !!state && !!cityId && pincode.trim().length > 0)
     : (serviceCategory && selectedBaseServiceIds.length > 0 && !!prioritySlug
         && !!state && !!cityId && pincode.trim().length > 0);
 
@@ -457,7 +363,6 @@ function CreateTicket({ route, navigation }) {
         }
         if (match.stateName) setState(match.stateName);
         if (match.cityName) setCity(match.cityName);
-        if (match.talukaName) setTaluka(match.talukaName);
       })
       .catch((error) => {
         showAlert('Lookup Failed', error?.message || 'Could not look up that PIN code. Please try again.');
@@ -469,7 +374,6 @@ function CreateTicket({ route, navigation }) {
     setSelectedBaseServiceIds([]);
     setSelectedAddonIds([]);
     setSelectedSubscriptionIds([]);
-    setDocumentFiles({});
     setCouponCode('');
     clearCoupon();
     resetBooking();
@@ -482,7 +386,6 @@ function CreateTicket({ route, navigation }) {
     setSelectedBaseServiceIds([]);
     setSelectedAddonIds([]);
     setSelectedSubscriptionIds([]);
-    setDocumentFiles({});
     setCouponCode('');
     clearCoupon();
     resetBooking();
@@ -530,107 +433,31 @@ function CreateTicket({ route, navigation }) {
       });
   };
 
-  const handleChooseFiles = async () => {
-    if (files.length >= MAX_FILES) {
-      Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`);
-      return;
-    }
-
-    try {
-      const results = await pick({
-        type: [docTypes.images, docTypes.pdf],
-        allowMultiSelection: true,
-      });
-
-      const remainingSlots = MAX_FILES - files.length;
-      const tooMany = results.length > remainingSlots;
-      const candidates = results.slice(0, remainingSlots);
-
-      const oversized = candidates.filter(f => f.size && f.size > MAX_FILE_SIZE_BYTES);
-      const accepted = candidates.filter(f => !f.size || f.size <= MAX_FILE_SIZE_BYTES);
-
-      if (accepted.length > 0) {
-        const localized = await resolveLocalCopies(accepted);
-        setFiles(prev => [
-          ...prev,
-          ...localized.map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size })),
-        ]);
-      }
-
-      if (oversized.length > 0) {
-        Alert.alert('File Too Large', `${oversized.length} file(s) were skipped because they exceed 5 MB.`);
-      } else if (tooMany) {
-        Alert.alert('Limit Reached', `Only the first ${remainingSlots} file(s) were added (max ${MAX_FILES} total).`);
-      }
-    } catch (err) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file(s). Please try again.');
-    }
-  };
-
-  const handleRemoveFile = (uri) => {
-    setFiles(prev => prev.filter(f => f.uri !== uri));
-  };
-
-  // Single-file picker for a specific required subscription document.
-  const handleChooseDocument = async (docId) => {
-    try {
-      const results = await pick({
-        type: [docTypes.images, docTypes.pdf],
-        allowMultiSelection: false,
-      });
-      const picked = results[0];
-      if (!picked) return;
-      if (picked.size && picked.size > MAX_FILE_SIZE_BYTES) {
-        Alert.alert('File Too Large', 'Please choose a file under 5 MB.');
-        return;
-      }
-      const [local] = await resolveLocalCopies([picked]);
-      setDocumentFiles(prev => ({
-        ...prev,
-        [docId]: { name: picked.name, uri: local.uri, type: picked.type, size: picked.size },
-      }));
-    } catch (err) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
-    }
-  };
-
-  const handleRemoveDocument = (docId) => {
-    setDocumentFiles(prev => {
-      const next = { ...prev };
-      delete next[docId];
-      return next;
-    });
-  };
-
   // After a successful booking/payment, land on the main Services page (the
   // Services tab's list), not just the previous screen.
   const goToServices = () => navigation.navigate('Services', { screen: 'ServicesMain' });
 
-  // Called once the hosted-checkout WebView (Stripe/PayPal) redirects back with
-  // a session_id. Tickets carry a payment_id we confirm via /payments/verify;
-  // subscriptions are activated server-side by webhook, so there's nothing to
-  // verify client-side — we just acknowledge and leave.
+  // Called once the hosted-checkout WebView (Stripe/PayPal) redirects back
+  // with a session_id. Both tickets and subscriptions are pay-first now:
+  // the payment_id is confirmed via /payments/verify, then handed off to
+  // FinishRequest to actually create the ticket/subscription (who/where +
+  // documents).
   const handleCheckoutSuccess = async (sessionId) => {
     const session = checkoutSession;
     setCheckoutSession(null);
-    const onOk = () => {
-      if (session?.kind === 'subscription') resetSubscription();
-      goToServices();
-    };
     try {
       if (session?.paymentId) {
         await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
       }
       if (session?.payFirst) {
-        // Nothing was created yet — hand off to FinishRequest to actually
-        // create the ticket (who/where + documents).
-        navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: session.paymentId });
+        navigation.navigate('FinishRequest', {
+          mode: session?.kind === 'subscription' ? 'subscription' : 'ticket',
+          paymentId: session.paymentId,
+        });
         return;
       }
       showAlert(session?.successTitle || 'Payment Successful', session?.successMessage || 'Your payment has been confirmed.', [
-        { text: 'OK', onPress: onOk },
+        { text: 'OK', onPress: goToServices },
       ]);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
@@ -648,55 +475,42 @@ function CreateTicket({ route, navigation }) {
     );
   };
 
-  // The ticket API only accepts an existing family_member_id, not raw
-  // name/relation — reuse a matching saved member if one exists (avoids
-  // creating a duplicate on repeat submissions for the same person),
-  // otherwise create one on the fly from what was typed here.
-  const resolveFamilyMemberId = async () => {
-    const name = fullName.trim();
-    const relationship = relation.toLowerCase();
-    const existing = familyMembers.find(
-      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
-    );
-    if (existing) return existing.id;
-    const created = await createFamilyMember({ name, relationship }).unwrap();
-    return created.id;
-  };
-
+  // Pay-first: this only prices the selection and starts payment — nothing is
+  // created until FinishRequest's finalize call succeeds (see mode:
+  // 'subscription' there).
   const submitSubscription = async (gateway) => {
     if (!isValid) return;
     try {
-      const familyMemberId = await resolveFamilyMemberId();
-      const address = pincode.trim() ? `${fullAddress.trim()} - ${pincode.trim()}` : fullAddress.trim();
       const result = await createSubscription({
         serviceIds: selectedSubscriptionIds,
         gateway,
-        familyMemberId,
-        propertyId,
         stateId,
         cityId,
-        talukaId,
-        address,
-        customerNotes: notes,
-        documents: documentFiles,
+        pincode: pincode.trim(),
       }).unwrap();
 
+      if (result.paymentId) {
+        dispatch(setPendingSubscriptionFinalize({
+          userId,
+          paymentId: result.paymentId,
+          serviceIds: selectedSubscriptionIds,
+          serviceNames: selectedSubscriptionServices.map(s => s.name),
+          stateId,
+          cityId,
+          stateName: state,
+          cityName: city,
+        }));
+      }
+
       if (result.checkoutUrl) {
-        // Open the hosted checkout (Stripe/PayPal) in the in-app WebView. The
-        // subscription is activated server-side by webhook on completion, so
-        // there's no client-side payment_id to verify here.
-        setCheckoutSession({
-          url: result.checkoutUrl,
-          kind: 'subscription',
-          successTitle: 'Subscription Created',
-          successMessage: 'Your recurring subscription is now being activated.',
-        });
-      } else if (result.order) {
-        // Razorpay recurring — the SDK runs the e-mandate flow off order
-        // ({ subscription_id }), then we verify with razorpay_subscription_id.
-        // NOTE: the create call above will currently 502 (the configured
-        // Razorpay account rejects USD subscriptions) and be caught below —
-        // this path is ready for when the account supports USD plans.
+        // Stripe / PayPal hosted checkout — open in the in-app WebView;
+        // handleCheckoutSuccess routes to FinishRequest once it redirects
+        // back with a session_id.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, kind: 'subscription', payFirst: true });
+        return;
+      }
+      if (result.order) {
+        // Razorpay — no hosted page; drive the native SDK then verify inline.
         await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
@@ -705,16 +519,10 @@ function CreateTicket({ route, navigation }) {
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        showAlert('Subscription Created', 'Your recurring subscription is now active.', [
-          { text: 'OK', onPress: () => { resetSubscription(); goToServices(); } },
-        ]);
-      } else {
-        showAlert('Subscription Created', result.message || 'Your recurring subscription has been created.', [
-          { text: 'OK', onPress: () => { resetSubscription(); goToServices(); } },
-        ]);
       }
+      navigation.navigate('FinishRequest', { mode: 'subscription', paymentId: result.paymentId });
     } catch (error) {
-      showAlert('Subscription Failed', error?.message || 'Could not create your subscription. Please try again.');
+      showAlert('Subscription Failed', error?.message || 'Could not start your subscription. Please try again.');
     }
   };
 
@@ -991,59 +799,11 @@ function CreateTicket({ route, navigation }) {
           </>)}
         </View> */}
 
-        {/* Required documents — recurring subscriptions only now; a one-time
-            request's required documents move to FinishRequest, post-payment. */}
-        {isRecurring && requiredDocuments.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Required Documents</Text>
-            <View style={styles.card}>
-              {requiredDocuments.map(doc => (
-                <DocumentUploadField
-                  key={doc.id}
-                  document={doc}
-                  file={documentFiles[doc.id]}
-                  onChoose={() => handleChooseDocument(doc.id)}
-                  onRemove={() => handleRemoveDocument(doc.id)}
-                />
-              ))}
-              <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
-            </View>
-          </>
-        )}
-
-        <Text style={styles.sectionTitle}>{isRecurring ? 'Who / Where' : 'Where'}</Text>
+        {/* Both flows are pay-first now: who this is for, the exact address,
+            and any required documents are collected on FinishRequest, after
+            payment — this only needs enough to price/pay the selection. */}
+        <Text style={styles.sectionTitle}>Where</Text>
         <View style={styles.card}>
-          {isRecurring && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Full Name<Text style={styles.required}> *</Text></Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Who is this request for?"
-                placeholderTextColor="#9CA3AF"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-          )}
-          {isRecurring && (
-            <SelectField
-              label="Relation"
-              required
-              value={relation}
-              placeholder="Select..."
-              options={RELATION_OPTIONS}
-              onSelect={setRelation}
-            />
-          )}
-          {isRecurring && (
-            <SelectField
-              label="Property (optional)"
-              value={property}
-              placeholder="Select property..."
-              options={[NO_PROPERTY, ...properties.map(p => p.nickname)]}
-              onSelect={setProperty}
-            />
-          )}
           <SelectField
             label="State"
             required
@@ -1054,7 +814,6 @@ function CreateTicket({ route, navigation }) {
             onSelect={(v) => {
               setState(v);
               setCity('');
-              setTaluka('');
             }}
             loading={loadingStates}
           />
@@ -1071,46 +830,12 @@ function CreateTicket({ route, navigation }) {
             options={cityNames}
             disabled={locationLocked || !state}
             loading={loadingCities}
-            onSelect={(v) => {
-              setCity(v);
-              setTaluka('');
-            }}
+            onSelect={setCity}
           />
           {citiesFailed && !locationLocked && (
             <TouchableOpacity onPress={retryCities}>
               <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
             </TouchableOpacity>
-          )}
-          {isRecurring && (
-            <SelectField
-              label="Taluka"
-              value={taluka}
-              placeholder="Select city first..."
-              options={talukaNames}
-              disabled={!city}
-              loading={loadingTalukas}
-              onSelect={setTaluka}
-            />
-          )}
-          {isRecurring && talukasFailed && (
-            <TouchableOpacity onPress={retryTalukas}>
-              <Text style={styles.retryText}>Couldn't load talukas. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-
-          {isRecurring && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Full Address<Text style={styles.required}> *</Text></Text>
-              <TextInput
-                style={styles.textArea}
-                placeholder="House/flat no., street, landmark..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-                value={fullAddress}
-                onChangeText={setFullAddress}
-              />
-            </View>
           )}
 
           <View style={styles.fieldWrap}>
@@ -1134,71 +859,6 @@ function CreateTicket({ route, navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-
-          {isRecurring && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Preferred Date & Time</Text>
-              <TouchableOpacity style={styles.selectBox} onPress={() => setShowDatePicker(true)}>
-                <Text style={[styles.selectText, !formattedDate && styles.placeholderText]}>
-                  {formattedDate || 'dd-mm-yyyy --:--'}
-                </Text>
-                <Icon name="event" size={18} color="#666" />
-              </TouchableOpacity>
-              <CustomDateTimePicker
-                visible={showDatePicker}
-                mode="datetime"
-                value={preferredDate}
-                disablePastDates
-                title="Preferred Date & Time"
-                onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
-                onCancel={() => setShowDatePicker(false)}
-              />
-            </View>
-          )}
-
-          {isRecurring && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Additional Notes</Text>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Any specific requirements, access instructions, etc."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-                value={notes}
-                onChangeText={setNotes}
-              />
-            </View>
-          )}
-
-          {isRecurring && (
-            <View style={styles.fieldWrap}>
-              <Text style={styles.label}>Photos / Documents <Text style={styles.hint}>(optional, up to {MAX_FILES})</Text></Text>
-              <View style={styles.fileRow}>
-                <TouchableOpacity
-                  style={[styles.chooseFileBtn, files.length >= MAX_FILES && styles.chooseFileBtnDisabled]}
-                  disabled={files.length >= MAX_FILES}
-                  onPress={handleChooseFiles}
-                >
-                  <Icon name="attach-file" size={16} color={files.length >= MAX_FILES ? '#9CA3AF' : '#3298D4'} />
-                  <Text style={[styles.chooseFileText, files.length >= MAX_FILES && { color: '#9CA3AF' }]}>Choose Files</Text>
-                </TouchableOpacity>
-                {files.length === 0 && <Text style={styles.noFileText}>No file chosen</Text>}
-              </View>
-
-              {files.map(f => (
-                <View key={f.uri} style={styles.filePill}>
-                  <Icon name={f.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#3298D4" />
-                  <Text style={styles.filePillText} numberOfLines={1}>{f.name}</Text>
-                  <TouchableOpacity onPress={() => handleRemoveFile(f.uri)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Icon name="close" size={16} color="#9CA3AF" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.estimateCard}>
@@ -1354,9 +1014,7 @@ function CreateTicket({ route, navigation }) {
           )}
 
           <Text style={[styles.hint, { marginTop: 4 }]}>
-            {isRecurring
-              ? 'Your subscription activates once payment is confirmed.'
-              : 'Who this is for, the exact address, and any documents are collected on the next step, after payment.'}
+            Who this is for, the exact address, and any documents are collected on the next step, after payment.
           </Text>
 
           <TouchableOpacity

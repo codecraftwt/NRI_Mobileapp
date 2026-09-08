@@ -3,6 +3,7 @@ import {
   fetchRequiredDocuments,
   fetchServiceSubscriptions,
   createServiceSubscription,
+  finalizeServiceSubscription,
   cancelServiceSubscription,
   clearRequiredDocuments,
   resetServiceSubscription,
@@ -23,6 +24,7 @@ export function useServiceSubscription() {
 
   const createLoading = useSelector(s => s.serviceSubscription.createStatus === 'loading');
   const createError = useSelector(s => s.serviceSubscription.createError);
+  const finalizeLoading = useSelector(s => s.serviceSubscription.finalizeStatus === 'loading');
   const cancelLoading = useSelector(s => s.serviceSubscription.cancelStatus === 'loading');
 
   return {
@@ -39,6 +41,9 @@ export function useServiceSubscription() {
     createLoading,
     createError,
     createSubscription: (params) => dispatch(createServiceSubscription(params)),
+
+    finalizeLoading,
+    finalizeSubscription: (params) => dispatch(finalizeServiceSubscription(params)),
 
     cancelLoading,
     cancelSubscription: (id) => dispatch(cancelServiceSubscription(id)),

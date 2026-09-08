@@ -6,9 +6,10 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
-import { setPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
+import { setPendingTicketFinalize, setPendingSubscriptionFinalize } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
+import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useProperties } from '../../Hooks/useProperties';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
@@ -190,6 +191,7 @@ function SubmitRequest({ navigation }) {
   // flow used. Actually starting Stripe/Razorpay is still the existing
   // POST /customer/billing/ticket/{id}/pay call.
   const { pay: payForTicket, payLoading, verifyPayment, verifyLoading } = useBilling();
+  const { createLoading: subscribeLoading, createSubscription } = useServiceSubscription();
   // A recurring cart service that wasn't (fully) paid for by this checkout —
   // either because the checkout itself is pure-recurring (payment_required:
   // false, nothing to pay via a ticket) or because it rode alongside a
@@ -211,11 +213,18 @@ function SubmitRequest({ navigation }) {
   // bound to recurring_price via useCartPriceSync.
   const oneTimeItems = items.filter(i => !i.isRecurring);
   const recurringItems = items.filter(i => i.isRecurring);
-  // Pay-first (booking-details → payment → FinishRequest) only applies to a
-  // cart with no recurring-mode item — per the backend, a cart containing a
-  // recurring item still goes through the old details→payment→checkoutCart
-  // flow below, completely unchanged.
-  const payFirstEligible = recurringItems.length === 0;
+  // A cart that's ENTIRELY recurring is its own pay-first flow (same
+  // contract as CreateTicket's single-recurring-service subscribe: only
+  // service_ids/gateway/state_id/city_id up front via POST
+  // /service-subscriptions, who/where collected after payment on
+  // FinishRequest). A MIXED cart (one-time + recurring together) still goes
+  // through the old details→payment→checkoutCart flow below, unchanged —
+  // that's the only shape actually created via checkoutCart's combined
+  // ticket + pending_recurring_bundle response.
+  const isPureRecurring = oneTimeItems.length === 0 && recurringItems.length > 0;
+  // Pay-first (booking-details → payment → FinishRequest) applies to a cart
+  // that's entirely one kind or the other — plain one-time, or plain recurring.
+  const payFirstEligible = recurringItems.length === 0 || isPureRecurring;
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -316,7 +325,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading;
+  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading || subscribeLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
@@ -473,15 +482,16 @@ function SubmitRequest({ navigation }) {
   const handleContinue = () => { if (validateDetails()) setStep('payment'); };
 
   // Pay-first path (payFirstEligible only): validates just the booking-details
-  // fields (location + priority), prices/pays the whole cart as one combined
-  // ticket via POST /customer/cart/checkout, then hands off to FinishRequest —
-  // nothing is created server-side until that screen's finalize call succeeds.
+  // fields, prices/pays the cart, then hands off to FinishRequest — nothing is
+  // created server-side until that screen's finalize call succeeds. Both a
+  // pure one-time cart and a pure recurring cart need state/city/pincode;
+  // priority is a ticket-quote-only input.
   const validateBookingDetails = () => {
     const missing = [];
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
-    if (!reqForm.priority) missing.push('Priority');
+    if (!isPureRecurring && !reqForm.priority) missing.push('Priority');
     if (missing.length) {
       showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
       return false;
@@ -492,13 +502,60 @@ function SubmitRequest({ navigation }) {
   const handlePayFirst = async () => {
     if (loading || submissionLockRef.current) return;
     if (!validateBookingDetails()) return;
-    if (quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
+    if (!isPureRecurring && quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
 
     submissionLockRef.current = true;
     setSubmissionInProgress(true);
     try {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
+
+      if (isPureRecurring) {
+        // Same contract as CreateTicket's subscribe: only service_ids/gateway/
+        // state_id/city_id up front via POST /service-subscriptions — who this
+        // is for, the address, and any required documents are collected after
+        // payment on FinishRequest (mode: 'subscription').
+        const result = await createSubscription({
+          serviceIds: recurringItems.map(i => i.serviceId),
+          gateway: paymentMethod,
+          stateId,
+          cityId,
+          pincode: reqForm.pincode.trim(),
+        }).unwrap();
+
+        if (result.paymentId) {
+          dispatch(setPendingSubscriptionFinalize({
+            userId,
+            paymentId: result.paymentId,
+            serviceIds: recurringItems.map(i => i.serviceId),
+            serviceNames: recurringItems.map(i => i.name),
+            stateId, cityId,
+            stateName: reqForm.state, cityName: reqForm.city,
+            origin: 'cart',
+          }));
+        }
+
+        if (result.checkoutUrl) {
+          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, payFirst: true, kind: 'subscription' });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+          return;
+        }
+        if (result.order) {
+          await runRazorpayPayment({
+            order: result.order,
+            paymentId: result.paymentId,
+            name: 'NRI Circle',
+            description: 'Recurring service subscription',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+        }
+        navigation.navigate('FinishRequest', { mode: 'subscription', paymentId: result.paymentId });
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
 
       const result = await checkoutPayFirst({
         gateway: paymentMethod,
@@ -552,8 +609,8 @@ function SubmitRequest({ navigation }) {
         ? Object.entries(error.errors).flatMap(([, v]) => v).join('\n')
         : '';
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
-        || 'Could not start payment. Please try again.';
-      showAlert('Payment Failed', msg);
+        || (isPureRecurring ? 'Could not start your subscription. Please try again.' : 'Could not start payment. Please try again.');
+      showAlert(isPureRecurring ? 'Subscription Failed' : 'Payment Failed', msg);
       submissionLockRef.current = false;
       setSubmissionInProgress(false);
     }
@@ -665,7 +722,10 @@ function SubmitRequest({ navigation }) {
     try {
       if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
       if (session?.payFirst) {
-        navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: session.paymentId });
+        navigation.navigate('FinishRequest', {
+          mode: session?.kind === 'subscription' ? 'subscription' : 'ticket',
+          paymentId: session.paymentId,
+        });
         submissionLockRef.current = false;
         setSubmissionInProgress(false);
         return;
@@ -906,7 +966,9 @@ function SubmitRequest({ navigation }) {
               </Text>
             )}
 
-            <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            {!isPureRecurring && (
+              <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            )}
           </View>
 
           <View style={styles.card}>
@@ -951,7 +1013,15 @@ function SubmitRequest({ navigation }) {
             ))}
 
             <View style={styles.divider} />
-            {oneTimeItems.length > 0 && (
+            {isPureRecurring ? (
+              <>
+                {recurringItems.map((it) => (
+                  <SummaryRow key={it.serviceId} label={it.name} value={fmt(it.base != null ? it.base : it.price)} />
+                ))}
+                <SummaryRow label="Subscription GST" value={fmt(recurringGstTotal)} />
+                <Text style={styles.disclaimer}>Billed automatically each {recurringInterval} until you cancel.</Text>
+              </>
+            ) : oneTimeItems.length > 0 && (
               <>
                 {quoteBlocking && (
                   <View style={styles.quoteErrorBox}>
@@ -968,17 +1038,17 @@ function SubmitRequest({ navigation }) {
             )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
-              <Text style={styles.payValue}>{fmt(estTotal)}</Text>
+              <Text style={styles.payValue}>{fmt(isPureRecurring ? recurringSubtotal : estTotal)}{isPureRecurring ? `/${recurringInterval}` : ''}</Text>
             </View>
 
             {loading ? (
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, quoteBlocking && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, !isPureRecurring && quoteBlocking && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handlePayFirst}
-                disabled={quoteBlocking}
+                disabled={!isPureRecurring && quoteBlocking}
               >
                 <Text style={styles.submitBtnText}>Continue to Payment</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
@@ -988,7 +1058,9 @@ function SubmitRequest({ navigation }) {
           </>
           ) : (
           <>
-          {/* Cart has a recurring item — old details→payment flow, unchanged. */}
+          {/* Mixed cart (one-time + recurring together) — old details→payment
+              flow, unchanged; the recurring item still surfaces as a
+              pending_recurring_bundle to complete separately after checkout. */}
           {/* Step indicator */}
           <View style={styles.stepper}>
             <View style={styles.stepRow}>

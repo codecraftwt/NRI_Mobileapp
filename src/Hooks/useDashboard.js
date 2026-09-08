@@ -27,6 +27,7 @@ export function useDashboard() {
       userId,
       ticketFinalizations: data.pendingTicketFinalizations || [],
       checkoutBundles: data.pendingCheckoutBundles || [],
+      subscriptionFinalizations: data.pendingSubscriptionFinalizations || [],
     }));
   }, [data, userId, dispatch]);
 

@@ -7,10 +7,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { selectCartItems, clearCart, clearServerCart } from '../../Redux/slices/cartSlice';
-import { selectPendingTicketFinalizes, selectPendingBundleFinishes, clearPendingTicketFinalize, clearPendingBundleFinish } from '../../Redux/slices/pendingRequestsSlice';
+import {
+  selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes,
+  clearPendingTicketFinalize, clearPendingBundleFinish, clearPendingSubscriptionFinalize,
+} from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
+import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useProperties } from '../../Hooks/useProperties';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -101,7 +105,7 @@ function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
 // mid-flow — either way it reads its context from the persisted
 // pendingRequests slice (NOT route params), which is what makes it resumable.
 // mode: 'ticket' (cart or single-service checkout) | 'bundle' (registration
-// combined-cart checkout).
+// combined-cart checkout) | 'subscription' (recurring service subscription).
 function FinishRequest({ route, navigation }) {
   const mode = route?.params?.mode || 'ticket';
   const returnTo = route?.params?.returnTo;
@@ -118,8 +122,10 @@ function FinishRequest({ route, navigation }) {
   const cartItems = useSelector(selectCartItems);
   const ticketFinalizes = useSelector(selectPendingTicketFinalizes);
   const bundleFinishes = useSelector(selectPendingBundleFinishes);
+  const subscriptionFinalizes = useSelector(selectPendingSubscriptionFinalizes);
   const pendingTicket = (paymentId != null ? ticketFinalizes.find(t => t.paymentId === paymentId) : ticketFinalizes[0]) || null;
   const pendingBundle = (bundleId != null ? bundleFinishes.find(b => b.bundleId === bundleId) : bundleFinishes[0]) || null;
+  const pendingSubscription = (paymentId != null ? subscriptionFinalizes.find(s => s.paymentId === paymentId) : subscriptionFinalizes[0]) || null;
   const { properties } = useProperties();
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
 
@@ -131,8 +137,12 @@ function FinishRequest({ route, navigation }) {
     checkoutBundle, checkoutBundleLoading, checkoutBundleFailed, getCheckoutBundle,
     finishBundle, finishBundleLoading,
   } = useBilling();
+  const {
+    requiredDocuments: subscriptionRequiredDocuments, fetchRequiredDocuments: fetchSubscriptionRequiredDocuments,
+    finalizeSubscription: finalizeSubscriptionAction, finalizeLoading: finalizeSubscriptionLoading,
+  } = useServiceSubscription();
 
-  const cityName = mode === 'bundle' ? pendingBundle?.cityName : pendingTicket?.cityName;
+  const cityName = mode === 'bundle' ? pendingBundle?.cityName : mode === 'subscription' ? pendingSubscription?.cityName : pendingTicket?.cityName;
   const { talukaNames, talukas } = useTalukas(null, cityName);
 
   const [form, setForm] = useState({ fullName: '', relation: '', property: NO_PROPERTY, taluka: '', address: '', notes: '' });
@@ -156,16 +166,16 @@ function FinishRequest({ route, navigation }) {
   // it came from may already be mid-checkout). Land on the Services list
   // instead, same as the header back arrow above. Bundle mode has no back
   // action at all (see the header render below), so this only applies to
-  // 'ticket'.
+  // 'ticket'/'subscription'.
   useFocusEffect(
     useCallback(() => {
-      if (mode !== 'ticket') return undefined;
+      if (mode === 'bundle') return undefined;
       const onBackPress = () => {
         goBackTarget();
         return true;
       };
-      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => subscription.remove();
+      const backSubscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => backSubscription.remove();
     }, [goBackTarget, mode])
   );
 
@@ -174,17 +184,23 @@ function FinishRequest({ route, navigation }) {
       fetchRequiredDocuments(pendingTicket.serviceIds);
     } else if (mode === 'bundle' && pendingBundle?.bundleId) {
       getCheckoutBundle(pendingBundle.bundleId);
+    } else if (mode === 'subscription' && pendingSubscription?.serviceIds?.length) {
+      fetchSubscriptionRequiredDocuments(pendingSubscription.serviceIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pendingTicket?.serviceIds?.join(','), pendingBundle?.bundleId]);
+  }, [mode, pendingTicket?.serviceIds?.join(','), pendingBundle?.bundleId, pendingSubscription?.serviceIds?.join(',')]);
 
-  const requiredDocuments = mode === 'bundle' ? (checkoutBundle?.requiredDocuments || []) : ticketRequiredDocuments;
-  const serviceNames = mode === 'bundle' ? (pendingBundle?.serviceNames || '') : (pendingTicket?.serviceNames || '');
+  const requiredDocuments = mode === 'bundle' ? (checkoutBundle?.requiredDocuments || [])
+    : mode === 'subscription' ? subscriptionRequiredDocuments
+    : ticketRequiredDocuments;
+  const serviceNames = mode === 'bundle' ? (pendingBundle?.serviceNames || '')
+    : mode === 'subscription' ? (pendingSubscription?.serviceNames || '')
+    : (pendingTicket?.serviceNames || '');
   const serviceList = Array.isArray(serviceNames) ? serviceNames : String(serviceNames || '').split(',').map(s => s.trim()).filter(Boolean);
-  const amount = mode === 'bundle' ? null : pendingTicket?.amount;
-  const currency = mode === 'bundle' ? null : pendingTicket?.currency;
+  const amount = mode === 'ticket' ? pendingTicket?.amount : mode === 'subscription' ? pendingSubscription?.amount : null;
+  const currency = mode === 'ticket' ? pendingTicket?.currency : mode === 'subscription' ? pendingSubscription?.currency : null;
 
-  const loading = submitting || finalizeLoading || finishBundleLoading;
+  const loading = submitting || finalizeLoading || finishBundleLoading || finalizeSubscriptionLoading;
   const bundleLoading = mode === 'bundle' && checkoutBundleLoading && !checkoutBundle;
 
   const formattedPreferred = preferredDate
@@ -236,9 +252,10 @@ function FinishRequest({ route, navigation }) {
     Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
   };
 
-  // Ticket mode's finalize call needs an existing family_member_id (unlike the
-  // checkout-bundle finish call, which still takes raw name/relationship) —
-  // reuse a matching saved member if one exists, else create one on the fly.
+  // Ticket/subscription mode's finalize call needs an existing
+  // family_member_id (unlike the checkout-bundle finish call, which still
+  // takes raw name/relationship) — reuse a matching saved member if one
+  // exists, else create one on the fly.
   const resolveFamilyMemberId = async () => {
     const name = form.fullName.trim();
     const relationship = form.relation.toLowerCase();
@@ -295,6 +312,25 @@ function FinishRequest({ route, navigation }) {
         showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
           { text: 'OK', onPress: () => navigation.navigate('Requests', { screen: 'RequestsMain' }) },
         ]);
+      } else if (mode === 'subscription') {
+        const familyMemberId = await resolveFamilyMemberId();
+        await finalizeSubscriptionAction({
+          paymentId: pendingSubscription.paymentId,
+          familyMemberId,
+          propertyId,
+          talukaId,
+          address: form.address.trim(),
+          customerNotes: form.notes || undefined,
+          documents: documentFiles,
+        }).unwrap();
+        dispatch(clearPendingSubscriptionFinalize({ userId, paymentId: pendingSubscription.paymentId }));
+        if (pendingSubscription.origin === 'cart') {
+          if (cartItems.length) await dispatch(clearServerCart(cartItems)).unwrap().catch(() => {});
+          dispatch(clearCart());
+        }
+        showAlert('Subscription Activated', 'Your recurring subscription is now active. Track it under Billing & Payments.', [
+          { text: 'OK', onPress: () => navigation.navigate('Requests', { screen: 'RequestsMain' }) },
+        ]);
       } else {
         await finishBundle({
           bundleId: pendingBundle.bundleId,
@@ -322,20 +358,23 @@ function FinishRequest({ route, navigation }) {
     }
   };
 
-  const nothingPending = mode === 'ticket' ? !pendingTicket : !pendingBundle;
+  const nothingPending = mode === 'ticket' ? !pendingTicket : mode === 'subscription' ? !pendingSubscription : !pendingBundle;
+  const headerTitle = mode === 'bundle' ? 'Finish Your Service Requests'
+    : mode === 'subscription' ? 'Finish Your Subscription'
+    : 'Finish Your Service Request';
 
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
-          {mode === 'ticket' && (
+          {mode !== 'bundle' && (
             <TouchableOpacity style={styles.headerBack} onPress={goBackTarget}>
               <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
             </TouchableOpacity>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>{mode === 'bundle' ? 'Finish Your Service Requests' : 'Finish Your Service Request'}</Text>
+            <Text style={styles.headerTitle}>{headerTitle}</Text>
             <Text style={styles.headerSub}>Payment received — just a few more details</Text>
           </View>
         </View>
@@ -393,22 +432,26 @@ function FinishRequest({ route, navigation }) {
           <Text style={styles.fieldLabel}>Full Address *</Text>
           <TextInput style={[styles.input, styles.inputMultiline]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={form.address} onChangeText={t => setField('address', t)} />
 
-          <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
-          <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
-            <Text style={[styles.selectText, !formattedPreferred && styles.selectPlaceholder]}>
-              {formattedPreferred || 'dd-mm-yyyy --:--'}
-            </Text>
-            <Icon name="event" size={18} color="#64748B" />
-          </TouchableOpacity>
-          <CustomDateTimePicker
-            visible={showDatePicker}
-            mode="datetime"
-            value={preferredDate}
-            minimumDate={new Date()}
-            title="Preferred Date & Time"
-            onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
-            onCancel={() => setShowDatePicker(false)}
-          />
+          {mode !== 'subscription' && (
+            <>
+              <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
+              <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
+                <Text style={[styles.selectText, !formattedPreferred && styles.selectPlaceholder]}>
+                  {formattedPreferred || 'dd-mm-yyyy --:--'}
+                </Text>
+                <Icon name="event" size={18} color="#64748B" />
+              </TouchableOpacity>
+              <CustomDateTimePicker
+                visible={showDatePicker}
+                mode="datetime"
+                value={preferredDate}
+                minimumDate={new Date()}
+                title="Preferred Date & Time"
+                onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
+                onCancel={() => setShowDatePicker(false)}
+              />
+            </>
+          )}
 
           <Text style={styles.fieldLabel}>Additional Notes</Text>
           <TextInput style={[styles.input, styles.inputMultiline]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={form.notes} onChangeText={t => setField('notes', t)} />
@@ -457,7 +500,9 @@ function FinishRequest({ route, navigation }) {
           <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
         ) : (
           <TouchableOpacity style={styles.submitBtn} activeOpacity={0.9} onPress={handleSubmit}>
-            <Text style={styles.submitBtnText}>{mode === 'bundle' ? 'Send Requests' : 'Send Request'}</Text>
+            <Text style={styles.submitBtnText}>
+              {mode === 'bundle' ? 'Send Requests' : mode === 'subscription' ? 'Activate Subscription' : 'Send Request'}
+            </Text>
             <Icon name="arrow-forward" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         )}

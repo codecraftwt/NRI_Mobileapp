@@ -58,6 +58,18 @@ function mapPendingCheckoutBundle(raw) {
   };
 }
 
+// Recurring-subscription analogue of mapPendingTicketFinalization above — a
+// paid-but-not-yet-finalized service subscription (who/where not yet
+// submitted to POST /service-subscriptions/{payment_id}/finalize).
+function mapPendingSubscriptionFinalization(raw) {
+  return {
+    paymentId: raw.payment_id,
+    serviceNames: raw.service_names,
+    amount: raw.display_amount,
+    currency: raw.display_currency,
+  };
+}
+
 function mapRecentReport(raw) {
   return {
     id: raw.id,
@@ -112,6 +124,7 @@ function mapDashboard(raw) {
     // pendingRequestsSlice (see there for why local-only tracking isn't enough).
     pendingTicketFinalizations: (raw.pending_ticket_finalizations || []).map(mapPendingTicketFinalization),
     pendingCheckoutBundles: (raw.pending_checkout_bundles || []).map(mapPendingCheckoutBundle),
+    pendingSubscriptionFinalizations: (raw.pending_subscription_finalizations || []).map(mapPendingSubscriptionFinalization),
   };
 }
 
