@@ -498,12 +498,6 @@ function TicketDetail({ navigation, route }) {
                   <>
                     <View style={styles.sectionHeaderRow}>
                       <CardTitle icon="receipt-long" title="Pricing" />
-                      {!hasPendingCharge && (
-                        <TouchableOpacity style={styles.requestPayPill} onPress={openRequestPay} activeOpacity={0.85}>
-                          <Icon name="request-quote" size={14} color="#B45309" />
-                          <Text style={styles.requestPayPillText}>Request Additional Payment</Text>
-                        </TouchableOpacity>
-                      )}
                     </View>
                     <View style={styles.card}>
                       {pricingRows.map(([label, value]) => (
