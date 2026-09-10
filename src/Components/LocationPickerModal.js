@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { setServiceLocation, clearServiceLocation } from '../Redux/slices/serviceLocationSlice';
+import { saveServiceLocation, clearServiceLocation } from '../Redux/slices/serviceLocationSlice';
 import { useStates } from '../Hooks/useStates';
 import { usePostalCodeLookup } from '../Hooks/usePostalCodeLookup';
 
@@ -55,7 +55,7 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
       cityId: resolvedCityId,
       pincode: pin.trim(),
     };
-    dispatch(setServiceLocation(loc));
+    dispatch(saveServiceLocation(loc));
     onClose?.();
     onSaved?.(loc);
   };

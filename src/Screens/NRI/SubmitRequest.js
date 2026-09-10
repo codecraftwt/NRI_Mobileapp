@@ -24,7 +24,7 @@ import PendingRecurringBundleModal from '../../Components/PendingRecurringBundle
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
-import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
+import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { useToast } from '../../context/ToastContext';
@@ -313,7 +313,7 @@ function SubmitRequest({ navigation }) {
         if (match.cityName) setField('city', match.cityName);
         if (match.talukaName) setField('taluka', match.talukaName);
         if (stateName && match.cityName && match.cityId) {
-          dispatch(setServiceLocation({
+          dispatch(saveServiceLocation({
             stateName,
             cityName: match.cityName,
             cityId: match.cityId,

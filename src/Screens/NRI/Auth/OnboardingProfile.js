@@ -206,7 +206,6 @@ function PhoneField({ label, required, optional, value, onChangeText, placeholde
       <View style={styles.phoneRow}>
         <TouchableOpacity style={styles.flagBtn} activeOpacity={0.7} onPress={() => { setQuery(''); setOpen(true); }}>
           <Text style={styles.flagEmoji}>{selectedCountry?.flagEmoji || '🌐'}</Text>
-          <Text style={styles.dialCode}>{selectedCountry?.phoneCode ? `+${selectedCountry.phoneCode}` : '+'}</Text>
           <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
         </TouchableOpacity>
         <TextInput
@@ -302,6 +301,12 @@ function OnboardingProfile({ navigation }) {
     return phoneCode ? `+${phoneCode} ${local}` : local;
   };
 
+  // A dial code with nothing typed after it (e.g. "+91 ", left over from
+  // tapping the flag without entering a number) is a non-empty string but not
+  // a real number — treat it as blank rather than send it and let the backend
+  // 422 it as "not a valid phone number".
+  const hasDigits = (value) => /\d/.test(String(value || '').replace(/^\+\d{1,4}\s*/, ''));
+
   const handleCountrySelect = (value) => {
     setCountry(value);
     setStateProvince('');
@@ -327,7 +332,7 @@ function OnboardingProfile({ navigation }) {
   };
 
   const handleContinue = async () => {
-    if (!country || !stateProvince || !city || !homeState || !phone) {
+    if (!country || !stateProvince || !city || !homeState || !hasDigits(phone)) {
       showAlert('Missing Fields', 'Please fill in all required fields before continuing.');
       return;
     }
@@ -335,7 +340,8 @@ function OnboardingProfile({ navigation }) {
     setSubmitting(true);
     try {
       await dispatch(saveUserProfile({
-        phone,
+        phone: phone.trim(),
+        whatsappNumber: hasDigits(whatsapp) ? whatsapp.trim() : undefined,
         nriCountry: country,
         nriCity: city,
         stateId,
@@ -344,7 +350,11 @@ function OnboardingProfile({ navigation }) {
         profile: { countryOfResidence: country, stateProvince, city, homeState, phone, whatsapp },
       });
     } catch (error) {
-      showAlert('Could Not Save Profile', error?.message || 'Please try again.');
+      // The backend validates phone/whatsapp_number per-country (libphonenumber)
+      // and returns a 422 with a field-specific message — surface that instead
+      // of the generic top-level message so the user knows what to fix.
+      const fieldMessage = error?.errors?.phone?.[0] || error?.errors?.whatsapp_number?.[0];
+      showAlert('Could Not Save Profile', fieldMessage || error?.message || 'Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -524,7 +534,6 @@ const styles = StyleSheet.create({
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   flagBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 56, paddingHorizontal: 12, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, backgroundColor: colors.surface },
   flagEmoji: { fontSize: 20 },
-  dialCode: { fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B' },
   phoneInput: { flex: 1, height: 56, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 16, fontSize: 15, fontFamily: 'Poppins-Regular', color: '#1E293B', backgroundColor: colors.surface },
   codeOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 8 },
   codeOptionDial: { fontSize: 14, fontFamily: 'Poppins-SemiBold', color: '#64748B' },

@@ -1,5 +1,29 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { loginUser, registerUser, login } from './userSlice';
+import { saveCustomerServiceLocation } from '../../Api/cartApi';
+
+// Sets the active location locally (same as the plain setServiceLocation
+// reducer) AND, for a signed-in member, persists it via PUT
+// /customer/service-location — confirmed live that without this call the
+// account's city_id stays null forever, permanently pinning GET /customer/cart
+// and the ticket-quote endpoint to 'nationwide' average pricing instead of the
+// real 'city'-basis price. The account sync is best-effort: a guest (no
+// account yet) or a network hiccup must never block the local location update
+// that every services screen depends on.
+export const saveServiceLocation = createAsyncThunk(
+  'serviceLocation/save',
+  async ({ stateName, cityName, cityId, pincode }, { getState }) => {
+    try {
+      const isAuthenticated = getState().user?.isAuthenticated;
+      if (isAuthenticated && cityId) {
+        await saveCustomerServiceLocation({ cityId, pincode });
+      }
+    } catch (error) {
+      // Swallow — the local location still applies below regardless.
+    }
+    return { stateName, cityName, cityId, pincode: pincode ?? null };
+  }
+);
 
 // The customer's chosen service location (state + city). Persisted so it's
 // remembered across sessions — set once, reused for every category instead of
@@ -62,7 +86,13 @@ const serviceLocationSlice = createSlice({
     builder
       .addCase(loginUser.fulfilled, restore)
       .addCase(registerUser.fulfilled, restore)
-      .addCase(login, restore);
+      .addCase(login, restore)
+      .addCase(saveServiceLocation.fulfilled, (state, action) => {
+        state.stateName = action.payload.stateName;
+        state.cityName = action.payload.cityName;
+        state.cityId = action.payload.cityId;
+        state.pincode = action.payload.pincode ?? null;
+      });
   },
 });
 

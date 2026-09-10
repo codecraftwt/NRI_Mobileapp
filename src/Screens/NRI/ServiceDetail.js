@@ -6,7 +6,7 @@ import Header from '../../Components/Header';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
-import { setServiceLocation } from '../../Redux/slices/serviceLocationSlice';
+import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme';
 
@@ -131,7 +131,7 @@ function ServiceDetail({ route, navigation }) {
   const handleSaveLocation = () => {
     if (!canSaveLoc) return;
     const next = { stateName: selState, cityName: selCity, cityId: selCityId };
-    dispatch(setServiceLocation(next)); // persist as the new default
+    dispatch(saveServiceLocation(next)); // persist as the new default (local + account)
     setLoc(next);
     // Selections belong to the old city's services — clear them.
     setOneTimeIds([]);

@@ -114,7 +114,10 @@ export default function ProfilePersonal({ navigation }) {
       }));
       showAlert('Profile Updated', 'Your profile has been saved successfully.');
     } catch (error) {
-      showAlert('Could Not Save Profile', error?.message || 'Please try again.');
+      // Backend validates phone per-country (libphonenumber) and returns a 422
+      // with a field-specific message — surface that instead of the generic one.
+      const fieldMessage = error?.errors?.phone?.[0];
+      showAlert('Could Not Save Profile', fieldMessage || error?.message || 'Please try again.');
     } finally {
       setSavingPersonal(false);
     }

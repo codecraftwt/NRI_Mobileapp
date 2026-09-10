@@ -75,6 +75,23 @@ function mapCart(data) {
   return { items, count: d.count ?? items.length, pricedCity: d.priced_city ?? null };
 }
 
+// PUT /customer/service-location — persists the account's saved service city
+// server-side. Without this call, the account's city_id stays null forever
+// (confirmed live with backend) and GET /customer/cart / the ticket-quote
+// endpoint permanently fall back to 'nationwide' average pricing instead of
+// the real 'city'-basis price — this is the only thing that flips that over.
+export async function saveCustomerServiceLocation({ cityId, pincode }) {
+  try {
+    const response = await apiClient.put('/customer/service-location', {
+      city_id: cityId,
+      pincode: pincode || undefined,
+    });
+    return response.data;
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // GET /customer/cart — current cart items + count.
 export async function getCart() {
   try {
