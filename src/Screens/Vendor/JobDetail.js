@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
@@ -229,6 +229,10 @@ function JobDetail({ route, navigation }) {
   };
 
   const handleOpenFlagModal = () => {
+    // Dismiss any keyboard left open from elsewhere on the screen so the modal
+    // always opens with the keyboard down — otherwise it can appear stuck open
+    // and cover the Submit button since the modal itself isn't scrollable.
+    Keyboard.dismiss();
     setFlagAmount('');
     setFlagReason('');
     setFlagModalVisible(true);
@@ -897,7 +901,10 @@ function JobDetail({ route, navigation }) {
       </ScrollView>
 
       <Modal visible={flagModalVisible} transparent animationType="fade" onRequestClose={() => setFlagModalVisible(false)}>
-        <View style={styles.flagModalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.flagModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.flagModalCard}>
             <View style={styles.flagModalHeader}>
               <Text style={styles.flagModalTitle} numberOfLines={1}>Flag a Cost Issue — {job.ticket}</Text>
@@ -906,51 +913,53 @@ function JobDetail({ route, navigation }) {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.reportField}>
-              <Text style={styles.commitLabel}>Additional Amount (₹) <Text style={styles.optionalText}>(optional)</Text></Text>
-              <TextInput
-                style={styles.dateInput}
-                placeholder="0.00"
-                placeholderTextColor="#94A3B8"
-                value={flagAmount}
-                onChangeText={setFlagAmount}
-                keyboardType="numeric"
-              />
-            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.flagModalScrollContent}>
+              <View style={styles.reportField}>
+                <Text style={styles.commitLabel}>Additional Amount (₹) <Text style={styles.optionalText}>(optional)</Text></Text>
+                <TextInput
+                  style={styles.dateInput}
+                  placeholder="0.00"
+                  placeholderTextColor="#94A3B8"
+                  value={flagAmount}
+                  onChangeText={setFlagAmount}
+                  keyboardType="numeric"
+                />
+              </View>
 
-            <View style={styles.reportField}>
-              <Text style={styles.commitLabel}>What's higher, and why? *</Text>
-              <TextInput
-                style={styles.reportInput}
-                placeholder="e.g. Client needed extra parts not in the original quote..."
-                placeholderTextColor="#94A3B8"
-                value={flagReason}
-                onChangeText={setFlagReason}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
+              <View style={styles.reportField}>
+                <Text style={styles.commitLabel}>What's higher, and why? *</Text>
+                <TextInput
+                  style={styles.reportInput}
+                  placeholder="e.g. Client needed extra parts not in the original quote..."
+                  placeholderTextColor="#94A3B8"
+                  value={flagReason}
+                  onChangeText={setFlagReason}
+                  multiline
+                  numberOfLines={4}
+                />
+              </View>
 
-            <View style={styles.flagModalActions}>
-              <TouchableOpacity
-                style={[styles.flagSubmitBtn, flagSubmitting && styles.btnDisabled]}
-                onPress={handleSubmitFlag}
-                disabled={flagSubmitting}
-                activeOpacity={0.85}
-              >
-                {flagSubmitting ? <ActivityIndicator size="small" color="#B45309" /> : (
-                  <>
-                    <Icon name="send" size={15} color="#B45309" />
-                    <Text style={styles.flagSubmitBtnText}>Submit</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.flagCancelBtn} onPress={() => setFlagModalVisible(false)} disabled={flagSubmitting} activeOpacity={0.85}>
-                <Text style={styles.flagCancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.flagModalActions}>
+                <TouchableOpacity
+                  style={[styles.flagSubmitBtn, flagSubmitting && styles.btnDisabled]}
+                  onPress={handleSubmitFlag}
+                  disabled={flagSubmitting}
+                  activeOpacity={0.85}
+                >
+                  {flagSubmitting ? <ActivityIndicator size="small" color="#B45309" /> : (
+                    <>
+                      <Icon name="send" size={15} color="#B45309" />
+                      <Text style={styles.flagSubmitBtnText}>Submit</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.flagCancelBtn} onPress={() => setFlagModalVisible(false)} disabled={flagSubmitting} activeOpacity={0.85}>
+                  <Text style={styles.flagCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <AppAlert {...alertProps} />
@@ -1230,10 +1239,11 @@ const styles = StyleSheet.create({
 
   flagModalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 20 },
   flagModalCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, gap: 16, maxHeight: '85%',
     elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 20,
   },
   flagModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  flagModalScrollContent: { gap: 16 },
   flagModalTitle: { flex: 1, fontSize: 17, fontWeight: '700', color: '#0F172A' },
   flagModalActions: { flexDirection: 'row', gap: 12 },
   flagSubmitBtn: {

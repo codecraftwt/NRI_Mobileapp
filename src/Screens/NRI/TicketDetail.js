@@ -277,12 +277,6 @@ function TicketDetail({ route, navigation }) {
                 {!!locationLine && <Text style={styles.subValue}>{locationLine}</Text>}
               </View>
             )}
-            {ticket.totalAmount != null && (
-              <View style={styles.infoBlock}>
-                <Text style={styles.label}>Amount</Text>
-                <Text style={styles.value}>{formatUsd(ticket.totalAmount)} · {ticket.isPaid ? 'Paid' : 'Unpaid'}</Text>
-              </View>
-            )}
             {!!ticket.customerNotes && (
               <View style={styles.infoBlock}>
                 <Text style={styles.label}>Notes</Text>
