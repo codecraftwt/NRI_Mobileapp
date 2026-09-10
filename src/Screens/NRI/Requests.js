@@ -20,7 +20,7 @@ function joinNames(names) {
   return Array.isArray(names) ? names.join(', ') : String(names);
 }
 
-const TABS = ['All', 'New', 'Assigned', 'Completed'];
+const TABS = ['All', 'New', 'Assigned', 'In Review', 'Completed'];
 
 // Each tab maps to a backend `status` value so tickets are fetched
 // server-side (across all pages), not client-filtered on the loaded page.
@@ -28,6 +28,7 @@ const STATUS_BY_TAB = {
   All: undefined,
   New: 'new',
   Assigned: 'assigned',
+  'In Review': 'in_review',
   Completed: 'completed',
 };
 
@@ -35,6 +36,7 @@ function getStatusPill(statusLabel) {
   switch (statusLabel) {
     case 'Completed': return { bg: '#D1FAE5', text: '#059669', label: 'Completed' };
     case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C', label: 'In Progress' };
+    case 'In Review': return { bg: '#E0E7FF', text: '#4338CA', label: 'In Review' };
     case 'Assigned': return { bg: '#DBEAFE', text: '#1D4ED8', label: 'Assigned' };
     case 'Cancelled': return { bg: '#FEE2E2', text: '#B91C1C', label: 'Cancelled' };
     case 'Overdue': return { bg: '#FEE2E2', text: '#DC2626', label: 'Overdue' };
@@ -49,9 +51,16 @@ function isOverdue(dateStr) {
 }
 
 function HorizontalProgressBar({ statusLabel }) {
-  const steps = ['Requested', 'Assigned', 'In Progress', 'Completed'];
+  // "Completed" is always shown as the destination step. "In Review" is only
+  // relevant while the ticket is still on its way there — once it actually
+  // reaches Completed, drop the now-irrelevant "In Review" node.
+  const isCompleted = statusLabel === 'Completed';
+  const steps = isCompleted
+    ? ['Requested', 'Assigned', 'In Progress', 'Completed']
+    : ['Requested', 'Assigned', 'In Progress', 'In Review', 'Completed'];
   let currentIndex = 0;
-  if (statusLabel === 'Completed') currentIndex = 3;
+  if (isCompleted) currentIndex = 3;
+  else if (statusLabel === 'In Review') currentIndex = 3;
   else if (statusLabel === 'In Progress') currentIndex = 2;
   else if (statusLabel === 'Assigned') currentIndex = 1;
 
@@ -220,7 +229,7 @@ function Requests({ navigation }) {
           // already have a past sla_deadline, so overdue applies from
           // creation, not just once work starts — exclude only the terminal
           // statuses where a missed SLA is no longer relevant.
-          const overdue = isOverdue(ticket.slaDeadline) && !['Completed', 'Cancelled'].includes(ticket.statusLabel);
+          const overdue = isOverdue(ticket.slaDeadline) && !['Completed', 'Cancelled', 'In Review'].includes(ticket.statusLabel);
           const statusPill = getStatusPill(overdue ? 'Overdue' : ticket.statusLabel);
 
           return (

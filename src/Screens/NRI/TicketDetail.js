@@ -28,8 +28,10 @@ function getStatusColor(statusLabel) {
   switch (statusLabel?.toUpperCase()) {
     case 'NEW': return { bg: '#E0F2FE', text: '#0284C7' };
     case 'ASSIGNED': return { bg: '#FEF9C3', text: '#CA8A04' };
-    case 'IN PROGRESS': 
+    case 'IN PROGRESS':
     case 'IN_PROGRESS': return { bg: '#DCFCE7', text: '#16A34A' };
+    case 'IN REVIEW':
+    case 'IN_REVIEW': return { bg: '#E0E7FF', text: '#4338CA' };
     case 'COMPLETED': return { bg: '#E0F2FE', text: '#0284C7' };
     case 'CANCELLED': return { bg: '#FEE2E2', text: '#DC2626' };
     default: return { bg: '#F1F5F9', text: '#475569' };
@@ -380,7 +382,13 @@ function TicketDetail({ route, navigation }) {
           </View>
           <View style={styles.timelineWrapper}>
             {timeline.map((event, idx) => {
-              const eventStatusStyle = getStatusColor(event.to);
+              // The last entry reflects the ticket's current state, which the API
+              // already gives us as a ready-to-display label (status_label) — use
+              // it there instead of reformatting the raw `to` value ourselves.
+              // Earlier entries only have the raw value, so just despace it.
+              const isCurrent = idx === timeline.length - 1;
+              const displayLabel = isCurrent && ticket.statusLabel ? ticket.statusLabel : (event.to ? event.to.replace(/_/g, ' ') : 'Update');
+              const eventStatusStyle = getStatusColor(isCurrent ? ticket.statusLabel : event.to);
               const isFirst = idx === 0;
               return (
                 <View key={idx} style={styles.timelineRow}>
@@ -390,7 +398,7 @@ function TicketDetail({ route, navigation }) {
                   </View>
                   <View style={styles.timelineCard}>
                     <View style={styles.timelineCardTop}>
-                      <Text style={[styles.timelineStatus, { color: eventStatusStyle.text }]}>{event.to?.toUpperCase() || 'UPDATE'}</Text>
+                      <Text style={[styles.timelineStatus, { color: eventStatusStyle.text }]}>{displayLabel}</Text>
                       <Text style={styles.timelineTime}>{formatDateTime(event.at)}</Text>
                     </View>
                     <Text style={styles.timelineTitle}>{event.note || 'Status updated'}</Text>

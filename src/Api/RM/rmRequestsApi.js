@@ -159,6 +159,14 @@ export function mapRequestDetail(raw = {}) {
       total: pick(raw.pricing?.total, raw.total),
       vendorCost: pick(raw.pricing?.vendor_cost, raw.vendor_cost),
       amountDueNow: pick(raw.pricing?.amount_due_now, raw.amount_due_now),
+      // Live indicator of the currently-outstanding additional charge (same
+      // shape as the customer app's ticketApi.js) — distinct from
+      // additional_charges[] below, which is the full request/cancel history.
+      pendingAdditionalCharge: raw.pricing?.pending_additional_charge ? {
+        amount: raw.pricing.pending_additional_charge.amount,
+        displayAmount: raw.pricing.pending_additional_charge.display_amount,
+        displayCurrency: raw.pricing.pending_additional_charge.display_currency,
+      } : null,
     },
     vendor,
     rmName: raw.rm?.name || raw.relationship_manager?.name || null,
@@ -194,6 +202,10 @@ function mapAdditionalCharge(raw = {}, index = 0) {
     createdAt: raw.created_at || null,
     cancelledAt: raw.cancelled_at || null,
     resolvedAt: raw.resolved_at || raw.settled_at || raw.paid_at || null,
+    vendorNotifiedAt: raw.vendor_notified_at || null,
+    // Backend-computed (paid, not yet notified, vendor assigned, RM has
+    // permission) so the app doesn't have to re-derive all of that client-side.
+    canNotifyVendor: !!raw.can_notify_vendor,
   };
 }
 
@@ -327,6 +339,19 @@ export async function requestRmAdditionalPayment(ticket, { amount, reason }) {
 export async function cancelRmAdditionalCharge(ticket, chargeId) {
   try {
     const response = await apiClient.post(`/rm/requests/${ticket}/additional-charges/${chargeId}/cancel`);
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/additional-charges/{charge}/notify-vendor — lets
+// the vendor know a paid additional charge has cleared. Same validation/error
+// pattern as cancelRmAdditionalCharge above; whether it's safe to call is
+// driven entirely by the charge's own can_notify_vendor flag, not guessed here.
+export async function notifyRmVendorForCharge(ticket, chargeId) {
+  try {
+    const response = await apiClient.post(`/rm/requests/${ticket}/additional-charges/${chargeId}/notify-vendor`);
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

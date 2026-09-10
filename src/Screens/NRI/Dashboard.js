@@ -77,6 +77,8 @@ function Dashboard({ navigation }) {
       case 'new': return { bg: '#EFF6FF', text: '#3B82F6' };
       case 'assigned': return { bg: '#EFF6FF', text: '#3B82F6' };
       case 'in progress': return { bg: '#FEF2F2', text: '#DC2626' };
+      case 'in review':
+      case 'in_review': return { bg: '#E0E7FF', text: '#4338CA' };
       case 'completed': return { bg: '#D1FAE5', text: '#059669' };
       case 'overdue': return { bg: '#FEE2E2', text: '#DC2626' };
       default: return { bg: '#F1F5F9', text: '#64748B' };
@@ -274,7 +276,7 @@ function Dashboard({ navigation }) {
                   // from creation, not just once work starts — exclude only
                   // the terminal statuses where a missed SLA no longer matters.
                   const normalizedStatus = ticket.status?.toLowerCase().replace('_', ' ');
-                  const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled'].includes(normalizedStatus);
+                  const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled', 'in review'].includes(normalizedStatus);
                   const displayStatus = overdue ? 'Overdue' : ticket.status;
                   const statusStyle = getStatusColor(displayStatus);
                   return (

@@ -62,6 +62,12 @@ function mapVendorDispute(raw) {
     resolutionNotes: raw.resolution_notes || null,
     createdAt: raw.created_at || null,
     resolvedAt: raw.resolved_at || null,
+    // Once the RM converts this into a real charge, `status` above flips to
+    // "resolved" immediately (the request-additional-payment endpoint
+    // resolves the dispute as part of that same action) — chargeStatus is
+    // what actually tracks whether the customer has paid it yet.
+    chargeStatus: raw.charge_status || null,
+    chargePaidAt: raw.charge_paid_at || null,
   };
 }
 

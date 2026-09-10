@@ -67,6 +67,19 @@ export const convertRmVendorDispute = createAsyncThunk(
   }
 );
 
+export const notifyRmVendorForCharge = createAsyncThunk(
+  'rmRequestDetail/notifyVendorForCharge',
+  async ({ ticket, chargeId }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.notifyRmVendorForCharge(ticket, chargeId);
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   detail: null,
   status: 'idle',
@@ -133,7 +146,7 @@ const rmRequestDetailSlice = createSlice({
     // Shared pending/fulfilled/rejected handling for the three additional-
     // payment mutations — each refetches the detail itself on success, so
     // this slice only needs to track a shared loading/error flag.
-    [requestRmAdditionalPayment, cancelRmAdditionalCharge, convertRmVendorDispute].forEach((thunk) => {
+    [requestRmAdditionalPayment, cancelRmAdditionalCharge, convertRmVendorDispute, notifyRmVendorForCharge].forEach((thunk) => {
       builder
         .addCase(thunk.pending, (state) => {
           state.additionalPaymentStatus = 'loading';

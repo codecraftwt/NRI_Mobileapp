@@ -7,6 +7,7 @@ import {
   requestRmAdditionalPayment,
   cancelRmAdditionalCharge,
   convertRmVendorDispute,
+  notifyRmVendorForCharge,
   resetRmRequestDetail,
 } from '../../Redux/slices/rmRequestDetailSlice';
 
@@ -48,6 +49,7 @@ export function useRmRequestDetail(ticket) {
     requestAdditionalPayment: ({ amount, reason }) => dispatch(requestRmAdditionalPayment({ ticket, amount, reason })),
     cancelAdditionalCharge: (chargeId) => dispatch(cancelRmAdditionalCharge({ ticket, chargeId })),
     convertVendorDispute: (disputeId, { amount, reason } = {}) => dispatch(convertRmVendorDispute({ ticket, disputeId, amount, reason })),
+    notifyVendorForCharge: (chargeId) => dispatch(notifyRmVendorForCharge({ ticket, chargeId })),
     additionalPaymentLoading: additionalPaymentStatus === 'loading',
     additionalPaymentError,
   };

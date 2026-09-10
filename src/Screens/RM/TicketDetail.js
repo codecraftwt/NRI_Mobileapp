@@ -118,7 +118,7 @@ function TicketDetail({ navigation, route }) {
     detail, loading, failed, error, refresh,
     addNote, addingNote,
     escalate, escalating, escalateError,
-    requestAdditionalPayment, cancelAdditionalCharge, convertVendorDispute,
+    requestAdditionalPayment, cancelAdditionalCharge, convertVendorDispute, notifyVendorForCharge,
     additionalPaymentLoading,
   } = useRmRequestDetail(ticketId);
 
@@ -163,6 +163,7 @@ function TicketDetail({ navigation, route }) {
   // so multiple pending flags can be edited independently.
   const [disputeDrafts, setDisputeDrafts] = useState({});
   const [convertingId, setConvertingId] = useState(null);
+  const [notifyingId, setNotifyingId] = useState(null);
 
   const report = detail?.vendorReport;
 
@@ -249,6 +250,15 @@ function TicketDetail({ navigation, route }) {
     );
   };
 
+  const handleNotifyVendor = (charge) => {
+    if (notifyingId === charge.id) return;
+    setNotifyingId(charge.id);
+    notifyVendorForCharge(charge.id).unwrap?.()
+      .then(() => showToast('Vendor notified', 'success'))
+      .catch((e) => Alert.alert('Could Not Notify Vendor', e?.message || 'Please try again.'))
+      .finally(() => setNotifyingId(null));
+  };
+
   // Draft defaults to exactly what the vendor submitted; the RM can edit
   // either field inline before sending.
   const getDisputeDraft = (dispute) => disputeDrafts[dispute.id] || {
@@ -296,7 +306,7 @@ function TicketDetail({ navigation, route }) {
   const noteCount = detail?.internalNotes?.length || 0;
   const activityCount = noteCount + (detail?.statusHistory?.length || 0) + (detail?.escalations?.length || 0);
   const additionalCharges = detail?.additionalCharges || [];
-  const hasPendingCharge = additionalCharges.some(c => c.status === 'pending');
+  const hasPendingCharge = !!detail?.pricing?.pendingAdditionalCharge || additionalCharges.some(c => c.status === 'pending');
 
   return (
     <View style={styles.container}>
@@ -498,6 +508,21 @@ function TicketDetail({ navigation, route }) {
                   <>
                     <View style={styles.sectionHeaderRow}>
                       <CardTitle icon="receipt-long" title="Pricing" />
+                      {/* Hidden (not just disabled) once a charge is already pending, while
+                          the ticket is in_review, or once it's completed — the vendor's
+                          already reported the job as done, so any cost overrun should
+                          surface via the report review flow rather than a fresh ad-hoc
+                          charge here. */}
+                      {!hasPendingCharge && !['in_review', 'completed'].includes(norm(detail?.status)) && (
+                        <TouchableOpacity
+                          style={styles.requestPayPill}
+                          onPress={openRequestPay}
+                          activeOpacity={0.85}
+                        >
+                          <Icon name="request-quote" size={13} color="#B45309" />
+                          <Text style={styles.requestPayPillText}>Request Payment</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                     <View style={styles.card}>
                       {pricingRows.map(([label, value]) => (
@@ -743,6 +768,24 @@ function TicketDetail({ navigation, route }) {
                               <Icon name="close" size={13} color="#DC2626" />
                               <Text style={styles.chargeCancelBtnText}>Cancel Request</Text>
                             </TouchableOpacity>
+                          )}
+                          {c.canNotifyVendor && (
+                            <TouchableOpacity
+                              style={[styles.chargeNotifyBtn, notifyingId === c.id && styles.btnDisabled]}
+                              onPress={() => handleNotifyVendor(c)}
+                              disabled={notifyingId === c.id}
+                              activeOpacity={0.8}
+                            >
+                              {notifyingId === c.id ? <ActivityIndicator size="small" color="#2563EB" /> : (
+                                <>
+                                  <Icon name="notifications-active" size={13} color="#2563EB" />
+                                  <Text style={styles.chargeNotifyBtnText}>Notify Vendor</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                          {!!c.vendorNotifiedAt && (
+                            <Text style={styles.chargeNotifiedText}>Vendor notified {fmt(c.vendorNotifiedAt)}</Text>
                           )}
                         </View>
                       );
@@ -1187,6 +1230,9 @@ const styles = StyleSheet.create({
   chargeMeta: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
   chargeCancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
   chargeCancelBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
+  chargeNotifyBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 8, borderWidth: 1, borderColor: '#BFDBFE', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
+  chargeNotifyBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB' },
+  chargeNotifiedText: { fontSize: 11, color: '#059669', marginTop: 8 },
 
   // Timeline (matches NRI request timeline)
   timelineWrapper: { marginTop: 4 },

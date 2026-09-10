@@ -17,8 +17,13 @@ import { downloadDocumentFile } from '../../Utils/fileDownload';
 const MAX_MEDIA_FILES = 8;
 const MAX_MEDIA_SIZE_BYTES = 25 * 1024 * 1024;
 
-function getDisputeStatusStyle(status) {
-  switch (String(status || '').toLowerCase()) {
+// Prefer the linked charge's own payment state over the dispute's — the
+// dispute flips to "resolved" the moment the RM requests payment, well before
+// the customer has actually paid it.
+function getDisputeStatusStyle(dispute) {
+  if (dispute.chargeStatus === 'pending') return { bg: '#FFEDD5', text: '#C2410C', label: 'Payment Pending' };
+  if (dispute.chargeStatus === 'paid') return { bg: '#D1FAE5', text: '#059669', label: 'Paid' };
+  switch (String(dispute.status || '').toLowerCase()) {
     case 'resolved': return { bg: '#D1FAE5', text: '#059669', label: 'Resolved' };
     case 'rejected': return { bg: '#FEE2E2', text: '#DC2626', label: 'Rejected' };
     default: return { bg: '#FFEDD5', text: '#C2410C', label: 'Pending' };
@@ -293,6 +298,7 @@ function JobDetail({ route, navigation }) {
   const statusStyle = getStatusStyle(job.status);
   const vendorDisputes = job.vendorDisputes || [];
   const hasPendingDispute = vendorDisputes.some(d => d.status === 'pending');
+  const hasUnpaidAdditionalCharge = vendorDisputes.some(d => d.chargeStatus === 'pending');
 
   return (
     <View style={styles.container}>
@@ -483,7 +489,19 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {isInProgress && (
+        {isInProgress && hasUnpaidAdditionalCharge && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Icon name="gavel" size={18} color="#D94625" />
+              <Text style={styles.sectionTitle}>Job Actions</Text>
+            </View>
+            <Text style={styles.actionDesc}>
+              This job isn't ready to be marked complete yet — check with your coordinator.
+            </Text>
+          </View>
+        )}
+
+        {isInProgress && !hasUnpaidAdditionalCharge && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Icon name="gavel" size={18} color="#D94625" />
@@ -565,7 +583,19 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {!isCompleted && (
+        {isAssigned && (
+          <View style={[styles.card, styles.flagCard]}>
+            <View style={styles.sectionHeader}>
+              <Icon name="flag" size={18} color="#B45309" />
+              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
+            </View>
+            <Text style={styles.actionDesc}>
+              You can flag a cost issue once you've accepted this job and started work.
+            </Text>
+          </View>
+        )}
+
+        {isInProgress && (
           <View style={[styles.card, styles.flagCard]}>
             <View style={styles.sectionHeader}>
               <Icon name="flag" size={18} color="#B45309" />
@@ -578,7 +608,7 @@ function JobDetail({ route, navigation }) {
             {vendorDisputes.length > 0 && (
               <View style={styles.disputeHistory}>
                 {vendorDisputes.map((d) => {
-                  const dStyle = getDisputeStatusStyle(d.status);
+                  const dStyle = getDisputeStatusStyle(d);
                   return (
                     <View key={d.id} style={styles.disputeHistoryRow}>
                       <View style={styles.disputeHistoryTop}>
@@ -590,6 +620,9 @@ function JobDetail({ route, navigation }) {
                       <Text style={styles.disputeHistoryReason}>{d.reason}</Text>
                       {!!d.resolutionNotes && (
                         <Text style={styles.disputeHistoryResolution}>{d.resolutionNotes}</Text>
+                      )}
+                      {d.chargeStatus === 'paid' && !!d.chargePaidAt && (
+                        <Text style={styles.disputeHistoryResolution}>Paid {formatDisputeDate(d.chargePaidAt)}</Text>
                       )}
                       <Text style={styles.disputeHistoryDate}>Raised {formatDisputeDate(d.createdAt)}</Text>
                     </View>
