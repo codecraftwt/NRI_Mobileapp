@@ -178,6 +178,8 @@ export function mapRequestDetail(raw = {}) {
     escalations: (raw.escalations || []).map(mapEscalation),
     additionalCharges: (raw.additional_charges || []).map(mapAdditionalCharge),
     vendorDisputes: (raw.vendor_disputes || []).map(mapVendorDispute),
+    staffFeedback: (raw.staff_feedback || []).map(mapStaffFeedback),
+    canGiveFeedback: !!raw.can_give_feedback,
     // Lightweight support-chat summary (when present) so the detail screen can
     // show a "Support Chat" entry with an unread badge without a second call.
     supportChat: raw.support_chat ? {
@@ -217,6 +219,24 @@ function mapVendorDispute(raw = {}, index = 0) {
     vendorName: personName(raw.vendor) || personName(raw.vendor_name) || 'Vendor',
     reason: raw.reason || '',
     amount: raw.amount != null ? Number(raw.amount) : null,
+    createdAt: raw.created_at || null,
+  };
+}
+
+// One entry in this ticket's staff feedback thread — every staff role (vendor,
+// telecaller, RM) can see each other's feedback on a given ticket. `givenById`
+// is kept alongside the display name so the screen can pick out "my own" entry.
+function mapStaffFeedback(raw = {}, index = 0) {
+  return {
+    id: raw.id ?? index,
+    giverRole: raw.giver_role || '',
+    givenById: raw.given_by?.id ?? null,
+    givenBy: personName(raw.given_by),
+    vendor: raw.vendor ? { id: raw.vendor.id, name: personName(raw.vendor) } : null,
+    ticketNumber: raw.ticket_number || null,
+    service: raw.service?.name || (typeof raw.service === 'string' ? raw.service : null) || null,
+    rating: raw.rating != null ? Number(raw.rating) : null,
+    note: raw.note || '',
     createdAt: raw.created_at || null,
   };
 }
@@ -370,6 +390,20 @@ export async function convertRmVendorDispute(ticket, disputeId, { amount, reason
     });
     const data = response.data?.data || response.data || {};
     return { charge: mapAdditionalCharge(data.charge || data), message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/feedback — give or edit your rating of the
+// customer (internal only; never shown to the customer). Calling it again
+// overwrites the previous rating/note rather than rejecting a resubmission.
+export async function submitRmRequestFeedback(ticket, { rating, note }) {
+  try {
+    const body = { rating };
+    if (note) body.note = note;
+    const response = await apiClient.post(`/rm/requests/${ticket}/feedback`, body);
+    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

@@ -71,6 +71,18 @@ function mapVendorDispute(raw) {
   };
 }
 
+// The vendor's own past rating of this job's customer (GET .../jobs/{ticket}'s
+// my_feedback — null until the vendor has rated). Replaces the older boolean
+// staff_feedback_submitted field.
+function mapMyFeedback(raw) {
+  if (!raw) return null;
+  return {
+    rating: raw.rating != null ? Number(raw.rating) : null,
+    note: raw.note || '',
+    createdAt: raw.created_at || null,
+  };
+}
+
 // Full job detail.
 export function mapJobDetail(raw) {
   if (!raw) return null;
@@ -136,6 +148,7 @@ export function mapJobDetail(raw) {
       note: h.note || h.description || h.message || '',
     })),
     vendorDisputes: (raw.vendor_disputes || []).map(mapVendorDispute).filter(Boolean),
+    myFeedback: mapMyFeedback(raw.my_feedback),
   };
 }
 
@@ -287,6 +300,23 @@ export async function sendVendorJobSupportChat(ticket, message) {
       // This endpoint is the vendor sending, so force the reply to our side.
       reply: rawReply ? { ...mapSupportReply(rawReply), fromVendor: true } : null,
     };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/feedback — give or edit your rating of the
+// customer (internal only; never shown to the customer). Only works once the
+// job is completed. Calling it again overwrites the previous rating/note for
+// this job rather than rejecting a resubmission. 403 if the job isn't this
+// vendor's; 422 if it isn't completed yet.
+export async function submitVendorJobFeedback(ticket, { rating, note }) {
+  try {
+    const body = { rating };
+    if (note) body.note = note;
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/feedback`, body);
+    const data = response.data?.data || response.data || {};
+    return { feedback: mapMyFeedback(data.feedback || data.my_feedback || data), message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

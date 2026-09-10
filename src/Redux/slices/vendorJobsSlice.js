@@ -83,6 +83,19 @@ export const flagJobCostIssue = createAsyncThunk('vendorJobs/flagCostIssue', asy
   }
 });
 
+// "Rate This Customer" — separate from the shared actionStatus below so
+// submitting feedback doesn't disable/spin the accept/reject/complete/tracking
+// buttons elsewhere on the screen.
+export const submitJobFeedback = createAsyncThunk('vendorJobs/submitFeedback', async ({ ticket, rating, note }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.submitVendorJobFeedback(ticket, { rating, note });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   jobs: [],
   counts: { assigned: 0, in_progress: 0, completed: 0 },
@@ -100,6 +113,9 @@ const initialState = {
   // Shared status for the accept/reject/complete/attachments/tracking mutations.
   actionStatus: 'idle',
   actionError: null,
+
+  feedbackStatus: 'idle',
+  feedbackError: null,
 };
 
 const vendorJobsSlice = createSlice({
@@ -176,6 +192,19 @@ const vendorJobsSlice = createSlice({
           state.actionError = action.payload;
         });
     });
+
+    builder
+      .addCase(submitJobFeedback.pending, (state) => {
+        state.feedbackStatus = 'loading';
+        state.feedbackError = null;
+      })
+      .addCase(submitJobFeedback.fulfilled, (state) => {
+        state.feedbackStatus = 'succeeded';
+      })
+      .addCase(submitJobFeedback.rejected, (state, action) => {
+        state.feedbackStatus = 'failed';
+        state.feedbackError = action.payload;
+      });
   },
 });
 

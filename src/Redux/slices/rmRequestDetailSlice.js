@@ -80,6 +80,21 @@ export const notifyRmVendorForCharge = createAsyncThunk(
   }
 );
 
+// "Rate This Customer" — kept apart from additionalPaymentStatus so it has
+// its own loading/error state, independent of the payment-request actions.
+export const submitRmFeedback = createAsyncThunk(
+  'rmRequestDetail/submitFeedback',
+  async ({ ticket, rating, note }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.submitRmRequestFeedback(ticket, { rating, note });
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 const initialState = {
   detail: null,
   status: 'idle',
@@ -90,6 +105,8 @@ const initialState = {
   escalateError: null,
   additionalPaymentStatus: 'idle',
   additionalPaymentError: null,
+  feedbackStatus: 'idle',
+  feedbackError: null,
 };
 
 const rmRequestDetailSlice = createSlice({
@@ -160,6 +177,19 @@ const rmRequestDetailSlice = createSlice({
           state.additionalPaymentError = action.payload;
         });
     });
+
+    builder
+      .addCase(submitRmFeedback.pending, (state) => {
+        state.feedbackStatus = 'loading';
+        state.feedbackError = null;
+      })
+      .addCase(submitRmFeedback.fulfilled, (state) => {
+        state.feedbackStatus = 'succeeded';
+      })
+      .addCase(submitRmFeedback.rejected, (state, action) => {
+        state.feedbackStatus = 'failed';
+        state.feedbackError = action.payload;
+      });
   },
 });
 

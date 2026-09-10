@@ -9,6 +9,7 @@ import {
   addReportAttachments,
   saveTracking,
   flagJobCostIssue,
+  submitJobFeedback,
 } from '../../Redux/slices/vendorJobsSlice';
 
 export function useVendorJobDetail(ticket) {
@@ -18,6 +19,8 @@ export function useVendorJobDetail(ticket) {
   const error = useSelector(state => state.vendorJobs.detailError);
   const actionStatus = useSelector(state => state.vendorJobs.actionStatus);
   const actionError = useSelector(state => state.vendorJobs.actionError);
+  const feedbackStatus = useSelector(state => state.vendorJobs.feedbackStatus);
+  const feedbackError = useSelector(state => state.vendorJobs.feedbackError);
 
   useEffect(() => {
     if (ticket != null) dispatch(fetchVendorJobDetail(ticket));
@@ -42,5 +45,9 @@ export function useVendorJobDetail(ticket) {
     addAttachments: (files) => dispatch(addReportAttachments({ ticket, files })),
     saveTracking: ({ trackingNumber, trackingUrl }) => dispatch(saveTracking({ ticket, trackingNumber, trackingUrl })),
     flagCostIssue: ({ reason, amount }) => dispatch(flagJobCostIssue({ ticket, reason, amount })),
+
+    submitFeedback: ({ rating, note }) => dispatch(submitJobFeedback({ ticket, rating, note })),
+    feedbackLoading: feedbackStatus === 'loading',
+    feedbackError,
   };
 }

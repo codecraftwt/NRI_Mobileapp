@@ -8,6 +8,7 @@ import {
   cancelRmAdditionalCharge,
   convertRmVendorDispute,
   notifyRmVendorForCharge,
+  submitRmFeedback,
   resetRmRequestDetail,
 } from '../../Redux/slices/rmRequestDetailSlice';
 
@@ -22,6 +23,8 @@ export function useRmRequestDetail(ticket) {
   const escalateError = useSelector(s => s.rmRequestDetail.escalateError);
   const additionalPaymentStatus = useSelector(s => s.rmRequestDetail.additionalPaymentStatus);
   const additionalPaymentError = useSelector(s => s.rmRequestDetail.additionalPaymentError);
+  const feedbackStatus = useSelector(s => s.rmRequestDetail.feedbackStatus);
+  const feedbackError = useSelector(s => s.rmRequestDetail.feedbackError);
 
   // Refetch whenever the ticket changes; reset on unmount so the next request
   // never flashes the previous one's data.
@@ -52,5 +55,9 @@ export function useRmRequestDetail(ticket) {
     notifyVendorForCharge: (chargeId) => dispatch(notifyRmVendorForCharge({ ticket, chargeId })),
     additionalPaymentLoading: additionalPaymentStatus === 'loading',
     additionalPaymentError,
+
+    submitFeedback: ({ rating, note }) => dispatch(submitRmFeedback({ ticket, rating, note })),
+    feedbackLoading: feedbackStatus === 'loading',
+    feedbackError,
   };
 }

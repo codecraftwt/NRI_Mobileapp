@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Linking, Alert, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, RefreshControl, Linking, Alert, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
@@ -20,6 +20,7 @@ const STATUS_STYLES = {
 };
 const statusStyle = (s) => STATUS_STYLES[norm(s)] || { bg: '#F3F4F6', text: '#4B5563' };
 const statusText = (s) => norm(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const roleLabel = (role) => (norm(role) === 'rm' ? 'RM' : statusText(role));
 
 function fmt(iso) {
   if (!iso) return '—';
@@ -120,11 +121,13 @@ function TicketDetail({ navigation, route }) {
     escalate, escalating, escalateError,
     requestAdditionalPayment, cancelAdditionalCharge, convertVendorDispute, notifyVendorForCharge,
     additionalPaymentLoading,
+    submitFeedback, feedbackLoading,
   } = useRmRequestDetail(ticketId);
 
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const token = useSelector(s => s.user.token);
+  const currentUserId = useSelector(s => s.user.user?.id);
   const [previewUri, setPreviewUri] = useState(null);
 
   // Attachments live behind authenticated storage — opening the raw URL in the
@@ -165,7 +168,40 @@ function TicketDetail({ navigation, route }) {
   const [convertingId, setConvertingId] = useState(null);
   const [notifyingId, setNotifyingId] = useState(null);
 
+  // Rate This Customer — internal-only feedback about the customer. Prefilled
+  // from the RM's own entry in staff_feedback once per ticket load (keyed on
+  // detail.id, not on every refetch — otherwise an in-progress edit/refetch
+  // after submit would stomp on what the RM is typing).
+  const [fbRating, setFbRating] = useState(0);
+  const [fbNote, setFbNote] = useState('');
+  useEffect(() => {
+    if (!detail) return;
+    const mine = (detail.staffFeedback || []).find(f => f.giverRole === 'rm' && (currentUserId == null || f.givenById === currentUserId))
+      || (detail.staffFeedback || []).find(f => f.giverRole === 'rm');
+    if (mine) {
+      setFbRating(mine.rating || 0);
+      setFbNote(mine.note || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.id]);
+
   const report = detail?.vendorReport;
+  const staffFeedbackList = detail?.staffFeedback || [];
+  const myFeedback = staffFeedbackList.find(f => f.giverRole === 'rm' && (currentUserId == null || f.givenById === currentUserId))
+    || staffFeedbackList.find(f => f.giverRole === 'rm');
+  // The RM's own rating is already shown (editable) in the form above — this
+  // history list only surfaces the vendor's and telecaller's ratings.
+  const displayFeedback = staffFeedbackList.filter(f => f.giverRole === 'vendor' || f.giverRole === 'telecaller');
+  const feedbackAvg = displayFeedback.length > 0
+    ? displayFeedback.reduce((sum, f) => sum + (f.rating || 0), 0) / displayFeedback.length
+    : null;
+
+  const handleSubmitFeedback = () => {
+    if (!fbRating || feedbackLoading) return;
+    submitFeedback({ rating: fbRating, note: fbNote.trim() }).unwrap?.()
+      .then(() => showToast(myFeedback ? 'Feedback updated' : 'Feedback submitted', 'success'))
+      .catch((e) => Alert.alert('Could Not Submit', e?.message || 'Please try again.'));
+  };
 
   const handleAddNote = () => {
     const text = noteText.trim();
@@ -286,6 +322,13 @@ function TicketDetail({ navigation, route }) {
       .finally(() => setConvertingId(null));
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
+
   const cur = statusStyle(detail?.status);
   const sla = detail ? slaBadge(detail.slaDeadline, detail.overdue, detail.status) : null;
 
@@ -364,6 +407,7 @@ function TicketDetail({ navigation, route }) {
             enableOnAndroid={false}
             extraScrollHeight={80}
             extraHeight={80}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
           >
 
             {/* ---------- OVERVIEW ---------- */}
@@ -648,6 +692,95 @@ function TicketDetail({ navigation, route }) {
                             </TouchableOpacity>
                           </View>
                         )
+                      )}
+                    </View>
+                  </>
+                )}
+
+                {/* Customer Feedback — internal only; RM's own rating + what the
+                    rest of the team (vendor/telecaller) said about this customer. */}
+                {!!detail?.canGiveFeedback && (
+                  <>
+                    <CardTitle icon="how-to-reg" title="Customer Feedback" />
+                    <View style={styles.card}>
+                      <Text style={styles.actionDesc}>
+                        Internal only — the customer never sees this. Helps your team and future vendors/telecallers know what to expect.
+                      </Text>
+
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={styles.feedbackLabel}>How was this customer to work with?</Text>
+                        <View style={styles.starRow}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <TouchableOpacity key={n} onPress={() => setFbRating(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                              <Icon name={n <= fbRating ? 'star' : 'star-border'} size={28} color="#F5B301" />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Any notes for your team? (optional)"
+                        placeholderTextColor="#94A3B8"
+                        value={fbNote}
+                        onChangeText={setFbNote}
+                        multiline
+                        maxLength={1000}
+                      />
+
+                      <TouchableOpacity
+                        style={[styles.feedbackSubmitBtn, (!fbRating || feedbackLoading) && styles.btnDisabled]}
+                        onPress={handleSubmitFeedback}
+                        disabled={!fbRating || feedbackLoading}
+                        activeOpacity={0.85}
+                      >
+                        {feedbackLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                          <>
+                            <Icon name="send" size={15} color="#FFFFFF" />
+                            <Text style={styles.reportSendBtnText}>{myFeedback ? 'Update Feedback' : 'Submit Feedback'}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      {displayFeedback.length > 0 && (
+                        <View style={styles.teamFeedbackWrap}>
+                          <View style={styles.reportHead}>
+                            <View style={styles.reportHeadLeft}>
+                              <View style={styles.reportHeadIcon}><Icon name="how-to-reg" size={16} color="#20304C" /></View>
+                              <Text style={styles.reportHeadTitle}>Customer Feedback (Staff Only)</Text>
+                            </View>
+                            {feedbackAvg != null && (
+                              <View style={styles.ratingBadge}>
+                                <Icon name="star" size={13} color="#F5B301" />
+                                <Text style={styles.ratingBadgeText}>{feedbackAvg.toFixed(1)}/5 avg ({displayFeedback.length})</Text>
+                              </View>
+                            )}
+                          </View>
+
+                          <Text style={styles.feedbackDisclaimer}>Internal only — never visible to this customer.</Text>
+
+                          {displayFeedback.map((f) => (
+                            <View key={f.id} style={styles.teamFeedbackRow}>
+                              <View style={styles.teamFeedbackTop}>
+                                <View style={styles.teamFeedbackLeft}>
+                                  <View style={styles.teamFeedbackStars}>
+                                    {[1, 2, 3, 4, 5].map((n) => (
+                                      <Icon key={n} name={n <= (f.rating || 0) ? 'star' : 'star-border'} size={15} color="#F97316" />
+                                    ))}
+                                  </View>
+                                  <View style={[styles.pill, { backgroundColor: '#EEF2FF' }]}>
+                                    <Text style={[styles.pillText, { color: '#6366F1' }]}>{roleLabel(f.giverRole)}</Text>
+                                  </View>
+                                </View>
+                                <Text style={styles.teamFeedbackDate}>{fmtDate(f.createdAt)}</Text>
+                              </View>
+                              <Text style={styles.teamFeedbackName}>
+                                {f.givenBy || 'Staff'}{f.ticketNumber ? ` — ${f.ticketNumber}` : ''}{f.service ? ` (${f.service})` : ''}
+                              </Text>
+                              {!!f.note && <Text style={styles.teamFeedbackNote}>{f.note}</Text>}
+                            </View>
+                          ))}
+                        </View>
                       )}
                     </View>
                   </>
@@ -1165,6 +1298,23 @@ const styles = StyleSheet.create({
   attachChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: '#BFDBFE', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, maxWidth: '100%' },
   attachChipText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#2563EB', flexShrink: 1 },
   reportMeta: { fontSize: 11, color: '#94A3B8', marginTop: 12 },
+
+  // Customer Feedback ("Rate This Customer")
+  feedbackLabel: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginBottom: 8 },
+  starRow: { flexDirection: 'row', gap: 8 },
+  feedbackSubmitBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 13, marginTop: 14,
+  },
+  feedbackDisclaimer: { fontSize: 12, color: '#64748B', marginBottom: 14 },
+  teamFeedbackWrap: { marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F1F5F9', gap: 10 },
+  teamFeedbackRow: { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#F1F5F9', gap: 4 },
+  teamFeedbackTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  teamFeedbackLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  teamFeedbackStars: { flexDirection: 'row', gap: 1 },
+  teamFeedbackName: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 2 },
+  teamFeedbackNote: { fontSize: 13, color: '#475569', lineHeight: 18 },
+  teamFeedbackDate: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
 
   // Support chat entry bar (matches the NRI support-chat card)
   supportChatBar: {

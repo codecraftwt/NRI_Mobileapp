@@ -52,6 +52,7 @@ function JobDetail({ route, navigation }) {
   const {
     detail: job, loading, failed, error, retry,
     actionLoading, accept, reject, complete, addAttachments, saveTracking, flagCostIssue,
+    submitFeedback, feedbackLoading,
   } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
   const { showAlert, alertProps } = useAppAlert();
@@ -80,12 +81,24 @@ function JobDetail({ route, navigation }) {
   const [flagReason, setFlagReason] = useState('');
   const [flagSubmitting, setFlagSubmitting] = useState(false);
 
+  // Rate This Customer — internal-only feedback, editable any time after
+  // completion (prefilled from job.myFeedback so re-opening shows the edit form).
+  const [fbRating, setFbRating] = useState(0);
+  const [fbNote, setFbNote] = useState('');
+
   useEffect(() => {
     if (job?.tracking) {
       setTrackingNumber(job.tracking.number || '');
       setTrackingUrl(job.tracking.url || '');
     }
   }, [job?.tracking?.number, job?.tracking?.url]);
+
+  useEffect(() => {
+    if (job?.myFeedback) {
+      setFbRating(job.myFeedback.rating || 0);
+      setFbNote(job.myFeedback.note || '');
+    }
+  }, [job?.myFeedback?.rating, job?.myFeedback?.note]);
 
   // Picks up to `remaining` proof files (images/pdf/video), enforcing the 25 MB
   // per-file cap. Returns the accepted picker files, or null if cancelled.
@@ -235,6 +248,19 @@ function JobDetail({ route, navigation }) {
       showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
     } finally {
       setFlagSubmitting(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!fbRating) {
+      showAlert('Rating Required', 'Please select a star rating for this customer.');
+      return;
+    }
+    try {
+      await submitFeedback({ rating: fbRating, note: fbNote.trim() }).unwrap();
+      showToast(job.myFeedback ? 'Feedback updated' : 'Feedback submitted', 'success');
+    } catch (e) {
+      showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -580,6 +606,64 @@ function JobDetail({ route, navigation }) {
               <Icon name="picture-as-pdf" size={18} color="#2563EB" />
               <Text style={styles.invoiceBtnText}>Download Invoice (PDF)</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Rate This Customer — internal only, only available once completed */}
+        {isCompleted && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Icon name="rate-review" size={18} color="#B45309" />
+              <Text style={styles.sectionTitle}>Rate This Customer</Text>
+            </View>
+            <Text style={styles.actionDesc}>
+              Internal only — the customer never sees this. Helps your team and future vendors/telecallers know what to expect.
+            </Text>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>How was this customer to work with?</Text>
+              <View style={styles.starRow}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <TouchableOpacity key={n} onPress={() => setFbRating(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Icon name={n <= fbRating ? 'star' : 'star-border'} size={30} color="#F5B301" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Notes for your team <Text style={styles.optionalText}>(optional)</Text></Text>
+              <TextInput
+                style={styles.reportInput}
+                placeholder="Any notes for your team?"
+                placeholderTextColor="#94A3B8"
+                value={fbNote}
+                onChangeText={setFbNote}
+                multiline
+                numberOfLines={3}
+                maxLength={1000}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitReportBtn, (feedbackLoading || !fbRating) && styles.btnDisabled]}
+              onPress={handleSubmitFeedback}
+              disabled={feedbackLoading || !fbRating}
+              activeOpacity={0.85}
+            >
+              {feedbackLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Icon name="send" size={16} color="#FFFFFF" />
+                  <Text style={styles.submitReportBtnText}>{job.myFeedback ? 'Update Feedback' : 'Submit Feedback'}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {!!job.myFeedback?.createdAt && (
+              <Text style={styles.fileHint}>Last updated {formatDisputeDate(job.myFeedback.createdAt)}</Text>
+            )}
           </View>
         )}
 
@@ -989,6 +1073,7 @@ const styles = StyleSheet.create({
   },
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   slaHint: { fontSize: 12, color: '#94A3B8' },
+  starRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
 
   actionRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   acceptBtn: {
