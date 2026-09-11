@@ -59,6 +59,9 @@ function JobDetail({ route, navigation }) {
   const { showToast } = useToast();
   const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
+  // Two-section layout: "Overview" (read-only info) vs "Actions" (everything actionable).
+  const [activeTab, setActiveTab] = useState('overview');
+
   // Accept — ETA commitment
   const [committedEta, setCommittedEta] = useState(null);
   const [showEtaPicker, setShowEtaPicker] = useState(false);
@@ -328,7 +331,10 @@ function JobDetail({ route, navigation }) {
   const statusStyle = getStatusStyle(job.status);
   const vendorDisputes = job.vendorDisputes || [];
   const hasPendingDispute = vendorDisputes.some(d => d.status === 'pending');
-  const hasUnpaidAdditionalCharge = vendorDisputes.some(d => d.chargeStatus === 'pending');
+  // The backend's can_complete/block_reason are authoritative — they account for
+  // conditions (like a paid charge pending RM's "Notify Vendor" step) that aren't
+  // visible from vendor_disputes' charge_status alone.
+  const reportBlocked = job.canComplete === false;
 
   return (
     <View style={styles.container}>
@@ -341,7 +347,28 @@ function JobDetail({ route, navigation }) {
         <View style={{ width: 44 }} />
       </View>
 
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'overview' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('overview')}
+          activeOpacity={0.8}
+        >
+          <Icon name="info-outline" size={16} color={activeTab === 'overview' ? '#D94625' : '#64748B'} />
+          <Text style={[styles.tabBtnText, activeTab === 'overview' && styles.tabBtnTextActive]}>Overview</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'actions' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('actions')}
+          activeOpacity={0.8}
+        >
+          <Icon name="bolt" size={16} color={activeTab === 'actions' ? '#D94625' : '#64748B'} />
+          <Text style={[styles.tabBtnText, activeTab === 'actions' && styles.tabBtnTextActive]}>Actions</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {activeTab === 'overview' && (
+        <>
         {/* Summary Header Card */}
         <View style={styles.card}>
           <Text style={styles.summaryTicket}>{job.ticket}</Text>
@@ -451,7 +478,11 @@ function JobDetail({ route, navigation }) {
             })}
           </View>
         )}
+        </>
+        )}
 
+        {activeTab === 'actions' && (
+        <>
         {isAssigned && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
@@ -519,19 +550,19 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {isInProgress && hasUnpaidAdditionalCharge && (
+        {isInProgress && reportBlocked && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Icon name="gavel" size={18} color="#D94625" />
               <Text style={styles.sectionTitle}>Job Actions</Text>
             </View>
             <Text style={styles.actionDesc}>
-              This job isn't ready to be marked complete yet — check with your coordinator.
+              {job.blockReason || "This job isn't ready to be marked complete yet — check with your coordinator."}
             </Text>
           </View>
         )}
 
-        {isInProgress && !hasUnpaidAdditionalCharge && (
+        {isInProgress && !reportBlocked && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Icon name="gavel" size={18} color="#D94625" />
@@ -853,7 +884,11 @@ function JobDetail({ route, navigation }) {
             <Icon name="chevron-right" size={18} color="#6D28D9" />
           </TouchableOpacity>
         </View>
+        </>
+        )}
 
+        {activeTab === 'overview' && (
+        <>
         <View style={styles.card}>
           <View style={styles.timelineHeaderRow}>
             <View style={styles.sectionHeader}>
@@ -893,6 +928,8 @@ function JobDetail({ route, navigation }) {
             </View>
           </View>
         </View>
+        </>
+        )}
 
         <TouchableOpacity style={styles.backToJobsBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Icon name="arrow-back" size={16} color="#2563EB" />
@@ -990,6 +1027,18 @@ const styles = StyleSheet.create({
     ...typography.sectionTitle, fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF', flex: 1, textAlign: 'center',
   },
+
+  tabBar: {
+    flexDirection: 'row', backgroundColor: '#FFFFFF', marginHorizontal: 20, marginTop: 16,
+    borderRadius: 14, padding: 4, gap: 4, borderWidth: 1, borderColor: '#F1F5F9',
+  },
+  tabBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10, borderRadius: 10,
+  },
+  tabBtnActive: { backgroundColor: '#FEF1EC' },
+  tabBtnText: { fontSize: 14, fontWeight: '700', color: '#64748B' },
+  tabBtnTextActive: { color: '#D94625' },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 16, gap: 16 },
 

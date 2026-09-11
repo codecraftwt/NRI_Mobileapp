@@ -102,6 +102,11 @@ export function mapJobDetail(raw) {
     priority: capitalize(raw.priority || raw.urgency),
     completeBy: formatDateTime(raw.sla_deadline || raw.deadline) || '—',
     payout: Number(raw.vendor_price ?? raw.price ?? raw.payout ?? 0),
+    // Backend-computed gate for the completion report (e.g. a paid additional
+    // charge the RM hasn't notified the vendor about yet) — authoritative over
+    // any client-side guess from vendor_disputes' charge_status.
+    canComplete: raw.can_complete ?? true,
+    blockReason: raw.block_reason || null,
     customer: {
       name: customer.name || raw.customer_name || '—',
       phone: customer.phone || raw.customer_phone || '',
