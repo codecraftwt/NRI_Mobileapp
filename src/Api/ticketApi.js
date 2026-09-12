@@ -305,7 +305,11 @@ export async function finalizeTicket(paymentId, {
   }
 }
 
-export async function getTickets({ page, perPage, status } = {}) {
+// `lite: true` skips the per-ticket vendor/SLA detail backfill below — use it
+// when only `id`/`ticketNumber` are needed (e.g. resolving a notification's
+// ticket number to an id), since that data is already on the plain list item
+// and the backfill is what makes this call slow (one extra request per ticket).
+export async function getTickets({ page, perPage, status, lite } = {}) {
   try {
     const params = {};
     if (page) params.page = page;
@@ -317,6 +321,13 @@ export async function getTickets({ page, perPage, status } = {}) {
     const response = await apiClient.get('/customer/tickets', { params });
     const list = response.data?.data || [];
     const tickets = list.map(mapTicket);
+    const baseMeta = {
+      currentPage: response.data?.meta?.current_page ?? 1,
+      lastPage: response.data?.meta?.last_page ?? 1,
+      perPage: response.data?.meta?.per_page ?? list.length,
+      total: response.data?.meta?.total ?? list.length,
+    };
+    if (lite) return { tickets, meta: baseMeta };
 
     // Verified live: the list endpoint never returns a `vendor` field at all
     // (tried with `?with=vendor` / `?include=vendor` too — no effect), and
@@ -351,15 +362,7 @@ export async function getTickets({ page, perPage, status } = {}) {
       };
     });
 
-    return {
-      tickets: ticketsEnriched,
-      meta: {
-        currentPage: response.data?.meta?.current_page ?? 1,
-        lastPage: response.data?.meta?.last_page ?? 1,
-        perPage: response.data?.meta?.per_page ?? list.length,
-        total: response.data?.meta?.total ?? list.length,
-      },
-    };
+    return { tickets: ticketsEnriched, meta: baseMeta };
   } catch (error) {
     throw normalizeApiError(error);
   }

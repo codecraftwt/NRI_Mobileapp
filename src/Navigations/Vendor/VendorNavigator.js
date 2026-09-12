@@ -10,6 +10,9 @@ import Dashboard from '../../Screens/Vendor/Dashboard';
 import MyJobs from '../../Screens/Vendor/MyJobs';
 import Earnings from '../../Screens/Vendor/Earnings';
 import PayoutDetail from '../../Screens/Vendor/PayoutDetail';
+import Wallet from '../../Screens/Vendor/Wallet';
+import WithdrawalRequests from '../../Screens/Vendor/WithdrawalRequests';
+import WalletHistory from '../../Screens/Vendor/WalletHistory';
 import Ratings from '../../Screens/Vendor/Ratings';
 import Support from '../../Screens/Vendor/Support';
 import Disputes from '../../Screens/Vendor/Disputes';
@@ -37,7 +40,7 @@ const TAB_ROOT_SCREENS = {
   Dashboard: 'DashboardMain',
   MyJobs: 'MyJobsMain',
   Earnings: 'EarningsMain',
-  Support: 'SupportMain',
+  Wallet: 'WalletMain',
   Profile: 'ProfileMain',
 };
 
@@ -50,6 +53,9 @@ function DashboardStack() {
       <Stack.Screen name="Documents" component={Documents} />
       <Stack.Screen name="Ratings" component={Ratings} />
       <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="Support" component={Support} />
+      <Stack.Screen name="Disputes" component={Disputes} />
+      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -73,12 +79,12 @@ function EarningsStack() {
   );
 }
 
-function SupportStack() {
+function WalletStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="SupportMain" component={Support} />
-      <Stack.Screen name="Disputes" component={Disputes} />
-      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
+      <Stack.Screen name="WalletMain" component={Wallet} />
+      <Stack.Screen name="WithdrawalRequests" component={WithdrawalRequests} />
+      <Stack.Screen name="WalletHistory" component={WalletHistory} />
     </Stack.Navigator>
   );
 }
@@ -265,14 +271,14 @@ function VendorTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Support"
-        component={SupportStack}
+        name="Wallet"
+        component={WalletStack}
         options={({ route }) => {
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'SupportMain';
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'WalletMain';
           return {
-            tabBarIconName: 'support-agent',
-            tabBarLabel: 'Support',
-            tabBarStyle: focusedRouteName === 'SupportMain' ? {} : { display: 'none' },
+            tabBarIconName: 'account-balance',
+            tabBarLabel: 'Wallet',
+            tabBarStyle: focusedRouteName === 'WalletMain' ? {} : { display: 'none' },
           };
         }}
       />

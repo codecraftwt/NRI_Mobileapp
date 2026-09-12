@@ -94,8 +94,11 @@ function Support({ navigation }) {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
+        <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Support</Text>
-        {/* <Text style={styles.headerSub}>Raise and track payout or account disputes</Text> */}
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -275,8 +278,15 @@ function Support({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { paddingHorizontal: 24, paddingTop: (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22, paddingBottom: 16, backgroundColor: '#20304C' },
-  headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: (Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47) + 22, paddingBottom: 16, backgroundColor: '#20304C',
+  },
+  headerBackBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100, gap: 16 },

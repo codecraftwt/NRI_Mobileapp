@@ -450,8 +450,8 @@ function TicketDetail({ navigation, route }) {
                 </View>
 
                 {/* Request details */}
-                <CardTitle icon="description" title="Request Details" />
                 <View style={styles.card}>
+                  <CardTitle icon="description" title="Request Details" />
                   <View style={styles.detailList}>
                     {detailRows.map((d, i) => (
                       <View key={d.label} style={[styles.detailRow, i < detailRows.length - 1 && styles.detailRowBorder]}>
@@ -478,8 +478,8 @@ function TicketDetail({ navigation, route }) {
                 {/* Assignment */}
                 {(!!detail?.vendor || !!detail?.rmName || !!detail?.telecaller) && (
                   <>
-                    <CardTitle icon="assignment-ind" title="Assignment" />
                     <View style={styles.card}>
+                      <CardTitle icon="assignment-ind" title="Assignment" />
                       {!!detail?.vendor && (
                         <View style={styles.vendorBox}>
                           <View style={styles.vendorHeader}>
@@ -554,25 +554,25 @@ function TicketDetail({ navigation, route }) {
                 {/* Pricing */}
                 {(pricingRows.length > 0 || inr(detail?.pricing.total)) && (
                   <>
-                    <View style={styles.sectionHeaderRow}>
-                      <CardTitle icon="receipt-long" title="Pricing" />
-                      {/* Hidden (not just disabled) once a charge is already pending, while
-                          the ticket is in_review, or once it's completed — the vendor's
-                          already reported the job as done, so any cost overrun should
-                          surface via the report review flow rather than a fresh ad-hoc
-                          charge here. */}
-                      {!hasPendingCharge && !['in_review', 'completed'].includes(norm(detail?.status)) && (
-                        <TouchableOpacity
-                          style={styles.requestPayPill}
-                          onPress={openRequestPay}
-                          activeOpacity={0.85}
-                        >
-                          <Icon name="request-quote" size={13} color="#B45309" />
-                          <Text style={styles.requestPayPillText}>Request Payment</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
                     <View style={styles.card}>
+                      <View style={styles.sectionHeaderRow}>
+                        <CardTitle icon="receipt-long" title="Pricing" />
+                        {/* Hidden (not just disabled) once a charge is already pending, while
+                            the ticket is in_review, or once it's completed — the vendor's
+                            already reported the job as done, so any cost overrun should
+                            surface via the report review flow rather than a fresh ad-hoc
+                            charge here. */}
+                        {!hasPendingCharge && !['in_review', 'completed'].includes(norm(detail?.status)) && (
+                          <TouchableOpacity
+                            style={styles.requestPayPill}
+                            onPress={openRequestPay}
+                            activeOpacity={0.85}
+                          >
+                            <Icon name="request-quote" size={13} color="#B45309" />
+                            <Text style={styles.requestPayPillText}>Request Payment</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       {pricingRows.map(([label, value]) => (
                         <View key={label} style={styles.priceRow}>
                           <Text style={styles.priceLabel}>{label}</Text>
@@ -601,8 +601,8 @@ function TicketDetail({ navigation, route }) {
                 {/* Vendor Report */}
                 {!!report && (
                   <>
-                    <CardTitle icon="fact-check" title="Vendor Report" />
                     <View style={styles.card}>
+                      <CardTitle icon="fact-check" title="Vendor Report" />
                       <View style={styles.reportHead}>
                         <View style={styles.reportHeadLeft}>
                           <View style={styles.reportHeadIcon}><Icon name="assignment-turned-in" size={16} color="#20304C" /></View>
@@ -705,8 +705,8 @@ function TicketDetail({ navigation, route }) {
                     rest of the team (vendor/telecaller) said about this customer. */}
                 {!!detail?.canGiveFeedback && (
                   <>
-                    <CardTitle icon="how-to-reg" title="Customer Feedback" />
                     <View style={styles.card}>
+                      <CardTitle icon="rate-review" title="Rate This Customer" color="#B45309" />
                       <Text style={styles.actionDesc}>
                         Internal only — the customer never sees this. Helps your team and future vendors/telecallers know what to expect.
                       </Text>
@@ -716,21 +716,24 @@ function TicketDetail({ navigation, route }) {
                         <View style={styles.starRow}>
                           {[1, 2, 3, 4, 5].map((n) => (
                             <TouchableOpacity key={n} onPress={() => setFbRating(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                              <Icon name={n <= fbRating ? 'star' : 'star-border'} size={28} color="#F97316" />
+                              <Icon name={n <= fbRating ? 'star' : 'star-border'} size={30} color="#F5B301" />
                             </TouchableOpacity>
                           ))}
                         </View>
                       </View>
 
-                      <TextInput
-                        style={styles.modalInput}
-                        placeholder="Any notes for your team? (optional)"
-                        placeholderTextColor="#94A3B8"
-                        value={fbNote}
-                        onChangeText={setFbNote}
-                        multiline
-                        maxLength={1000}
-                      />
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={styles.feedbackLabel}>Notes for your team <Text style={styles.optionalText}>(optional)</Text></Text>
+                        <TextInput
+                          style={[styles.modalInput, { marginTop: 0 }]}
+                          placeholder="Any notes for your team?"
+                          placeholderTextColor="#94A3B8"
+                          value={fbNote}
+                          onChangeText={setFbNote}
+                          multiline
+                          maxLength={1000}
+                        />
+                      </View>
 
                       <TouchableOpacity
                         style={[styles.feedbackSubmitBtn, (!fbRating || feedbackLoading) && styles.btnDisabled]}
@@ -833,8 +836,8 @@ function TicketDetail({ navigation, route }) {
                 {/* Vendor-flagged cost issue(s) awaiting RM action */}
                 {detail?.vendorDisputes?.length > 0 && (
                   <>
-                    <CardTitle icon="flag" title="Vendor Cost Flags" />
                     <View style={[styles.card, styles.disputeCard]}>
+                      <CardTitle icon="flag" title="Vendor Cost Flags" />
                       {detail.vendorDisputes.map((d, i) => {
                         const draft = getDisputeDraft(d);
                         const submitting = convertingId === d.id;
@@ -888,8 +891,8 @@ function TicketDetail({ navigation, route }) {
                 )}
 
                 {/* Additional Charges history */}
-                <CardTitle icon="request-quote" title="Additional Charges" />
                 <View style={styles.card}>
+                  <CardTitle icon="request-quote" title="Additional Charges" />
                   {additionalCharges.length > 0 ? (
                     additionalCharges.map((c, i) => {
                       const cs = chargeStatusStyle(c.status);
@@ -946,8 +949,8 @@ function TicketDetail({ navigation, route }) {
                   )}
                 </View>
 
-                <CardTitle icon="history" title="Status History" />
                 <View style={styles.card}>
+                  <CardTitle icon="history" title="Status History" />
                   {detail?.statusHistory?.length > 0 ? (
                     <View style={styles.timelineWrapper}>
                       {detail.statusHistory.map((h, i) => {
@@ -986,8 +989,8 @@ function TicketDetail({ navigation, route }) {
                 </View>
 
                 {/* Internal Notes */}
-                <CardTitle icon="sticky-note-2" title="Internal Notes" />
                 <View style={styles.card}>
+                  <CardTitle icon="sticky-note-2" title="Internal Notes" />
                   {noteCount > 0 ? (
                     detail.internalNotes.map((n, i) => (
                       <View key={n.id} style={[styles.noteItem, i < noteCount - 1 && styles.rowBorder]}>
@@ -1180,10 +1183,10 @@ function TicketDetail({ navigation, route }) {
   );
 }
 
-function CardTitle({ icon, title }) {
+function CardTitle({ icon, title, color = '#20304C' }) {
   return (
     <View style={styles.cardTitleRow}>
-      <Icon name={icon} size={16} color="#20304C" />
+      <Icon name={icon} size={16} color={color} />
       <Text style={styles.cardTitleText}>{title}</Text>
     </View>
   );
@@ -1246,11 +1249,11 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 16, paddingBottom: 60, paddingTop: 2 },
 
   card: {
-    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, marginBottom: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
   },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20, marginBottom: 10 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   cardTitleText: { fontSize: 15, fontFamily: typography.sectionTitle.fontFamily, color: '#0F172A' },
 
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
@@ -1315,11 +1318,13 @@ const styles = StyleSheet.create({
   reportMeta: { fontSize: 11, color: '#94A3B8', marginTop: 12 },
 
   // Customer Feedback ("Rate This Customer")
+  actionDesc: { fontSize: 13, color: '#64748B', lineHeight: 19 },
   feedbackLabel: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155', marginBottom: 8 },
+  optionalText: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', fontWeight: '400' },
   starRow: { flexDirection: 'row', gap: 8 },
   feedbackSubmitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 13, marginTop: 14,
+    backgroundColor: '#D94625', borderRadius: 24, paddingVertical: 14, marginTop: 14,
   },
   feedbackDisclaimer: { fontSize: 12, color: '#64748B', marginBottom: 14 },
   feedbackHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1382,7 +1387,7 @@ const styles = StyleSheet.create({
   disputeActionBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
 
   // Pricing header "Request Additional Payment" pill
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   requestPayPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
   requestPayPillText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
 

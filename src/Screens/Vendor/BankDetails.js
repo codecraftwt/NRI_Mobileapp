@@ -57,23 +57,7 @@ function BankDetails({ navigation }) {
       <Header navigation={navigation} title="Bank & Payout Details" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.sectionCard}>
-          <View style={styles.segment}>
-            <TouchableOpacity
-              style={[styles.segmentBtn, payoutMethod === 'bank' && styles.segmentBtnActive]}
-              onPress={() => setPayoutMethod('bank')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.segmentText, payoutMethod === 'bank' && styles.segmentTextActive]}>Bank transfer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segmentBtn, payoutMethod === 'upi' && styles.segmentBtnActive]}
-              onPress={() => setPayoutMethod('upi')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.segmentText, payoutMethod === 'upi' && styles.segmentTextActive]}>UPI</Text>
-            </TouchableOpacity>
-          </View>
-
+          
           <Text style={styles.label}>Bank name</Text>
           <TextInput style={styles.input} value={bankName} onChangeText={setBankName} placeholder="Bank name" placeholderTextColor={colors.textPlaceholder} />
 

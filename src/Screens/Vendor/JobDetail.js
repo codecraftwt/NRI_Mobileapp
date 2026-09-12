@@ -940,7 +940,14 @@ function JobDetail({ route, navigation }) {
       <Modal visible={flagModalVisible} transparent animationType="fade" onRequestClose={() => setFlagModalVisible(false)}>
         <KeyboardAvoidingView
           style={styles.flagModalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // `behavior="height"` re-measures/re-layouts the view on every keyboard
+          // height change (which can fire per keystroke with predictive text),
+          // making the modal jitter and swallow input on Android. `"padding"`
+          // just pads the bottom by the keyboard height — much lighter — and
+          // still keeps the Submit/Cancel buttons above the keyboard on both
+          // platforms (removing KeyboardAvoidingView entirely left them hidden
+          // behind the keyboard with nothing pushing the card up).
+          behavior="padding"
         >
           <View style={styles.flagModalCard}>
             <View style={styles.flagModalHeader}>

@@ -29,6 +29,7 @@ import vendorRatingsReducer from './slices/vendorRatingsSlice';
 import vendorJobsReducer from './slices/vendorJobsSlice';
 import vendorProfileReducer from './slices/vendorProfileSlice';
 import vendorEarningsReducer from './slices/vendorEarningsSlice';
+import vendorWalletReducer from './slices/vendorWalletSlice';
 import vendorDashboardReducer from './slices/vendorDashboardSlice';
 import rmDashboardReducer from './slices/rmDashboardSlice';
 import rmRequestsReducer from './slices/rmRequestsSlice';
@@ -136,6 +137,7 @@ const appReducer = combineReducers({
   vendorJobs: vendorJobsReducer,
   vendorProfile: vendorProfileReducer,
   vendorEarnings: vendorEarningsReducer,
+  vendorWallet: vendorWalletReducer,
   vendorDashboard: vendorDashboardReducer,
   rmDashboard: rmDashboardReducer,
   rmRequests: rmRequestsReducer,

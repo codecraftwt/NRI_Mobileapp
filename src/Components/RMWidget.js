@@ -14,6 +14,12 @@ function RMWidget({ rm }) {
         <View style={styles.info}>
           <Text style={styles.title}>YOUR RELATIONSHIP MANAGER</Text>
           <Text style={styles.name}>{rm.name}</Text>
+          {!!rm.email && (
+            <View style={styles.emailRow}>
+              <Icon name="mail-outline" size={12} color="#CBD5E1" />
+              <Text style={styles.email} numberOfLines={1}>{rm.email}</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.statusIcon}>
@@ -24,10 +30,11 @@ function RMWidget({ rm }) {
 }
 
 const styles = StyleSheet.create({
-  card: { 
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-    borderRadius: 20, 
-    padding: 16, 
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -38,42 +45,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 12,
+    gap: 10,
     marginRight: 12,
   },
-  avatar: { 
-    width: 48, 
-    height: 48, 
-    borderRadius: 24, 
-    backgroundColor: '#F59E0B', 
-    justifyContent: 'center', 
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#F59E0B',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: { 
-    fontSize: 16, 
-    fontFamily: typography.h2.fontFamily, 
-    color: '#FFFFFF' 
+  avatarText: {
+    fontSize: 15,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF'
   },
   info: {
     flex: 1,
     justifyContent: 'center',
   },
-  title: { 
-    fontSize: 10,
+  title: {
+    fontSize: 9,
     fontFamily: typography.labelMedium.fontFamily,
     color: '#94A3B8',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   name: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF'
   },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 1,
+  },
+  email: {
+    fontSize: 11,
+    color: '#CBD5E1',
+    flexShrink: 1,
+  },
   statusIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',

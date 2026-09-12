@@ -2,6 +2,7 @@ import { CommonActions } from '@react-navigation/native';
 import { store } from '../../Redux/store';
 import { navigate, dispatch } from '../../Navigations/navigationRef';
 import { getSupportTickets } from '../../Api/supportTicketApi';
+import { getTickets } from '../../Api/ticketApi';
 import { getVendorJobs, getVendorJobSupportChat } from '../../Api/Vendor/vendorJobsApi';
 
 /**
@@ -85,6 +86,27 @@ async function openCustomerSupportTicketByNumber(ticketNumber, openChat) {
   return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
 }
 
+// Some customer notifications (e.g. "Additional payment requested") carry no
+// ticket id at all — only the NRI-… ticket number embedded in the message
+// ("An additional $24.96 is due on NRI-2026-00252: Extra cost"). Resolve it
+// to a numeric id via the customer's ticket list, same approach as
+// openCustomerSupportTicketByNumber above.
+async function findCustomerTicketIdByTicketNumber(ticketNumber) {
+  if (!ticketNumber) return null;
+  try {
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const { tickets, meta } = await getTickets({ page, lite: true });
+      lastPage = meta?.lastPage || 1;
+      const match = (tickets || []).find(t => (t.ticketNumber || '').toUpperCase() === ticketNumber);
+      if (match?.id != null) return match.id;
+      page += 1;
+    } while (page <= lastPage && page <= 5);
+  } catch (e) { /* fall through */ }
+  return null;
+}
+
 async function findVendorJobIdByTicketNumber(ticketNumber) {
   if (!ticketNumber) return null;
   try {
@@ -129,7 +151,6 @@ function resetVendorToMyJobs(screen, params) {
               { name: 'Dashboard', state: { index: 0, routes: [{ name: 'DashboardMain' }] } },
               { name: 'MyJobs', state: { index: 1, routes: [{ name: 'MyJobsMain' }, { name: screen, params }] } },
               { name: 'Earnings', state: { index: 0, routes: [{ name: 'EarningsMain' }] } },
-              { name: 'Support', state: { index: 0, routes: [{ name: 'SupportMain' }] } },
               { name: 'Profile', state: { index: 0, routes: [{ name: 'ProfileMain' }] } },
             ],
           },
@@ -294,7 +315,9 @@ export async function handleNotificationNavigation(data, nav) {
   if (/support|chat|dispute/.test(hay)) {
     if (isVendor) {
       closeInAppNotifications(nav);
-      return navigate('VendorHome', { screen: 'Support', params: { screen: 'SupportMain' } });
+      // Support now lives as a screen inside the Dashboard tab's stack rather
+      // than its own tab (see VendorNavigator.js).
+      return navigate('VendorHome', { screen: 'Dashboard', params: { screen: 'Support' } });
     }
     closeInAppNotifications(nav);
     return navigate('AppHome', { screen: 'Requests', params: { screen: 'RequestsMain' } });
@@ -318,6 +341,16 @@ export async function handleNotificationNavigation(data, nav) {
   if (id && /ticket|request|job|sla/.test(hay)) {
     closeInAppNotifications(nav);
     return resetCustomerRequests('TicketDetail', { ticketId: id });
+  }
+  // No id on the payload (e.g. "Additional payment requested") — resolve the
+  // NRI-… ticket number embedded in the title/message via the ticket list.
+  const reqTicketNumber = extractRequestTicketNumber(data);
+  if (reqTicketNumber) {
+    const resolvedId = await findCustomerTicketIdByTicketNumber(reqTicketNumber);
+    if (resolvedId) {
+      closeInAppNotifications(nav);
+      return resetCustomerRequests('TicketDetail', { ticketId: resolvedId });
+    }
   }
   // Fallback — just bring the app to its home.
   closeInAppNotifications(nav);
