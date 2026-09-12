@@ -701,109 +701,6 @@ function TicketDetail({ navigation, route }) {
                   </>
                 )}
 
-                {/* Customer Feedback — internal only; RM's own rating + what the
-                    rest of the team (vendor/telecaller) said about this customer. */}
-                {!!detail?.canGiveFeedback && (
-                  <>
-                    <View style={styles.card}>
-                      <CardTitle icon="rate-review" title="Rate This Customer" color="#B45309" />
-                      <Text style={styles.actionDesc}>
-                        Internal only — the customer never sees this. Helps your team and future vendors/telecallers know what to expect.
-                      </Text>
-
-                      <View style={{ marginTop: 14 }}>
-                        <Text style={styles.feedbackLabel}>How was this customer to work with?</Text>
-                        <View style={styles.starRow}>
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <TouchableOpacity key={n} onPress={() => setFbRating(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                              <Icon name={n <= fbRating ? 'star' : 'star-border'} size={30} color="#F5B301" />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-
-                      <View style={{ marginTop: 14 }}>
-                        <Text style={styles.feedbackLabel}>Notes for your team <Text style={styles.optionalText}>(optional)</Text></Text>
-                        <TextInput
-                          style={[styles.modalInput, { marginTop: 0 }]}
-                          placeholder="Any notes for your team?"
-                          placeholderTextColor="#94A3B8"
-                          value={fbNote}
-                          onChangeText={setFbNote}
-                          multiline
-                          maxLength={1000}
-                        />
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.feedbackSubmitBtn, (!fbRating || feedbackLoading) && styles.btnDisabled]}
-                        onPress={handleSubmitFeedback}
-                        disabled={!fbRating || feedbackLoading}
-                        activeOpacity={0.85}
-                      >
-                        {feedbackLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
-                          <>
-                            <Icon name="send" size={15} color="#FFFFFF" />
-                            <Text style={styles.reportSendBtnText}>{myFeedback ? 'Update Feedback' : 'Submit Feedback'}</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-
-                      {displayFeedback.length > 0 && (
-                        <View style={styles.teamFeedbackWrap}>
-                          <TouchableOpacity
-                            style={styles.reportHead}
-                            onPress={() => setFeedbackHistoryExpanded(v => !v)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.reportHeadLeft}>
-                              <View style={styles.reportHeadIcon}><Icon name="how-to-reg" size={16} color="#20304C" /></View>
-                              <Text style={styles.reportHeadTitle}>Customer Feedback (Staff Only)</Text>
-                            </View>
-                            <View style={styles.feedbackHeadRight}>
-                              {feedbackAvg != null && (
-                                <View style={styles.ratingBadge}>
-                                  <Icon name="star" size={13} color="#F5B301" />
-                                  <Text style={styles.ratingBadgeText}>{feedbackAvg.toFixed(1)}/5 avg ({displayFeedback.length})</Text>
-                                </View>
-                              )}
-                              <Icon name={feedbackHistoryExpanded ? 'expand-less' : 'expand-more'} size={22} color="#64748B" />
-                            </View>
-                          </TouchableOpacity>
-
-                          {feedbackHistoryExpanded && (
-                            <>
-                              <Text style={styles.feedbackDisclaimer}>Internal only — never visible to this customer.</Text>
-
-                              {displayFeedback.map((f) => (
-                                <View key={f.id} style={styles.teamFeedbackRow}>
-                                  <View style={styles.teamFeedbackTop}>
-                                    <View style={styles.teamFeedbackLeft}>
-                                      <View style={styles.teamFeedbackStars}>
-                                        {[1, 2, 3, 4, 5].map((n) => (
-                                          <Icon key={n} name={n <= (f.rating || 0) ? 'star' : 'star-border'} size={15} color="#F97316" />
-                                        ))}
-                                      </View>
-                                      <View style={[styles.pill, { backgroundColor: '#EEF2FF' }]}>
-                                        <Text style={[styles.pillText, { color: '#6366F1' }]}>{roleLabel(f.giverRole)}</Text>
-                                      </View>
-                                    </View>
-                                    <Text style={styles.teamFeedbackDate}>{fmtDate(f.createdAt)}</Text>
-                                  </View>
-                                  <Text style={styles.teamFeedbackName}>
-                                    {f.givenBy || 'Staff'}{f.ticketNumber ? ` — ${f.ticketNumber}` : ''}{f.service ? ` (${f.service})` : ''}
-                                  </Text>
-                                  {!!f.note && <Text style={styles.teamFeedbackNote}>{f.note}</Text>}
-                                </View>
-                              ))}
-                            </>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  </>
-                )}
-
                 {/* Support chat action */}
                 <TouchableOpacity
                   style={styles.supportChatBar}
@@ -949,6 +846,109 @@ function TicketDetail({ navigation, route }) {
                   )}
                 </View>
 
+                {/* Customer Feedback — internal only; RM's own rating + what the
+                    rest of the team (vendor/telecaller) said about this customer. */}
+                {!!detail?.canGiveFeedback && (
+                  <>
+                    <View style={styles.card}>
+                      <CardTitle icon="rate-review" title="Rate This Customer" color="#B45309" />
+                      <Text style={styles.actionDesc}>
+                        Internal only — the customer never sees this. Helps your team and future vendors/telecallers know what to expect.
+                      </Text>
+
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={styles.feedbackLabel}>How was this customer to work with?</Text>
+                        <View style={styles.starRow}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <TouchableOpacity key={n} onPress={() => setFbRating(n)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                              <Icon name={n <= fbRating ? 'star' : 'star-border'} size={30} color="#F5B301" />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={styles.feedbackLabel}>Notes for your team <Text style={styles.optionalText}>(optional)</Text></Text>
+                        <TextInput
+                          style={[styles.modalInput, { marginTop: 0 }]}
+                          placeholder="Any notes for your team?"
+                          placeholderTextColor="#94A3B8"
+                          value={fbNote}
+                          onChangeText={setFbNote}
+                          multiline
+                          maxLength={1000}
+                        />
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.feedbackSubmitBtn, (!fbRating || feedbackLoading) && styles.btnDisabled]}
+                        onPress={handleSubmitFeedback}
+                        disabled={!fbRating || feedbackLoading}
+                        activeOpacity={0.85}
+                      >
+                        {feedbackLoading ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                          <>
+                            <Icon name="send" size={15} color="#FFFFFF" />
+                            <Text style={styles.reportSendBtnText}>{myFeedback ? 'Update Feedback' : 'Submit Feedback'}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      {displayFeedback.length > 0 && (
+                        <View style={styles.teamFeedbackWrap}>
+                          <TouchableOpacity
+                            style={styles.reportHead}
+                            onPress={() => setFeedbackHistoryExpanded(v => !v)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.reportHeadLeft}>
+                              <View style={styles.reportHeadIcon}><Icon name="how-to-reg" size={16} color="#20304C" /></View>
+                              <Text style={styles.reportHeadTitle}>Customer Feedback (Staff Only)</Text>
+                            </View>
+                            <View style={styles.feedbackHeadRight}>
+                              {feedbackAvg != null && (
+                                <View style={styles.ratingBadge}>
+                                  <Icon name="star" size={13} color="#F5B301" />
+                                  <Text style={styles.ratingBadgeText}>{feedbackAvg.toFixed(1)}/5 avg ({displayFeedback.length})</Text>
+                                </View>
+                              )}
+                              <Icon name={feedbackHistoryExpanded ? 'expand-less' : 'expand-more'} size={22} color="#64748B" />
+                            </View>
+                          </TouchableOpacity>
+
+                          {feedbackHistoryExpanded && (
+                            <>
+                              <Text style={styles.feedbackDisclaimer}>Internal only — never visible to this customer.</Text>
+
+                              {displayFeedback.map((f) => (
+                                <View key={f.id} style={styles.teamFeedbackRow}>
+                                  <View style={styles.teamFeedbackTop}>
+                                    <View style={styles.teamFeedbackLeft}>
+                                      <View style={styles.teamFeedbackStars}>
+                                        {[1, 2, 3, 4, 5].map((n) => (
+                                          <Icon key={n} name={n <= (f.rating || 0) ? 'star' : 'star-border'} size={15} color="#F97316" />
+                                        ))}
+                                      </View>
+                                      <View style={[styles.pill, { backgroundColor: '#EEF2FF' }]}>
+                                        <Text style={[styles.pillText, { color: '#6366F1' }]}>{roleLabel(f.giverRole)}</Text>
+                                      </View>
+                                    </View>
+                                    <Text style={styles.teamFeedbackDate}>{fmtDate(f.createdAt)}</Text>
+                                  </View>
+                                  <Text style={styles.teamFeedbackName}>
+                                    {f.givenBy || 'Staff'}{f.ticketNumber ? ` — ${f.ticketNumber}` : ''}{f.service ? ` (${f.service})` : ''}
+                                  </Text>
+                                  {!!f.note && <Text style={styles.teamFeedbackNote}>{f.note}</Text>}
+                                </View>
+                              ))}
+                            </>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </>
+                )}
+
                 <View style={styles.card}>
                   <CardTitle icon="history" title="Status History" />
                   {detail?.statusHistory?.length > 0 ? (
@@ -1028,8 +1028,6 @@ function TicketDetail({ navigation, route }) {
                     </TouchableOpacity>
                   </View>
                 </View>
-
-              
 
                 {/* <CardTitle icon="report-problem" title="Escalations" />
                 <View style={styles.card}>
