@@ -69,12 +69,12 @@ function Dashboard({ navigation }) {
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.decorDot} pointerEvents="none" />
         <View style={styles.headerTop}>
-          <View>
+          <View style={styles.headerTextWrap}>
             <Text style={styles.greeting}>Hello,</Text>
             <Text style={styles.userName}>Relationship Manager 👋</Text>
             <View style={styles.headerTagPill}>
               <Icon name="insights" size={13} color="#FDE68A" />
-              <Text style={styles.headerTagText}>Manage your customers with care</Text>
+              <Text style={styles.headerTagText} numberOfLines={1}>Manage your customers with care</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
@@ -227,6 +227,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 },
+  headerTextWrap: { flex: 1, paddingRight: 12 },
   greeting: { fontSize: 14, fontFamily: typography.body.fontFamily, color: '#E2E8F0', marginBottom: 2 },
   userName: { fontSize: 26, fontFamily: typography.h2.fontFamily, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 },
   headerTagPill: {
@@ -239,6 +240,7 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
   },
   badgeDot: {
     position: 'absolute', top: 10, right: 12,

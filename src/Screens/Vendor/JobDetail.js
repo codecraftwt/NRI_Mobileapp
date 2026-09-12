@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView, RefreshControl } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
@@ -58,6 +58,12 @@ function JobDetail({ route, navigation }) {
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
   const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await retry(); } finally { setRefreshing(false); }
+  };
 
   // Two-section layout: "Overview" (read-only info) vs "Actions" (everything actionable).
   const [activeTab, setActiveTab] = useState('overview');
@@ -366,7 +372,11 @@ function JobDetail({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
+      >
         {activeTab === 'overview' && (
         <>
         {/* Summary Header Card */}
