@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, toAbsoluteUrl } from './client';
 
 function mapCategory(raw) {
   return {
@@ -95,7 +95,7 @@ function mapService(raw) {
     allowsSingleUse: raw.allows_single_use,
     allowsRecurring: raw.allows_recurring,
     allowsEmergency: raw.allows_emergency,
-    imageUrl: raw.image_url || raw.image || null,
+    imageUrl: toAbsoluteUrl(raw.image_url || raw.image || null),
     category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon, description: raw.category.description, disclaimer: raw.category.disclaimer } : null,
     pricing: mapPricing(raw.pricing),
   };

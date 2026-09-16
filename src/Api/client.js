@@ -7,6 +7,17 @@ import RNBlobUtil from 'react-native-blob-util';
 // you a new ngrok URL (falls back to the last-known URL if .env is missing it).
 export const API_BASE_URL = Config.API_BASE_URL || 'https://arpeggioed-anaya-nonostensively.ngrok-free.dev/api/v1';
 
+// Server origin (strip the trailing /api/v1) — the backend sometimes returns
+// image/photo fields as a path relative to its own origin (e.g.
+// "storage/services/x.jpg") instead of a full URL, which <Image> can't load
+// as-is. Use this to normalize any such field before rendering it.
+const API_ORIGIN = String(API_BASE_URL || '').replace(/\/api\/v1\/?$/, '');
+export function toAbsoluteUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url;
+  return `${API_ORIGIN}/${url.replace(/^\/+/, '')}`;
+}
+
 let storeRef = null;
 
 // Called once from store.js after the Redux store is created, so this client

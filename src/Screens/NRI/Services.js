@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Image, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, FlatList, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearServiceLocation } from '../../Redux/slices/serviceLocationSlice';
@@ -166,26 +166,48 @@ function Services({ navigation, route }) {
     savedLocation?.cityId || null,
   );
 
-  // All-services list — bound to /services with no category_id (returns every
-  // service, grouped), fetched when "All Categories" is active.
+  // All-services list. A single /services call with no category_id returns
+  // every service across every category in one huge payload, which is what
+  // made first open of "All Categories" feel slow. Instead, fire one
+  // /services?category_id=X call per category in parallel and paint the grid
+  // as soon as the first one resolves — the rest stream in and get appended,
+  // so the user sees results almost immediately instead of staring at a
+  // full-screen spinner until the last (slowest) category comes back.
   const [allServices, setAllServices] = useState([]);
-  const [allLoading, setAllLoading] = useState(false);
+  const [allLoading, setAllLoading] = useState(false); // true until the first category responds
+  const [allLoadingMore, setAllLoadingMore] = useState(false); // true while later categories are still streaming in
   // Reusable loader so both the auto-fetch effect and pull-to-refresh use one
   // code path; returns the promise so refresh can await it.
   const loadAllServices = useCallback(() => {
+    if (!categories.length) return Promise.resolve();
+    setAllServices([]);
     setAllLoading(true);
-    return getServiceGroups({ stateId: stateId || null, cityId: savedLocation?.cityId || null })
-      .then(({ oneTime: ot, recurring: rc }) => {
-        const seen = new Set();
-        setAllServices([...ot, ...rc].filter(x => (seen.has(x.id) ? false : seen.add(x.id))));
-      })
-      .catch(() => setAllServices([]))
-      .finally(() => setAllLoading(false));
-  }, [stateId, savedLocation?.cityId]);
+    setAllLoadingMore(true);
+    const seen = new Set();
+    let firstArrived = false;
+    const tasks = categories.map(c =>
+      getServiceGroups({ categoryId: c.id, stateId: stateId || null, cityId: savedLocation?.cityId || null })
+        .then(({ oneTime: ot, recurring: rc }) => {
+          const fresh = [...ot, ...rc].filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+          if (fresh.length) setAllServices(prev => [...prev, ...fresh]);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!firstArrived) {
+            firstArrived = true;
+            setAllLoading(false);
+          }
+        })
+    );
+    return Promise.allSettled(tasks).finally(() => {
+      setAllLoading(false);
+      setAllLoadingMore(false);
+    });
+  }, [categories, stateId, savedLocation?.cityId]);
   useEffect(() => {
-    if (!isAll) return;
+    if (!isAll || loadingCats) return;
     loadAllServices();
-  }, [isAll, loadAllServices]);
+  }, [isAll, loadingCats, loadAllServices]);
 
   // Pull-to-refresh: re-fetch the server cart count (so a just-added service
   // reflects in the badge without leaving the screen) and reload the visible
@@ -274,137 +296,153 @@ function Services({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={listLoading ? [] : services}
+        keyExtractor={s => String(s.id)}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        // Only visible (+ nearby) cards are mounted, so their <Image> only
+        // starts fetching once scrolled into view instead of every card in
+        // the list firing its image request at once on load — that thundering
+        // herd of simultaneous requests was why images further down the list
+        // would silently fail to load.
+        initialNumToRender={8}
+        windowSize={7}
+        removeClippedSubviews
         refreshControl={
           // Hide the top spinner while the list loader below is already showing,
           // so a refresh never renders two loaders at once.
           <RefreshControl refreshing={refreshing && !listLoading} onRefresh={onRefresh} tintColor="#D94625" colors={['#D94625']} />
         }
-      >
-        <CustomQuoteCard onPress={() => {
-          if (!isAuthenticated) {
-            // Custom Plan requires an authenticated account — POST
-            // /customer/custom-plans is under /customer/*. Send guests to
-            // Registration first; OnboardingPayment.js reads this flag (it
-            // survives registerUser.fulfilled wiping the rest of the store)
-            // to auto-request the quote and bundle its fee into membership
-            // checkout once the wizard reaches the payment step.
-            dispatch(setPendingCustomPlanRequest(true));
-            navigation.navigate('Register');
-            return;
-          }
-          // Cross into the Dashboard tab's stack, where the Custom Plan
-          // screens live (same pattern the tab bar itself uses).
-          navigation.navigate('Dashboard', { screen: 'CustomPlanRequests' });
-        }} />
+        ListHeaderComponent={(
+          <>
+            <CustomQuoteCard onPress={() => {
+              if (!isAuthenticated) {
+                // Custom Plan requires an authenticated account — POST
+                // /customer/custom-plans is under /customer/*. Send guests to
+                // Registration first; OnboardingPayment.js reads this flag (it
+                // survives registerUser.fulfilled wiping the rest of the store)
+                // to auto-request the quote and bundle its fee into membership
+                // checkout once the wizard reaches the payment step.
+                dispatch(setPendingCustomPlanRequest(true));
+                navigation.navigate('Register');
+                return;
+              }
+              // Cross into the Dashboard tab's stack, where the Custom Plan
+              // screens live (same pattern the tab bar itself uses).
+              navigation.navigate('Dashboard', { screen: 'CustomPlanRequests' });
+            }} />
 
-        {/* Search + filter */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Icon name="search" size={20} color="#64748B" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search services..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
-          <TouchableOpacity style={styles.filterBtn} activeOpacity={0.85} onPress={() => setFilterOpen(true)}>
-            <Icon name="tune" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+            {/* Search + filter */}
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Icon name="search" size={20} color="#64748B" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search services..."
+                  placeholderTextColor="#94A3B8"
+                  value={search}
+                  onChangeText={setSearch}
+                />
+              </View>
+              <TouchableOpacity style={styles.filterBtn} activeOpacity={0.85} onPress={() => setFilterOpen(true)}>
+                <Icon name="tune" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
 
-        {/* One Time / Recurring toggle */}
-        <View style={styles.modeToggleRow}>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'oneTime' && styles.modeToggleBtnActive]}
-            activeOpacity={0.85}
-            onPress={() => setMode('oneTime')}
-          >
-            <Text style={[styles.modeToggleText, mode === 'oneTime' && styles.modeToggleTextActive]}>One Time</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'recurring' && styles.modeToggleBtnActive]}
-            activeOpacity={0.85}
-            onPress={() => setMode('recurring')}
-          >
-            <Text style={[styles.modeToggleText, mode === 'recurring' && styles.modeToggleTextActive]}>Recurring</Text>
-          </TouchableOpacity>
-        </View>
+            {/* One Time / Recurring toggle */}
+            <View style={styles.modeToggleRow}>
+              <TouchableOpacity
+                style={[styles.modeToggleBtn, mode === 'oneTime' && styles.modeToggleBtnActive]}
+                activeOpacity={0.85}
+                onPress={() => setMode('oneTime')}
+              >
+                <Text style={[styles.modeToggleText, mode === 'oneTime' && styles.modeToggleTextActive]}>One Time</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeToggleBtn, mode === 'recurring' && styles.modeToggleBtnActive]}
+                activeOpacity={0.85}
+                onPress={() => setMode('recurring')}
+              >
+                <Text style={[styles.modeToggleText, mode === 'recurring' && styles.modeToggleTextActive]}>Recurring</Text>
+              </TouchableOpacity>
+            </View>
 
-        {/* Category filter chips (All Categories first) */}
-        {!loadingCats && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-          >
-            {filterOptions.map(c => {
-              const active = c.name === activeCatName;
-              return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[styles.chip, active && styles.chipActive]}
-                  activeOpacity={0.8}
-                  onPress={() => setActiveCatName(c.name)}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{c.displayName}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+            {/* Category filter chips (All Categories first) */}
+            {!loadingCats && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsRow}
+              >
+                {filterOptions.map(c => {
+                  const active = c.name === activeCatName;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.chip, active && styles.chipActive]}
+                      activeOpacity={0.8}
+                      onPress={() => setActiveCatName(c.name)}
+                    >
+                      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{c.displayName}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </>
         )}
-
-        {/* Service cards grid */}
-        {listLoading ? (
+        ListEmptyComponent={listLoading ? (
           <View style={styles.loadingBox}><ActivityIndicator size="large" color={colors.primary} /></View>
-        ) : services.length === 0 ? (
+        ) : (
           <View style={styles.loadingBox}>
             <Icon name="search-off" size={40} color="#CBD5E1" />
             <Text style={styles.emptyText}>
               No {mode === 'recurring' ? 'recurring' : 'one-time'} services found in {isAll ? 'any category' : (activeCategory?.displayName || 'this category')}.
             </Text>
           </View>
-        ) : (
-          <View style={styles.grid}>
-            {services.map(s => {
-              const dur = durationText(s.pricing);
-              const cardCat = catForService(s);
-              return (
-                <TouchableOpacity key={s.id} style={styles.card} activeOpacity={0.85} onPress={() => openService(s)}>
-                  {s.imageUrl ? (
-                    <Image source={{ uri: s.imageUrl }} style={styles.cardImage} resizeMode="cover" />
+        )}
+        ListFooterComponent={isAll && allLoadingMore && !allLoading ? (
+          <View style={styles.loadingMoreRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingMoreText}>Loading more services…</Text>
+          </View>
+        ) : null}
+        renderItem={({ item: s }) => {
+          const dur = durationText(s.pricing);
+          const cardCat = catForService(s);
+          return (
+            <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => openService(s)}>
+              {s.imageUrl ? (
+                <Image source={{ uri: s.imageUrl }} style={styles.cardImage} resizeMode="cover" />
+              ) : (
+                <View style={[styles.cardImage, styles.cardImageFallback, { backgroundColor: (cardCat?.color || '#64748B') + '15' }]}>
+                  <Icon name={cardCat?.icon || 'category'} size={40} color={cardCat?.color || '#64748B'} />
+                </View>
+              )}
+              <View style={styles.cardBody}>
+                <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
+                <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
+                <View style={styles.cardMetaRow}>
+                  {hasLocation ? (
+                    <Text style={styles.cardPrice} numberOfLines={1}>{priceText(s.pricing, mode)}</Text>
                   ) : (
-                    <View style={[styles.cardImage, styles.cardImageFallback, { backgroundColor: (cardCat?.color || '#64748B') + '15' }]}>
-                      <Icon name={cardCat?.icon || 'category'} size={40} color={cardCat?.color || '#64748B'} />
+                    <Text style={styles.cardPriceHint} numberOfLines={1}>Set location for price</Text>
+                  )}
+                  {!!dur && (
+                    <View style={styles.cardDurationChip}>
+                      <Icon name="schedule" size={11} color="#94A3B8" />
+                      <Text style={styles.cardDuration}>{dur}</Text>
                     </View>
                   )}
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardName} numberOfLines={1}>{s.name}</Text>
-                    <Text style={styles.cardCat} numberOfLines={1}>{cardCat?.displayName}</Text>
-                    <View style={styles.cardMetaRow}>
-                      {hasLocation ? (
-                        <Text style={styles.cardPrice} numberOfLines={1}>{priceText(s.pricing, mode)}</Text>
-                      ) : (
-                        <Text style={styles.cardPriceHint} numberOfLines={1}>Set location for price</Text>
-                      )}
-                      {!!dur && (
-                        <View style={styles.cardDurationChip}>
-                          <Icon name="schedule" size={11} color="#94A3B8" />
-                          <Text style={styles.cardDuration}>{dur}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+      />
 
       {/* Filter sheet — main categories */}
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
@@ -511,7 +549,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 13, color: '#64748B', fontFamily: typography.labelMedium.fontFamily },
   chipTextActive: { color: '#FFFFFF' },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gridRow: { justifyContent: 'space-between' },
   card: {
     width: '48%', marginBottom: CARD_GAP, backgroundColor: '#FFFFFF', borderRadius: 20,
     borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden',
@@ -530,6 +568,8 @@ const styles = StyleSheet.create({
 
   loadingBox: { paddingVertical: 50, alignItems: 'center', gap: 10 },
   emptyText: { fontSize: 14, color: '#94A3B8', textAlign: 'center' },
+  loadingMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
+  loadingMoreText: { fontSize: 12, color: '#94A3B8', fontFamily: typography.labelMedium.fontFamily },
 
   // Filter sheet
   filterOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },

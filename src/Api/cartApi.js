@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, postMultipart } from './client';
+import apiClient, { normalizeApiError, postMultipart, toAbsoluteUrl } from './client';
 import { mapPendingRecurringBundle } from './paymentsApi';
 
 // A server cart line → the local display shape the app uses everywhere. The
@@ -58,7 +58,7 @@ function mapCartItem(raw) {
     categoryBaseBookable: raw.category_base_bookable ?? null,
     currency: pricing.currency ?? raw.currency ?? 'USD',
     durationLabel: pricing.turnaround_label ?? svc.pricing?.turnaround_label ?? raw.duration ?? svc.duration ?? '',
-    imageUrl: svc.image_url ?? raw.image_url ?? svc.image ?? raw.image ?? null,
+    imageUrl: toAbsoluteUrl(svc.image_url ?? raw.image_url ?? svc.image ?? raw.image ?? null),
   };
 }
 
