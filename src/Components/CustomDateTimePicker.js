@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../theme/typography';
 
@@ -57,6 +57,11 @@ function buildMonthGrid(viewDate) {
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
+// 12-hour display value (1-12) + AM/PM flag back to a 24-hour value for Date#setHours.
+function to24Hour(hour12, isPM) {
+  const h = hour12 % 12; // 12 -> 0
+  return isPM ? h + 12 : h;
+}
 
 // Fully custom date/time picker (calendar grid + time steppers) — deliberately
 // avoids @react-native-community/datetimepicker's native modal entirely. That
@@ -83,6 +88,10 @@ export default function CustomDateTimePicker({
 }) {
   const [draft, setDraft] = useState(() => value || initialDate || new Date());
   const [viewDate, setViewDate] = useState(() => value || initialDate || new Date());
+  // Tapping the hour/minute value swaps it for a TextInput so it can be typed
+  // directly instead of only stepped one press at a time. 'hour' | 'minute' | null.
+  const [editingField, setEditingField] = useState(null);
+  const [editText, setEditText] = useState('');
 
   const effectiveMinDate = getEffectiveMinDate(minimumDate, disablePastDates);
 
@@ -91,6 +100,7 @@ export default function CustomDateTimePicker({
       const seed = clampDate(value || initialDate || new Date(), effectiveMinDate, maximumDate);
       setDraft(seed);
       setViewDate(seed);
+      setEditingField(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -121,13 +131,42 @@ export default function CustomDateTimePicker({
   };
   const adjustMinute = (delta) => {
     const next = new Date(draft);
-    next.setMinutes((next.getMinutes() + delta + 60) % 60);
+    const current = next.getMinutes();
+    // Snap to the nearest 5-minute mark in the pressed direction, rather than
+    // blindly adding/subtracting 5 — otherwise a draft seeded from the live
+    // clock (e.g. :47) steps through :52, :57, :02... and never lands on a
+    // clean :00/:05/:10 mark like a 5-minute stepper should.
+    const stepped = delta > 0
+      ? Math.floor(current / 5) * 5 + 5
+      : Math.ceil(current / 5) * 5 - 5;
+    next.setMinutes(((stepped % 60) + 60) % 60, 0, 0);
     setDraft(next);
   };
   const toggleAmPm = () => {
     const next = new Date(draft);
     next.setHours((next.getHours() + 12) % 24);
     setDraft(next);
+  };
+
+  // Tap-to-type: switch the tapped field into a TextInput, seeded with its
+  // current displayed value.
+  const startEditHour = () => { setEditText(pad2(hour12)); setEditingField('hour'); };
+  const startEditMinute = () => { setEditText(pad2(draft.getMinutes())); setEditingField('minute'); };
+  const commitHour = () => {
+    const parsed = parseInt(editText, 10);
+    const clamped = Number.isFinite(parsed) ? Math.min(12, Math.max(1, parsed)) : hour12;
+    const next = new Date(draft);
+    next.setHours(to24Hour(clamped, isPM));
+    setDraft(next);
+    setEditingField(null);
+  };
+  const commitMinute = () => {
+    const parsed = parseInt(editText, 10);
+    const clamped = Number.isFinite(parsed) ? Math.min(59, Math.max(0, parsed)) : draft.getMinutes();
+    const next = new Date(draft);
+    next.setMinutes(clamped, 0, 0);
+    setDraft(next);
+    setEditingField(null);
   };
 
   const hour12 = ((draft.getHours() + 11) % 12) + 1;
@@ -201,7 +240,21 @@ export default function CustomDateTimePicker({
                   <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHour(1)}>
                     <Icon name="keyboard-arrow-up" size={22} color="#20304C" />
                   </TouchableOpacity>
-                  <Text style={styles.timeValue}>{pad2(hour12)}</Text>
+                  {editingField === 'hour' ? (
+                    <TextInput
+                      style={styles.timeInput}
+                      value={editText}
+                      onChangeText={setEditText}
+                      onBlur={commitHour}
+                      onSubmitEditing={commitHour}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      autoFocus
+                      selectTextOnFocus
+                    />
+                  ) : (
+                    <Text style={styles.timeValue} onPress={startEditHour}>{pad2(hour12)}</Text>
+                  )}
                   <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustHour(-1)}>
                     <Icon name="keyboard-arrow-down" size={22} color="#20304C" />
                   </TouchableOpacity>
@@ -211,7 +264,21 @@ export default function CustomDateTimePicker({
                   <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustMinute(5)}>
                     <Icon name="keyboard-arrow-up" size={22} color="#20304C" />
                   </TouchableOpacity>
-                  <Text style={styles.timeValue}>{pad2(draft.getMinutes())}</Text>
+                  {editingField === 'minute' ? (
+                    <TextInput
+                      style={styles.timeInput}
+                      value={editText}
+                      onChangeText={setEditText}
+                      onBlur={commitMinute}
+                      onSubmitEditing={commitMinute}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      autoFocus
+                      selectTextOnFocus
+                    />
+                  ) : (
+                    <Text style={styles.timeValue} onPress={startEditMinute}>{pad2(draft.getMinutes())}</Text>
+                  )}
                   <TouchableOpacity style={styles.stepperBtn} onPress={() => adjustMinute(-5)}>
                     <Icon name="keyboard-arrow-down" size={22} color="#20304C" />
                   </TouchableOpacity>
@@ -275,6 +342,10 @@ const styles = StyleSheet.create({
   timeStepper: { alignItems: 'center' },
   stepperBtn: { padding: 6 },
   timeValue: { fontSize: 28, fontFamily: typography.h2.fontFamily, color: '#0F172A', minWidth: 48, textAlign: 'center' },
+  timeInput: {
+    fontSize: 28, fontFamily: typography.h2.fontFamily, color: '#0F172A', minWidth: 48, textAlign: 'center',
+    padding: 0, borderBottomWidth: 1, borderBottomColor: '#D94625',
+  },
   timeColon: { fontSize: 28, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   ampmToggle: { marginLeft: 10, backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   ampmText: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#20304C' },
