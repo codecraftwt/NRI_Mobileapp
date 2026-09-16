@@ -6,19 +6,25 @@ import apiClient, { normalizeApiError } from './client';
 // message.
 export async function getAppVersionCheck({ platform, currentVersion }) {
   try {
-    const response = await apiClient.get('/app/version-check', {
-      params: { platform, current_version: currentVersion },
-    });
+    const params = { platform };
+    if (currentVersion) {
+      params.current_version = currentVersion;
+    }
+
+    const response = await apiClient.get('/app/version-check', { params });
     const data = response.data?.data || response.data || {};
     return {
       platform: data.platform,
       currentVersion: data.current_version,
       latestVersion: data.latest_version,
+      latestBuild: data.latest_build,
       storeUrl: data.store_url,
-      updateAvailable: !!data.update_available,
+      updateAvailable: data.update_available,
       message: data.message,
     };
   } catch (error) {
     throw normalizeApiError(error);
   }
 }
+
+
