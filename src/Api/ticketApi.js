@@ -65,6 +65,11 @@ function mapQuote(raw) {
     gstRate: raw.gst_rate,
     gstAmount: raw.gst_amount,
     totalAmount: raw.total_amount,
+    // Always returned alongside the USD figures (this is a read-only quote,
+    // not one of the currency-gated payment endpoints) — the INR-converted
+    // GST/total for display when the customer has INR selected.
+    gstAmountInr: raw.gst_amount_inr,
+    totalAmountInr: raw.total_amount_inr,
     lines: (raw.lines || []).map(mapQuoteLine),
   };
 }
@@ -238,7 +243,7 @@ function mapPayFirstCheckout(raw, message) {
 }
 
 export async function createTicket({
-  serviceId, extraServices, addons, couponCode, stateId, cityId, pincode, urgency, gateway,
+  serviceId, extraServices, addons, couponCode, stateId, cityId, pincode, urgency, gateway, currency,
 }) {
   try {
     const response = await apiClient.post('/customer/tickets', {
@@ -251,6 +256,7 @@ export async function createTicket({
       pincode: pincode || undefined,
       urgency,
       gateway,
+      currency: currency || undefined,
     });
     return mapPayFirstCheckout(response.data?.data || {}, response.data?.message);
   } catch (error) {

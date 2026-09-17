@@ -87,11 +87,12 @@ export async function getServiceSubscriptions() {
 // finalizeServiceSubscription() below, so there's no who/where or documents
 // on this call at all — always plain JSON. All the selected services must
 // share the same billing interval and allow recurring.
-export async function createServiceSubscription({ serviceIds, gateway, stateId, cityId, pincode }) {
+export async function createServiceSubscription({ serviceIds, gateway, currency, stateId, cityId, pincode }) {
   try {
     const response = await apiClient.post('/customer/service-subscriptions', {
       service_ids: serviceIds,
       gateway,
+      currency: currency || undefined,
       state_id: stateId,
       city_id: cityId || undefined,
       pincode: pincode || undefined,
@@ -100,6 +101,15 @@ export async function createServiceSubscription({ serviceIds, gateway, stateId, 
     const data = response.data?.data || {};
     return {
       paymentId: data.payment_id || null,
+      amount: data.amount,
+      currency: data.currency,
+      // Razorpay recurring subscriptions run against a fixed-currency plan —
+      // amount/currency above stay the plan's own currency (e.g. USD) even
+      // when currency: 'INR' was requested. The backend separately returns
+      // this converted reference amount for display when INR was picked; it
+      // doesn't change what the Razorpay subscription itself is billed in.
+      amountInr: data.amount_inr ?? null,
+      gstAmount: data.gst_amount,
       // Stripe/PayPal return checkout_url; Razorpay returns `order`
       // ({ subscription_id, key }) for the native SDK — fed to runRazorpayPayment,
       // then confirmed via /payments/{payment}/verify with the payment id above.

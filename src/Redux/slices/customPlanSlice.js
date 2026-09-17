@@ -9,9 +9,9 @@ export const fetchCustomPlans = createAsyncThunk('customPlan/fetchAll', async (p
   }
 });
 
-export const createCustomPlan = createAsyncThunk('customPlan/create', async ({ subject, message, serviceId, stateId, cityId, gateway }, { rejectWithValue }) => {
+export const createCustomPlan = createAsyncThunk('customPlan/create', async ({ subject, message, serviceId, stateId, cityId, gateway, currency }, { rejectWithValue }) => {
   try {
-    return await customPlanApi.createCustomPlan({ subject, message, serviceId, stateId, cityId, gateway });
+    return await customPlanApi.createCustomPlan({ subject, message, serviceId, stateId, cityId, gateway, currency });
   } catch (error) {
     return rejectWithValue(error);
   }

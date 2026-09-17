@@ -39,7 +39,7 @@ export function useBilling() {
     retry: () => dispatch(fetchBillingOverview()),
 
     payLoading,
-    pay: (payableType, id, gateway, useWallet) => dispatch(payBillableItem({ payableType, id, gateway, useWallet })),
+    pay: (payableType, id, gateway, useWallet, currency) => dispatch(payBillableItem({ payableType, id, gateway, useWallet, currency })),
 
     verifyLoading,
     verifyPayment: (params) => dispatch(verifyBillingPayment(params)),
@@ -51,7 +51,7 @@ export function useBilling() {
     cancelAllSubscriptions: (traceId) => dispatch(cancelAllSubscriptions(traceId)),
 
     subscribeRecurringLoading,
-    subscribeRecurring: (bundleId) => dispatch(subscribeRecurringBundle(bundleId)),
+    subscribeRecurring: (bundleId, currency) => dispatch(subscribeRecurringBundle({ bundleId, currency })),
 
     checkoutBundle,
     checkoutBundleLoading,

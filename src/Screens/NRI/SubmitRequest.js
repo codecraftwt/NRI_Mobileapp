@@ -22,7 +22,10 @@ import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
+import { formatAmount } from '../../Utils/currency';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -135,7 +138,7 @@ function SubmitRequest({ navigation }) {
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   // Available gateways come from the backend (already NRI + admin-toggle gated).
-  const { gateways } = usePaymentGateways();
+  const { currency, setCurrency, gateways } = useCurrencyGateways();
   // Populates the Property dropdown below — same source AddProperty.js writes
   // to, so a property added there shows up here without a manual refresh
   // (both read the same Redux slice).
@@ -192,6 +195,18 @@ function SubmitRequest({ navigation }) {
   // POST /customer/billing/ticket/{id}/pay call.
   const { pay: payForTicket, payLoading, verifyPayment, verifyLoading } = useBilling();
   const { createLoading: subscribeLoading, createSubscription } = useServiceSubscription();
+  // Live INR preview for a pure-recurring cart: POST /customer/service-subscriptions
+  // is pay-first (creates a draft Payment) — there's no separate quote-only
+  // endpoint for subscriptions like /customer/tickets/quote has for one-time
+  // items — so this reuses the same live-quote-via-the-real-endpoint pattern
+  // CustomPlanNew.js already uses: debounce a call, cache it by fingerprint,
+  // and reuse that exact payment at actual submit instead of creating a
+  // second one. Only fires when INR is selected — the USD total already
+  // displays correctly from the local cart-item math with no extra call.
+  const [recurringQuote, setRecurringQuote] = useState(null); // { fingerprint, ...createSubscription() result }
+  const [recurringQuoteLoading, setRecurringQuoteLoading] = useState(false);
+  const [recurringQuoteError, setRecurringQuoteError] = useState(null);
+  const lastFetchedRecurringFingerprintRef = useRef(null);
   // A recurring cart service that wasn't (fully) paid for by this checkout —
   // either because the checkout itself is pure-recurring (payment_required:
   // false, nothing to pay via a ticket) or because it rode alongside a
@@ -350,6 +365,55 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteKey]);
 
+  // Live INR preview for a pure-recurring cart (see recurringQuote state
+  // above) — identifies which exact inputs a fetched quote belongs to, so a
+  // stale one (fields edited after fetching) is never reused/charged against.
+  const recurringFingerprint = `${recurringItems.map(i => i.serviceId).join(',')}|${paymentMethod}|${currency}|${quoteStateId}|${quoteCityId}|${reqForm.pincode.trim()}`;
+  const fetchRecurringQuote = async (fingerprint) => {
+    setRecurringQuoteLoading(true);
+    setRecurringQuoteError(null);
+    try {
+      const result = await createSubscription({
+        serviceIds: recurringItems.map(i => i.serviceId),
+        gateway: paymentMethod,
+        currency,
+        stateId: quoteStateId,
+        cityId: quoteCityId,
+        pincode: reqForm.pincode.trim(),
+      }).unwrap();
+      lastFetchedRecurringFingerprintRef.current = fingerprint;
+      setRecurringQuote({ fingerprint, ...result });
+    } catch (error) {
+      setRecurringQuoteError(error?.message || "Couldn't calculate the ₹ amount for this subscription.");
+    } finally {
+      setRecurringQuoteLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (!isPureRecurring || currency !== 'INR' || recurringItems.length === 0 || !paymentMethod || !quoteStateId || !quoteCityId) return;
+    if (lastFetchedRecurringFingerprintRef.current === recurringFingerprint) return;
+    const timer = setTimeout(() => fetchRecurringQuote(recurringFingerprint), 900);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPureRecurring, currency, recurringFingerprint]);
+
+  // amount_inr is a single bundle total (no per-item/GST split from the
+  // backend) — derive a GST-inclusive base/GST split at the standard 18% rate
+  // (same convention as the USD estimate above), then divide the base across
+  // items proportional to their USD price so multi-service subscriptions
+  // still show a line each, summing back to the real converted total.
+  const recurringQuoteReady = currency === 'INR' && recurringQuote?.fingerprint === recurringFingerprint && recurringQuote?.amountInr != null;
+  const recurringAmountInr = recurringQuoteReady ? Number(recurringQuote.amountInr) : null;
+  const recurringBaseInr = recurringAmountInr != null ? Math.round((recurringAmountInr / (1 + GST_RATE)) * 100) / 100 : null;
+  const recurringGstInr = recurringAmountInr != null ? Math.round((recurringAmountInr - recurringBaseInr) * 100) / 100 : null;
+  const recurringItemAmountInr = (item) => {
+    if (recurringBaseInr == null || recurringSubtotal <= 0) return null;
+    const itemBaseUsd = Number(item.base != null ? item.base : item.price) || 0;
+    const usdBaseTotal = recurringItems.reduce((sum, i) => sum + (Number(i.base != null ? i.base : i.price) || 0), 0);
+    if (usdBaseTotal <= 0) return null;
+    return Math.round((recurringBaseInr * (itemBaseUsd / usdBaseTotal)) * 100) / 100;
+  };
+
   // The quote API returns the address-specific pre-GST service amount,
   // GST amount, and GST-inclusive total. Use it directly when available; fall
   // back to splitting the one-time cart items' GST-inclusive total while the
@@ -377,6 +441,14 @@ function SubmitRequest({ navigation }) {
   const estTotal = oneTimeItems.length === 0 ? 0 : (hasQuoteTotal
     ? Number(quote.totalAmount)
     : Math.max(0, Math.round((estAmount + estSurcharge - estDiscount + estGst) * 100) / 100));
+  // /customer/tickets/quote always returns gst_amount_inr/total_amount_inr
+  // alongside the USD figures (unlike the payment endpoints, this quote is
+  // read-only so there's no currency to request) — use them directly when
+  // INR is selected instead of the USD math above.
+  const estQuoteReadyInr = oneTimeItems.length > 0 && currency === 'INR' && quote?.totalAmountInr != null;
+  const estTotalInr = estQuoteReadyInr ? Number(quote.totalAmountInr) : null;
+  const estGstInr = estQuoteReadyInr && quote?.gstAmountInr != null ? Number(quote.gstAmountInr) : null;
+  const estAmountInr = estTotalInr != null && estGstInr != null ? Math.round((estTotalInr - estGstInr) * 100) / 100 : null;
   // A failed quote (e.g. a category's base service has no vendor coverage in
   // the selected city) must block Submit rather than fall back to a
   // locally-computed total, since /cart/checkout enforces the same rule
@@ -514,14 +586,20 @@ function SubmitRequest({ navigation }) {
         // Same contract as CreateTicket's subscribe: only service_ids/gateway/
         // state_id/city_id up front via POST /service-subscriptions — who this
         // is for, the address, and any required documents are collected after
-        // payment on FinishRequest (mode: 'subscription').
-        const result = await createSubscription({
-          serviceIds: recurringItems.map(i => i.serviceId),
-          gateway: paymentMethod,
-          stateId,
-          cityId,
-          pincode: reqForm.pincode.trim(),
-        }).unwrap();
+        // payment on FinishRequest (mode: 'subscription'). Reuse the live ₹
+        // preview quote (see recurringQuote above) if it matches exactly
+        // what's on screen right now — avoids creating a second draft
+        // payment for the same subscription.
+        const result = (recurringQuote && recurringQuote.fingerprint === recurringFingerprint)
+          ? recurringQuote
+          : await createSubscription({
+              serviceIds: recurringItems.map(i => i.serviceId),
+              gateway: paymentMethod,
+              currency,
+              stateId,
+              cityId,
+              pincode: reqForm.pincode.trim(),
+            }).unwrap();
 
         if (result.paymentId) {
           dispatch(setPendingSubscriptionFinalize({
@@ -531,6 +609,8 @@ function SubmitRequest({ navigation }) {
             serviceNames: recurringItems.map(i => i.name),
             stateId, cityId,
             stateName: reqForm.state, cityName: reqForm.city,
+            amount: currency === 'INR' && result.amountInr != null ? result.amountInr : result.amount,
+            currency: currency === 'INR' && result.amountInr != null ? 'INR' : result.currency,
             origin: 'cart',
           }));
         }
@@ -559,6 +639,7 @@ function SubmitRequest({ navigation }) {
 
       const result = await checkoutPayFirst({
         gateway: paymentMethod,
+        currency,
         couponCode: couponCode.trim() || undefined,
         stateId,
         cityId,
@@ -645,6 +726,7 @@ function SubmitRequest({ navigation }) {
 
       const result = await checkoutCart({
         gateway: paymentMethod,
+        currency,
         couponCode: couponCode.trim() || undefined,
         familyMemberName: reqForm.fullName.trim() || undefined,
         familyMemberRelationship: reqForm.relation.trim().toLowerCase() || undefined,
@@ -662,7 +744,7 @@ function SubmitRequest({ navigation }) {
         // recurring/PayPal restriction — confirmed live it does NOT start a
         // gateway session itself (no checkout_url/order on its response).
         // Pay the created ticket the same way the pre-cart flow always did.
-        const pay = await payForTicket('ticket', result.ticketId, paymentMethod).unwrap();
+        const pay = await payForTicket('ticket', result.ticketId, paymentMethod, false, currency).unwrap();
         if (pay.checkoutUrl) {
           // Stripe — open the hosted checkout page; confirmed in
           // handleCheckoutSuccess once it redirects back with a session_id.
@@ -902,12 +984,21 @@ function SubmitRequest({ navigation }) {
                     <Text style={styles.quoteErrorText}>{quoteErrorMessage}</Text>
                   </View>
                 )}
-                <SummaryRow label="Estimated amount" value={fmt(estAmount)} />
-                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-                <SummaryRow label="GST" sub="(18%)" value={fmt(estGst)} />
-                <View style={styles.divider} />
-                <SummaryRow label="Estimated Total" value={fmt(estTotal)} strong />
+                {currency === 'INR' && !estQuoteReadyInr ? (
+                  <SummaryRow
+                    label={quoteError || 'Calculating ₹ amount…'}
+                    value={quoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
+                  />
+                ) : (
+                  <>
+                    <SummaryRow label="Estimated amount" value={currency === 'INR' ? formatAmount(estAmountInr, 'INR') : fmt(estAmount)} />
+                    {currency !== 'INR' && estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                    {currency !== 'INR' && estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                    <SummaryRow label="GST" sub="(18%)" value={currency === 'INR' ? formatAmount(estGstInr, 'INR') : fmt(estGst)} />
+                    <View style={styles.divider} />
+                    <SummaryRow label="Estimated Total" value={currency === 'INR' ? formatAmount(estTotalInr, 'INR') : fmt(estTotal)} strong />
+                  </>
+                )}
                 <Text style={styles.disclaimer}>Final amount is set by the verified vendor covering your exact address.</Text>
               </>
             ) : (
@@ -921,11 +1012,28 @@ function SubmitRequest({ navigation }) {
                   <Icon name="autorenew" size={13} color="#B45309" />
                   <Text style={styles.recurringChipText}>Recurring Subscription ({recurringItems.length})</Text>
                 </View>
-                {recurringItems.map((it) => (
-                  <SummaryRow key={it.serviceId} label={it.name} value={fmt(it.base != null ? it.base : it.price)} />
-                ))}
-                <SummaryRow label="Subscription GST" value={fmt(recurringGstTotal)} />
-                <SummaryRow label={`Subscription Total (billed ${recurringInterval})`} value={fmt(recurringSubtotal)} strong />
+                {currency === 'INR' && !recurringQuoteReady ? (
+                  <SummaryRow
+                    label={recurringQuoteError || 'Calculating ₹ amount…'}
+                    value={recurringQuoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
+                  />
+                ) : (
+                  <>
+                    {recurringItems.map((it) => (
+                      <SummaryRow
+                        key={it.serviceId}
+                        label={it.name}
+                        value={currency === 'INR' ? formatAmount(recurringItemAmountInr(it), 'INR') : fmt(it.base != null ? it.base : it.price)}
+                      />
+                    ))}
+                    <SummaryRow label="Subscription GST" value={currency === 'INR' ? formatAmount(recurringGstInr, 'INR') : fmt(recurringGstTotal)} />
+                    <SummaryRow
+                      label={`Subscription Total (billed ${recurringInterval})`}
+                      value={currency === 'INR' ? formatAmount(recurringAmountInr, 'INR') : fmt(recurringSubtotal)}
+                      strong
+                    />
+                  </>
+                )}
               </>
             )}
           </View>
@@ -995,7 +1103,9 @@ function SubmitRequest({ navigation }) {
               <Icon name="expand-more" size={16} color="#D94625" />
             </TouchableOpacity>
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Payment Method</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
+            <CurrencyToggle value={currency} onChange={setCurrency} />
+            <Text style={styles.fieldLabel}>Payment Method</Text>
             {gateways.map(g => (
               <TouchableOpacity
                 key={g.value}
@@ -1015,10 +1125,23 @@ function SubmitRequest({ navigation }) {
             <View style={styles.divider} />
             {isPureRecurring ? (
               <>
-                {recurringItems.map((it) => (
-                  <SummaryRow key={it.serviceId} label={it.name} value={fmt(it.base != null ? it.base : it.price)} />
-                ))}
-                <SummaryRow label="Subscription GST" value={fmt(recurringGstTotal)} />
+                {currency === 'INR' && !recurringQuoteReady ? (
+                  <SummaryRow
+                    label={recurringQuoteError || 'Calculating ₹ amount…'}
+                    value={recurringQuoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
+                  />
+                ) : (
+                  <>
+                    {recurringItems.map((it) => (
+                      <SummaryRow
+                        key={it.serviceId}
+                        label={it.name}
+                        value={currency === 'INR' ? formatAmount(recurringItemAmountInr(it), 'INR') : fmt(it.base != null ? it.base : it.price)}
+                      />
+                    ))}
+                    <SummaryRow label="Subscription GST" value={currency === 'INR' ? formatAmount(recurringGstInr, 'INR') : fmt(recurringGstTotal)} />
+                  </>
+                )}
                 <Text style={styles.disclaimer}>Billed automatically each {recurringInterval} until you cancel.</Text>
               </>
             ) : oneTimeItems.length > 0 && (
@@ -1030,25 +1153,41 @@ function SubmitRequest({ navigation }) {
                   </View>
                 )}
                 <SummaryRow label="Services" value={String(oneTimeItems.length)} />
-                <SummaryRow label="Services total" value={fmt(estAmount)} />
-                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-                <SummaryRow label="Services GST" sub="(18%)" value={fmt(estGst)} />
+                {currency === 'INR' && !estQuoteReadyInr ? (
+                  <SummaryRow
+                    label={quoteError || 'Calculating ₹ amount…'}
+                    value={quoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
+                  />
+                ) : (
+                  <>
+                    <SummaryRow label="Services total" value={currency === 'INR' ? formatAmount(estAmountInr, 'INR') : fmt(estAmount)} />
+                    {currency !== 'INR' && estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                    {currency !== 'INR' && estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                    <SummaryRow label="Services GST" sub="(18%)" value={currency === 'INR' ? formatAmount(estGstInr, 'INR') : fmt(estGst)} />
+                  </>
+                )}
               </>
             )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
-              <Text style={styles.payValue}>{fmt(isPureRecurring ? recurringSubtotal : estTotal)}{isPureRecurring ? `/${recurringInterval}` : ''}</Text>
+              <Text style={styles.payValue}>
+                {currency === 'INR'
+                  ? (isPureRecurring
+                      ? (recurringQuoteReady ? formatAmount(recurringAmountInr, 'INR') : '…')
+                      : (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…'))
+                  : fmt(isPureRecurring ? recurringSubtotal : estTotal)}
+                {isPureRecurring ? `/${recurringInterval}` : ''}
+              </Text>
             </View>
 
             {loading ? (
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, !isPureRecurring && quoteBlocking && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handlePayFirst}
-                disabled={!isPureRecurring && quoteBlocking}
+                disabled={(!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)}
               >
                 <Text style={styles.submitBtnText}>Continue to Payment</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
@@ -1196,7 +1335,9 @@ function SubmitRequest({ navigation }) {
               <Icon name="expand-more" size={16} color="#D94625" />
             </TouchableOpacity>
 
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Payment Method</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
+            <CurrencyToggle value={currency} onChange={setCurrency} />
+            <Text style={styles.fieldLabel}>Payment Method</Text>
             {gateways.map(g => (
               <TouchableOpacity
                 key={g.value}
@@ -1225,10 +1366,19 @@ function SubmitRequest({ navigation }) {
                   </View>
                 )}
                 <SummaryRow label="Services" value={String(oneTimeItems.length)} />
-                <SummaryRow label="Services total" value={fmt(estAmount)} />
-                {estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-                {estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-                <SummaryRow label="Services GST" sub="(18%)" value={fmt(estGst)} />
+                {currency === 'INR' && !estQuoteReadyInr ? (
+                  <SummaryRow
+                    label={quoteError || 'Calculating ₹ amount…'}
+                    value={quoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
+                  />
+                ) : (
+                  <>
+                    <SummaryRow label="Services total" value={currency === 'INR' ? formatAmount(estAmountInr, 'INR') : fmt(estAmount)} />
+                    {currency !== 'INR' && estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
+                    {currency !== 'INR' && estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
+                    <SummaryRow label="Services GST" sub="(18%)" value={currency === 'INR' ? formatAmount(estGstInr, 'INR') : fmt(estGst)} />
+                  </>
+                )}
               </>
             ) : (
               <Text style={styles.disclaimer}>
@@ -1238,17 +1388,21 @@ function SubmitRequest({ navigation }) {
             )}
             <View style={styles.payBox}>
               <Text style={styles.payLabel}>You'll pay</Text>
-              <Text style={styles.payValue}>{fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)}</Text>
+              <Text style={styles.payValue}>
+                {currency === 'INR' && oneTimeItems.length > 0
+                  ? (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…')
+                  : fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)}
+              </Text>
             </View>
 
             {loading ? (
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, quoteBlocking && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handleSubmit}
-                disabled={quoteBlocking}
+                disabled={quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)}
               >
                 <Text style={styles.submitBtnText}>Submit Request</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />

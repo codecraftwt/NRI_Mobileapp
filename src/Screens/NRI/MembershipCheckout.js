@@ -11,7 +11,9 @@ import { useMembership } from '../../Hooks/useMembership';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
-import { usePaymentGateways, gatewayIcon } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
 import { lightColors as baseColors, typography, spacing, radius } from '../../theme';
 import { Dimensions } from 'react-native';
 
@@ -47,7 +49,7 @@ function MembershipCheckout({ navigation, route }) {
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [addonCouponCode, setAddonCouponCode] = useState('');
-  const { gateways } = usePaymentGateways();
+  const { currency, setCurrency, gateways } = useCurrencyGateways();
   const [gateway, setGateway] = useState('stripe');
   const [autoRenew, setAutoRenew] = useState(false);
   const [useWallet, setUseWallet] = useState(false);
@@ -161,6 +163,7 @@ function MembershipCheckout({ navigation, route }) {
       const result = await checkout({
         planId: selectedPlanId,
         gateway,
+        currency,
         addons: selectedAddonIds,
         couponCode: planCouponCode.trim() || undefined,
         addonCouponCode: addonCouponCode.trim() || undefined,
@@ -357,6 +360,8 @@ function MembershipCheckout({ navigation, route }) {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Payment Details</Text>
+
+          <CurrencyToggle value={currency} onChange={setCurrency} style={{ marginBottom: 10 }} />
 
           {gateways.map(g => (
             <TouchableOpacity key={g.value} style={[styles.gatewayRow, gateway === g.value && styles.planRowSelected]} onPress={() => setGateway(g.value)}>

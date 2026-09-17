@@ -41,7 +41,7 @@ export async function getCustomPlans({ page } = {}) {
 // CustomPlanNew.js) so every request goes through the fee-bearing branch,
 // while still sending state/city (needed for vendor availability regardless
 // of which service is attached).
-export async function createCustomPlan({ subject, message, serviceId, stateId, cityId, gateway }) {
+export async function createCustomPlan({ subject, message, serviceId, stateId, cityId, gateway, currency }) {
   try {
     const response = await apiClient.post('/customer/custom-plans', {
       subject,
@@ -50,6 +50,7 @@ export async function createCustomPlan({ subject, message, serviceId, stateId, c
       state_id: stateId || undefined,
       city_id: cityId || undefined,
       gateway: gateway || undefined,
+      currency: currency || undefined,
     });
     const data = response.data?.data || {};
     if (data.requires_payment) {

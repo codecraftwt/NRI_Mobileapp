@@ -43,6 +43,11 @@ function mapCartItem(raw) {
     price: Number(price) || 0,
     base: raw.base != null ? Number(raw.base) : null,
     gstAmount: raw.gst_amount != null ? Number(raw.gst_amount) : null,
+    // INR-converted counterparts of price/base/gstAmount above — present
+    // alongside them on GET /customer/cart, for display when INR is selected.
+    priceInr: raw.price_inr != null ? Number(raw.price_inr) : null,
+    baseInr: raw.base_inr != null ? Number(raw.base_inr) : null,
+    gstAmountInr: raw.gst_amount_inr != null ? Number(raw.gst_amount_inr) : null,
     // 'one_time' | 'recurring' | null (older cart rows before this field existed).
     billingMode: raw.billing_mode ?? null,
     // 'city' → price/base/gstAmount above are the real, final charge (priced
@@ -228,12 +233,13 @@ export async function validateCartCoupon({ code, cityId } = {}) {
 // 422'd with "family member name/relationship/pincode field is required").
 // Same shape as membershipApi.checkoutMembership's combined-cart checkout.
 export async function checkoutCart({
-  gateway, couponCode, familyMemberName, familyMemberRelationship, stateId,
+  gateway, currency, couponCode, familyMemberName, familyMemberRelationship, stateId,
   cityId, talukaId, address, pincode, urgency, preferredDate, customerNotes, documents,
 }) {
   try {
     const fields = {
       gateway,
+      currency: currency || undefined,
       coupon_code: couponCode || undefined,
       family_member_name: familyMemberName || undefined,
       family_member_relationship: familyMemberRelationship || undefined,
@@ -295,10 +301,11 @@ export async function checkoutCart({
 // created server-side until the returned payment_id is confirmed via
 // ticketApi.finalizeTicket(). Same reduced body / response shape as the
 // single-service POST /customer/tickets pay-first call.
-export async function payFirstCartCheckout({ gateway, couponCode, stateId, cityId, pincode, urgency }) {
+export async function payFirstCartCheckout({ gateway, currency, couponCode, stateId, cityId, pincode, urgency }) {
   try {
     const response = await apiClient.post('/customer/cart/checkout', {
       gateway,
+      currency: currency || undefined,
       coupon_code: couponCode || undefined,
       state_id: stateId,
       city_id: cityId || undefined,

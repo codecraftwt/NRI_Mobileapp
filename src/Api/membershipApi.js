@@ -131,7 +131,7 @@ export async function validateMembershipCoupon({ code }) {
 // upload) branch, where it forced combined_cart=0 on every request regardless
 // of intent.
 export async function checkoutMembership({
-  gateway, couponCode, autoRenew, useWallet,
+  gateway, currency, couponCode, autoRenew, useWallet,
   acceptTerms, signerName, signatureData,
   customQuoteServiceId, customQuoteSubject, customQuoteMessage,
   familyMemberName, familyMemberRelationship,
@@ -141,6 +141,7 @@ export async function checkoutMembership({
   try {
     const payload = {
       gateway,
+      currency: currency || undefined,
       coupon_code: couponCode || undefined,
       auto_renew: !!autoRenew ? 1 : 0,
       use_wallet: !!useWallet ? 1 : 0,
@@ -194,6 +195,7 @@ export async function checkoutMembership({
       status: data.status,
       gateway: data.gateway,
       amount: data.amount,
+      currency: data.currency,
       // gateway is 'stripe' | 'paypal' | 'razorpay'. Stripe/PayPal return a
       // `checkout_url` (hosted page, opened via openStripeCheckout). Razorpay
       // has no hosted page — it returns `order` ({ order_id, key, amount,

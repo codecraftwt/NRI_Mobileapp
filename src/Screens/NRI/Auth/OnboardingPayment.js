@@ -7,13 +7,16 @@ import StripeCheckoutModal from '../../../Components/StripeCheckoutModal';
 import TermsPrivacyModal from '../../../Components/TermsPrivacyModal';
 import SignaturePad from '../../../Components/SignaturePad';
 import { runRazorpayPayment } from '../../../Utils/paymentGateway';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../../Components/CurrencyToggle';
+import { formatAmount } from '../../../Utils/currency';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
 import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
-import { clearCart, selectCartItems } from '../../../Redux/slices/cartSlice';
+import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
 import { setPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { getServices } from '../../../Api/catalogApi';
@@ -62,6 +65,23 @@ function convertPlanAmountToUsd(amount, plan) {
 
   if (!sourceAmount) return 0;
   if (usdPrice && basePrice) return (sourceAmount / basePrice) * usdPrice;
+  return sourceAmount;
+}
+
+// Cart items here come from the LOCAL guest cart (added pre-registration via
+// ServiceInfo → catalog data, which is USD-only — see catalogApi.js) — they
+// never go through GET /customer/cart (that thunk is gated behind
+// isAuthenticated and never runs during onboarding), so a cart line's
+// priceInr/baseInr/gstAmountInr are never actually populated here. Estimate
+// an INR figure using the same USD:INR ratio the plan's own price/usd_price
+// already gives us, as a fallback when the real converted value isn't there.
+function convertUsdAmountToInr(amount, plan) {
+  const usdPrice = toAmount(plan?.usdPrice);
+  const basePrice = toAmount(plan?.price);
+  const sourceAmount = toAmount(amount);
+
+  if (!sourceAmount) return 0;
+  if (usdPrice && basePrice) return (sourceAmount / usdPrice) * basePrice;
   return sourceAmount;
 }
 
@@ -209,6 +229,26 @@ function OnboardingPayment({ route, navigation }) {
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   const fromCart = cartItems.length > 0;
 
+  // The user is already authenticated by this point (registerUser.fulfilled
+  // sets isAuthenticated immediately after signup, before this payment step),
+  // but the services picked pre-signup only ever lived in the local guest
+  // cart — GET /customer/cart was never called for them, so real per-line
+  // fields (base/gst_amount and their _inr counterparts) were never fetched.
+  // Push them to the server cart once and adopt the authoritative priced
+  // response, same one-time sync every other screen gets via useCart().
+  const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  const serverCartCount = useSelector(s => s.cart.serverCount);
+  const guestMergeStatus = useSelector(s => s.cart.guestMergeStatus);
+  useEffect(() => {
+    console.log('[DEBUG mergeGuestCart guard]', { isAuthenticated, fromCart, serverCartCount, guestMergeStatus });
+    if (!isAuthenticated || !fromCart || serverCartCount > 0 || guestMergeStatus !== 'idle') return;
+    console.log('[DEBUG mergeGuestCart] dispatching');
+    dispatch(mergeGuestCart())
+      .unwrap()
+      .then((r) => console.log('[DEBUG mergeGuestCart] success', JSON.stringify(r)))
+      .catch((e) => console.log('[DEBUG mergeGuestCart] failed', JSON.stringify(e)));
+  }, [isAuthenticated, fromCart, serverCartCount, guestMergeStatus, dispatch]);
+
   // A recurring cart service can't ride this membership checkout session (a
   // checkout session only ever produces one subscription, and the membership
   // itself is already that one) — the backend silently excludes it from the
@@ -226,7 +266,7 @@ function OnboardingPayment({ route, navigation }) {
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
-  const { gateways: allGateways } = usePaymentGateways();
+  const { currency, setCurrency, gateways: allGateways } = useCurrencyGateways();
   // PayPal never combines a pending custom-quote fee into this checkout
   // (same rule as it never combining a cart) — drop it from the picker
   // whenever a customQuote is bundled in.
@@ -316,11 +356,18 @@ function OnboardingPayment({ route, navigation }) {
   };
 
   // The plan's `price` is INR; `usd_price` is the USD amount we actually
-  // charge/display (falls back to price if usd_price isn't set on a plan).
-  const basePrice = toAmount(plan?.usdPrice) || toAmount(plan?.price) || 0;
-  // Coupon discount comes back in the plan's base (INR) currency — convert it
-  // to USD so it lines up with the USD base price.
-  const planDiscount = convertPlanAmountToUsd(couponResult?.discount, plan);
+  // charge/display in USD mode (falls back to price if usd_price isn't set).
+  // When INR is selected, use the plan's real INR price directly — no
+  // conversion needed, it's already the native currency.
+  const basePrice = currency === 'INR'
+    ? (toAmount(plan?.price) || 0)
+    : (toAmount(plan?.usdPrice) || toAmount(plan?.price) || 0);
+  // Coupon discount comes back in the plan's base (INR) currency — use it
+  // directly in INR mode; convert to USD so it lines up with the USD base
+  // price otherwise.
+  const planDiscount = currency === 'INR'
+    ? toAmount(couponResult?.discount)
+    : convertPlanAmountToUsd(couponResult?.discount, plan);
   const taxableAmount = Math.max(0, basePrice - planDiscount);
   const gstAmount = Math.round(taxableAmount * GST_RATE * 100) / 100;
   const membershipPayable = taxableAmount + gstAmount;
@@ -333,6 +380,26 @@ function OnboardingPayment({ route, navigation }) {
   const servicesBase = servicesSubtotal + prioritySurcharge;
   const servicesGst = 0; // Math.round(servicesBase * GST_RATE * 100) / 100;
   const servicesPayable = servicesBase + servicesGst;
+  // INR counterpart — GET /customer/cart returns price_inr alongside price
+  // per line (price_inr = base_inr + gst_amount_inr, same GST-inclusive
+  // convention as price above) for an AUTHENTICATED cart. This screen's cart
+  // is the local guest one though (see convertUsdAmountToInr above), so
+  // priceInr is almost never actually set here — fall back to the estimated
+  // conversion so services show a real ₹ figure instead of 0.
+  // prioritySurcharge has no INR figure from any endpoint yet, so it's left
+  // out here the same way it's omitted elsewhere on this screen in INR mode.
+  // price_inr = base_inr + gst_amount_inr — prefer the real per-line fields;
+  // fall back to converting price/base/gstAmount via the plan's own ratio
+  // (see convertUsdAmountToInr) for the guest-cart case where they're absent.
+  // Per-service rows show base_inr (pre-GST); Services GST sums
+  // gst_amount_inr; Services Total sums price_inr.
+  const itemPriceInr = (it) => (it.priceInr != null ? Number(it.priceInr) : convertUsdAmountToInr(it.price, plan));
+  const itemBaseInr = (it) => (it.baseInr != null ? Number(it.baseInr) : convertUsdAmountToInr(it.base, plan));
+  const itemGstInr = (it) => (it.gstAmountInr != null ? Number(it.gstAmountInr) : convertUsdAmountToInr(it.gstAmount, plan));
+  const servicesSubtotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
+  const servicesGstTotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
+  const servicesPayableInr = servicesSubtotalInr;
+  const servicesPayableDisplay = currency === 'INR' ? servicesPayableInr : servicesPayable;
   // A pending custom-plan request fee (see customQuote above) rides along
   // with this same membership checkout, one combined charge — mirrors how a
   // cart's one-time services are bundled in. Summed directly into the USD
@@ -342,7 +409,7 @@ function OnboardingPayment({ route, navigation }) {
   // for display, the backend computes the real combined charge itself.
   const customQuoteFee = toAmount(customQuote?.fee?.amount);
   const customQuoteCurrency = customQuote?.fee?.currency || 'USD';
-  const amountPayable = membershipPayable + (fromCart ? servicesPayable : 0) + customQuoteFee;
+  const amountPayable = membershipPayable + (fromCart ? servicesPayableDisplay : 0) + customQuoteFee;
 
   const handleApplyPlanCoupon = () => {
     if (!planCouponCode.trim()) return;
@@ -527,6 +594,7 @@ function OnboardingPayment({ route, navigation }) {
 
       const result = await checkout({
         gateway: paymentMethod,
+        currency,
         couponCode: planCouponCode.trim() || undefined,
         autoRenew: true,
         useWallet: false,
@@ -730,24 +798,24 @@ function OnboardingPayment({ route, navigation }) {
               </View>
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Base membership rate</Text>
-                <Text style={styles.rowValue}>{formatUsd(basePrice)}</Text>
+                <Text style={styles.rowValue}>{formatAmount(basePrice, currency)}</Text>
               </View>
               {planDiscount > 0 && (
                 <View style={styles.row}>
                   <Text style={[styles.rowLabel, { color: '#10B981' }]}>Coupon Discount</Text>
-                  <Text style={[styles.rowValue, { color: '#10B981' }]}>-{formatUsd(planDiscount)}</Text>
+                  <Text style={[styles.rowValue, { color: '#10B981' }]}>-{formatAmount(planDiscount, currency)}</Text>
                 </View>
               )}
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>{fromCart || customQuote ? 'Membership GST (18%)' : 'GST (18%)'}</Text>
-                <Text style={styles.rowValue}>{formatUsd(gstAmount)}</Text>
+                <Text style={styles.rowValue}>{formatAmount(gstAmount, currency)}</Text>
               </View>
 
               {(fromCart || !!customQuote) && (
                 <>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Membership Total</Text>
-                    <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(membershipPayable)}</Text>
+                    <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(membershipPayable, currency)}</Text>
                   </View>
 
                   {oneTimeCartItems.length > 0 && (
@@ -760,22 +828,24 @@ function OnboardingPayment({ route, navigation }) {
                       {oneTimeCartItems.map((it) => (
                         <View key={it.serviceId} style={styles.row}>
                           <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{formatUsd(it.price)}</Text>
+                          <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.price)}</Text>
                         </View>
                       ))}
-                      {prioritySurcharge > 0 && (
+                      {currency !== 'INR' && prioritySurcharge > 0 && (
                         <View style={styles.row}>
                           <Text style={styles.rowLabel}>Priority ({selectedPriority?.name})</Text>
                           <Text style={styles.rowValue}>+{formatUsd(prioritySurcharge)}</Text>
                         </View>
                       )}
                       <View style={styles.row}>
-                        <Text style={styles.rowLabel}>Services GST {servicesGst > 0 ? "(18%)" : "(Included in Membership)"}</Text>
-                        <Text style={styles.rowValue}>{formatUsd(servicesGst)}</Text>
+                        <Text style={styles.rowLabel}>
+                          Services GST {(currency === 'INR' ? servicesGstTotalInr > 0 : servicesGst > 0) ? "(18%)" : "(Included in Membership)"}
+                        </Text>
+                        <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(servicesGstTotalInr, 'INR') : formatAmount(0, currency)}</Text>
                       </View>
                       <View style={styles.row}>
                         <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
-                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatUsd(servicesPayable)}</Text>
+                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(servicesPayableDisplay, currency)}</Text>
                       </View>
                     </>
                   )}
@@ -790,7 +860,7 @@ function OnboardingPayment({ route, navigation }) {
                       {recurringCartItems.map((it) => (
                         <View key={it.serviceId} style={styles.row}>
                           <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{formatUsd(it.price)}{it.billingInterval ? '/mo' : ''}</Text>
+                          <Text style={styles.rowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.price))}{it.billingInterval ? '/mo' : ''}</Text>
                         </View>
                       ))}
                       <TouchableOpacity
@@ -837,7 +907,7 @@ function OnboardingPayment({ route, navigation }) {
               <View style={styles.divider} />
               <View style={styles.row}>
                 <Text style={styles.amountPayableLabel}>Amount Payable</Text>
-                <Text style={styles.amountPayableValue}>{formatUsd(amountPayable)}</Text>
+                <Text style={styles.amountPayableValue}>{formatAmount(amountPayable, currency)}</Text>
               </View>
               {fromCart && oneTimeCartItems.length > 0 && (
                 <Text style={styles.combinedNote}>
@@ -876,6 +946,8 @@ function OnboardingPayment({ route, navigation }) {
                 <Text style={styles.cardHeaderText}>Payment Details</Text>
               </View>
               <Text style={styles.gatewayIntro}>Choose how you'd like to pay:</Text>
+
+              <CurrencyToggle value={currency} onChange={setCurrency} style={{ marginBottom: 10 }} />
 
               {gateways.map(g => (
                 <TouchableOpacity

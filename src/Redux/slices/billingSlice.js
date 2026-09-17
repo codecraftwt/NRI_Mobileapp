@@ -12,9 +12,9 @@ export const fetchBillingOverview = createAsyncThunk('billing/fetchOverview', as
 
 export const payBillableItem = createAsyncThunk(
   'billing/pay',
-  async ({ payableType, id, gateway, useWallet }, { rejectWithValue }) => {
+  async ({ payableType, id, gateway, useWallet, currency }, { rejectWithValue }) => {
     try {
-      return await billingApi.payBillableItem(payableType, id, { gateway, useWallet });
+      return await billingApi.payBillableItem(payableType, id, { gateway, useWallet, currency });
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -60,9 +60,9 @@ export const cancelAllSubscriptions = createAsyncThunk(
 
 export const subscribeRecurringBundle = createAsyncThunk(
   'billing/subscribeRecurringBundle',
-  async (bundleId, { rejectWithValue }) => {
+  async ({ bundleId, currency } = {}, { rejectWithValue }) => {
     try {
-      return await billingApi.subscribeRecurringBundle(bundleId);
+      return await billingApi.subscribeRecurringBundle(bundleId, { currency });
     } catch (error) {
       return rejectWithValue(error);
     }

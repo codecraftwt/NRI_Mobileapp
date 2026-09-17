@@ -6,7 +6,9 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { useBilling } from '../../Hooks/useBilling';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { typography } from '../../theme/typography';
 
@@ -27,7 +29,7 @@ function CustomPlanPayment({ route, navigation }) {
   // screen used to hardcode Stripe, so a customer whose account/region had
   // Stripe disabled server-side hit a dead-end "Stripe payments are currently
   // unavailable" error with no way to pick a different gateway.
-  const { gateways } = usePaymentGateways();
+  const { currency, setCurrency, gateways } = useCurrencyGateways();
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   useEffect(() => {
     if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
@@ -68,7 +70,7 @@ function CustomPlanPayment({ route, navigation }) {
     }
     setPaying(true);
     try {
-      const result = await payBill('ticket', jobId, paymentMethod, false).unwrap();
+      const result = await payBill('ticket', jobId, paymentMethod, false, currency).unwrap();
       if (result.checkoutUrl) {
         // Stripe / PayPal — hosted checkout page.
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
@@ -149,6 +151,8 @@ function CustomPlanPayment({ route, navigation }) {
             <Icon name="credit-card" size={18} color="#4F46E5" />
             <Text style={styles.cardTitle}>Choose Payment Method</Text>
           </View>
+
+          <CurrencyToggle value={currency} onChange={setCurrency} />
 
           {gateways.map(g => {
             const active = paymentMethod === g.value;

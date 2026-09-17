@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import StripeCheckoutModal from './StripeCheckoutModal';
 import { runRazorpayPayment } from '../Utils/paymentGateway';
 import { useBilling } from '../Hooks/useBilling';
+import CurrencyToggle from './CurrencyToggle';
 import { lightColors as colors, typography, radius, spacing } from '../theme';
 
 function formatBundleAmount(bundle) {
@@ -24,12 +25,13 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState(null);
+  const [currency, setCurrency] = useState('USD');
 
   const handleCompletePayment = async () => {
     if (!bundle?.bundleId) return;
     setError(null);
     try {
-      const result = await subscribeRecurring(bundle.bundleId).unwrap();
+      const result = await subscribeRecurring(bundle.bundleId, currency).unwrap();
       if (result.checkoutUrl) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else if (result.order) {
@@ -91,6 +93,7 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
               <Text style={styles.amountValue}>{formatBundleAmount(bundle)}</Text>
             </View>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
+            {!busy && <CurrencyToggle value={currency} onChange={setCurrency} style={{ alignSelf: 'stretch', marginTop: spacing.md }} />}
             {busy ? (
               <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
             ) : (

@@ -6,7 +6,9 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { useBilling } from '../../Hooks/useBilling';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { typography } from '../../theme/typography';
 
@@ -37,7 +39,7 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
 
   const user = useSelector(s => s.user.user);
   const { pay: payBill, verifyPayment: verifyBillPayment } = useBilling();
-  const { gateways, loading: gatewaysLoading } = usePaymentGateways();
+  const { currency, setCurrency, gateways, loading: gatewaysLoading } = useCurrencyGateways();
   const { showAlert, alertProps } = useAppAlert();
 
   const amountPreGst = Math.max(0, Number(additionalAmount || 0) - Number(gstAmount || 0));
@@ -63,7 +65,7 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
     if (!ticketId || !selectedGateway) return;
     setPaying(true);
     try {
-      const result = await payBill('ticket', ticketId, selectedGateway, false).unwrap();
+      const result = await payBill('ticket', ticketId, selectedGateway, false, currency).unwrap();
       if (result.checkoutUrl) {
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
       } else if (result.order) {
@@ -144,6 +146,8 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
             <Icon name="credit-card" size={18} color="#4F46E5" />
             <Text style={styles.cardTitle}>Choose Payment Method</Text>
           </View>
+
+          <CurrencyToggle value={currency} onChange={setCurrency} />
 
           {gatewaysLoading ? (
             <ActivityIndicator size="small" color="#4F46E5" style={{ marginVertical: 8 }} />

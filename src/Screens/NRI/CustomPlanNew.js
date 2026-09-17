@@ -9,7 +9,9 @@ import { useCustomPlans } from '../../Hooks/useCustomPlans';
 import { useBilling } from '../../Hooks/useBilling';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { getServices } from '../../Api/catalogApi';
 import { typography } from '../../theme/typography';
@@ -114,7 +116,7 @@ function SelectField({ label, value, placeholder, options, disabled, loading, on
 function CustomPlanNew({ navigation }) {
   const { create, createLoading, resetCreate } = useCustomPlans();
   const { verifyPayment: verifyBillingPayment } = useBilling();
-  const { gateways, loading: gatewaysLoading } = usePaymentGateways();
+  const { currency, setCurrency, gateways, loading: gatewaysLoading } = useCurrencyGateways();
   const user = useSelector(s => s.user.user);
   const { showAlert, alertProps } = useAppAlert();
   const [subject, setSubject] = useState('');
@@ -179,7 +181,7 @@ function CustomPlanNew({ navigation }) {
 
   // Identifies which exact field values a fetched quote/draft belongs to —
   // so a stale quote (fields edited after fetching) is never charged against.
-  const fieldsFingerprint = `${subject.trim()}|${message.trim()}|${stateId || ''}|${cityId || ''}|${paymentMethod}`;
+  const fieldsFingerprint = `${subject.trim()}|${message.trim()}|${stateId || ''}|${cityId || ''}|${paymentMethod}|${currency}`;
 
   const fetchQuote = async (fingerprint) => {
     setQuoteLoading(true);
@@ -192,6 +194,7 @@ function CustomPlanNew({ navigation }) {
         stateId,
         cityId,
         gateway: paymentMethod,
+        currency,
       }).unwrap();
       lastFetchedFingerprintRef.current = fingerprint;
       setQuote({ fingerprint, ...result });
@@ -270,6 +273,7 @@ function CustomPlanNew({ navigation }) {
             stateId,
             cityId,
             gateway: paymentMethod,
+            currency,
           }).unwrap();
 
       if (result.ticket) {
@@ -383,6 +387,8 @@ function CustomPlanNew({ navigation }) {
           )}
 
           <View style={styles.fieldWrap}>
+            <Text style={styles.label}>Currency</Text>
+            <CurrencyToggle value={currency} onChange={setCurrency} />
             <Text style={styles.label}>Payment Method</Text>
             <Text style={styles.paymentNote}>
               You'll pay{' '}

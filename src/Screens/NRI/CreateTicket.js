@@ -33,7 +33,9 @@ import { useMembership } from '../../Hooks/useMembership';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
-import { usePaymentGateways, gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
 
 const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
@@ -166,7 +168,7 @@ function CreateTicket({ route, navigation }) {
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   const dispatch = useDispatch();
-  const { gateways } = usePaymentGateways();
+  const { currency, setCurrency, gateways } = useCurrencyGateways();
   // Keep the selected gateway valid against the backend's available list.
   useEffect(() => {
     if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
@@ -484,6 +486,7 @@ function CreateTicket({ route, navigation }) {
       const result = await createSubscription({
         serviceIds: selectedSubscriptionIds,
         gateway,
+        currency,
         stateId,
         cityId,
         pincode: pincode.trim(),
@@ -499,6 +502,8 @@ function CreateTicket({ route, navigation }) {
           cityId,
           stateName: state,
           cityName: city,
+          amount: result.amount,
+          currency: result.currency,
         }));
       }
 
@@ -546,6 +551,7 @@ function CreateTicket({ route, navigation }) {
         pincode: pincode.trim(),
         urgency: prioritySlug || 'standard',
         gateway: paymentMethod,
+        currency,
       }).unwrap();
 
       if (result.paymentId) {
@@ -963,6 +969,8 @@ function CreateTicket({ route, navigation }) {
 
           {(isRecurring ? selectedSubscriptionIds.length > 0 : selectedBaseServiceIds.length > 0) && (
             <>
+              <Text style={styles.paymentMethodLabel}>Currency</Text>
+              <CurrencyToggle value={currency} onChange={setCurrency} />
               <Text style={styles.paymentMethodLabel}>Payment Method</Text>
               <View style={styles.paymentMethodRow}>
                 {gateways.map(g => {

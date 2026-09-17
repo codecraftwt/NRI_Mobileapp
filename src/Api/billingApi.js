@@ -50,11 +50,12 @@ export async function getBillingOverview() {
 }
 
 // payableType: 'ticket' | 'membership'
-export async function payBillableItem(payableType, id, { gateway, useWallet }) {
+export async function payBillableItem(payableType, id, { gateway, useWallet, currency }) {
   try {
     const response = await apiClient.post(`/customer/billing/${payableType}/${id}/pay`, {
       gateway,
       use_wallet: !!useWallet,
+      currency: currency || undefined,
     });
     const data = response.data?.data || {};
     return {
@@ -62,6 +63,7 @@ export async function payBillableItem(payableType, id, { gateway, useWallet }) {
       status: data.status,
       gateway: data.gateway,
       amount: data.amount,
+      currency: data.currency,
       order: data.order || null,
       checkoutUrl: data.checkout_url || null,
       message: response.data?.message,
@@ -124,9 +126,11 @@ export async function cancelAllSubscriptions() {
 // reads `message` off the top level, so both shapes work unchanged here —
 // callers should still branch on `error.status` (409 = already active,
 // treat as success) rather than on `success` being present.
-export async function subscribeRecurringBundle(bundleId) {
+export async function subscribeRecurringBundle(bundleId, { currency } = {}) {
   try {
-    const response = await apiClient.post(`/customer/billing/checkout-bundles/${bundleId}/subscribe-recurring`);
+    const response = await apiClient.post(`/customer/billing/checkout-bundles/${bundleId}/subscribe-recurring`, {
+      currency: currency || undefined,
+    });
     const data = response.data?.data || {};
     return {
       paymentId: data.payment_id,
