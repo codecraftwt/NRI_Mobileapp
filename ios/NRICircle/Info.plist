@@ -34,7 +34,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>The app uses the camera so you can take a new photo to set as your profile picture, or capture photos of your property to attach to a property listing.</string>
+	<string>The app captures photos to let you update your profile picture and add property images.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>The app accesses your photo library to let you select a profile picture and upload property images.</string>
 	<key>RCTNewArchEnabled</key>
