@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError } from './client';
+import apiClient, { normalizeApiError, postMultipart } from './client';
 
 // The "Raise Ticket to" options. The list endpoint only surfaces categories
 // that already exist on the customer's tickets (the index query hardcodes/
@@ -98,6 +98,32 @@ function isCustomerSender(raw) {
   return false;
 }
 
+function mapDocumentRequestFile(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'string') return { url: raw, name: raw.split('/').pop() };
+  return {
+    url: raw.url || raw.file_url || raw.path || null,
+    name: raw.name || raw.file_name || raw.filename || null,
+  };
+}
+
+// A document request rides on a reply (the ask, an upload, a reopen — each is
+// its own reply, all carrying the same live document_request state). Only
+// render the full card on the reply where isLatest is true; every other one
+// with a documentRequest should render as plain text — see JobSupportChat.js
+// / SupportTicketChat.js.
+function mapDocumentRequest(raw) {
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    label: raw.label,
+    note: raw.note || null,
+    status: raw.status,
+    files: (raw.files || []).map(mapDocumentRequestFile).filter(Boolean),
+    isLatest: !!raw.is_latest,
+  };
+}
+
 export function mapSupportReply(raw) {
   return {
     id: raw.id,
@@ -120,6 +146,9 @@ export function mapSupportReply(raw) {
     // reply where they scheduled the call. Null on every other reply.
     meetLink: raw.meet_link ?? null,
     meetScheduledAt: raw.meet_scheduled_at ?? null,
+    // Document request — a vendor asking the job's customer to upload a file,
+    // right in this same chat thread. See mapDocumentRequest above.
+    documentRequest: mapDocumentRequest(raw.document_request),
   };
 }
 
@@ -220,6 +249,29 @@ export async function acceptCustomPlan(ticketId, replyId) {
     const response = await apiClient.post(`/customer/support-tickets/${ticketId}/replies/${replyId}/accept-plan`);
     const data = response.data?.data || {};
     return { ...data, message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /customer/tickets/document-requests/{documentRequest}/fulfill — upload
+// 1-5 files (pdf/jpg/jpeg/png, 5MB each) against a pending document request a
+// vendor raised in the job chat. Flips it to fulfilled and posts a new
+// "Uploaded N files for: {label}" message in the thread. 422s if it's already
+// fulfilled — the vendor has to reopen it first.
+// Uses postMultipart (react-native-blob-util) rather than axios/FormData —
+// axios's multipart body stalls against this backend until the request times
+// out, surfacing as a "Network error" (same issue fixed for other uploads).
+export async function fulfillDocumentRequest(documentRequestId, files) {
+  try {
+    const uploadFiles = (files || []).map(f => ({ field: 'files[]', uri: f.uri, name: f.name, type: f.type }));
+    const response = await postMultipart(`/customer/tickets/document-requests/${documentRequestId}/fulfill`, {}, uploadFiles);
+    const data = response.data?.data || {};
+    const rawReply = data.reply || data.message || null;
+    return {
+      reply: rawReply ? { ...mapSupportReply(rawReply), fromCustomer: true } : null,
+      message: response.data?.message,
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }

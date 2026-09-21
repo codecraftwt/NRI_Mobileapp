@@ -3,13 +3,23 @@ import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Activi
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { pick, types as pickerTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useSupportTicketDetail } from '../../Hooks/useSupportTicketDetail';
 import { useCustomPlanDetail } from '../../Hooks/useCustomPlanDetail';
+import { useTicketSupportChat } from '../../Hooks/useTicketSupportChat';
 import { useBilling } from '../../Hooks/useBilling';
+import { fulfillDocumentRequest } from '../../Api/supportTicketApi';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+
+// Document-request upload caps (matches the backend's fulfill validation:
+// 1-5 files, pdf/jpg/jpeg/png, 5MB each).
+const MAX_DOC_FILES = 5;
+const MAX_DOC_SIZE_BYTES = 5 * 1024 * 1024;
 
 function getStatusPill(statusLabel) {
   switch ((statusLabel || '').toLowerCase()) {
@@ -18,6 +28,12 @@ function getStatusPill(statusLabel) {
     case 'escalated': return { bg: '#FEE2E2', text: '#DC2626' };
     default: return { bg: '#DBEAFE', text: '#1D4ED8' };
   }
+}
+
+function getDocStatusPill(status) {
+  return String(status).toLowerCase() === 'fulfilled'
+    ? { bg: '#D1FAE5', text: '#059669', label: 'Fulfilled' }
+    : { bg: '#FFEDD5', text: '#C2410C', label: 'Pending' };
 }
 
 function formatTime(dateStr) {
@@ -56,14 +72,20 @@ function SupportTicketChat({ route, navigation }) {
   // Custom Plan tickets now live under their own /customer/custom-plans
   // resource (POST /customer/support-tickets stopped accepting
   // category: "custom_plan") — this screen is otherwise identical for both,
-  // so it just switches which detail hook feeds it based on `kind`. Both
-  // hooks are called unconditionally (rules of hooks); the inactive one is
-  // given a null id so it never fetches.
-  const kind = route.params?.kind === 'custom_plan' ? 'custom_plan' : 'support';
+  // so it just switches which detail hook feeds it based on `kind`. 'job' is
+  // a request-linked chat (GET/POST /customer/tickets/{ticket}/support-chat)
+  // — the same thread the assigned vendor uses to ask for documents; it's a
+  // different backend resource from the generic helpdesk Support Ticket flow
+  // and is the only one that carries document-request data. All three hooks
+  // are called unconditionally (rules of hooks); the inactive ones are given
+  // a null id so they never fetch.
+  const kind = route.params?.kind === 'custom_plan' ? 'custom_plan' : route.params?.kind === 'job' ? 'job' : 'support';
   const isCustomPlan = kind === 'custom_plan';
-  const supportBundle = useSupportTicketDetail(isCustomPlan ? null : ticketId);
+  const isJob = kind === 'job';
+  const supportBundle = useSupportTicketDetail((isCustomPlan || isJob) ? null : ticketId);
   const customPlanBundle = useCustomPlanDetail(isCustomPlan ? ticketId : null);
-  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = isCustomPlan ? customPlanBundle : supportBundle;
+  const jobBundle = useTicketSupportChat(isJob ? ticketId : null);
+  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = isJob ? jobBundle : (isCustomPlan ? customPlanBundle : supportBundle);
   const { overview: billing, retry: refreshBilling } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
   const [replyText, setReplyText] = useState('');
@@ -74,6 +96,11 @@ function SupportTicketChat({ route, navigation }) {
   // reply id on success so we hide "Pay Now" immediately, without depending on
   // the refetched converted_ticket carrying a paid flag.
   const [paidReplyIds, setPaidReplyIds] = useState(() => new Set());
+  const { openAttachment, preview } = useAttachmentViewer();
+  // Files picked (not yet uploaded) per pending document request id, and
+  // which request is mid-upload so only its button spins.
+  const [pendingDocFiles, setPendingDocFiles] = useState({});
+  const [uploadingDocId, setUploadingDocId] = useState(null);
   const user = useSelector(s => s.user.user);
   const scrollRef = useRef(null);
   // Keep the latest `retry` in a ref so the focus-effect poll always calls the
@@ -212,6 +239,50 @@ function SupportTicketChat({ route, navigation }) {
     );
   };
 
+  // Picks 1-5 files (pdf/jpg/jpeg/png, 5MB each) for a pending document
+  // request. Replaces any previously picked selection for that request.
+  const handlePickDocFiles = async (documentRequestId) => {
+    try {
+      const results = await pick({
+        type: [pickerTypes.images, pickerTypes.pdf],
+        allowMultiSelection: true,
+      });
+      const tooMany = results.length > MAX_DOC_FILES;
+      const candidates = results.slice(0, MAX_DOC_FILES);
+      const oversized = candidates.filter(f => f.size && f.size > MAX_DOC_SIZE_BYTES);
+      const accepted = (await resolveLocalCopies(
+        candidates.filter(f => !f.size || f.size <= MAX_DOC_SIZE_BYTES),
+      )).map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size }));
+      if (oversized.length > 0) {
+        showAlert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 5 MB.`);
+      } else if (tooMany) {
+        showAlert('Limit Reached', `Only the first ${MAX_DOC_FILES} file(s) were kept (max ${MAX_DOC_FILES}).`);
+      }
+      if (accepted.length) setPendingDocFiles(prev => ({ ...prev, [documentRequestId]: accepted }));
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      showAlert('Error', 'Could not select the file(s). Please try again.');
+    }
+  };
+
+  const handleUploadDocFiles = async (documentRequestId) => {
+    const files = pendingDocFiles[documentRequestId];
+    if (!files?.length || uploadingDocId) return;
+    setUploadingDocId(documentRequestId);
+    try {
+      await fulfillDocumentRequest(documentRequestId, files);
+      setPendingDocFiles(prev => { const next = { ...prev }; delete next[documentRequestId]; return next; });
+      await retry();
+    } catch (error) {
+      const msg = error?.status === 422
+        ? 'This request has already been fulfilled. Please wait for the vendor to reopen it.'
+        : error?.message || 'Please try again.';
+      showAlert('Could Not Upload', msg);
+    } finally {
+      setUploadingDocId(null);
+    }
+  };
+
   const screenTitle = isCustomPlan ? 'Custom Plan Request' : 'Support Ticket';
 
   if (loading && !ticket) {
@@ -294,6 +365,68 @@ function SupportTicketChat({ route, navigation }) {
             onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {replies.map(msg => {
+              // A document request rides on several replies over its life (the
+              // ask, an upload, a reopen...) — only the reply carrying the
+              // current live state (isLatest) gets the full card; every other
+              // one with a documentRequest is just plain text.
+              const dr = msg.documentRequest;
+              if (dr && dr.isLatest) {
+                const docPill = getDocStatusPill(dr.status);
+                const fulfilled = String(dr.status).toLowerCase() === 'fulfilled';
+                const chosenFiles = pendingDocFiles[dr.id] || [];
+                const uploading = uploadingDocId === dr.id;
+                return (
+                  <View key={msg.id} style={[styles.docCard, fulfilled ? styles.docCardFulfilled : styles.docCardPending]}>
+                    <View style={styles.docCardHeaderRow}>
+                      <View style={styles.docCardHeaderLeft}>
+                        <Icon name="description" size={16} color={fulfilled ? '#15803D' : '#C2410C'} />
+                        <Text style={styles.docCardTitle}>Document Request</Text>
+                      </View>
+                      <View style={[styles.docStatusPill, { backgroundColor: docPill.bg }]}>
+                        <Text style={[styles.docStatusPillText, { color: docPill.text }]}>{docPill.label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.docCardMeta}>{[msg.authorName, formatTime(msg.createdAt)].filter(Boolean).join(' · ')}</Text>
+                    <Text style={styles.docCardText}>{msg.message}</Text>
+                    {dr.files.length > 0 && (
+                      <View style={styles.docFileList}>
+                        {dr.files.map((f, idx) => (
+                          <TouchableOpacity key={f.url || idx} style={styles.docFileRow} onPress={() => openAttachment(f, f.name || `File ${idx + 1}`)}>
+                            <Icon name="attach-file" size={14} color="#1D4ED8" />
+                            <Text style={styles.docFileLink}>File {idx + 1}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                    {!fulfilled && (
+                      <>
+                        <View style={styles.docUploadRow}>
+                          <TouchableOpacity style={styles.docChooseBtn} onPress={() => handlePickDocFiles(dr.id)} activeOpacity={0.8}>
+                            <Text style={styles.docChooseBtnText}>Choose Files</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.docChosenText} numberOfLines={1}>
+                            {chosenFiles.length ? chosenFiles.map(f => f.name).join(', ') : 'No file chosen'}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.docUploadBtn, (!chosenFiles.length || uploading) && styles.sendBtnDisabled]}
+                          onPress={() => handleUploadDocFiles(dr.id)}
+                          disabled={!chosenFiles.length || uploading}
+                          activeOpacity={0.85}
+                        >
+                          {uploading ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                            <>
+                              <Icon name="file-upload" size={16} color="#FFFFFF" />
+                              <Text style={styles.docUploadBtnText}>Upload</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                );
+              }
+
               // A reply that carries a proposed price is a Custom Plan proposal —
               // render it as a dedicated card with a "Request This Plan" action.
               if (msg.proposedPrice != null) {
@@ -414,6 +547,7 @@ function SupportTicketChat({ route, navigation }) {
           )}
         </View>
       </View>
+      {preview}
       <AppAlert {...alertProps} />
     </KeyboardAvoidingView>
   );
@@ -491,6 +625,28 @@ const styles = StyleSheet.create({
     shadowColor: '#15803D', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
   meetJoinBtnText: { color: '#FFFFFF', fontSize: 13.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+
+  // Document Request card — rendered only on the reply carrying the latest
+  // live state of a document request (see isLatest in the render logic above).
+  docCard: { alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderRadius: 16, padding: 14, gap: 6 },
+  docCardPending: { borderColor: '#FDBA74', backgroundColor: '#FFFBF5' },
+  docCardFulfilled: { borderColor: '#86EFAC' },
+  docCardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  docCardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  docCardTitle: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700' },
+  docStatusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  docStatusPillText: { fontSize: 11, fontWeight: '700' },
+  docCardMeta: { fontSize: 11, color: '#94A3B8' },
+  docCardText: { fontSize: 13.5, color: '#0F172A', lineHeight: 19 },
+  docFileList: { gap: 4, marginTop: 2 },
+  docFileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  docFileLink: { fontSize: 13, color: '#1D4ED8', textDecorationLine: 'underline', fontFamily: typography.labelMedium.fontFamily },
+  docUploadRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  docChooseBtn: { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC' },
+  docChooseBtnText: { fontSize: 12.5, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily },
+  docChosenText: { flex: 1, fontSize: 12.5, color: '#64748B' },
+  docUploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#15803D', borderRadius: 14, paddingVertical: 10, marginTop: 4 },
+  docUploadBtnText: { color: '#FFFFFF', fontSize: 13.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   // Custom Plan proposal card (full-width, matches admin proposal UI)
   proposalCard: {

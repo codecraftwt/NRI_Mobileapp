@@ -1,45 +1,7 @@
-import apiClient, { normalizeApiError, postMultipart } from './client';
+import apiClient, { normalizeApiError } from './client';
 
 // Recurring per-service subscriptions (Service.allows_recurring). A single
 // subscription can bundle several services that share one billing interval.
-
-export function mapRequiredDocument(raw) {
-  return {
-    id: raw.id ?? raw.document_id ?? raw.key ?? raw.slug ?? raw.type,
-    name: raw.name || raw.label || raw.title || raw.document_name || raw.type || 'Document',
-    description: raw.description || raw.help || null,
-    required: raw.required ?? raw.is_required ?? raw.mandatory ?? true,
-  };
-}
-
-// The required-documents payload has been seen in a few shapes across this
-// backend — a flat array, a { documents: [...] } / { required_documents: [...] }
-// wrapper, or grouped per service (either keyed by id or as objects each
-// carrying a `documents` array). Flatten whatever comes back to a single
-// de-duplicated list of document definitions.
-export function extractDocumentList(payload) {
-  const data = payload?.data ?? payload;
-  let list = [];
-  if (Array.isArray(data)) {
-    list = data;
-  } else if (Array.isArray(data?.documents)) {
-    list = data.documents;
-  } else if (Array.isArray(data?.required_documents)) {
-    list = data.required_documents;
-  } else if (data && typeof data === 'object') {
-    const values = Object.values(data);
-    list = values.flatMap(v => (Array.isArray(v) ? v : Array.isArray(v?.documents) ? v.documents : []));
-  }
-  // A grouped array whose items each carry their own `documents` array.
-  list = list.flatMap(item => (Array.isArray(item?.documents) ? item.documents : [item]));
-  const seen = new Set();
-  return list.filter(item => {
-    const key = item?.id ?? item?.document_id ?? item?.key ?? item?.slug ?? item?.type ?? JSON.stringify(item);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 function mapSubscription(raw) {
   if (!raw) return null;
@@ -57,19 +19,6 @@ function mapSubscription(raw) {
     currentPeriodEndsAt: raw.current_period_ends_at || null,
     services: (raw.services || []).map(s => ({ id: s.id, name: s.name })),
   };
-}
-
-// Call before creating a subscription to know which document fields to render.
-// Empty array means no documents are required for this selection.
-export async function getRequiredDocuments(serviceIds = []) {
-  try {
-    const response = await apiClient.get('/customer/service-subscriptions/required-documents', {
-      params: { service_ids: serviceIds },
-    });
-    return extractDocumentList(response.data).map(mapRequiredDocument);
-  } catch (error) {
-    throw normalizeApiError(error);
-  }
 }
 
 export async function getServiceSubscriptions() {
@@ -125,56 +74,24 @@ export async function createServiceSubscription({ serviceIds, gateway, currency,
 
 // Actually creates the subscription, once the payment from
 // createServiceSubscription() above has cleared. Safe to call twice — an
-// already-finalized payment_id just returns the existing subscription. Sends
-// multipart when there are required documents to upload, plain JSON otherwise.
+// already-finalized payment_id just returns the existing subscription.
 export async function finalizeServiceSubscription(paymentId, {
-  familyMemberId, propertyId, talukaId, address, customerNotes, documents,
+  familyMemberId, propertyId, talukaId, address, customerNotes,
 }) {
   try {
-    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    let response;
-
-    if (docEntries.length > 0) {
-      const fields = {
-        family_member_id: familyMemberId,
-        property_id: propertyId || undefined,
-        taluka_id: talukaId || undefined,
-        address,
-        customer_notes: customerNotes || undefined,
-      };
-      const files = docEntries.map(([docId, file]) => ({
-        field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
-      }));
-      response = await postMultipart(`/customer/service-subscriptions/${paymentId}/finalize`, fields, files);
-    } else {
-      response = await apiClient.post(`/customer/service-subscriptions/${paymentId}/finalize`, {
-        family_member_id: familyMemberId,
-        property_id: propertyId || undefined,
-        taluka_id: talukaId || undefined,
-        address,
-        customer_notes: customerNotes || undefined,
-      });
-    }
+    const response = await apiClient.post(`/customer/service-subscriptions/${paymentId}/finalize`, {
+      family_member_id: familyMemberId,
+      property_id: propertyId || undefined,
+      taluka_id: talukaId || undefined,
+      address,
+      customer_notes: customerNotes || undefined,
+    });
 
     const data = response.data?.data || {};
     return {
       subscription: mapSubscription(data.subscription || data),
       message: response.data?.message,
     };
-  } catch (error) {
-    throw normalizeApiError(error);
-  }
-}
-
-// Add a missing required document, or replace one already uploaded. Available
-// any time the subscription isn't cancelled.
-export async function addSubscriptionDocuments(subscriptionId, documents) {
-  try {
-    const files = Object.entries(documents || {})
-      .filter(([, file]) => !!file)
-      .map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type }));
-    const response = await postMultipart(`/customer/service-subscriptions/${subscriptionId}/documents`, {}, files);
-    return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

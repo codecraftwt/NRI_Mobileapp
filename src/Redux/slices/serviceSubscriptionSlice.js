@@ -1,19 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as serviceSubscriptionApi from '../../Api/serviceSubscriptionApi';
 
-// Transient state for the recurring-subscription flow in CreateTicket:
-// the documents a selection requires and the create/cancel actions.
-export const fetchRequiredDocuments = createAsyncThunk(
-  'serviceSubscription/fetchRequiredDocuments',
-  async (serviceIds, { rejectWithValue }) => {
-    try {
-      return await serviceSubscriptionApi.getRequiredDocuments(serviceIds);
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
+// Transient state for the recurring-subscription flow in CreateTicket: the
+// create/cancel actions and the customer's existing subscriptions.
 export const fetchServiceSubscriptions = createAsyncThunk(
   'serviceSubscription/fetchList',
   async (_, { rejectWithValue }) => {
@@ -59,9 +48,6 @@ export const cancelServiceSubscription = createAsyncThunk(
 );
 
 const initialState = {
-  requiredDocuments: [],
-  requiredDocsStatus: 'idle',
-  requiredDocsError: null,
   subscriptions: [],
   listStatus: 'idle',
   listError: null,
@@ -77,27 +63,10 @@ const serviceSubscriptionSlice = createSlice({
   name: 'serviceSubscription',
   initialState,
   reducers: {
-    clearRequiredDocuments: (state) => {
-      state.requiredDocuments = [];
-      state.requiredDocsStatus = 'idle';
-      state.requiredDocsError = null;
-    },
     resetServiceSubscription: () => initialState,
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchRequiredDocuments.pending, (state) => {
-        state.requiredDocsStatus = 'loading';
-        state.requiredDocsError = null;
-      })
-      .addCase(fetchRequiredDocuments.fulfilled, (state, action) => {
-        state.requiredDocsStatus = 'succeeded';
-        state.requiredDocuments = action.payload;
-      })
-      .addCase(fetchRequiredDocuments.rejected, (state, action) => {
-        state.requiredDocsStatus = 'failed';
-        state.requiredDocsError = action.payload;
-      })
       .addCase(fetchServiceSubscriptions.pending, (state) => {
         state.listStatus = 'loading';
         state.listError = null;
@@ -148,5 +117,5 @@ const serviceSubscriptionSlice = createSlice({
   },
 });
 
-export const { clearRequiredDocuments, resetServiceSubscription } = serviceSubscriptionSlice.actions;
+export const { resetServiceSubscription } = serviceSubscriptionSlice.actions;
 export default serviceSubscriptionSlice.reducer;

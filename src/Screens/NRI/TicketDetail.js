@@ -200,11 +200,15 @@ function TicketDetail({ route, navigation }) {
           style={styles.supportChatBar}
           activeOpacity={0.85}
           onPress={() => {
-            // A chat already exists on this request → open its full thread
-            // (reply/escalate via the existing support-ticket endpoints).
-            // Otherwise start one via POST /tickets/{id}/support-chat.
+            // A chat already exists on this request → open its full thread.
+            // kind: 'job' routes the screen through the request-linked chat
+            // endpoints (GET/POST /customer/tickets/{ticket}/support-chat,
+            // keyed by this ticket's own id) rather than the generic
+            // /customer/support-tickets/{id} endpoint — only the former
+            // carries document-request data (the vendor's "ask for a
+            // document" flow). Otherwise start one via the same endpoint.
             if (ticket.supportChat?.id) {
-              navigation.navigate('SupportTicketChat', { ticketId: ticket.supportChat.id });
+              navigation.navigate('SupportTicketChat', { ticketId: ticket.id, kind: 'job' });
             } else {
               navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber });
             }

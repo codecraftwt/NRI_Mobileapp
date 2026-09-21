@@ -1,4 +1,4 @@
-import apiClient, { normalizeApiError, postMultipart, toAbsoluteUrl } from './client';
+import apiClient, { normalizeApiError, toAbsoluteUrl } from './client';
 import { mapPendingRecurringBundle } from './paymentsApi';
 
 // A server cart line → the local display shape the app uses everywhere. The
@@ -239,7 +239,7 @@ export async function validateCartCoupon({ code, cityId } = {}) {
 // Same shape as membershipApi.checkoutMembership's combined-cart checkout.
 export async function checkoutCart({
   gateway, currency, couponCode, familyMemberName, familyMemberRelationship, stateId,
-  cityId, talukaId, address, pincode, urgency, preferredDate, customerNotes, documents,
+  cityId, talukaId, address, pincode, urgency, preferredDate, customerNotes,
 }) {
   try {
     const fields = {
@@ -257,25 +257,7 @@ export async function checkoutCart({
       preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
-    // `documents[{docId}]` (plural) — the one convention consistently used
-    // everywhere else this backend takes required-document uploads:
-    // ticketApi.createTicket, membershipApi.checkoutMembership, AND
-    // serviceSubscriptionApi's own subscription-creation endpoints. Neither
-    // the written spec's `attachments[]` nor a singular `document[{docId}]`
-    // changed the "document.10 field is required" error when tried live —
-    // consistent with both having been wrong, since the backend reports the
-    // same "still missing" message regardless of what unrecognized field
-    // name the file actually arrived under.
-    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    let response;
-    if (docEntries.length > 0) {
-      const uploadFiles = docEntries.map(([docId, file]) => ({
-        field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type,
-      }));
-      response = await postMultipart('/customer/cart/checkout', fields, uploadFiles);
-    } else {
-      response = await apiClient.post('/customer/cart/checkout', fields);
-    }
+    const response = await apiClient.post('/customer/cart/checkout', fields);
     const data = response.data?.data || {};
     // Confirmed live: this response never carries checkout_url/order/
     // payment_id — /cart/checkout only creates the ticket(s) + validates the

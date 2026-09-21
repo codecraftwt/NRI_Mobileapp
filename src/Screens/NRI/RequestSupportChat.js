@@ -18,13 +18,16 @@ function RequestSupportChat({ route, navigation }) {
     try {
       // Start-or-continue the request-linked chat via
       // POST /customer/tickets/{id}/support-chat, then open the full thread.
+      // kind: 'job' + the job's own id (not the chat's id) keeps this on the
+      // request-linked chat endpoints, which is what carries document-request
+      // data once a vendor asks for one.
       const result = await sendTicketSupportChat(serviceTicketId, message.trim());
       const chat = result.chat;
       if (!chat?.id) {
         Alert.alert('Could Not Start Chat', 'Please try again.');
         return;
       }
-      navigation.replace('SupportTicketChat', { ticketId: chat.id, createdTicketNumber: chat.ticketNumber });
+      navigation.replace('SupportTicketChat', { ticketId: serviceTicketId, kind: 'job', createdTicketNumber: chat.ticketNumber });
     } catch (error) {
       Alert.alert('Could Not Start Chat', error?.message || 'Please try again.');
     } finally {

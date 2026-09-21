@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Platform, Alert, Image, BackHandler } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Alert, BackHandler } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import RNBlobUtil from 'react-native-blob-util';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -70,35 +69,6 @@ function FormSelect({ label, required, value, placeholder, options, disabled, on
   );
 }
 
-function DocumentUploadField({ document, file, onChoose, onRemove, onView }) {
-  return (
-    <View style={{ marginTop: 14 }}>
-      <Text style={styles.fieldLabel}>{document.name}{document.required ? ' *' : ''}</Text>
-      {!!document.description && <Text style={styles.fieldHint}>{document.description}</Text>}
-      <View style={styles.docInputRow}>
-        <TouchableOpacity style={styles.docChooseBtn} onPress={onChoose} activeOpacity={0.7}>
-          <Icon name="attach-file" size={16} color="#20304C" />
-          <Text style={styles.docChooseBtnText}>{file ? 'Replace' : 'Choose File'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.docFileName} numberOfLines={1}>{file ? file.name : 'No file chosen'}</Text>
-      </View>
-      {!!file && (
-        <View style={styles.filePill}>
-          <Icon name={file.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#20304C" />
-          <Text style={styles.filePillText} numberOfLines={1}>{file.name}</Text>
-          <TouchableOpacity onPress={onView} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.filePillView}>
-            <Icon name="visibility" size={16} color="#20304C" />
-            <Text style={styles.filePillViewText}>View</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Icon name="close" size={16} color="#9CA3AF" />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-}
-
 // Canonical "finish this paid-but-not-yet-created request" screen. Reached
 // (a) immediately after a pay-first checkout succeeds, or (b) later from the
 // Requests.js "Finish Request" banner after the app was backgrounded/killed
@@ -130,7 +100,6 @@ function FinishRequest({ route, navigation }) {
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
 
   const {
-    requiredDocuments: ticketRequiredDocuments, fetchRequiredDocuments,
     finalizeTicket: finalizeTicketAction, finalizeLoading,
   } = useTicketBooking();
   const {
@@ -138,7 +107,6 @@ function FinishRequest({ route, navigation }) {
     finishBundle, finishBundleLoading,
   } = useBilling();
   const {
-    requiredDocuments: subscriptionRequiredDocuments, fetchRequiredDocuments: fetchSubscriptionRequiredDocuments,
     finalizeSubscription: finalizeSubscriptionAction, finalizeLoading: finalizeSubscriptionLoading,
   } = useServiceSubscription();
 
@@ -149,9 +117,7 @@ function FinishRequest({ route, navigation }) {
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const [preferredDate, setPreferredDate] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [documentFiles, setDocumentFiles] = useState({});
   const [files, setFiles] = useState([]);
-  const [previewImage, setPreviewImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const goBackTarget = useCallback(() => {
     if (returnTo === 'Requests') {
@@ -180,19 +146,12 @@ function FinishRequest({ route, navigation }) {
   );
 
   useEffect(() => {
-    if (mode === 'ticket' && pendingTicket?.serviceIds?.length) {
-      fetchRequiredDocuments(pendingTicket.serviceIds);
-    } else if (mode === 'bundle' && pendingBundle?.bundleId) {
+    if (mode === 'bundle' && pendingBundle?.bundleId) {
       getCheckoutBundle(pendingBundle.bundleId);
-    } else if (mode === 'subscription' && pendingSubscription?.serviceIds?.length) {
-      fetchSubscriptionRequiredDocuments(pendingSubscription.serviceIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, pendingTicket?.serviceIds?.join(','), pendingBundle?.bundleId, pendingSubscription?.serviceIds?.join(',')]);
+  }, [mode, pendingBundle?.bundleId]);
 
-  const requiredDocuments = mode === 'bundle' ? (checkoutBundle?.requiredDocuments || [])
-    : mode === 'subscription' ? subscriptionRequiredDocuments
-    : ticketRequiredDocuments;
   const serviceNames = mode === 'bundle' ? (pendingBundle?.serviceNames || '')
     : mode === 'subscription' ? (pendingSubscription?.serviceNames || '')
     : (pendingTicket?.serviceNames || '');
@@ -206,21 +165,6 @@ function FinishRequest({ route, navigation }) {
   const formattedPreferred = preferredDate
     ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
-
-  const handleChooseDocument = async (docId) => {
-    try {
-      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: false });
-      const picked = results[0];
-      if (!picked) return;
-      if (picked.size && picked.size > MAX_FILE_SIZE_BYTES) { Alert.alert('File Too Large', 'Please choose a file under 5 MB.'); return; }
-      const [local] = await resolveLocalCopies([picked]);
-      setDocumentFiles(prev => ({ ...prev, [docId]: { name: picked.name, uri: local.uri, type: picked.type, size: picked.size } }));
-    } catch (err) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
-      Alert.alert('Error', 'Could not select the file. Please try again.');
-    }
-  };
-  const handleRemoveDocument = (docId) => setDocumentFiles(prev => { const n = { ...prev }; delete n[docId]; return n; });
 
   const handleChooseFiles = async () => {
     if (files.length >= MAX_FILES) { Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`); return; }
@@ -241,16 +185,6 @@ function FinishRequest({ route, navigation }) {
     }
   };
   const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
-  const handleViewDocument = (file) => {
-    if (!file?.uri) return;
-    const isImage = (file.type || '').startsWith('image') || /\.(png|jpe?g|gif|webp|heic)$/i.test(file.name || '');
-    if (isImage) { setPreviewImage(file); return; }
-    const path = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-    const opening = Platform.OS === 'ios'
-      ? RNBlobUtil.ios.previewDocument(path)
-      : RNBlobUtil.android.actionViewIntent(path, file.type || 'application/pdf');
-    Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
-  };
 
   // Ticket/subscription mode's finalize call needs an existing
   // family_member_id (unlike the checkout-bundle finish call, which still
@@ -272,12 +206,8 @@ function FinishRequest({ route, navigation }) {
     if (!form.fullName.trim()) missing.push('Full Name');
     if (!form.relation) missing.push('Relation');
     if (!form.address.trim()) missing.push('Full Address');
-    const missingDocs = requiredDocuments.filter(d => d.required && !documentFiles[d.id]).map(d => d.name);
-    if (missing.length || missingDocs.length) {
-      const parts = [];
-      if (missing.length) parts.push(`Please fill: ${missing.join(', ')}.`);
-      if (missingDocs.length) parts.push(`Please upload: ${missingDocs.join(', ')}.`);
-      showAlert('Missing Details', parts.join('\n\n'));
+    if (missing.length) {
+      showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
       return false;
     }
     return true;
@@ -302,7 +232,6 @@ function FinishRequest({ route, navigation }) {
           preferredDate: preferred,
           customerNotes: form.notes || undefined,
           files,
-          documents: documentFiles,
         }).unwrap();
         dispatch(clearPendingTicketFinalize({ userId, paymentId: pendingTicket.paymentId }));
         if (pendingTicket.origin === 'cart') {
@@ -321,7 +250,6 @@ function FinishRequest({ route, navigation }) {
           talukaId,
           address: form.address.trim(),
           customerNotes: form.notes || undefined,
-          documents: documentFiles,
         }).unwrap();
         dispatch(clearPendingSubscriptionFinalize({ userId, paymentId: pendingSubscription.paymentId }));
         if (pendingSubscription.origin === 'cart') {
@@ -341,7 +269,6 @@ function FinishRequest({ route, navigation }) {
           address: form.address.trim(),
           preferredDate: preferred,
           customerNotes: form.notes || undefined,
-          documents: documentFiles,
         }).unwrap();
         dispatch(clearPendingBundleFinish({ userId, bundleId: pendingBundle.bundleId }));
         navigation.replace('OnboardingWelcome', {
@@ -480,22 +407,6 @@ function FinishRequest({ route, navigation }) {
           )}
         </View>
 
-        {requiredDocuments.length > 0 && (
-          <View style={styles.card}>
-            <View style={styles.cardHeadRow}><Icon name="folder-open" size={16} color="#20304C" /><Text style={styles.cardTitle}>Required Documents</Text></View>
-            {requiredDocuments.map(doc => (
-              <DocumentUploadField
-                key={String(doc.id)}
-                document={doc}
-                file={documentFiles[doc.id]}
-                onChoose={() => handleChooseDocument(doc.id)}
-                onRemove={() => handleRemoveDocument(doc.id)}
-                onView={() => handleViewDocument(documentFiles[doc.id])}
-              />
-            ))}
-          </View>
-        )}
-
         {loading ? (
           <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
         ) : (
@@ -508,18 +419,6 @@ function FinishRequest({ route, navigation }) {
         )}
       </ScrollView>
       )}
-
-      <Modal visible={!!previewImage} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={styles.previewOverlay}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewName} numberOfLines={1}>{previewImage?.name}</Text>
-            <TouchableOpacity onPress={() => setPreviewImage(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="close" size={26} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-          {!!previewImage && <Image source={{ uri: previewImage.uri }} style={styles.previewImage} resizeMode="contain" />}
-        </View>
-      </Modal>
 
       <AppAlert {...alertProps} />
     </View>
@@ -569,19 +468,12 @@ const styles = StyleSheet.create({
   docFileName: { flex: 1, fontSize: 12.5, color: '#94A3B8' },
   filePill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF2FB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
   filePillText: { flex: 1, fontSize: 12.5, color: '#1E293B' },
-  filePillView: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  filePillViewText: { fontSize: 12, color: '#20304C', fontFamily: typography.h4.fontFamily },
 
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 16, marginTop: 4 },
   submitBtnText: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 
   retryBox: { paddingVertical: 16, alignItems: 'center' },
   retryText: { fontSize: 13, color: '#EF4444', fontWeight: '600' },
-
-  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)' },
-  previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: STATUS_BAR_HEIGHT, paddingHorizontal: 20, paddingBottom: 12 },
-  previewName: { flex: 1, fontSize: 14, color: '#FFFFFF', fontFamily: typography.h4.fontFamily },
-  previewImage: { flex: 1, width: '100%' },
 
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 10 },
   emptyTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },

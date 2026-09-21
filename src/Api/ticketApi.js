@@ -1,36 +1,6 @@
 import apiClient, { normalizeApiError, postMultipart } from './client';
 import { mapReport } from './reportApi';
-import { extractDocumentList, mapRequiredDocument } from './serviceSubscriptionApi';
 import { mapSupportTicket, mapSupportReply } from './supportTicketApi';
-
-// Documents required for a one-time (single-use) service selection. Call as the
-// selection changes on the booking form to know which document fields to render
-// before submitting POST /customer/tickets. Empty array means none required.
-export async function getTicketRequiredDocuments(serviceIds = []) {
-  try {
-    const response = await apiClient.get('/customer/tickets/required-documents', {
-      params: { service_ids: serviceIds },
-    });
-    return extractDocumentList(response.data).map(mapRequiredDocument);
-  } catch (error) {
-    throw normalizeApiError(error);
-  }
-}
-
-// Add a missing required document, or replace one already uploaded. Available
-// any time the ticket is still open (Ticket::isOpen()). `documents` is keyed by
-// required-document id: { [docId]: { uri, name, type } }.
-export async function addTicketDocuments(ticketId, documents) {
-  try {
-    const uploadFiles = Object.entries(documents || {})
-      .filter(([, file]) => !!file)
-      .map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type }));
-    const response = await postMultipart(`/customer/tickets/${ticketId}/documents`, {}, uploadFiles);
-    return { message: response.data?.message };
-  } catch (error) {
-    throw normalizeApiError(error);
-  }
-}
 
 function mapCoupon(raw) {
   return {
@@ -266,14 +236,13 @@ export async function createTicket({
 
 // Actually creates (and sends) the ticket, once the payment from createTicket()
 // above has cleared. Safe to call twice — an already-finalized payment_id just
-// returns the existing ticket. Sends multipart when there are
-// attachments/required-documents to upload, plain JSON otherwise.
+// returns the existing ticket. Sends multipart when there are attachments to
+// upload, plain JSON otherwise.
 export async function finalizeTicket(paymentId, {
-  familyMemberId, propertyId, talukaId, address, preferredDate, customerNotes, files, documents,
+  familyMemberId, propertyId, talukaId, address, preferredDate, customerNotes, files,
 }) {
   try {
-    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    const hasFiles = (files && files.length > 0) || docEntries.length > 0;
+    const hasFiles = files && files.length > 0;
     let response;
 
     if (hasFiles) {
@@ -285,10 +254,7 @@ export async function finalizeTicket(paymentId, {
         preferred_date: preferredDate || undefined,
         customer_notes: customerNotes || undefined,
       };
-      const uploadFiles = [
-        ...(files || []).map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type })),
-        ...docEntries.map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type })),
-      ];
+      const uploadFiles = files.map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type }));
       response = await postMultipart(`/customer/tickets/${paymentId}/finalize`, fields, uploadFiles);
     } else {
       response = await apiClient.post(`/customer/tickets/${paymentId}/finalize`, {
@@ -319,10 +285,10 @@ export async function finalizeTicket(paymentId, {
 // pending_additional_charge the customer pays the normal way (payForTicket).
 // Returns the same full ticket payload as getTicketDetail(); total_amount is
 // 0 and is_paid is false on the response — expected, not an error. Sends
-// multipart when there are attachments/required-documents to upload, plain
-// JSON otherwise (same convention as finalizeTicket above).
+// multipart when there are attachments to upload, plain JSON otherwise (same
+// convention as finalizeTicket above).
 export async function bookQuotedTicket(serviceId, {
-  stateId, cityId, urgency, address, pincode, familyMemberId, propertyId, talukaId, preferredDate, customerNotes, files, documents,
+  stateId, cityId, urgency, address, pincode, familyMemberId, propertyId, talukaId, preferredDate, customerNotes, files,
 }) {
   try {
     const fields = {
@@ -337,15 +303,11 @@ export async function bookQuotedTicket(serviceId, {
       preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
-    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
-    const hasFiles = (files && files.length > 0) || docEntries.length > 0;
+    const hasFiles = files && files.length > 0;
     let response;
 
     if (hasFiles) {
-      const uploadFiles = [
-        ...(files || []).map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type })),
-        ...docEntries.map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type })),
-      ];
+      const uploadFiles = files.map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type }));
       response = await postMultipart(`/customer/tickets/quoted/${serviceId}`, fields, uploadFiles);
     } else {
       response = await apiClient.post(`/customer/tickets/quoted/${serviceId}`, fields);

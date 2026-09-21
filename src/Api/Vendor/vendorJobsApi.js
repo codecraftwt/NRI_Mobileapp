@@ -345,6 +345,59 @@ export async function sendVendorJobSupportChat(ticket, message) {
   }
 }
 
+// GET /vendor/document-request-types — common document names (Aadhaar Card,
+// PAN Card, etc.) for the "Request Document" picker. Always pair with a
+// free-text "Other" option in the UI — not part of this list.
+export async function getVendorDocumentRequestTypes() {
+  try {
+    const response = await apiClient.get('/vendor/document-request-types');
+    const list = response.data?.data || [];
+    return list.map(item => (typeof item === 'string' ? item : (item.label || item.name || item.value))).filter(Boolean);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+function mapDocumentRequestChat(data) {
+  const chat = data.chat || null;
+  const rawReplies = chat?.replies || chat?.messages || data.replies || [];
+  return {
+    chat: chat ? mapSupportTicket(chat) : null,
+    replies: rawReplies.map(mapSupportReply),
+  };
+}
+
+// POST /vendor/jobs/{ticket}/document-requests — ask the customer to upload a
+// document, right in this job's chat. Works even if no chat exists yet for
+// this job — it starts one automatically. Posts as a message in the thread
+// and returns the full updated chat.
+export async function requestVendorDocument(ticket, { label, note }) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/document-requests`, {
+      label,
+      note: note || undefined,
+    });
+    return mapDocumentRequestChat(response.data?.data || {});
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/document-requests/{documentRequest}/reopen —
+// not satisfied with what the customer uploaded; flips the request back to
+// pending and posts another message so the customer can upload again via the
+// same fulfill endpoint. Previous files stay attached as visible history.
+export async function reopenVendorDocumentRequest(ticket, documentRequestId, note) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/document-requests/${documentRequestId}/reopen`, {
+      note: note || undefined,
+    });
+    return mapDocumentRequestChat(response.data?.data || {});
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // POST /vendor/jobs/{ticket}/feedback — give or edit your rating of the
 // customer (internal only; never shown to the customer). Only works once the
 // job is completed. Calling it again overwrites the previous rating/note for
