@@ -141,6 +141,7 @@ function ServiceInfo({ route, navigation }) {
       price: priceValue(pricing, mode) ?? 0,
       currency: pricing?.currency || 'USD',
       durationLabel: durationLabel(pricing, mode),
+      isQuoted: !!pricing?.isQuoted,
       isRecurring: mode === 'recurring',
       billingInterval: mode === 'recurring' ? pricing?.billingInterval : undefined,
       stateName: savedLocation.stateName,

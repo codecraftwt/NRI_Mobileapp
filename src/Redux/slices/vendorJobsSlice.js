@@ -70,6 +70,19 @@ export const saveTracking = createAsyncThunk('vendorJobs/saveTracking', async ({
   }
 });
 
+// "Propose Price" on a quote-only job — vendor's own charge; the platform
+// margin/GST are added server-side. Refetches so requires_price_confirmation/
+// quote/can_propose_price reflect the new "awaiting approval" state.
+export const proposeJobPrice = createAsyncThunk('vendorJobs/proposePrice', async ({ ticket, amount, reason }, { dispatch, rejectWithValue }) => {
+  try {
+    const res = await vendorJobsApi.proposeVendorJobPrice(ticket, { amount, reason });
+    await dispatch(fetchVendorJobDetail(ticket));
+    return res;
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 // "Flag Cost Issue" on the job screen — reuses the existing POST /vendor/support
 // dispute endpoint (tied to this ticket), then refetches the job so its
 // vendor_disputes history/pending state updates without a manual reload.
@@ -178,7 +191,7 @@ const vendorJobsSlice = createSlice({
       });
 
     // Shared pending/fulfilled/rejected handling for every job mutation.
-    [acceptJob, rejectJob, completeJob, addReportAttachments, saveTracking, flagJobCostIssue].forEach((thunk) => {
+    [acceptJob, rejectJob, completeJob, addReportAttachments, saveTracking, flagJobCostIssue, proposeJobPrice].forEach((thunk) => {
       builder
         .addCase(thunk.pending, (state) => {
           state.actionStatus = 'loading';

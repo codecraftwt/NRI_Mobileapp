@@ -481,9 +481,6 @@ function Services({ navigation, route }) {
           setPendingService(null);
         }}
         title={pendingService ? 'Set Location to Continue' : 'Select Location'}
-        subtitle={pendingService
-          ? 'Enter your PIN code to see this service’s price and availability in your city.'
-          : 'Enter your PIN code to find your city.'}
       />
     </View>
   );

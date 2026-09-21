@@ -66,15 +66,28 @@ export function selectOnboardingRoute(state) {
   // itself with the wizard step below.
   if (user?.emailVerified === false) return 'VerifyEmail';
 
+  const membership = user?.membership;
+  const hasMembership = !!membership && membership !== 'None';
+
   const record = state.onboarding.completedByUser[userId];
-  if (record !== undefined) return record ? 'AppHome' : 'OnboardingProfile';
+  if (record !== undefined) {
+    if (record) return 'AppHome';
+    // Local record says this device left the wizard mid-flow — but if the
+    // server now reports an active membership (e.g. it was activated on
+    // another device/session, or a first checkout attempt actually succeeded
+    // even though this device's own success screen was never reached), that's
+    // definitive proof the wizard already finished. Trust it over the stale
+    // local flag instead of sending an already-active member back through
+    // registration, where POST /membership/checkout would just reject them
+    // for already having one.
+    return hasMembership ? 'AppHome' : 'OnboardingProfile';
+  }
 
   // No local record. Only trust an explicitly-false `onboarded` flag (the flag
   // is otherwise a client-side guess that defaults to `true`); the definitive
   // server-side signal is an active/purchased membership.
   if (user?.onboarded === false) return 'OnboardingProfile';
-  const membership = user?.membership;
-  return membership && membership !== 'None' ? 'AppHome' : 'OnboardingProfile';
+  return hasMembership ? 'AppHome' : 'OnboardingProfile';
 }
 
 // Root route for an authenticated user, accounting for account role FIRST —

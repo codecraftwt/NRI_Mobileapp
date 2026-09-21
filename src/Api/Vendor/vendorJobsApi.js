@@ -71,6 +71,20 @@ function mapVendorDispute(raw) {
   };
 }
 
+// The vendor's own live price proposal for a quote-only job (GET
+// .../jobs/{ticket}'s `quote`) — `amount` here is always the vendor's own
+// charge, never the customer-facing price (that's platform margin + GST on
+// top, computed server-side). Null until the vendor has proposed one.
+function mapJobQuote(raw) {
+  if (!raw) return null;
+  return {
+    amount: raw.amount != null ? Number(raw.amount) : null,
+    status: raw.status || null,
+    reason: raw.reason || null,
+    rejectionReason: raw.rejection_reason || null,
+  };
+}
+
 // The vendor's own past rating of this job's customer (GET .../jobs/{ticket}'s
 // my_feedback — null until the vendor has rated). Replaces the older boolean
 // staff_feedback_submitted field.
@@ -107,6 +121,13 @@ export function mapJobDetail(raw) {
     // any client-side guess from vendor_disputes' charge_status.
     canComplete: raw.can_complete ?? true,
     blockReason: raw.block_reason || null,
+    // Quote-only services (no fixed price at booking) — the job can't be
+    // accepted until a proposed price is approved by a Super Admin and paid
+    // by the customer. canProposePrice tells us when to show the form (e.g.
+    // false while a proposal is pending review).
+    requiresPriceConfirmation: raw.requires_price_confirmation ?? false,
+    quote: mapJobQuote(raw.quote),
+    canProposePrice: raw.can_propose_price ?? false,
     customer: {
       name: customer.name || raw.customer_name || '—',
       phone: customer.phone || raw.customer_phone || '',
@@ -223,6 +244,20 @@ export async function acceptVendorJob(ticket, { vendorEta }) {
 export async function rejectVendorJob(ticket, { reason }) {
   try {
     const response = await apiClient.post(`/vendor/jobs/${ticket}/reject`, { reason });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/propose-price — propose what a quote-only job
+// should cost. `amount` is the vendor's own charge; the platform adds its
+// service margin + GST on top for the customer-facing price. Lands as
+// "awaiting approval" — a Super Admin reviews it before the customer sees
+// anything. 422 if the job doesn't need a price or one's already pending.
+export async function proposeVendorJobPrice(ticket, { amount, reason }) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/propose-price`, { amount, reason });
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

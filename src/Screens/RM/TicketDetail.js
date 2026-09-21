@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, RefreshControl, Linking, Alert, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useDispatch, useSelector } from 'react-redux';
@@ -120,6 +121,7 @@ function TicketDetail({ navigation, route }) {
     addNote, addingNote,
     escalate, escalating, escalateError,
     requestAdditionalPayment, cancelAdditionalCharge, convertVendorDispute, notifyVendorForCharge,
+    proposeQuotedPrice,
     additionalPaymentLoading,
     submitFeedback, feedbackLoading,
   } = useRmRequestDetail(ticketId);
@@ -129,6 +131,16 @@ function TicketDetail({ navigation, route }) {
   const token = useSelector(s => s.user.token);
   const currentUserId = useSelector(s => s.user.user?.id);
   const [previewUri, setPreviewUri] = useState(null);
+
+  // Re-fetch whenever this screen regains focus — otherwise a quote's status
+  // (pending → approved, or another RM/admin's action) stays stale until a
+  // manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      if (ticketId != null) refresh();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticketId])
+  );
 
   // Attachments live behind authenticated storage — opening the raw URL in the
   // browser drops the token and shows a blank page. Images preview in-app (the
@@ -161,6 +173,12 @@ function TicketDetail({ navigation, route }) {
   const [requestPayVisible, setRequestPayVisible] = useState(false);
   const [requestAmount, setRequestAmount] = useState('');
   const [requestReason, setRequestReason] = useState('');
+
+  // Propose Price — quote-only services (pricing.requiresPriceConfirmation);
+  // unlike the vendor app's propose-price, this amount is the exact
+  // customer-facing price (no markup split for a staff-proposed price).
+  const [quoteAmount, setQuoteAmount] = useState('');
+  const [quoteReason, setQuoteReason] = useState('');
   // Vendor Cost Flags are edited inline (amount/reason fields right on each
   // flag's row, per the design) rather than in a modal — keyed by dispute id
   // so multiple pending flags can be edited independently.
@@ -290,6 +308,18 @@ function TicketDetail({ navigation, route }) {
     );
   };
 
+  const handleProposeQuotedPrice = () => {
+    const amt = Number(quoteAmount);
+    if (!amt || amt <= 0 || !quoteReason.trim() || additionalPaymentLoading) return;
+    proposeQuotedPrice({ amount: amt, reason: quoteReason.trim() }).unwrap?.()
+      .then(() => {
+        setQuoteAmount('');
+        setQuoteReason('');
+        showToast('Price proposed — awaiting admin approval', 'success');
+      })
+      .catch((e) => Alert.alert('Could Not Propose Price', e?.message || 'Please try again.'));
+  };
+
   const handleNotifyVendor = (charge) => {
     if (notifyingId === charge.id) return;
     setNotifyingId(charge.id);
@@ -354,6 +384,9 @@ function TicketDetail({ navigation, route }) {
   const activityCount = noteCount + (detail?.statusHistory?.length || 0) + (detail?.escalations?.length || 0);
   const additionalCharges = detail?.additionalCharges || [];
   const hasPendingCharge = !!detail?.pricing?.pendingAdditionalCharge || additionalCharges.some(c => c.status === 'pending');
+  // The initial quote for a quote-only service lives in additionalCharges,
+  // flagged is_initial_quote — distinct from any later cost-overrun charges.
+  const initialQuote = additionalCharges.find(c => c.isInitialQuote) || null;
 
   return (
     <View style={styles.container}>
@@ -550,6 +583,66 @@ function TicketDetail({ navigation, route }) {
                     </View>
                   </>
                 )}
+
+                {/* Propose Price — quote-only services with no fixed price at booking */}
+                {/* {!!detail?.pricing?.requiresPriceConfirmation && (
+                  <View style={styles.card}>
+                    <CardTitle
+                      icon="sell"
+                      title={initialQuote?.status === 'pending' ? 'Price Awaiting Approval' : 'Propose Price'}
+                      color="#B45309"
+                    />
+
+                    <View style={styles.quoteInfoBanner}>
+                      <Icon name={initialQuote?.status === 'pending' ? 'hourglass-empty' : 'warning-amber'} size={16} color="#92400E" />
+                      <Text style={styles.quoteInfoBannerText}>
+                        {initialQuote?.status === 'pending'
+                          ? `A price of ${inr(initialQuote.amount)} has been proposed and is awaiting Super Admin approval.`
+                          : 'This service has no fixed price. Propose what it should cost so the customer can be asked to pay.'}
+                      </Text>
+                    </View>
+
+                    {initialQuote?.status === 'rejected' && !!initialQuote?.rejectionReason && (
+                      <Text style={styles.quoteRejectionText}>Rejected: {initialQuote.rejectionReason}</Text>
+                    )}
+
+                    {!!detail?.pricing?.canProposePrice && (
+                      <>
+                        <TextInput
+                          style={styles.quoteInput}
+                          placeholder="Amount (₹)"
+                          placeholderTextColor="#94A3B8"
+                          value={quoteAmount}
+                          onChangeText={setQuoteAmount}
+                          keyboardType="numeric"
+                        />
+                        <TextInput
+                          style={[styles.quoteInput, styles.quoteReasonInput]}
+                          placeholder="Basis for this price (e.g. labor, materials, travel)..."
+                          placeholderTextColor="#94A3B8"
+                          value={quoteReason}
+                          onChangeText={setQuoteReason}
+                          multiline
+                        />
+                        <TouchableOpacity
+                          style={[styles.proposeQuoteBtn, (!Number(quoteAmount) || !quoteReason.trim() || additionalPaymentLoading) && styles.btnDisabled]}
+                          onPress={handleProposeQuotedPrice}
+                          disabled={!Number(quoteAmount) || !quoteReason.trim() || additionalPaymentLoading}
+                          activeOpacity={0.85}
+                        >
+                          {additionalPaymentLoading ? (
+                            <ActivityIndicator size="small" color="#B45309" />
+                          ) : (
+                            <>
+                              <Icon name="sell" size={16} color="#B45309" />
+                              <Text style={styles.proposeQuoteBtnText}>Propose Price</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                )} */}
 
                 {/* Pricing */}
                 {(pricingRows.length > 0 || inr(detail?.pricing.total)) && (
@@ -1388,6 +1481,19 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   requestPayPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
   requestPayPillText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
+
+  // Propose Price (quote-only services)
+  quoteInfoBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14 },
+  quoteInfoBannerText: { flex: 1, fontSize: 13, color: '#78350F', lineHeight: 19 },
+  quoteRejectionText: { fontSize: 13, color: '#DC2626', lineHeight: 18, marginTop: 10 },
+  quoteInput: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#1E293B', marginTop: 12 },
+  quoteReasonInput: { minHeight: 80, textAlignVertical: 'top' },
+  proposeQuoteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 20,
+    paddingVertical: 14, marginTop: 14,
+  },
+  proposeQuoteBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#B45309' },
 
   // Additional Charges history
   chargeRow: { paddingVertical: 12, gap: 4 },

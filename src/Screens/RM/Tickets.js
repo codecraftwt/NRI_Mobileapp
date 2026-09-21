@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, TextInput, Modal, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useRmRequests } from '../../Hooks/RM/useRmRequests';
@@ -64,8 +64,14 @@ function Tickets({ navigation }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterVisible, setFilterVisible] = useState(false);
-  const { requests, loading, meta, fetchNextPage } = useRmRequests();
+  const { requests, loading, meta, fetchNextPage, refresh } = useRmRequests();
   const total = meta?.total || 0;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await refresh(); } finally { setRefreshing(false); }
+  };
 
   const matchesStatus = (t) => {
     if (statusFilter === 'all') return true;
@@ -147,6 +153,7 @@ function Tickets({ navigation }) {
         showsVerticalScrollIndicator={false}
         onEndReached={fetchNextPage}
         onEndReachedThreshold={0.5}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#20304C']} tintColor="#20304C" />}
         ListEmptyComponent={
           loading && requests.length === 0 ? (
             <View style={styles.emptyState}>

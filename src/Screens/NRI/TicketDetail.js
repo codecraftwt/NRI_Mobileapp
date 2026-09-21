@@ -326,7 +326,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         )}
 
-        {!!ticket.pricing && (
+        {!!ticket.pricing && Number(ticket.pricing.totalAmount) > 0 && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Charges Breakdown</Text>
             <View style={styles.chargesList}>

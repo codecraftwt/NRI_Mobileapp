@@ -11,6 +11,7 @@ import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useProperties } from '../../Hooks/useProperties';
+import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -143,6 +144,9 @@ function SubmitRequest({ navigation }) {
   // to, so a property added there shows up here without a manual refresh
   // (both read the same Redux slice).
   const { properties } = useProperties();
+  // Resolves the who-for-this fields into a family_member_id — needed by
+  // POST /customer/tickets/quoted/{service} (see resolveFamilyMemberId below).
+  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
 
   const [reqForm, setReqForm] = useState({
     fullName: '', relation: '', property: NO_PROPERTY,
@@ -183,6 +187,7 @@ function SubmitRequest({ navigation }) {
   const {
     requiredDocuments, fetchRequiredDocuments,
     quote, quoteLoading, quoteFailed, quoteError, fetchQuote,
+    bookQuotedTicket, bookQuotedLoading,
     reset,
   } = useTicketBooking();
   // Generic gateway-payment verification (shared with membership/billing
@@ -228,6 +233,17 @@ function SubmitRequest({ navigation }) {
   // bound to recurring_price via useCartPriceSync.
   const oneTimeItems = items.filter(i => !i.isRecurring);
   const recurringItems = items.filter(i => i.isRecurring);
+  // True only when this checkout will hit the dedicated quote-only endpoint
+  // (POST /customer/tickets/quoted/{service}, see handleSubmit below) — a
+  // cart holding EXACTLY one one-time quoted service and nothing else. A
+  // quoted item no longer needs a fixed price at booking (a vendor/RM
+  // proposes one after the request is submitted; the customer only pays once
+  // that's approved — see TicketDetail.js's "Additional Payment Requested"
+  // card), but that endpoint takes a single service, so this must stay
+  // false — and payment UI must stay visible — the moment a quoted item is
+  // mixed with a recurring item or another priced service; those still owe
+  // real money and go through the normal paid checkout below.
+  const isQuotedOnlyCart = items.length === 1 && items[0].isQuoted && !items[0].isRecurring;
   // A cart that's ENTIRELY recurring is its own pay-first flow (same
   // contract as CreateTicket's single-recurring-service subscribe: only
   // service_ids/gateway/state_id/city_id up front via POST
@@ -239,7 +255,16 @@ function SubmitRequest({ navigation }) {
   const isPureRecurring = oneTimeItems.length === 0 && recurringItems.length > 0;
   // Pay-first (booking-details → payment → FinishRequest) applies to a cart
   // that's entirely one kind or the other — plain one-time, or plain recurring.
-  const payFirstEligible = recurringItems.length === 0 || isPureRecurring;
+  // EXCEPT a quoted one-time item: pay-first only works because
+  // checkoutPayFirst returns a paymentId that anchors the deferred
+  // finalizeTicket() call on FinishRequest — but a quoted item has no price,
+  // so the backend has nothing to create a Payment against and returns
+  // payment_id: null. That leaves FinishRequest with no pending ticket to
+  // finish (nothingPending), so the request silently never gets created.
+  // Route it through the same details→submit flow as a mixed cart instead,
+  // which creates the ticket directly from checkoutCart() — no paymentId
+  // round-trip required.
+  const payFirstEligible = (recurringItems.length === 0 || isPureRecurring) && !oneTimeItems.some(i => i.isQuoted);
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -340,7 +365,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading || subscribeLoading;
+  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading || subscribeLoading || bookQuotedLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
@@ -459,7 +484,10 @@ function SubmitRequest({ navigation }) {
   // addon-only selection uses a different service as the technical primary
   // (per the /customer/tickets/quote spec) — that request can still 200 even
   // though category_base_bookable is false on every item in it.
-  const quoteBlocking = oneTimeItems.length > 0 && quoteFailed;
+  // A quoted item has no fixed price to quote in the first place — the ticket
+  // quote call failing/being irrelevant for it isn't a real booking blocker,
+  // unlike a genuine no-vendor-in-city failure on a normally-priced item.
+  const quoteBlocking = !isQuotedOnlyCart && oneTimeItems.length > 0 && quoteFailed;
   const quoteErrorMessage = quoteError?.message || 'One or more selected services aren\'t available for your selected city. Please review your cart.';
 
   const handleChooseDocument = async (docId) => {
@@ -493,6 +521,21 @@ function SubmitRequest({ navigation }) {
       ? RNBlobUtil.ios.previewDocument(path)
       : RNBlobUtil.android.actionViewIntent(path, file.type || 'application/pdf');
     Promise.resolve(opening).catch(() => Alert.alert('Cannot open', 'No app is available to preview this document.'));
+  };
+
+  // POST /customer/tickets/quoted/{service} needs an existing family_member_id
+  // (unlike checkoutCart, which still takes raw name/relationship) — reuse a
+  // matching saved member if one exists, else create one on the fly. Same
+  // pattern as FinishRequest.js's resolveFamilyMemberId.
+  const resolveFamilyMemberId = async () => {
+    const name = reqForm.fullName.trim();
+    const relationship = reqForm.relation.toLowerCase();
+    const existing = familyMembers.find(
+      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
+    );
+    if (existing) return existing.id;
+    const created = await createFamilyMember({ name, relationship }).unwrap();
+    return created.id;
   };
 
   const finishSuccess = async () => {
@@ -551,7 +594,14 @@ function SubmitRequest({ navigation }) {
     return true;
   };
 
-  const handleContinue = () => { if (validateDetails()) setStep('payment'); };
+  // A quoted item has nothing to pay for, so there's no separate payment step
+  // to continue to — validate here and submit the request directly instead
+  // of advancing to step 'payment'.
+  const handleContinue = () => {
+    if (!validateDetails()) return;
+    if (isQuotedOnlyCart) { handleSubmit(); return; }
+    setStep('payment');
+  };
 
   // Pay-first path (payFirstEligible only): validates just the booking-details
   // fields, prices/pays the cart, then hands off to FinishRequest — nothing is
@@ -723,6 +773,28 @@ function SubmitRequest({ navigation }) {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
+
+      // A cart holding exactly one quoted service skips price/checkout
+      // entirely — POST /customer/tickets/quoted/{service} creates the
+      // ticket in a single step, no payment yet. A vendor proposes a price
+      // after review; the customer pays it later the normal way, once
+      // approved (see TicketDetail.js's "Additional Payment Requested" card).
+      if (items.length === 1 && items[0].isQuoted) {
+        const propertyId = properties.find(p => p.nickname === reqForm.property)?.id || null;
+        const familyMemberId = await resolveFamilyMemberId();
+        await bookQuotedTicket({
+          serviceId: items[0].serviceId,
+          stateId, cityId, talukaId, propertyId, familyMemberId,
+          address: reqForm.address.trim(),
+          pincode: reqForm.pincode.trim(),
+          urgency: selectedPriority?.slug || 'standard',
+          preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
+          customerNotes: reqForm.notes || undefined,
+          documents: documentFiles,
+        }).unwrap();
+        await finishSuccess();
+        return;
+      }
 
       const result = await checkoutCart({
         gateway: paymentMethod,
@@ -971,7 +1043,14 @@ function SubmitRequest({ navigation }) {
               <Text style={styles.cardTitle}>Estimated Price for Your Address</Text>
               {quoteLoading && <ActivityIndicator size="small" color="#D94625" />}
             </View>
-            {oneTimeItems.length > 0 ? (
+            {isQuotedOnlyCart ? (
+              <View style={styles.quoteOnlyBanner}>
+                <Icon name="info-outline" size={18} color="#92400E" />
+                <Text style={styles.quoteOnlyBannerText}>
+                  One or more services in your cart don't have a fixed price — a vendor will propose one after you submit the request, and you'll only pay once it's confirmed.
+                </Text>
+              </View>
+            ) : oneTimeItems.length > 0 ? (
               <>
                 {/* category_base_bookable: false degrades pricing_basis to
                     "nationwide" (a reference estimate), it doesn't mean no
@@ -1080,47 +1159,58 @@ function SubmitRequest({ navigation }) {
           </View>
 
           <View style={styles.card}>
-            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>Payment</Text></View>
+            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>{isQuotedOnlyCart ? 'Request Summary' : 'Payment'}</Text></View>
 
-            <Text style={styles.fieldLabel}>Have a coupon?</Text>
-            <View style={styles.couponRow}>
-              <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
-                disabled={cartCouponApplyLoading}
-              >
-                {cartCouponApplyLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-              <Icon name="local-offer" size={14} color="#D94625" />
-              <Text style={styles.viewCouponsLink}>View available coupons</Text>
-              <Icon name="expand-more" size={16} color="#D94625" />
-            </TouchableOpacity>
-
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
-            <CurrencyToggle value={currency} onChange={setCurrency} />
-            <Text style={styles.fieldLabel}>Payment Method</Text>
-            {gateways.map(g => (
-              <TouchableOpacity
-                key={g.value}
-                style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
-                activeOpacity={0.8}
-                onPress={() => setPaymentMethod(g.value)}
-              >
-                <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.gatewayName}>{g.label}</Text>
-                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+            {isQuotedOnlyCart ? (
+              <View style={styles.quoteOnlyBanner}>
+                <Icon name="info-outline" size={18} color="#92400E" />
+                <Text style={styles.quoteOnlyBannerText}>
+                  One or more services in your cart don't have a fixed price. Submit your request — a vendor will propose a price, and you'll only be asked to pay once it's confirmed.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.fieldLabel}>Have a coupon?</Text>
+                <View style={styles.couponRow}>
+                  <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
+                  <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
+                    disabled={cartCouponApplyLoading}
+                  >
+                    {cartCouponApplyLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
-                <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
-              </TouchableOpacity>
-            ))}
+                <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+                  <Icon name="local-offer" size={14} color="#D94625" />
+                  <Text style={styles.viewCouponsLink}>View available coupons</Text>
+                  <Icon name="expand-more" size={16} color="#D94625" />
+                </TouchableOpacity>
+
+                <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
+                <CurrencyToggle value={currency} onChange={setCurrency} />
+                <Text style={styles.fieldLabel}>Payment Method</Text>
+                {gateways.map(g => (
+                  <TouchableOpacity
+                    key={g.value}
+                    style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
+                    activeOpacity={0.8}
+                    onPress={() => setPaymentMethod(g.value)}
+                  >
+                    <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.gatewayName}>{g.label}</Text>
+                      {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                    </View>
+                    <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
 
             <View style={styles.divider} />
             {isPureRecurring ? (
@@ -1144,7 +1234,7 @@ function SubmitRequest({ navigation }) {
                 )}
                 <Text style={styles.disclaimer}>Billed automatically each {recurringInterval} until you cancel.</Text>
               </>
-            ) : oneTimeItems.length > 0 && (
+            ) : (!isQuotedOnlyCart && oneTimeItems.length > 0) && (
               <>
                 {quoteBlocking && (
                   <View style={styles.quoteErrorBox}>
@@ -1169,14 +1259,18 @@ function SubmitRequest({ navigation }) {
               </>
             )}
             <View style={styles.payBox}>
-              <Text style={styles.payLabel}>You'll pay</Text>
+              <Text style={styles.payLabel}>{isQuotedOnlyCart ? 'Price' : "You'll pay"}</Text>
               <Text style={styles.payValue}>
-                {currency === 'INR'
-                  ? (isPureRecurring
-                      ? (recurringQuoteReady ? formatAmount(recurringAmountInr, 'INR') : '…')
-                      : (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…'))
-                  : fmt(isPureRecurring ? recurringSubtotal : estTotal)}
-                {isPureRecurring ? `/${recurringInterval}` : ''}
+                {isQuotedOnlyCart ? 'To be confirmed' : (
+                  <>
+                    {currency === 'INR'
+                      ? (isPureRecurring
+                          ? (recurringQuoteReady ? formatAmount(recurringAmountInr, 'INR') : '…')
+                          : (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…'))
+                      : fmt(isPureRecurring ? recurringSubtotal : estTotal)}
+                    {isPureRecurring ? `/${recurringInterval}` : ''}
+                  </>
+                )}
               </Text>
             </View>
 
@@ -1184,12 +1278,12 @@ function SubmitRequest({ navigation }) {
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, !isQuotedOnlyCart && ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handlePayFirst}
-                disabled={(!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)}
+                disabled={!isQuotedOnlyCart && ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr))}
               >
-                <Text style={styles.submitBtnText}>Continue to Payment</Text>
+                <Text style={styles.submitBtnText}>{isQuotedOnlyCart ? 'Submit Request' : 'Continue to Payment'}</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </TouchableOpacity>
             )}
@@ -1296,10 +1390,14 @@ function SubmitRequest({ navigation }) {
             </View>
           )}
 
-          <TouchableOpacity style={styles.continueBtn} activeOpacity={0.9} onPress={handleContinue}>
-            <Text style={styles.continueBtnText}>Continue to Payment</Text>
-            <Icon name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+          {loading ? (
+            <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
+          ) : (
+            <TouchableOpacity style={styles.continueBtn} activeOpacity={0.9} onPress={handleContinue}>
+              <Text style={styles.continueBtnText}>{isQuotedOnlyCart ? 'Submit Request' : 'Continue to Payment'}</Text>
+              <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
           </>
           )}
 
@@ -1312,47 +1410,58 @@ function SubmitRequest({ navigation }) {
 
           {/* Payment */}
           <View style={styles.card}>
-            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>Payment</Text></View>
+            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>{isQuotedOnlyCart ? 'Request Summary' : 'Payment'}</Text></View>
 
-            <Text style={styles.fieldLabel}>Have a coupon?</Text>
-            <View style={styles.couponRow}>
-              <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
-                disabled={cartCouponApplyLoading}
-              >
-                {cartCouponApplyLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-              <Icon name="local-offer" size={14} color="#D94625" />
-              <Text style={styles.viewCouponsLink}>View available coupons</Text>
-              <Icon name="expand-more" size={16} color="#D94625" />
-            </TouchableOpacity>
-
-            <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
-            <CurrencyToggle value={currency} onChange={setCurrency} />
-            <Text style={styles.fieldLabel}>Payment Method</Text>
-            {gateways.map(g => (
-              <TouchableOpacity
-                key={g.value}
-                style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
-                activeOpacity={0.8}
-                onPress={() => setPaymentMethod(g.value)}
-              >
-                <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.gatewayName}>{g.label}</Text>
-                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+            {isQuotedOnlyCart ? (
+              <View style={styles.quoteOnlyBanner}>
+                <Icon name="info-outline" size={18} color="#92400E" />
+                <Text style={styles.quoteOnlyBannerText}>
+                  One or more services in your cart don't have a fixed price. Submit your request — a vendor will propose a price, and you'll only be asked to pay once it's confirmed.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.fieldLabel}>Have a coupon?</Text>
+                <View style={styles.couponRow}>
+                  <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
+                  <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
+                    disabled={cartCouponApplyLoading}
+                  >
+                    {cartCouponApplyLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
-                <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
-              </TouchableOpacity>
-            ))}
+                <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+                  <Icon name="local-offer" size={14} color="#D94625" />
+                  <Text style={styles.viewCouponsLink}>View available coupons</Text>
+                  <Icon name="expand-more" size={16} color="#D94625" />
+                </TouchableOpacity>
+
+                <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
+                <CurrencyToggle value={currency} onChange={setCurrency} />
+                <Text style={styles.fieldLabel}>Payment Method</Text>
+                {gateways.map(g => (
+                  <TouchableOpacity
+                    key={g.value}
+                    style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
+                    activeOpacity={0.8}
+                    onPress={() => setPaymentMethod(g.value)}
+                  >
+                    <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.gatewayName}>{g.label}</Text>
+                      {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                    </View>
+                    <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
 
             {/* Order summary — one-time items from the quote API; recurring
                 items are billed separately, not part of this payment. */}
@@ -1387,11 +1496,13 @@ function SubmitRequest({ navigation }) {
               </Text>
             )}
             <View style={styles.payBox}>
-              <Text style={styles.payLabel}>You'll pay</Text>
+              <Text style={styles.payLabel}>{isQuotedOnlyCart ? 'Price' : "You'll pay"}</Text>
               <Text style={styles.payValue}>
-                {currency === 'INR' && oneTimeItems.length > 0
-                  ? (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…')
-                  : fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)}
+                {isQuotedOnlyCart ? 'To be confirmed' : (
+                  currency === 'INR' && oneTimeItems.length > 0
+                    ? (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…')
+                    : fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)
+                )}
               </Text>
             </View>
 
@@ -1399,10 +1510,10 @@ function SubmitRequest({ navigation }) {
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, !isQuotedOnlyCart && (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handleSubmit}
-                disabled={quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)}
+                disabled={!isQuotedOnlyCart && (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr))}
               >
                 <Text style={styles.submitBtnText}>Submit Request</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
@@ -1606,6 +1717,8 @@ const styles = StyleSheet.create({
   disclaimer: { fontSize: 11, lineHeight: 16, color: '#94A3B8', marginTop: 10 },
   quoteErrorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, borderWidth: 1, borderColor: '#FECACA', padding: 12 },
   quoteErrorText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: '#B91C1C' },
+  quoteOnlyBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14 },
+  quoteOnlyBannerText: { flex: 1, fontSize: 13, lineHeight: 19, color: '#78350F' },
 
   payBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#EEF2FB', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, marginTop: 12 },
   payLabel: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },

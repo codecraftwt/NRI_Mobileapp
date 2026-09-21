@@ -83,6 +83,18 @@ export const finalizeTicket = createAsyncThunk(
   }
 );
 
+// Single-step booking for a quote-only service — see ticketApi.bookQuotedTicket.
+export const bookQuotedTicket = createAsyncThunk(
+  'ticketBooking/bookQuoted',
+  async ({ serviceId, ...params }, { rejectWithValue }) => {
+    try {
+      return await ticketApi.bookQuotedTicket(serviceId, params);
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const payForTicket = createAsyncThunk(
   'ticketBooking/pay',
   async ({ ticketId, gateway, useWallet }, { rejectWithValue }) => {
@@ -124,6 +136,8 @@ const initialState = {
   submitError: null,
   finalizeStatus: 'idle',
   finalizeError: null,
+  bookQuotedStatus: 'idle',
+  bookQuotedError: null,
   payStatus: 'idle',
   payError: null,
   verifyStatus: 'idle',
@@ -229,6 +243,17 @@ const ticketBookingSlice = createSlice({
       .addCase(finalizeTicket.rejected, (state, action) => {
         state.finalizeStatus = 'failed';
         state.finalizeError = action.payload;
+      })
+      .addCase(bookQuotedTicket.pending, (state) => {
+        state.bookQuotedStatus = 'loading';
+        state.bookQuotedError = null;
+      })
+      .addCase(bookQuotedTicket.fulfilled, (state) => {
+        state.bookQuotedStatus = 'succeeded';
+      })
+      .addCase(bookQuotedTicket.rejected, (state, action) => {
+        state.bookQuotedStatus = 'failed';
+        state.bookQuotedError = action.payload;
       })
       .addCase(payForTicket.pending, (state) => {
         state.payStatus = 'loading';

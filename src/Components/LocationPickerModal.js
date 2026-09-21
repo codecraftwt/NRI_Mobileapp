@@ -13,7 +13,7 @@ import { usePostalCodeLookup } from '../Hooks/usePostalCodeLookup';
 // then persist { stateName, cityName, cityId } to the serviceLocation slice so
 // every services list/detail refetches for that city. State name isn't in the
 // payload (only city.state_id) — it's resolved from the cached states list.
-export default function LocationPickerModal({ visible, onClose, onSaved, title = 'Select Location', subtitle = 'Enter your PIN code to find your city.' }) {
+export default function LocationPickerModal({ visible, onClose, onSaved, title = 'Select Location', subtitle = "Enter the PIN code of where the service is needed (e.g. your family's home in India) — not necessarily your own location — to see the exact services and pricing available there." }) {
   const dispatch = useDispatch();
   const saved = useSelector(s => s.serviceLocation);
   const { states } = useStates();
@@ -72,77 +72,78 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{title}</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
-            </View>
-            {canClear && (
-              <TouchableOpacity onPress={handleClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginRight: 14 }}>
-                <Text style={styles.clearText}>Clear</Text>
+        <TouchableOpacity style={styles.overlayTouchable} activeOpacity={1} onPress={onClose}>
+          <TouchableOpacity style={styles.sheet} activeOpacity={1} onPress={() => {}}>
+            <View style={styles.header}>
+              <Text style={[styles.title, { flex: 1 }]}>{title}</Text>
+              {canClear && (
+                <TouchableOpacity onPress={handleClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ marginRight: 14 }}>
+                  <Text style={styles.clearText}>Clear</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={24} color="#64748B" />
               </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Icon name="close" size={24} color="#64748B" />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.fieldLabel}>PIN Code</Text>
-          <View style={styles.pinBox}>
-            <Icon name="pin-drop" size={20} color="#94A3B8" />
-            <TextInput
-              style={styles.pinInput}
-              placeholder="e.g. 416002"
-              placeholderTextColor="#94A3B8"
-              keyboardType="number-pad"
-              maxLength={6}
-              value={pin}
-              onChangeText={(t) => setPin(t.replace(/[^0-9]/g, ''))}
-              autoFocus
-            />
-            {loading && <ActivityIndicator size="small" color={colors.primary} />}
-          </View>
-
-          {/* Resolved location preview */}
-          {canSave && (
-            <View style={styles.resultCard}>
-              <Icon name="place" size={20} color="#D94625" />
-              <View style={{ flex: 1 }}>
-                {!!match.areaName && <Text style={styles.resultArea}>{match.areaName}</Text>}
-                <Text style={styles.resultCity}>{resolvedCityName}, {resolvedStateName}</Text>
-                {!!match.talukaName && <Text style={styles.resultSub}>Taluka: {match.talukaName}</Text>}
-              </View>
-              <Icon name="check-circle" size={20} color="#10B981" />
             </View>
-          )}
+            <Text style={styles.subtitle} numberOfLines={4}>{subtitle}</Text>
 
-          {notFound && (
-            <Text style={styles.errorText}>
-              We couldn't find that PIN code. Please check and try again.
-            </Text>
-          )}
+            <Text style={styles.fieldLabel}>PIN Code</Text>
+            <View style={styles.pinBox}>
+              <Icon name="pin-drop" size={20} color="#94A3B8" />
+              <TextInput
+                style={styles.pinInput}
+                placeholder="e.g. 416002"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={pin}
+                onChangeText={(t) => setPin(t.replace(/[^0-9]/g, ''))}
+                autoFocus
+              />
+              {loading && <ActivityIndicator size="small" color={colors.primary} />}
+            </View>
 
-          <TouchableOpacity
-            style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={!canSave}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.saveBtnText}>Save Location</Text>
+            {/* Resolved location preview */}
+            {canSave && (
+              <View style={styles.resultCard}>
+                <Icon name="place" size={20} color="#D94625" />
+                <View style={{ flex: 1 }}>
+                  {!!match.areaName && <Text style={styles.resultArea}>{match.areaName}</Text>}
+                  <Text style={styles.resultCity}>{resolvedCityName}, {resolvedStateName}</Text>
+                  {!!match.talukaName && <Text style={styles.resultSub}>Taluka: {match.talukaName}</Text>}
+                </View>
+                <Icon name="check-circle" size={20} color="#10B981" />
+              </View>
+            )}
+
+            {notFound && (
+              <Text style={styles.errorText}>
+                We couldn't find that PIN code. Please check and try again.
+              </Text>
+            )}
+
+            <TouchableOpacity
+              style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={!canSave}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.saveBtnText}>Save Location</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', paddingHorizontal: 20 },
+  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)' },
+  overlayTouchable: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   sheet: { backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   title: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
-  subtitle: { fontSize: 13, color: '#64748B', marginTop: 2 },
+  subtitle: { fontSize: 13, color: '#64748B', lineHeight: 18, marginBottom: 20 },
   clearText: { fontSize: 14, color: '#D94625', fontFamily: typography.h4.fontFamily },
 
   fieldLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', marginBottom: 6 },

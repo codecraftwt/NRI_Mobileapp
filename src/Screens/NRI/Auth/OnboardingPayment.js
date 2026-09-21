@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Modal, FlatList, Dimensions, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -240,13 +240,8 @@ function OnboardingPayment({ route, navigation }) {
   const serverCartCount = useSelector(s => s.cart.serverCount);
   const guestMergeStatus = useSelector(s => s.cart.guestMergeStatus);
   useEffect(() => {
-    console.log('[DEBUG mergeGuestCart guard]', { isAuthenticated, fromCart, serverCartCount, guestMergeStatus });
     if (!isAuthenticated || !fromCart || serverCartCount > 0 || guestMergeStatus !== 'idle') return;
-    console.log('[DEBUG mergeGuestCart] dispatching');
-    dispatch(mergeGuestCart())
-      .unwrap()
-      .then((r) => console.log('[DEBUG mergeGuestCart] success', JSON.stringify(r)))
-      .catch((e) => console.log('[DEBUG mergeGuestCart] failed', JSON.stringify(e)));
+    dispatch(mergeGuestCart());
   }, [isAuthenticated, fromCart, serverCartCount, guestMergeStatus, dispatch]);
 
   // A recurring cart service can't ride this membership checkout session (a
@@ -550,7 +545,16 @@ function OnboardingPayment({ route, navigation }) {
     });
   };
 
+  // setSubmitting(true) below doesn't disable the Pay button until the next
+  // render, so a fast double-tap can fire handlePay twice before the button
+  // swaps to its loading spinner — sending two checkout requests back to
+  // back. The first activates the membership; the second then hits the
+  // backend's "already have an active membership" rejection. A ref (checked
+  // synchronously, unlike state) closes that gap.
+  const payInFlightRef = useRef(false);
+
   const handlePay = async () => {
+    if (payInFlightRef.current) return;
     if (!plan) {
       showAlert('No Plan Selected', 'Please go back and choose a membership plan.', 'error');
       return;
@@ -563,6 +567,7 @@ function OnboardingPayment({ route, navigation }) {
       showAlert('Signature Required', 'Please type your full legal name to sign before paying.', 'error');
       return;
     }
+    payInFlightRef.current = true;
     setSubmitting(true);
     try {
       if (fromCart) {
@@ -647,6 +652,7 @@ function OnboardingPayment({ route, navigation }) {
       console.warn('[Razorpay] checkout failed', { gateway: paymentMethod, status: error?.status, message: error?.message });
       showAlert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
     } finally {
+      payInFlightRef.current = false;
       setSubmitting(false);
     }
   };

@@ -311,6 +311,53 @@ export async function finalizeTicket(paymentId, {
   }
 }
 
+// POST /customer/tickets/quoted/{service} — single-step booking for a
+// quote-only service (pricing.is_quoted: true, no customer_price). Replaces
+// the usual createTicket()→pay→finalizeTicket() dance: no payment step here,
+// nothing to pay yet. A vendor reviews the job and proposes a price, our team
+// approves it, and only then does the ticket start showing a
+// pending_additional_charge the customer pays the normal way (payForTicket).
+// Returns the same full ticket payload as getTicketDetail(); total_amount is
+// 0 and is_paid is false on the response — expected, not an error. Sends
+// multipart when there are attachments/required-documents to upload, plain
+// JSON otherwise (same convention as finalizeTicket above).
+export async function bookQuotedTicket(serviceId, {
+  stateId, cityId, urgency, address, pincode, familyMemberId, propertyId, talukaId, preferredDate, customerNotes, files, documents,
+}) {
+  try {
+    const fields = {
+      state_id: stateId,
+      city_id: cityId,
+      urgency,
+      address,
+      pincode: pincode || undefined,
+      family_member_id: familyMemberId || undefined,
+      property_id: propertyId || undefined,
+      taluka_id: talukaId || undefined,
+      preferred_date: preferredDate || undefined,
+      customer_notes: customerNotes || undefined,
+    };
+    const docEntries = Object.entries(documents || {}).filter(([, file]) => !!file);
+    const hasFiles = (files && files.length > 0) || docEntries.length > 0;
+    let response;
+
+    if (hasFiles) {
+      const uploadFiles = [
+        ...(files || []).map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type })),
+        ...docEntries.map(([docId, file]) => ({ field: `documents[${docId}]`, uri: file.uri, name: file.name, type: file.type })),
+      ];
+      response = await postMultipart(`/customer/tickets/quoted/${serviceId}`, fields, uploadFiles);
+    } else {
+      response = await apiClient.post(`/customer/tickets/quoted/${serviceId}`, fields);
+    }
+
+    const data = response.data?.data || response.data || {};
+    return { ticket: mapTicket(data.ticket || data), message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // `lite: true` skips the per-ticket vendor/SLA detail backfill below — use it
 // when only `id`/`ticketNumber` are needed (e.g. resolving a notification's
 // ticket number to an id), since that data is already on the plain list item

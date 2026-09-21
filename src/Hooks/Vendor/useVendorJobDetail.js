@@ -9,6 +9,7 @@ import {
   addReportAttachments,
   saveTracking,
   flagJobCostIssue,
+  proposeJobPrice,
   submitJobFeedback,
 } from '../../Redux/slices/vendorJobsSlice';
 
@@ -45,6 +46,7 @@ export function useVendorJobDetail(ticket) {
     addAttachments: (files) => dispatch(addReportAttachments({ ticket, files })),
     saveTracking: ({ trackingNumber, trackingUrl }) => dispatch(saveTracking({ ticket, trackingNumber, trackingUrl })),
     flagCostIssue: ({ reason, amount }) => dispatch(flagJobCostIssue({ ticket, reason, amount })),
+    proposePrice: ({ amount, reason }) => dispatch(proposeJobPrice({ ticket, amount, reason })),
 
     submitFeedback: ({ rating, note }) => dispatch(submitJobFeedback({ ticket, rating, note })),
     feedbackLoading: feedbackStatus === 'loading',

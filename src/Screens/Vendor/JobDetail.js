@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
@@ -30,6 +31,16 @@ function getDisputeStatusStyle(dispute) {
   }
 }
 
+// Pill styling for a vendor's proposed price quote (job.quote.status).
+function getQuoteStatusStyle(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'pending_approval': return { pill: { backgroundColor: '#DBEAFE' }, text: { color: '#1D4ED8' }, label: 'Awaiting Approval' };
+    case 'approved': return { pill: { backgroundColor: '#D1FAE5' }, text: { color: '#059669' }, label: 'Approved' };
+    case 'rejected': return { pill: { backgroundColor: '#FEE2E2' }, text: { color: '#DC2626' }, label: 'Rejected' };
+    default: return { pill: { backgroundColor: '#F3F4F6' }, text: { color: '#4B5563' }, label: status ? String(status) : 'Pending' };
+  }
+}
+
 function formatDisputeDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -51,7 +62,7 @@ function JobDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
   const {
     detail: job, loading, failed, error, retry,
-    actionLoading, accept, reject, complete, addAttachments, saveTracking, flagCostIssue,
+    actionLoading, accept, reject, complete, addAttachments, saveTracking, flagCostIssue, proposePrice,
     submitFeedback, feedbackLoading,
   } = useVendorJobDetail(ticketId);
   const token = useSelector(state => state.user.token);
@@ -64,6 +75,18 @@ function JobDetail({ route, navigation }) {
     setRefreshing(true);
     try { await retry(); } finally { setRefreshing(false); }
   };
+
+  // Re-fetch whenever this screen regains focus (e.g. coming back from the
+  // job queue, or the app resuming) — without this, a job that was gated on
+  // requires_price_confirmation (Accept hidden) stays stuck showing that
+  // state even after the price is approved/paid and the RM notifies the
+  // vendor, until the vendor happens to pull-to-refresh manually.
+  useFocusEffect(
+    useCallback(() => {
+      if (ticketId != null) retry();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticketId])
+  );
 
   // Two-section layout: "Overview" (read-only info) vs "Actions" (everything actionable).
   const [activeTab, setActiveTab] = useState('overview');
@@ -83,6 +106,11 @@ function JobDetail({ route, navigation }) {
   // Tracking (prefilled from the job once it loads)
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
+
+  // Propose Price — quote-only jobs (requiresPriceConfirmation); vendor's own
+  // charge, the platform margin/GST are added on top server-side.
+  const [proposeAmount, setProposeAmount] = useState('');
+  const [proposeReason, setProposeReason] = useState('');
 
   // Flag Cost Issue — raises a dispute tied to this job (POST /vendor/support).
   const [flagModalVisible, setFlagModalVisible] = useState(false);
@@ -178,6 +206,25 @@ function JobDetail({ route, navigation }) {
       ]);
     } catch (e) {
       showAlert('Could Not Reject', e?.message || 'Something went wrong. Please try again.');
+    }
+  };
+
+  const handleProposePrice = async () => {
+    if (!proposeAmount || Number(proposeAmount) <= 0) {
+      showAlert('Amount Required', 'Please enter what you charge for this job.');
+      return;
+    }
+    if (!proposeReason.trim()) {
+      showAlert('Reason Required', 'Please provide the basis for this price.');
+      return;
+    }
+    try {
+      await proposePrice({ amount: proposeAmount, reason: proposeReason.trim() }).unwrap();
+      setProposeAmount('');
+      setProposeReason('');
+      showToast('Price proposed — awaiting admin approval', 'success');
+    } catch (e) {
+      showAlert('Could Not Propose Price', e?.message || 'Something went wrong. Please try again.');
     }
   };
 
@@ -341,6 +388,19 @@ function JobDetail({ route, navigation }) {
   // conditions (like a paid charge pending RM's "Notify Vendor" step) that aren't
   // visible from vendor_disputes' charge_status alone.
   const reportBlocked = job.canComplete === false;
+  // requires_price_confirmation can still be true even after the quote is
+  // paid (verified live — the flag lags quote.status) — once quote.status
+  // is 'paid', treat it as no longer requiring confirmation so Accept opens
+  // up immediately instead of waiting on the backend flag to catch up.
+  const isPricePaid = job.quote?.status === 'paid';
+  const isPriceAwaitingApproval = job.quote?.status === 'pending_approval';
+  const awaitingPriceConfirmation = job.requiresPriceConfirmation && !isPricePaid;
+  // committed_eta is only ever set by a successful /accept call — a more
+  // reliable "already accepted" signal than job.status, which can still read
+  // Assigned for a beat after accept until the detail refetch lands. Without
+  // this, the Accept form and the price-confirmation card keep showing after
+  // the vendor has already accepted.
+  const alreadyAccepted = !!job.committedEta;
 
   return (
     <View style={styles.container}>
@@ -493,70 +553,198 @@ function JobDetail({ route, navigation }) {
 
         {activeTab === 'actions' && (
         <>
-        {isAssigned && (
+        {isAssigned && !alreadyAccepted && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
               <Icon name="gavel" size={18} color="#D94625" />
               <Text style={styles.sectionTitle}>Job Actions</Text>
             </View>
-            <Text style={styles.actionDesc}>
-              Accept this job with a committed completion time, or reject it to send it back to the assignment team.
-            </Text>
 
-            <View style={styles.commitField}>
-              <Text style={styles.commitLabel}>I commit to complete this job by *</Text>
-              <TouchableOpacity style={styles.dateInput} onPress={() => setShowEtaPicker(true)} activeOpacity={0.7}>
-                <Text style={[styles.dateInputText, !formattedEta && styles.dateInputPlaceholder]}>
-                  {formattedEta || 'Select date & time'}
+            {awaitingPriceConfirmation ? (
+              <>
+                <View style={styles.priceWaitBanner}>
+                  <Icon name="hourglass-empty" size={18} color="#92400E" />
+                  <Text style={styles.priceWaitBannerText}>
+                    You can't accept this job yet — the price hasn't been confirmed and paid by the customer. Propose a price below if you haven't already.
+                  </Text>
+                </View>
+
+                {rejecting && (
+                  <View style={styles.reportField}>
+                    <Text style={styles.commitLabel}>Reason for rejection *</Text>
+                    <TextInput
+                      style={styles.reportInput}
+                      placeholder="Let the assignment team know why you can't take this job."
+                      placeholderTextColor="#94A3B8"
+                      value={rejectReason}
+                      onChangeText={setRejectReason}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+                )}
+
+                <TouchableOpacity style={[styles.rejectBtnFull, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading}>
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#DC2626" />
+                  ) : (
+                    <>
+                      <Icon name="close" size={18} color="#DC2626" />
+                      <Text style={styles.rejectBtnText}>{rejecting ? 'Confirm Reject' : 'Reject Job'}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.actionDesc}>
+                  Accept this job with a committed completion time, or reject it to send it back to the assignment team.
                 </Text>
-                <Icon name="event" size={18} color="#64748B" />
-              </TouchableOpacity>
-              <CustomDateTimePicker
-                visible={showEtaPicker}
-                mode="datetime"
-                value={committedEta}
-                disablePastDates
-                title="Committed Completion Time"
-                onConfirm={(date) => { setCommittedEta(date); setShowEtaPicker(false); }}
-                onCancel={() => setShowEtaPicker(false)}
-              />
-              <View style={styles.slaRow}>
-                <Icon name="info-outline" size={14} color="#94A3B8" />
-                <Text style={styles.slaHint}>SLA deadline: {job.completeBy}</Text>
-              </View>
+
+                <View style={styles.commitField}>
+                  <Text style={styles.commitLabel}>I commit to complete this job by *</Text>
+                  <TouchableOpacity style={styles.dateInput} onPress={() => setShowEtaPicker(true)} activeOpacity={0.7}>
+                    <Text style={[styles.dateInputText, !formattedEta && styles.dateInputPlaceholder]}>
+                      {formattedEta || 'Select date & time'}
+                    </Text>
+                    <Icon name="event" size={18} color="#64748B" />
+                  </TouchableOpacity>
+                  <CustomDateTimePicker
+                    visible={showEtaPicker}
+                    mode="datetime"
+                    value={committedEta}
+                    disablePastDates
+                    title="Committed Completion Time"
+                    onConfirm={(date) => { setCommittedEta(date); setShowEtaPicker(false); }}
+                    onCancel={() => setShowEtaPicker(false)}
+                  />
+                  <View style={styles.slaRow}>
+                    <Icon name="info-outline" size={14} color="#94A3B8" />
+                    <Text style={styles.slaHint}>SLA deadline: {job.completeBy}</Text>
+                  </View>
+                </View>
+
+                {rejecting && (
+                  <View style={styles.reportField}>
+                    <Text style={styles.commitLabel}>Reason for rejection *</Text>
+                    <TextInput
+                      style={styles.reportInput}
+                      placeholder="Let the assignment team know why you can't take this job."
+                      placeholderTextColor="#94A3B8"
+                      value={rejectReason}
+                      onChangeText={setRejectReason}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={[styles.acceptBtn, actionLoading && styles.btnDisabled]} onPress={handleAccept} disabled={actionLoading}>
+                    {actionLoading ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Icon name="check-circle-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.acceptBtnText}>Accept Job</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.rejectBtn, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading}>
+                    <Icon name="close" size={18} color="#DC2626" />
+                    <Text style={styles.rejectBtnText}>{rejecting ? 'Confirm Reject' : 'Reject'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {isAssigned && !alreadyAccepted && job.requiresPriceConfirmation && (
+          <View style={[styles.card, styles.priceCard, isPricePaid && styles.priceCardPaid]}>
+            <View style={styles.priceCardHeader}>
+              <Icon name={isPricePaid ? 'check-circle' : 'sell'} size={18} color={isPricePaid ? '#059669' : '#92400E'} />
+              <Text style={[styles.priceCardHeaderText, isPricePaid && styles.priceCardHeaderTextPaid]}>
+                {isPricePaid ? 'Price Confirmed & Paid' : 'Price Not Yet Confirmed'}
+              </Text>
             </View>
 
-            {rejecting && (
-              <View style={styles.reportField}>
-                <Text style={styles.commitLabel}>Reason for rejection *</Text>
-                <TextInput
-                  style={styles.reportInput}
-                  placeholder="Let the assignment team know why you can't take this job."
-                  placeholderTextColor="#94A3B8"
-                  value={rejectReason}
-                  onChangeText={setRejectReason}
-                  multiline
-                  numberOfLines={3}
-                />
+            <View style={[styles.priceInfoBanner, isPricePaid && styles.pricePaidBanner]}>
+              <Icon name={isPricePaid ? 'check-circle' : 'warning-amber'} size={16} color={isPricePaid ? '#059669' : '#92400E'} />
+              <Text style={[styles.priceInfoBannerText, isPricePaid && styles.pricePaidBannerText]}>
+                {isPricePaid
+                  ? `Payment of ₹${Number(job.quote.amount || 0).toFixed(2)} has been received. This job will be available to accept shortly.`
+                  : "Customer payment: Incomplete — this service has no fixed price. Propose what it should cost so the customer can be asked to pay."}
+              </Text>
+            </View>
+
+            {!isPricePaid && job.quote?.amount != null && (
+              <View style={styles.quoteStatusRow}>
+                <View style={styles.quoteStatusTop}>
+                  <Text style={styles.quoteStatusAmount}>₹{Number(job.quote.amount || 0).toFixed(2)}</Text>
+                  <View style={[styles.quoteStatusPill, getQuoteStatusStyle(job.quote.status).pill]}>
+                    <Text style={[styles.quoteStatusPillText, getQuoteStatusStyle(job.quote.status).text]}>
+                      {getQuoteStatusStyle(job.quote.status).label}
+                    </Text>
+                  </View>
+                </View>
+                {!!job.quote.reason && <Text style={styles.quoteStatusReason}>{job.quote.reason}</Text>}
               </View>
             )}
 
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={[styles.acceptBtn, actionLoading && styles.btnDisabled]} onPress={handleAccept} disabled={actionLoading}>
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Icon name="check-circle-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.acceptBtnText}>Accept Job</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.rejectBtn, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading}>
-                <Icon name="close" size={18} color="#DC2626" />
-                <Text style={styles.rejectBtnText}>{rejecting ? 'Confirm Reject' : 'Reject'}</Text>
-              </TouchableOpacity>
-            </View>
+            {!isPricePaid && isPriceAwaitingApproval && (
+              <View style={styles.quoteAwaitingNoteRow}>
+                <Icon name="hourglass-empty" size={14} color="#94A3B8" />
+                <Text style={styles.quoteAwaitingNoteText}>Awaiting Super Admin approval — you'll be notified once it's reviewed.</Text>
+              </View>
+            )}
+
+            {!isPricePaid && job.quote?.status === 'rejected' && !!job.quote?.rejectionReason && (
+              <Text style={styles.priceRejectionText}>Rejected: {job.quote.rejectionReason}</Text>
+            )}
+
+            {!isPricePaid && job.canProposePrice && (
+              <>
+                <View style={styles.reportField}>
+                  <Text style={styles.commitLabel}>Your charge (₹) *</Text>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                    value={proposeAmount}
+                    onChangeText={setProposeAmount}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.fileHint}>
+                    Enter what you charge for this job — the customer's price (with our service margin and GST) is calculated separately.
+                  </Text>
+                </View>
+
+                <View style={styles.reportField}>
+                  <Text style={styles.commitLabel}>Basis for this price *</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    placeholder="e.g. Labor, materials, travel — whatever justifies the figure."
+                    placeholderTextColor="#94A3B8"
+                    value={proposeReason}
+                    onChangeText={setProposeReason}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                <TouchableOpacity style={[styles.proposePriceBtn, actionLoading && styles.btnDisabled]} onPress={handleProposePrice} disabled={actionLoading}>
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#B45309" />
+                  ) : (
+                    <>
+                      <Icon name="sell" size={16} color="#B45309" />
+                      <Text style={styles.proposePriceBtnText}>Propose Price</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
@@ -712,7 +900,7 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {isAssigned && (
+        {isAssigned && !alreadyAccepted && (
           <View style={[styles.card, styles.flagCard]}>
             <View style={styles.sectionHeader}>
               <Icon name="flag" size={18} color="#B45309" />
@@ -1162,6 +1350,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   rejectBtnText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },
+  rejectBtnFull: {
+    flexDirection: 'row', gap: 8, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DC2626',
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  // Quote-only job gating (requires_price_confirmation)
+  priceWaitBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14,
+  },
+  priceWaitBannerText: { flex: 1, fontSize: 13, color: '#78350F', lineHeight: 19 },
+  priceCard: { borderColor: '#FDE68A' },
+  priceCardPaid: { borderColor: '#A7F3D0' },
+  priceCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  priceCardHeaderText: { fontSize: 16, fontWeight: '700', color: '#78350F' },
+  priceCardHeaderTextPaid: { color: '#065F46' },
+  priceInfoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14,
+  },
+  priceInfoBannerText: { flex: 1, fontSize: 13, color: '#78350F', lineHeight: 19 },
+  pricePaidBanner: { backgroundColor: '#D1FAE5' },
+  pricePaidBannerText: { color: '#065F46' },
+  priceRejectionText: { fontSize: 13, color: '#DC2626', lineHeight: 18 },
+  quoteStatusRow: {
+    borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#FFFFFF', gap: 4,
+  },
+  quoteStatusTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  quoteStatusAmount: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
+  quoteStatusPill: { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  quoteStatusPillText: { fontSize: 12, fontWeight: '700' },
+  quoteStatusReason: { fontSize: 13, color: '#64748B' },
+  quoteAwaitingNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  quoteAwaitingNoteText: { flex: 1, fontSize: 13, color: '#64748B', lineHeight: 19 },
+  proposePriceBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#FEF3E2', borderWidth: 1, borderColor: '#F5C542', borderRadius: 20,
+    paddingVertical: 14, marginTop: 4,
+  },
+  proposePriceBtnText: { fontSize: 15, fontWeight: '700', color: '#B45309' },
 
   reportField: { gap: 8 },
   reportInput: {

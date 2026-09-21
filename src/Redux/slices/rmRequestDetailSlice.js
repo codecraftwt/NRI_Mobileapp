@@ -67,6 +67,21 @@ export const convertRmVendorDispute = createAsyncThunk(
   }
 );
 
+// Proposes the price for a quote-only service (no fixed price at booking) —
+// same refetch-on-success pattern as the additional-payment mutations above.
+export const proposeRmQuotedPrice = createAsyncThunk(
+  'rmRequestDetail/proposeQuotedPrice',
+  async ({ ticket, amount, reason }, { dispatch, rejectWithValue }) => {
+    try {
+      const res = await rmRequestsApi.proposeRmQuotedPrice(ticket, { amount, reason });
+      await dispatch(fetchRmRequestDetail(ticket));
+      return res;
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  }
+);
+
 export const notifyRmVendorForCharge = createAsyncThunk(
   'rmRequestDetail/notifyVendorForCharge',
   async ({ ticket, chargeId }, { dispatch, rejectWithValue }) => {
@@ -163,7 +178,7 @@ const rmRequestDetailSlice = createSlice({
     // Shared pending/fulfilled/rejected handling for the three additional-
     // payment mutations — each refetches the detail itself on success, so
     // this slice only needs to track a shared loading/error flag.
-    [requestRmAdditionalPayment, cancelRmAdditionalCharge, convertRmVendorDispute, notifyRmVendorForCharge].forEach((thunk) => {
+    [requestRmAdditionalPayment, cancelRmAdditionalCharge, convertRmVendorDispute, notifyRmVendorForCharge, proposeRmQuotedPrice].forEach((thunk) => {
       builder
         .addCase(thunk.pending, (state) => {
           state.additionalPaymentStatus = 'loading';

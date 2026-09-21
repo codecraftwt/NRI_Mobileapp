@@ -10,6 +10,7 @@ import {
   resetTicketBooking,
   submitTicket,
   finalizeTicket,
+  bookQuotedTicket,
   payForTicket,
   verifyTicketPayment,
 } from '../Redux/slices/ticketBookingSlice';
@@ -38,6 +39,7 @@ export function useTicketBooking() {
 
   const submitLoading = useSelector(state => state.ticketBooking.submitStatus === 'loading');
   const finalizeLoading = useSelector(state => state.ticketBooking.finalizeStatus === 'loading');
+  const bookQuotedLoading = useSelector(state => state.ticketBooking.bookQuotedStatus === 'loading');
   const payLoading = useSelector(state => state.ticketBooking.payStatus === 'loading');
   const verifyLoading = useSelector(state => state.ticketBooking.verifyStatus === 'loading');
 
@@ -72,6 +74,9 @@ export function useTicketBooking() {
 
     finalizeLoading,
     finalizeTicket: (params) => dispatch(finalizeTicket(params)),
+
+    bookQuotedLoading,
+    bookQuotedTicket: (params) => dispatch(bookQuotedTicket(params)),
 
     payLoading,
     payForTicket: (params) => dispatch(payForTicket(params)),

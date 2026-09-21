@@ -159,6 +159,11 @@ export function mapRequestDetail(raw = {}) {
       total: pick(raw.pricing?.total, raw.total),
       vendorCost: pick(raw.pricing?.vendor_cost, raw.vendor_cost),
       amountDueNow: pick(raw.pricing?.amount_due_now, raw.amount_due_now),
+      // Quote-only services (no fixed price at booking) — an RM/staff-proposed
+      // price is the exact customer-facing amount (no vendor markup split,
+      // unlike the vendor app's own propose-price flow).
+      requiresPriceConfirmation: !!raw.pricing?.requires_price_confirmation,
+      canProposePrice: !!raw.pricing?.can_propose_price,
       // Live indicator of the currently-outstanding additional charge (same
       // shape as the customer app's ticketApi.js) — distinct from
       // additional_charges[] below, which is the full request/cancel history.
@@ -193,6 +198,8 @@ export function mapRequestDetail(raw = {}) {
 
 // One entry in a ticket's additional-charge history (RM's own
 // request-additional-payment calls, and any converted from a vendor flag).
+// The initial quote for a quote-only service also lands here — filter on
+// isInitialQuote to find it among any other additional charges.
 function mapAdditionalCharge(raw = {}, index = 0) {
   return {
     id: raw.id ?? index,
@@ -208,6 +215,14 @@ function mapAdditionalCharge(raw = {}, index = 0) {
     // Backend-computed (paid, not yet notified, vendor assigned, RM has
     // permission) so the app doesn't have to re-derive all of that client-side.
     canNotifyVendor: !!raw.can_notify_vendor,
+    isInitialQuote: !!raw.is_initial_quote,
+    // Only set for vendor-proposed quotes (there's no markup split for a
+    // staff-proposed price — amount above is already the exact customer price).
+    vendorAmount: raw.vendor_amount != null ? Number(raw.vendor_amount) : null,
+    markupPercent: raw.markup_percent != null ? Number(raw.markup_percent) : null,
+    approvedBy: personName(raw.approved_by),
+    approvedAt: raw.approved_at || null,
+    rejectionReason: raw.rejection_reason || null,
   };
 }
 
@@ -347,6 +362,22 @@ export async function sendRmRequestSupportChat(ticket, message) {
 export async function requestRmAdditionalPayment(ticket, { amount, reason }) {
   try {
     const response = await apiClient.post(`/rm/requests/${ticket}/request-additional-payment`, { amount, reason });
+    const data = response.data?.data || response.data || {};
+    return { charge: mapAdditionalCharge(data.charge || data), message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /rm/requests/{ticket}/propose-quoted-price — proposes the price for a
+// quote-only service (no fixed price at booking). Unlike the vendor app's
+// propose-price, `amount` here is the exact customer-facing price — no
+// vendor-markup split, since this is a staff-proposed price. Lands in
+// additional_charges[] with is_initial_quote: true, awaiting Super Admin
+// approval before the customer is asked to pay.
+export async function proposeRmQuotedPrice(ticket, { amount, reason }) {
+  try {
+    const response = await apiClient.post(`/rm/requests/${ticket}/propose-quoted-price`, { amount, reason });
     const data = response.data?.data || response.data || {};
     return { charge: mapAdditionalCharge(data.charge || data), message: response.data?.message };
   } catch (error) {
