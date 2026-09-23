@@ -160,6 +160,7 @@ function OnboardingPayment({ route, navigation }) {
   const dispatch = useDispatch();
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
+  const hasCoupons = (plan?.coupons?.length || 0) > 0;
   const {
     coupons, couponsLoading, fetchCoupons,
     couponResult, couponLoading, validateCoupon, clearCoupon,
@@ -922,28 +923,32 @@ function OnboardingPayment({ route, navigation }) {
                 </Text>
               )}
 
-              <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
-              <View style={styles.couponRow}>
-                <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
-                <TouchableOpacity
-                  style={styles.applyBtn}
-                  onPress={couponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
-                  disabled={couponLoading}
-                >
-                  {couponLoading ? (
-                    <ActivityIndicator size="small" color={C.primary} />
-                  ) : (
-                    <Text style={styles.applyBtnText}>
-                      {couponResult ? 'Remove' : 'Apply'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                <Icon name="local-offer" size={14} color={C.accent} />
-                <Text style={styles.viewCouponsLink}>View available offers</Text>
-                <Icon name="expand-more" size={16} color={C.accent} />
-              </TouchableOpacity>
+              {hasCoupons && (
+                <>
+                  <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
+                  <View style={styles.couponRow}>
+                    <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
+                    <TouchableOpacity
+                      style={styles.applyBtn}
+                      onPress={couponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
+                      disabled={couponLoading}
+                    >
+                      {couponLoading ? (
+                        <ActivityIndicator size="small" color={C.primary} />
+                      ) : (
+                        <Text style={styles.applyBtnText}>
+                          {couponResult ? 'Remove' : 'Apply'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+                    <Icon name="local-offer" size={14} color={C.accent} />
+                    <Text style={styles.viewCouponsLink}>View available offers</Text>
+                    <Icon name="expand-more" size={16} color={C.accent} />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             <View style={styles.card}>

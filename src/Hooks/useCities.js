@@ -33,7 +33,7 @@ export function useCities(stateName, districtName) {
 
   return {
     cities,
-    cityNames: cities.map(c => c.name),
+    cityNames: [...new Set(cities.map(c => c.name))],
     loading: status === 'loading',
     failed: status === 'failed',
     error,

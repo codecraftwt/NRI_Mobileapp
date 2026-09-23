@@ -21,6 +21,7 @@ function mapPlan(raw) {
     isCustomPricing: raw.is_custom_pricing,
     durationDays: raw.duration_days,
     isPopular: raw.is_popular,
+    coupons: raw.coupons || [],
     features: (raw.features || []).map(mapFeature),
   };
 }
