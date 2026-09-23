@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Linking, ActivityIndicator, Platform, StatusBar, Modal, Keyboard, KeyboardAvoidingView, RefreshControl, PermissionsAndroid } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Geolocation from '@react-native-community/geolocation';
+import { launchCamera } from 'react-native-image-picker';
 import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
@@ -102,6 +104,12 @@ function JobDetail({ route, navigation }) {
   // Complete — report + proof files
   const [reportText, setReportText] = useState('');
   const [reportFiles, setReportFiles] = useState([]);
+  // Optional GPS geotag for the completion report — best-effort, captured
+  // around when the vendor engages with the report (picks/takes a photo, or
+  // submits). null until a fix is actually captured; stays null forever if
+  // permission is denied or no fix is available, and the report still submits.
+  const [reportLocation, setReportLocation] = useState(null);
+  const locationRequestRef = useRef(null);
 
   // Tracking (prefilled from the job once it loads)
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -164,13 +172,112 @@ function JobDetail({ route, navigation }) {
     }
   };
 
+  const requestCameraPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+    if (already) return true;
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+      title: 'Allow Camera Access',
+      message: 'NRI Circle needs access to your camera to take a photo for this report.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+    if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
+    if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      showAlert('Permission Required', 'Camera access is blocked. Please enable it from app settings to take a photo.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+    } else {
+      showAlert('Permission Denied', 'Camera access is required to take a photo.');
+    }
+    return false;
+  };
+
+  const requestLocationPermission = async () => {
+    if (Platform.OS !== 'android') return true;
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+    if (already) return true;
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, {
+      title: 'Allow Location Access',
+      message: "Tag this completion report with where the work was done. This is optional — the report still submits if you skip it.",
+      buttonPositive: 'Allow',
+      buttonNegative: "Don't Allow",
+    });
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  // Optional GPS geotag for the completion report (POST .../complete accepts
+  // lat/lng, both entirely optional) — unlike the Field Executive check-in
+  // flow, this is best-effort only and never blocks the submit button: denied
+  // permission, no GPS fix, or a timeout all just mean the report submits
+  // without coordinates. Shares one in-flight request so triggering it from
+  // both the photo/document pickers and the submit button doesn't re-prompt.
+  const captureReportLocation = useCallback(() => {
+    if (reportLocation) return Promise.resolve(reportLocation);
+    if (locationRequestRef.current) return locationRequestRef.current;
+
+    const request = (async () => {
+      try {
+        const authorized = Platform.OS === 'android'
+          ? await requestLocationPermission()
+          : await new Promise((resolve) => Geolocation.requestAuthorization(() => resolve(true), () => resolve(false)));
+        if (!authorized) return null;
+        return await new Promise((resolve) => {
+          Geolocation.getCurrentPosition(
+            (pos) => {
+              const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              setReportLocation(loc);
+              resolve(loc);
+            },
+            () => resolve(null),
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+          );
+        });
+      } catch (e) {
+        return null;
+      }
+    })();
+    locationRequestRef.current = request;
+    return request;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportLocation]);
+
   const handlePickReportFiles = async () => {
     if (reportFiles.length >= MAX_MEDIA_FILES) {
       showAlert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
       return;
     }
+    // Fire-and-forget — primes the (optional) location permission prompt
+    // alongside the file picker instead of waiting on it.
+    captureReportLocation();
     const accepted = await pickProofFiles(MAX_MEDIA_FILES - reportFiles.length);
     if (accepted?.length) setReportFiles(prev => [...prev, ...accepted]);
+  };
+
+  const handleTakeReportPhoto = async () => {
+    if (reportFiles.length >= MAX_MEDIA_FILES) {
+      showAlert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
+      return;
+    }
+    captureReportLocation();
+    const allowed = await requestCameraPermission();
+    if (!allowed) return;
+    launchCamera({ mediaType: 'photo', quality: 0.8 }, (response) => {
+      if (response.didCancel || response.errorCode) return;
+      const asset = response.assets?.[0];
+      if (!asset?.uri) return;
+      if (asset.fileSize && asset.fileSize > MAX_MEDIA_SIZE_BYTES) {
+        showAlert('File Too Large', 'Please retake — the photo exceeds 25 MB.');
+        return;
+      }
+      setReportFiles(prev => [...prev, {
+        name: asset.fileName || `photo-${Date.now()}.jpg`,
+        uri: asset.uri,
+        type: asset.type || 'image/jpeg',
+        size: asset.fileSize,
+      }]);
+    });
   };
 
   const handleRemoveReportFile = (uri) => {
@@ -233,8 +340,12 @@ function JobDetail({ route, navigation }) {
       showAlert('Report Required', 'Please describe the work completed.');
       return;
     }
+    // Best-effort geotag, bounded by captureReportLocation's own 8s timeout —
+    // never blocks the submit beyond that, and a denial/failure just resolves
+    // null so the report still submits without coordinates.
+    const location = await captureReportLocation();
     try {
-      await complete({ reportText: reportText.trim(), files: reportFiles }).unwrap();
+      await complete({ reportText: reportText.trim(), files: reportFiles, lat: location?.lat, lng: location?.lng }).unwrap();
       setReportText('');
       setReportFiles([]);
       showToast('Report submitted — job closed', 'success');
@@ -333,6 +444,15 @@ function JobDetail({ route, navigation }) {
   const handleGetDirections = () => {
     const query = encodeURIComponent([job.address.line, job.address.city].filter(Boolean).join(', '));
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
+      showAlert('Could Not Open Maps', 'Unable to open a maps app on this device.')
+    );
+  };
+
+  // The geotag captured (best-effort) when the report was submitted — same
+  // "link out to Google Maps" treatment the web admin panel uses, rather than
+  // embedding a map view.
+  const handleOpenReportLocation = () => {
+    Linking.openURL(`https://www.google.com/maps?q=${job.reportLat},${job.reportLng}`).catch(() =>
       showAlert('Could Not Open Maps', 'Unable to open a maps app on this device.')
     );
   };
@@ -785,17 +905,29 @@ function JobDetail({ route, navigation }) {
 
             <View style={styles.reportField}>
               <Text style={styles.commitLabel}>Photos / Documents (optional, up to {MAX_MEDIA_FILES})</Text>
-              <TouchableOpacity
-                style={[styles.fileUploadBtn, reportFiles.length >= MAX_MEDIA_FILES && styles.btnDisabled]}
-                onPress={handlePickReportFiles}
-                disabled={reportFiles.length >= MAX_MEDIA_FILES}
-                activeOpacity={0.7}
-              >
-                <Icon name="cloud-upload" size={20} color="#64748B" />
-                <Text style={styles.fileUploadText}>
-                  {reportFiles.length > 0 ? `${reportFiles.length} file(s) selected — add more` : 'Choose files'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.fileActionsRow}>
+                <TouchableOpacity
+                  style={[styles.fileUploadBtn, reportFiles.length >= MAX_MEDIA_FILES && styles.btnDisabled]}
+                  onPress={handlePickReportFiles}
+                  disabled={reportFiles.length >= MAX_MEDIA_FILES}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="cloud-upload" size={20} color="#64748B" />
+                  <Text style={styles.fileUploadText}>Choose files</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.fileUploadBtn, reportFiles.length >= MAX_MEDIA_FILES && styles.btnDisabled]}
+                  onPress={handleTakeReportPhoto}
+                  disabled={reportFiles.length >= MAX_MEDIA_FILES}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="photo-camera" size={20} color="#64748B" />
+                  <Text style={styles.fileUploadText}>Take photo</Text>
+                </TouchableOpacity>
+              </View>
+              {reportFiles.length > 0 && (
+                <Text style={styles.fileSelectedCount}>{reportFiles.length} file(s) selected</Text>
+              )}
 
               {reportFiles.map((f) => (
                 <View key={f.uri} style={styles.fileChip}>
@@ -808,7 +940,7 @@ function JobDetail({ route, navigation }) {
               ))}
 
               <Text style={styles.fileHint}>
-                Photos (JPG/PNG), PDF or video (MP4/MOV/WebM), max 25 MB each.
+                Photos (JPG/PNG), PDF or video (MP4/MOV/WebM), max 25 MB each. Your location may be tagged automatically if allowed.
               </Text>
             </View>
 
@@ -1036,6 +1168,13 @@ function JobDetail({ route, navigation }) {
               <Icon name="schedule" size={13} color="#94A3B8" />
               <Text style={styles.reportTime}>Submitted {job.reportSubmittedAt}</Text>
             </View>
+
+            {job.reportLat != null && job.reportLng != null && (
+              <TouchableOpacity style={styles.reportLocationRow} onPress={handleOpenReportLocation} activeOpacity={0.7}>
+                <Icon name="location-on" size={14} color="#2563EB" />
+                <Text style={styles.reportLocationText}>View submission location on map</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Attachments can only be appended before the report is shared with the customer. */}
             {!job.canAddAttachments ? (
@@ -1400,11 +1539,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top', minHeight: 100, backgroundColor: '#F8FAFC', lineHeight: 20,
   },
 
+  fileActionsRow: { flexDirection: 'row', gap: 10 },
   fileUploadBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#E2E8F0',
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#F8FAFC',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: '#E2E8F0',
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 14, backgroundColor: '#F8FAFC',
   },
-  fileUploadText: { fontSize: 14, color: '#64748B' },
+  fileUploadText: { fontSize: 13.5, color: '#64748B' },
+  fileSelectedCount: { fontSize: 12, color: '#64748B', marginTop: 2 },
   fileHint: { fontSize: 11, color: '#94A3B8', marginTop: 2, lineHeight: 16 },
 
   submitReportBtn: {
@@ -1486,6 +1627,8 @@ const styles = StyleSheet.create({
   },
   pdfThumbText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
   reportTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reportLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  reportLocationText: { fontSize: 12, fontWeight: '600', color: '#2563EB', textDecorationLine: 'underline' },
 
   backToJobsBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'center',

@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>The app captures photos to let you update your profile picture and add property images.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The app can tag a job completion report with your current location. This is optional — you can still submit a report without it.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>The app accesses your photo library to let you select a profile picture and upload property images.</string>
 	<key>RCTNewArchEnabled</key>

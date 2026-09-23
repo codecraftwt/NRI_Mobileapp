@@ -42,7 +42,7 @@ export function useVendorJobDetail(ticket) {
     actionError,
     accept: (vendorEta) => dispatch(acceptJob({ ticket, vendorEta })),
     reject: (reason) => dispatch(rejectJob({ ticket, reason })),
-    complete: ({ reportText, files }) => dispatch(completeJob({ ticket, reportText, files })),
+    complete: ({ reportText, files, lat, lng }) => dispatch(completeJob({ ticket, reportText, files, lat, lng })),
     addAttachments: (files) => dispatch(addReportAttachments({ ticket, files })),
     saveTracking: ({ trackingNumber, trackingUrl }) => dispatch(saveTracking({ ticket, trackingNumber, trackingUrl })),
     flagCostIssue: ({ reason, amount }) => dispatch(flagJobCostIssue({ ticket, reason, amount })),

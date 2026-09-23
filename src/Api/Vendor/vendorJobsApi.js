@@ -164,6 +164,11 @@ export function mapJobDetail(raw) {
     sharedWithCustomer: !!report?.sent_to_customer_at || (report?.shared_with_customer ?? report?.shared ?? false),
     canAddAttachments: report?.can_add_attachments ?? (report ? !report?.sent_to_customer_at : false),
     reportSubmittedAt: formatDateTime(report?.submitted_at || report?.created_at),
+    // Optional GPS geotag captured around report submission — null when no
+    // location was captured (denied/unavailable), same idea as a null media
+    // entry. Render a "view on map" affordance conditionally on both being set.
+    reportLat: report?.lat != null ? Number(report.lat) : null,
+    reportLng: report?.lng != null ? Number(report.lng) : null,
     tracking: {
       number: raw.tracking_number ?? tracking.number ?? tracking.tracking_number ?? '',
       url: raw.tracking_url ?? tracking.url ?? tracking.tracking_url ?? '',
@@ -267,13 +272,19 @@ export async function proposeVendorJobPrice(ticket, { amount, reason }) {
 // POST /vendor/jobs/{ticket}/complete — submit the completion report
 // (report_text required) with optional proof files; closes the job and notifies
 // the RM. 422 if the job is not in progress.
+// `lat`/`lng` are an optional GPS geotag (-90..90 / -180..180) captured
+// best-effort around submit time — entirely optional, unlike the Field
+// Executive check-in flow's mandatory GPS. Omit/null is always fine; only an
+// out-of-range value 422s.
 // Uses postMultipart (react-native-blob-util) rather than axios/FormData —
 // axios's multipart body stalls against this backend until the request times
 // out, surfacing as a "Network error" (same issue fixed for other uploads).
-export async function completeVendorJob(ticket, { reportText, files }) {
+export async function completeVendorJob(ticket, { reportText, files, lat, lng }) {
   try {
     const fields = {};
     if (reportText != null) fields.report_text = reportText;
+    if (lat != null) fields.lat = lat;
+    if (lng != null) fields.lng = lng;
     const response = await postMultipart(`/vendor/jobs/${ticket}/complete`, fields, buildReportFiles(files));
     return { message: response.data?.message };
   } catch (error) {

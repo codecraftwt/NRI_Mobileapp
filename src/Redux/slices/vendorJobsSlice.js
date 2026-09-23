@@ -40,9 +40,9 @@ export const rejectJob = createAsyncThunk('vendorJobs/reject', async ({ ticket, 
   }
 });
 
-export const completeJob = createAsyncThunk('vendorJobs/complete', async ({ ticket, reportText, files }, { dispatch, rejectWithValue }) => {
+export const completeJob = createAsyncThunk('vendorJobs/complete', async ({ ticket, reportText, files, lat, lng }, { dispatch, rejectWithValue }) => {
   try {
-    const res = await vendorJobsApi.completeVendorJob(ticket, { reportText, files });
+    const res = await vendorJobsApi.completeVendorJob(ticket, { reportText, files, lat, lng });
     await dispatch(fetchVendorJobDetail(ticket));
     return res;
   } catch (error) {
