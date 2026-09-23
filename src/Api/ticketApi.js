@@ -124,6 +124,12 @@ function mapPendingAdditionalCharge(raw) {
   if (!raw) return null;
   return {
     amount: raw.amount,
+    // Live INR equivalent of `amount` — present alongside it on ticket
+    // detail, unlike a booking-time quote there's no separate endpoint to
+    // fetch this, so it must be read straight off here. gst_inr is the
+    // authoritative INR GST split (not derived locally at a flat rate).
+    amountInr: raw.amount_inr != null ? Number(raw.amount_inr) : null,
+    gstAmountInr: raw.gst_inr != null ? Number(raw.gst_inr) : null,
     reason: raw.reason || null,
     requestedAt: raw.created_at || raw.requested_at || null,
   };

@@ -108,6 +108,8 @@ function TicketDetail({ route, navigation }) {
       baseAmount: Math.max(0, Number(ticket.pricing?.customerPrice || 0) - addonsTotalForNav),
       alreadyPaidAmount: ticket.pricing?.totalAmount,
       additionalAmount: ticket.pendingAdditionalCharge.amount,
+      additionalAmountInr: ticket.pendingAdditionalCharge.amountInr,
+      additionalGstAmountInr: ticket.pendingAdditionalCharge.gstAmountInr,
       gstAmount: ticket.pricing?.amountDueGst,
       gstRate: ticket.pricing?.gstRate,
     });

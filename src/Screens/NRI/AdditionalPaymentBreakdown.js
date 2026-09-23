@@ -10,6 +10,7 @@ import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { formatAmount } from '../../Utils/currency';
 import { typography } from '../../theme/typography';
 
 // Amounts here follow the booking flow's USD convention (same as TicketDetail).
@@ -34,7 +35,7 @@ function formatGstLabel(rate) {
 function AdditionalPaymentBreakdown({ route, navigation }) {
   const {
     ticketId, ticketNumber, serviceName, reason,
-    baseAmount, alreadyPaidAmount, additionalAmount, gstAmount, gstRate,
+    baseAmount, alreadyPaidAmount, additionalAmount, additionalAmountInr, additionalGstAmountInr, gstAmount, gstRate,
   } = route.params || {};
 
   const user = useSelector(s => s.user.user);
@@ -43,6 +44,16 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
   const { showAlert, alertProps } = useAppAlert();
 
   const amountPreGst = Math.max(0, Number(additionalAmount || 0) - Number(gstAmount || 0));
+
+  // additionalAmountInr/additionalGstAmountInr are the live INR equivalents
+  // straight off the ticket's pending_additional_charge (amount_inr/gst_inr)
+  // — both authoritative from the backend, no local rate-based derivation.
+  const isInr = currency === 'INR';
+  const inrReady = isInr && additionalAmountInr != null && additionalGstAmountInr != null;
+  const amountPreGstInr = inrReady ? Math.round((additionalAmountInr - additionalGstAmountInr) * 100) / 100 : null;
+  const payableDisplay = isInr
+    ? (inrReady ? formatAmount(additionalAmountInr, 'INR') : '…')
+    : formatUsd(additionalAmount);
 
   const [selectedGateway, setSelectedGateway] = useState(null);
   useEffect(() => {
@@ -126,18 +137,22 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Additional charge{reason ? ` — ${reason}` : ''}</Text>
-            <Text style={styles.summaryValue}>{formatUsd(amountPreGst)}</Text>
+            <Text style={styles.summaryValue}>
+              {isInr ? (inrReady ? formatAmount(amountPreGstInr, 'INR') : '…') : formatUsd(amountPreGst)}
+            </Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>{formatGstLabel(gstRate)}</Text>
-            <Text style={styles.summaryValue}>{formatUsd(gstAmount)}</Text>
+            <Text style={styles.summaryValue}>
+              {isInr ? (inrReady ? formatAmount(additionalGstAmountInr, 'INR') : '…') : formatUsd(gstAmount)}
+            </Text>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.summaryRow}>
             <Text style={styles.payableLabel}>Amount Payable</Text>
-            <Text style={styles.payableValue}>{formatUsd(additionalAmount)}</Text>
+            <Text style={styles.payableValue}>{payableDisplay}</Text>
           </View>
         </View>
 
@@ -178,15 +193,15 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
 
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={[styles.payBtn, (paying || !selectedGateway) && styles.payBtnDisabled]}
+              style={[styles.payBtn, (paying || !selectedGateway || (isInr && !inrReady)) && styles.payBtnDisabled]}
               onPress={handlePay}
-              disabled={paying || !selectedGateway}
+              disabled={paying || !selectedGateway || (isInr && !inrReady)}
               activeOpacity={0.85}
             >
               {paying ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
                 <>
                   <Icon name="lock" size={15} color="#FFFFFF" />
-                  <Text style={styles.payBtnText}>Pay {formatUsd(additionalAmount)}</Text>
+                  <Text style={styles.payBtnText}>Pay {payableDisplay}</Text>
                 </>
               )}
             </TouchableOpacity>
