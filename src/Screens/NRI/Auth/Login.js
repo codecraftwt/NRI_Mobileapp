@@ -57,10 +57,20 @@ function Login({ navigation }) {
         // customer onboarding/dashboard flow.
         const role = String(result?.user?.role || '').toLowerCase();
         if (/vendor/.test(role)) {
+          if (result?.user?.emailVerified === false) {
+            // Same token-authenticated OTP screen the customer flow uses —
+            // just points it at VendorHome instead of OnboardingProfile once verified.
+            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'VendorHome' } }] });
+            return;
+          }
           navigation.reset({ index: 0, routes: [{ name: 'VendorHome' }] });
           return;
         }
         if (/relationship|manager|\brm\b/.test(role)) {
+          if (result?.user?.emailVerified === false) {
+            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'RMHome' } }] });
+            return;
+          }
           navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
           return;
         }

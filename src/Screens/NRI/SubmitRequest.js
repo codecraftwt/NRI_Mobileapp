@@ -200,15 +200,17 @@ function SubmitRequest({ navigation }) {
   const recurringItems = items.filter(i => i.isRecurring);
   // True only when this checkout will hit the dedicated quote-only endpoint
   // (POST /customer/tickets/quoted/{service}, see handleSubmit below) — a
-  // cart holding EXACTLY one one-time quoted service and nothing else. A
-  // quoted item no longer needs a fixed price at booking (a vendor/RM
-  // proposes one after the request is submitted; the customer only pays once
-  // that's approved — see TicketDetail.js's "Additional Payment Requested"
-  // card), but that endpoint takes a single service, so this must stay
-  // false — and payment UI must stay visible — the moment a quoted item is
-  // mixed with a recurring item or another priced service; those still owe
-  // real money and go through the normal paid checkout below.
-  const isQuotedOnlyCart = items.length === 1 && items[0].isQuoted && !items[0].isRecurring;
+  // cart holding EXACTLY one quoted service (one-time OR recurring — the
+  // endpoint doesn't care about billing_mode, a quoted service just has no
+  // fixed price either way) and nothing else. A quoted item no longer needs
+  // a fixed price at booking (a vendor/RM proposes one after the request is
+  // submitted; the customer only pays once that's approved — see
+  // TicketDetail.js's "Additional Payment Requested" card), but that
+  // endpoint takes a single service, so this must stay false — and payment
+  // UI must stay visible — the moment a quoted item is mixed with another
+  // priced/recurring service; those still owe real money and go through the
+  // normal paid checkout below.
+  const isQuotedOnlyCart = items.length === 1 && items[0].isQuoted;
   // A cart that's ENTIRELY recurring is its own pay-first flow (same
   // contract as CreateTicket's single-recurring-service subscribe: only
   // service_ids/gateway/state_id/city_id up front via POST
@@ -220,16 +222,18 @@ function SubmitRequest({ navigation }) {
   const isPureRecurring = oneTimeItems.length === 0 && recurringItems.length > 0;
   // Pay-first (booking-details → payment → FinishRequest) applies to a cart
   // that's entirely one kind or the other — plain one-time, or plain recurring.
-  // EXCEPT a quoted one-time item: pay-first only works because
-  // checkoutPayFirst returns a paymentId that anchors the deferred
-  // finalizeTicket() call on FinishRequest — but a quoted item has no price,
-  // so the backend has nothing to create a Payment against and returns
+  // EXCEPT a quoted item (one-time OR recurring): pay-first only works because
+  // checkoutPayFirst/createSubscription returns a paymentId that anchors the
+  // deferred finalizeTicket() call on FinishRequest — but a quoted item has no
+  // price, so the backend has nothing to create a Payment against and returns
   // payment_id: null. That leaves FinishRequest with no pending ticket to
   // finish (nothingPending), so the request silently never gets created.
-  // Route it through the same details→submit flow as a mixed cart instead,
-  // which creates the ticket directly from checkoutCart() — no paymentId
+  // Route it through isQuotedOnlyCart's details→submit flow instead, which
+  // creates the ticket directly via bookQuotedTicket() — no paymentId
   // round-trip required.
-  const payFirstEligible = (recurringItems.length === 0 || isPureRecurring) && !oneTimeItems.some(i => i.isQuoted);
+  const payFirstEligible = (recurringItems.length === 0 || isPureRecurring)
+    && !oneTimeItems.some(i => i.isQuoted)
+    && !recurringItems.some(i => i.isQuoted);
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -369,7 +373,7 @@ function SubmitRequest({ navigation }) {
     }
   };
   useEffect(() => {
-    if (!isPureRecurring || currency !== 'INR' || recurringItems.length === 0 || !paymentMethod || !quoteStateId || !quoteCityId) return;
+    if (!isPureRecurring || isQuotedOnlyCart || currency !== 'INR' || recurringItems.length === 0 || !paymentMethod || !quoteStateId || !quoteCityId) return;
     if (lastFetchedRecurringFingerprintRef.current === recurringFingerprint) return;
     const timer = setTimeout(() => fetchRecurringQuote(recurringFingerprint), 900);
     return () => clearTimeout(timer);
@@ -1003,7 +1007,7 @@ function SubmitRequest({ navigation }) {
               <Text style={styles.disclaimer}>No one-time services in your cart.</Text>
             )}
 
-            {recurringItems.length > 0 && (
+            {!isQuotedOnlyCart && recurringItems.length > 0 && (
               <>
                 <View style={styles.divider} />
                 <View style={styles.recurringChip}>

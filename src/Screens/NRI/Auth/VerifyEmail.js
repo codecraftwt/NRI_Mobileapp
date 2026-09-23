@@ -117,7 +117,14 @@ function VerifyEmail({ route, navigation }) {
     dispatch(verifyEmailOtp({ otp: otp.trim() }))
       .unwrap()
       .then(() => {
-        navigation.replace('OnboardingProfile');
+        const nextRoute = route.params?.nextRoute || 'OnboardingProfile';
+        if (nextRoute === 'OnboardingProfile') {
+          navigation.replace(nextRoute);
+        } else {
+          // Non-customer destinations (e.g. VendorHome) are their own app
+          // shell — reset so back doesn't return to Login/VerifyEmail.
+          navigation.reset({ index: 0, routes: [{ name: nextRoute }] });
+        }
       })
       .catch((err) => {
         setError(err?.message || 'Invalid or expired code.');
