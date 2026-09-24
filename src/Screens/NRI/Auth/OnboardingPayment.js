@@ -356,6 +356,32 @@ function OnboardingPayment({ route, navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromCart, priorities]);
 
+  // couponResult/appliedCoupon live in Redux, not local state — a coupon
+  // applied on a previous visit to this screen (or on MembershipCheckout.js,
+  // which shares the same appliedCoupon slot) would otherwise still be
+  // sitting there when this screen mounts, silently changing Amount Payable
+  // before the user has pressed Apply here at all. Clear both on mount so
+  // the total only ever moves in response to an explicit Apply on this cart.
+  useEffect(() => {
+    clearCoupon();
+    clearCartCoupon();
+    setPlanCouponCode('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A services coupon's discount/gst/total (cartCouponResult) is priced
+  // against the city passed to validate-coupon — if the customer goes back to
+  // the details step and changes city, that number is no longer valid for the
+  // new city. Drop it so Amount Payable falls back to the plain total instead
+  // of keeping a stale discount; the customer re-applies to reprice it.
+  useEffect(() => {
+    if (cartCouponResult) {
+      clearCartCoupon();
+      setPlanCouponCode('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reqForm.city]);
+
   // Re-bind the EXACT vendor price for every cart service from the live
   // GET /services?city_id=<id> response, so the Order Summary and Amount Payable
   // shown here match what the backend charges (only runs for the cart flow).
