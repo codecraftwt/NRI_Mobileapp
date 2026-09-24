@@ -8,9 +8,16 @@ import { useBilling } from '../Hooks/useBilling';
 import CurrencyToggle from './CurrencyToggle';
 import { lightColors as colors, typography, radius, spacing } from '../theme';
 
-function formatBundleAmount(bundle) {
-  const symbol = bundle?.displayCurrency === 'INR' ? '₹' : '$';
-  return `${symbol}${Number(bundle?.displayAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// `bundle.displayAmount`/`displayCurrency` are the customer's default
+// billing currency (from GET /customer/dashboard or payments/verify — see
+// mapPendingRecurringBundle); `displayAmountInr` is the same GST-inclusive
+// figure pre-converted to INR. Pick whichever matches the currency the
+// customer has toggled to here, instead of always showing the fixed default.
+function formatBundleAmount(bundle, selectedCurrency) {
+  const showInr = selectedCurrency === 'INR';
+  const amount = showInr ? (bundle?.displayAmountInr ?? bundle?.displayAmount) : bundle?.displayAmount;
+  const symbol = showInr ? '₹' : '$';
+  return `${symbol}${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // Surfaces a membership checkout's pending recurring service — priced and
@@ -90,7 +97,7 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
             </Text>
             <View style={styles.amountRow}>
               <Text style={styles.amountLabel}>Amount due</Text>
-              <Text style={styles.amountValue}>{formatBundleAmount(bundle)}</Text>
+              <Text style={styles.amountValue}>{formatBundleAmount(bundle, currency)}</Text>
             </View>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
             {!busy && <CurrencyToggle value={currency} onChange={setCurrency} style={{ alignSelf: 'stretch', marginTop: spacing.md }} />}

@@ -7,7 +7,10 @@ import apiClient, { API_BASE_URL, normalizeApiError } from './client';
 // membership checkout — this is that leftover item, wherever it appears
 // (payments/verify, GET /dashboard, or implicitly what subscribe-recurring
 // pays for). display_amount/display_currency are already GST-inclusive and
-// already converted to the customer's billing currency.
+// already converted to the customer's billing currency. display_amount_inr
+// is the same GST-inclusive figure, pre-converted to INR, so a caller that
+// lets the customer toggle currency (see PendingRecurringBundleModal) can
+// show the right number without a USD:INR ratio of its own.
 export function mapPendingRecurringBundle(raw) {
   if (!raw) return null;
   return {
@@ -16,6 +19,7 @@ export function mapPendingRecurringBundle(raw) {
     interval: raw.interval,
     displayAmount: raw.display_amount,
     displayCurrency: raw.display_currency,
+    displayAmountInr: raw.display_amount_inr,
   };
 }
 
