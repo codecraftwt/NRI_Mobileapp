@@ -114,11 +114,17 @@ export async function getMembershipCoupons({ planId } = {}) {
   }
 }
 
+// `scope` tells apart the two kinds of coupon this endpoint now accepts:
+// 'membership' — unchanged, discount/final_amount price the plan itself.
+// 'addon' — a service/cart coupon riding on membership checkout; this
+// endpoint can't price it (the cart isn't priced until a city is known), so
+// discount/finalAmount come back undefined here — callers must call
+// cartApi.validateCartCoupon with the same code + city_id for a real preview.
 export async function validateMembershipCoupon({ code }) {
   try {
     const response = await apiClient.post('/customer/membership/validate-coupon', { code });
     const data = response.data?.data || {};
-    return { code: data.code, discount: data.discount, finalAmount: data.final_amount, message: response.data?.message };
+    return { code: data.code, scope: data.scope, discount: data.discount, finalAmount: data.final_amount, message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);
   }

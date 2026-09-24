@@ -208,7 +208,11 @@ export async function getCartCoupons({ cityId } = {}) {
 }
 
 // POST /customer/cart/validate-coupon — validate one code before checkout,
-// same shape as ticketApi.validateTicketCoupon.
+// same shape as ticketApi.validateTicketCoupon. Beyond code/discount, this
+// now also returns the actual priced cart: appliesTo ('one_time' |
+// 'recurring'), currency, gstAmount, and total (the real GST-inclusive,
+// discount-applied cart total) — callers should prefer `total` over
+// recomputing their own estimate once a coupon is applied.
 export async function validateCartCoupon({ code, cityId } = {}) {
   try {
     const response = await apiClient.post('/customer/cart/validate-coupon', {
@@ -216,7 +220,15 @@ export async function validateCartCoupon({ code, cityId } = {}) {
       city_id: cityId || undefined,
     });
     const data = response.data?.data || {};
-    return { code: data.code, discount: data.discount, message: response.data?.message };
+    return {
+      code: data.code,
+      appliesTo: data.applies_to,
+      discount: data.discount,
+      currency: data.currency,
+      gstAmount: data.gst_amount,
+      total: data.total,
+      message: response.data?.message,
+    };
   } catch (error) {
     throw normalizeApiError(error);
   }

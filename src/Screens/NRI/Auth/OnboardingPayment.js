@@ -17,6 +17,7 @@ import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice
 import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
+import { useCart } from '../../../Hooks/useCart';
 import { setPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { getServices } from '../../../Api/catalogApi';
@@ -83,6 +84,16 @@ function convertUsdAmountToInr(amount, plan) {
   if (!sourceAmount) return 0;
   if (usdPrice && basePrice) return (sourceAmount / usdPrice) * basePrice;
   return sourceAmount;
+}
+
+// POST /customer/cart/validate-coupon prices in whatever currency the cart
+// was primed with (no currency param on that endpoint — see `currency` in
+// its response) — convert its discount into whichever currency is currently
+// selected on screen so it lines up with the rest of this screen's figures.
+function convertToDisplayCurrency(amount, fromCurrency, toCurrency, plan) {
+  const raw = toAmount(amount);
+  if (!raw || fromCurrency === toCurrency) return raw;
+  return toCurrency === 'INR' ? convertUsdAmountToInr(raw, plan) : convertPlanAmountToUsd(raw, plan);
 }
 
 // The checkout response's own `data.bundle` only ever carries service names/
@@ -160,12 +171,29 @@ function OnboardingPayment({ route, navigation }) {
   const dispatch = useDispatch();
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
-  const hasCoupons = (plan?.coupons?.length || 0) > 0;
   const {
     coupons, couponsLoading, fetchCoupons,
     couponResult, couponLoading, validateCoupon, clearCoupon,
     checkoutLoading, checkout, verifyLoading, verifyPayment,
   } = useMembershipCheckout();
+  // /customer/membership/coupons + /customer/membership/validate-coupon are
+  // for the plain-membership flow only. Once there are services in the cart
+  // riding along with this checkout, coupons are a cart concern — offers and
+  // validation go through the cart's own coupon endpoints instead (POST
+  // /customer/cart/coupons + POST /customer/cart/validate-coupon). These two
+  // flows never mix: see hasServicesInCart below, which picks one or the
+  // other for every coupon action on this screen.
+  // autoFetch: false — this screen already owns its own cart sync
+  // (mergeGuestCart above); we only want this hook's coupon actions.
+  const {
+    coupons: cartCoupons,
+    couponsLoading: cartCouponsLoading,
+    fetchCoupons: fetchCartCoupons,
+    applyCoupon: applyCartCoupon,
+    appliedCoupon: cartCouponResult,
+    couponApplyLoading: cartCouponLoading,
+    clearCoupon: clearCartCoupon,
+  } = useCart({ autoFetch: false });
 
   // Set by Services.js when a guest tapped "Request a Quote" before signing
   // in. Once the wizard reaches this screen, auto-request a quote for the
@@ -259,6 +287,11 @@ function OnboardingPayment({ route, navigation }) {
   // to apply it to (the recurring item is priced/paid separately later), so
   // the field is pointless and gets hidden for it.
   const pureRecurringCart = fromCart && oneTimeCartItems.length === 0 && recurringCartItems.length > 0;
+  // A recurring-only cart has nothing priced at this checkout (see above), so
+  // it doesn't count as "services" for coupon purposes either — only a
+  // one-time cart item actually rides this charge and can be discounted by a
+  // services coupon.
+  const hasServicesInCart = oneTimeCartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -395,7 +428,23 @@ function OnboardingPayment({ route, navigation }) {
   const servicesSubtotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
   const servicesGstTotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
   const servicesPayableInr = servicesSubtotalInr;
-  const servicesPayableDisplay = currency === 'INR' ? servicesPayableInr : servicesPayable;
+  // Once a services coupon is applied (see hasServicesInCart/cartCouponResult
+  // above), POST /customer/cart/validate-coupon has already priced the whole
+  // cart for us — discount, gst_amount, and total — so use its numbers
+  // directly instead of the client-side estimate above, converting into
+  // whichever currency is on screen when it doesn't already match the coupon
+  // response's own currency.
+  const cartCouponDiscount = hasServicesInCart && cartCouponResult
+    ? convertToDisplayCurrency(cartCouponResult.discount, cartCouponResult.currency, currency, plan)
+    : 0;
+  const cartCouponGst = hasServicesInCart && cartCouponResult
+    ? convertToDisplayCurrency(cartCouponResult.gstAmount, cartCouponResult.currency, currency, plan)
+    : null;
+  const cartCouponTotal = hasServicesInCart && cartCouponResult
+    ? convertToDisplayCurrency(cartCouponResult.total, cartCouponResult.currency, currency, plan)
+    : null;
+  const servicesGstDisplay = cartCouponGst != null ? cartCouponGst : (currency === 'INR' ? servicesGstTotalInr : 0);
+  const servicesPayableDisplay = cartCouponTotal != null ? cartCouponTotal : (currency === 'INR' ? servicesPayableInr : servicesPayable);
   // A pending custom-plan request fee (see customQuote above) rides along
   // with this same membership checkout, one combined charge — mirrors how a
   // cart's one-time services are bundled in. Summed directly into the USD
@@ -407,12 +456,44 @@ function OnboardingPayment({ route, navigation }) {
   const customQuoteCurrency = customQuote?.fee?.currency || 'USD';
   const amountPayable = membershipPayable + (fromCart ? servicesPayableDisplay : 0) + customQuoteFee;
 
-  const handleApplyPlanCoupon = () => {
-    if (!planCouponCode.trim()) return;
-    validateCoupon({ code: planCouponCode.trim() })
+  // Same city resolution handlePay ultimately sends to checkout — needed here
+  // too since a services coupon (below) is priced against a city, not the
+  // plan. By the time this coupon UI is reachable (summary step) the city has
+  // already been collected on the details step, so this should always resolve.
+  const resolveCityId = () => cities.find(c => c.name === reqForm.city)?.id
+    || (fromCart ? (cartItems[0]?.cityId || savedLocation?.cityId) : undefined)
+    || undefined;
+
+  // Two entirely separate coupon flows, picked by hasServicesInCart — never
+  // mixed:
+  // - No services in cart: plain membership purchase. Coupons come from
+  //   POST /customer/membership/coupons and are validated with POST
+  //   /customer/membership/validate-coupon, which prices the plan itself
+  //   (discount/finalAmount) — unchanged from before.
+  // - Services in cart: coupons come from POST /customer/cart/coupons and are
+  //   validated with POST /customer/cart/validate-coupon (code + city_id),
+  //   which prices the cart, not the plan. The membership coupon endpoints
+  //   are never called in this case.
+  // Either way, the resulting code is still sent as coupon_code on the same
+  // POST /customer/membership/checkout call — the backend applies it to
+  // whichever it belongs to.
+  const applyCoupon = (code) => {
+    if (hasServicesInCart) {
+      const cityId = resolveCityId();
+      applyCartCoupon({ code, cityId })
+        .unwrap()
+        .then((result) => {
+          const displayDiscount = convertToDisplayCurrency(result.discount, result.currency, currency, plan);
+          showAlert('Coupon Applied', `Code ${result.code} applied — ${formatAmount(displayDiscount, currency)} off your cart services.`, 'success');
+        })
+        .catch((error) => {
+          showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
+        });
+      return;
+    }
+    validateCoupon({ code })
       .unwrap()
       .then((result) => {
-        const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
         showAlert('Coupon Applied', `Code ${result.code} applied `, 'success');
       })
       .catch((error) => {
@@ -420,20 +501,31 @@ function OnboardingPayment({ route, navigation }) {
       });
   };
 
+  const handleApplyPlanCoupon = () => {
+    if (!planCouponCode.trim()) return;
+    applyCoupon(planCouponCode.trim());
+  };
+
   const handleCouponTextChange = (text) => {
     if (couponResult) clearCoupon();
+    if (cartCouponResult) clearCartCoupon();
     setPlanCouponCode(text);
   };
 
   const handleRemovePlanCoupon = () => {
     clearCoupon();
+    clearCartCoupon();
     setPlanCouponCode('');
   };
 
-  // The registration-gate plan is resolved server-side — no plan_id needed
-  // (unlike the multi-plan MembershipCheckout.js flow).
   const handleViewCoupons = () => {
-    fetchCoupons({});
+    if (hasServicesInCart) {
+      fetchCartCoupons({ cityId: resolveCityId() });
+    } else {
+      // The registration-gate plan is resolved server-side — no plan_id
+      // needed (unlike the multi-plan MembershipCheckout.js flow).
+      fetchCoupons({});
+    }
     setShowCouponsModal(true);
   };
 
@@ -441,16 +533,16 @@ function OnboardingPayment({ route, navigation }) {
     if (!coupon.eligible) return;
     setPlanCouponCode(coupon.code);
     setShowCouponsModal(false);
-    validateCoupon({ code: coupon.code })
-      .unwrap()
-      .then((result) => {
-        const finalAmount = basePrice - convertPlanAmountToUsd(result.discount, plan);
-        showAlert('Coupon Applied', `Code ${result.code} applied`, 'success');
-      })
-      .catch((error) => {
-        showAlert('Invalid Coupon', error?.message || 'This coupon could not be applied.', 'error');
-      });
+    applyCoupon(coupon.code);
   };
+
+  // Whichever of the two coupon flows (see applyCoupon above) is actually
+  // active for this checkout — drives the input's Apply/Remove state and the
+  // offers modal's list, without the render reaching into both sources.
+  const activeCouponResult = hasServicesInCart ? cartCouponResult : couponResult;
+  const activeCouponLoading = hasServicesInCart ? cartCouponLoading : couponLoading;
+  const activeCoupons = hasServicesInCart ? cartCoupons : coupons;
+  const activeCouponsLoading = hasServicesInCart ? cartCouponsLoading : couponsLoading;
 
   const loading = submitting || checkoutLoading || verifyLoading;
 
@@ -568,6 +660,15 @@ function OnboardingPayment({ route, navigation }) {
       showAlert('Signature Required', 'Please type your full legal name to sign before paying.', 'error');
       return;
     }
+    // A coupon applied while there are services in the cart is always a
+    // services/addon coupon (see hasServicesInCart above — the two coupon
+    // flows never mix). The backend now 422s an addon coupon on any gateway
+    // but Stripe/Razorpay (coupon_code/gateway field error) — catch it here
+    // with a clear message instead of a round trip to find out.
+    if (planCouponCode.trim() && hasServicesInCart && paymentMethod !== 'stripe' && paymentMethod !== 'razorpay') {
+      showAlert('Coupon Needs Card or Razorpay', 'This coupon discounts your cart, which requires paying by Card (Stripe) or Razorpay. Switch payment methods or remove the coupon to continue.', 'error');
+      return;
+    }
     payInFlightRef.current = true;
     setSubmitting(true);
     try {
@@ -648,10 +749,22 @@ function OnboardingPayment({ route, navigation }) {
     } catch (error) {
       // Diagnostic: surface the HTTP status so a gateway rejection can be told
       // apart (502 = account can't process this currency/subscription, 503 =
-      // Razorpay disabled by admin, 422 = not an NRI customer). Visible in
-      // Metro / `adb logcat`.
+      // Razorpay disabled by admin, 422 = not an NRI customer — including the
+      // new addon-coupon 422s: empty cart / wrong gateway for an addon
+      // coupon's coupon_code/gateway field error, and a Razorpay coupon
+      // discount pushing a line below its minimum chargeable amount). Visible
+      // in Metro / `adb logcat`.
       console.warn('[Razorpay] checkout failed', { gateway: paymentMethod, status: error?.status, message: error?.message });
-      showAlert('Payment Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
+      // A 422 here can carry its real explanation as a Laravel-style
+      // { field: [messages] } map (error.errors) rather than — or in addition
+      // to — the generic top-level error.message, so surface both instead of
+      // risking a coupon rejection reason getting silently dropped.
+      const fieldErrors = error?.errors
+        ? Object.entries(error.errors).flatMap(([, v]) => v).join('\n')
+        : '';
+      const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
+        || 'Could not complete checkout. Please try again.';
+      showAlert('Payment Failed', msg, 'error');
     } finally {
       payInFlightRef.current = false;
       setSubmitting(false);
@@ -846,14 +959,25 @@ function OnboardingPayment({ route, navigation }) {
                       )}
                       <View style={styles.row}>
                         <Text style={styles.rowLabel}>
-                          Services GST {(currency === 'INR' ? servicesGstTotalInr > 0 : servicesGst > 0) ? "(18%)" : "(Included in Membership)"}
+                          Services GST {(cartCouponGst != null ? cartCouponGst > 0 : (currency === 'INR' ? servicesGstTotalInr > 0 : servicesGst > 0)) ? "(18%)" : "(Included in Membership)"}
                         </Text>
-                        <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(servicesGstTotalInr, 'INR') : formatAmount(0, currency)}</Text>
+                        <Text style={styles.rowValue}>{formatAmount(servicesGstDisplay, currency)}</Text>
                       </View>
+                      {cartCouponDiscount > 0 && (
+                        <View style={styles.row}>
+                          <Text style={[styles.rowLabel, { color: '#10B981' }]}>Coupon Discount (Services)</Text>
+                          <Text style={[styles.rowValue, { color: '#10B981' }]}>-{formatAmount(cartCouponDiscount, currency)}</Text>
+                        </View>
+                      )}
                       <View style={styles.row}>
                         <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
                         <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(servicesPayableDisplay, currency)}</Text>
                       </View>
+                      {cartCouponDiscount > 0 && (
+                        <Text style={styles.combinedNote}>
+                          Already reflected in Services Total and Amount Payable below — the backend confirms the exact figure at checkout.
+                        </Text>
+                      )}
                     </>
                   )}
 
@@ -923,32 +1047,33 @@ function OnboardingPayment({ route, navigation }) {
                 </Text>
               )}
 
-              {hasCoupons && (
-                <>
-                  <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
-                  <View style={styles.couponRow}>
-                    <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
-                    <TouchableOpacity
-                      style={styles.applyBtn}
-                      onPress={couponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
-                      disabled={couponLoading}
-                    >
-                      {couponLoading ? (
-                        <ActivityIndicator size="small" color={C.primary} />
-                      ) : (
-                        <Text style={styles.applyBtnText}>
-                          {couponResult ? 'Remove' : 'Apply'}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                    <Icon name="local-offer" size={14} color={C.accent} />
-                    <Text style={styles.viewCouponsLink}>View available offers</Text>
-                    <Icon name="expand-more" size={16} color={C.accent} />
-                  </TouchableOpacity>
-                </>
-              )}
+              {/* Available offers come from POST /customer/membership/coupons
+                  (fetched on demand below), not from the plan's own
+                  `coupons` field — GET /plans essentially never populates
+                  that, so this section is always shown (same as
+                  MembershipCheckout.js's unconditional coupon section). */}
+              <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
+              <View style={styles.couponRow}>
+                <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
+                <TouchableOpacity
+                  style={styles.applyBtn}
+                  onPress={activeCouponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
+                  disabled={activeCouponLoading}
+                >
+                  {activeCouponLoading ? (
+                    <ActivityIndicator size="small" color={C.primary} />
+                  ) : (
+                    <Text style={styles.applyBtnText}>
+                      {activeCouponResult ? 'Remove' : 'Apply'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+                <Icon name="local-offer" size={14} color={C.accent} />
+                <Text style={styles.viewCouponsLink}>View available offers</Text>
+                <Icon name="expand-more" size={16} color={C.accent} />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.card}>
@@ -1054,14 +1179,14 @@ function OnboardingPayment({ route, navigation }) {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCouponsModal(false)}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Available Coupons</Text>
-            {couponsLoading ? (
+            {activeCouponsLoading ? (
               <View style={styles.modalLoadingBox}>
                 <ActivityIndicator size="small" color={C.primary} />
                 <Text style={styles.gatewayDesc}>Loading coupons…</Text>
               </View>
             ) : (
               <FlatList
-                data={coupons}
+                data={activeCoupons}
                 keyExtractor={(item) => item.code}
                 renderItem={({ item }) => (
                   <TouchableOpacity
