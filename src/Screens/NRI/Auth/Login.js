@@ -74,6 +74,14 @@ function Login({ navigation }) {
           navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
           return;
         }
+        if (/admin/.test(role)) {
+          if (result?.user?.emailVerified === false) {
+            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'AdminHome' } }] });
+            return;
+          }
+          navigation.reset({ index: 0, routes: [{ name: 'AdminHome' }] });
+          return;
+        }
         // Uses the persistent per-user onboarding record so signing out
         // mid-onboarding resumes the wizard instead of the dashboard.
         const route = selectOnboardingRoute(store.getState());

@@ -91,13 +91,18 @@ export function selectOnboardingRoute(state) {
 }
 
 // Root route for an authenticated user, accounting for account role FIRST —
-// vendor / relationship-manager accounts get their own app shells, everyone
-// else falls through to the customer onboarding/dashboard flow. Keep this in
-// sync with the role routing in Login.handleSignIn (both read `user.role`).
+// vendor / relationship-manager / admin accounts get their own app shells,
+// everyone else falls through to the customer onboarding/dashboard flow. Keep
+// this in sync with the role routing in Login.handleSignIn (both read
+// `user.role`). Without the admin branch, reloading the app on an admin
+// session fell through to the customer onboarding flow, which calls
+// GET /customer/cart — a 403 ("User does not have the right roles") for an
+// admin token.
 export function selectAuthenticatedRoute(state) {
   const role = String(state.user.user?.role || '').toLowerCase();
   if (/vendor/.test(role)) return 'VendorHome';
   if (/relationship|manager|\brm\b/.test(role)) return 'RMHome';
+  if (/admin/.test(role)) return 'AdminHome';
   return selectOnboardingRoute(state);
 }
 

@@ -89,6 +89,9 @@ import VendorNavigator from './Vendor/VendorNavigator';
 // Import RM (Relationship Manager) Screens
 import RMNavigator from './RM/RMNavigator';
 
+// Import Admin Screens
+import AdminNavigator from './Admin/AdminNavigator';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -461,6 +464,9 @@ export default function AppNavigator() {
 
       {/* RM (Relationship Manager) Flow — reached from the same Login screen based on account role */}
       <Stack.Screen name="RMHome" component={RMNavigator} />
+
+      {/* Admin Flow — reached from the same Login screen based on account role */}
+      <Stack.Screen name="AdminHome" component={AdminNavigator} />
     </Stack.Navigator>
   );
 }

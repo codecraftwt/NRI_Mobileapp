@@ -23,11 +23,13 @@ function mapNotification(raw) {
 
 // Notification routes are role-scoped. Match the same role keywords the app
 // uses for routing (Login / notificationRouting): relationship managers hit
-// /rm, vendors hit /vendor, everyone else is a customer.
+// /rm, vendors hit /vendor, super-admins hit /super-admin, everyone else is a
+// customer.
 export function notifBaseForRole(role) {
   const r = String(role || '').toLowerCase();
   if (/relationship|manager|\brm\b/.test(r)) return '/rm';
   if (/vendor/.test(r)) return '/vendor';
+  if (/admin/.test(r)) return '/super-admin';
   return '/customer';
 }
 

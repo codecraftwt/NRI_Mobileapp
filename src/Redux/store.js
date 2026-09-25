@@ -46,6 +46,9 @@ import cartReducer from './slices/cartSlice';
 import notificationsReducer from './slices/notificationsSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import pendingRequestsReducer from './slices/pendingRequestsSlice';
+import adminDashboardReducer from './slices/adminDashboardSlice';
+import adminCustomersReducer from './slices/adminCustomersSlice';
+import adminVendorsReducer from './slices/adminVendorsSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
@@ -154,6 +157,9 @@ const appReducer = combineReducers({
   notifications: notificationsReducer,
   onboarding: onboardingReducer,
   pendingRequests: pendingRequestsReducer,
+  adminDashboard: adminDashboardReducer,
+  adminCustomers: adminCustomersReducer,
+  adminVendors: adminVendorsReducer,
 });
 
 const rootReducer = (state, action) => {
