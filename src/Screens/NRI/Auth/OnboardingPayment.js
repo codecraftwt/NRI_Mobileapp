@@ -12,6 +12,7 @@ import { useCurrencyGateways } from '../../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../../Components/CurrencyToggle';
 import { formatAmount } from '../../../Utils/currency';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
+import OnboardingCartModal from '../../../Components/OnboardingCartModal';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
 import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
@@ -281,7 +282,11 @@ function OnboardingPayment({ route, navigation }) {
   // and charged here never double-counts a recurring item's price.
   const oneTimeCartItems = cartItems.filter(i => !i.isRecurring);
   const recurringCartItems = cartItems.filter(i => i.isRecurring);
-  const servicesSubtotal = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.price) || 0), 0);
+  // `base` (pre-GST vendor price) — falls back to `price` for a line that
+  // doesn't have it yet (unsynced local guest-cart item, or a quoted
+  // service). GST is summed separately below from `gstAmount` so the two
+  // combine into the real payable without double-counting (see servicesGst).
+  const servicesSubtotal = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.base ?? it.price) || 0), 0);
   // Priority/urgency only applies to a one-time service request — a cart
   // that's entirely recurring has nothing being booked at registration time
   // to apply it to (the recurring item is priced/paid separately later), so
@@ -311,6 +316,9 @@ function OnboardingPayment({ route, navigation }) {
   // Two-step sub-flow for the cart path: 'details' (booking location) then
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
   const [step, setStep] = useState('details');
+  // Top-bar cart icon — same guest-service-then-register flow as
+  // OnboardingProfile, only shown when the cart isn't empty.
+  const [cartModalVisible, setCartModalVisible] = useState(false);
 
   // "Where — for your cart's service requests" — just enough to price/pay.
   // Who this is for, the exact address, and documents are collected on
@@ -428,12 +436,13 @@ function OnboardingPayment({ route, navigation }) {
   const membershipPayable = taxableAmount + gstAmount;
 
   // Selected services (cart) billed together with the membership in one payment.
-  // Services subtotal + the chosen priority tier's flat surcharge.
-  // Note: The backend CartCheckoutService currently does not apply the 18% GST 
-  // to cart items when they are bundled as one-time line items on a membership 
-  // subscription checkout, so we match that here to ensure the total matches Stripe exactly.
+  // Services subtotal (base) + the chosen priority tier's flat surcharge.
+  // GST is each line's real `gst_amount` (GET /customer/cart) summed — since
+  // servicesSubtotal above is already base-only (GST-exclusive), adding it
+  // here once is the real payable, not a double charge on top of an
+  // already-GST-inclusive figure.
   const servicesBase = servicesSubtotal + prioritySurcharge;
-  const servicesGst = 0; // Math.round(servicesBase * GST_RATE * 100) / 100;
+  const servicesGst = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.gstAmount) || 0), 0);
   const servicesPayable = servicesBase + servicesGst;
   // INR counterpart — GET /customer/cart returns price_inr alongside price
   // per line (price_inr = base_inr + gst_amount_inr, same GST-inclusive
@@ -469,7 +478,7 @@ function OnboardingPayment({ route, navigation }) {
   const cartCouponTotal = hasServicesInCart && cartCouponResult
     ? convertToDisplayCurrency(cartCouponResult.total, cartCouponResult.currency, currency, plan)
     : null;
-  const servicesGstDisplay = cartCouponGst != null ? cartCouponGst : (currency === 'INR' ? servicesGstTotalInr : 0);
+  const servicesGstDisplay = cartCouponGst != null ? cartCouponGst : (currency === 'INR' ? servicesGstTotalInr : servicesGst);
   const servicesPayableDisplay = cartCouponTotal != null ? cartCouponTotal : (currency === 'INR' ? servicesPayableInr : servicesPayable);
   // A pending custom-plan request fee (see customQuote above) rides along
   // with this same membership checkout, one combined charge — mirrors how a
@@ -846,7 +855,15 @@ function OnboardingPayment({ route, navigation }) {
       <View style={styles.bgShape1} />
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
-      <OnboardingTopBar navigation={navigation} onBack={() => navigation.goBack()} />
+      <OnboardingTopBar
+        navigation={navigation}
+        onBack={() => navigation.goBack()}
+        // Always available on this step (not just once the cart already has
+        // items) — the drawer's own empty state lets the customer browse and
+        // add a service, or come back here having removed everything.
+        onCartPress={() => setCartModalVisible(true)}
+        cartCount={cartItems.length}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -859,15 +876,26 @@ function OnboardingPayment({ route, navigation }) {
         <Text style={styles.title}>Complete your purchase</Text>
         <Text style={styles.subtitle}>Review your selection and choose how you'd like to pay.</Text>
 
-        {/* Two-step indicator (cart path only) */}
+        {/* Two-step indicator (cart path only) — tappable: "Where" always goes
+            back (nothing to validate going backward); "Order & Payment" goes
+            through the same handleContinueToPayment validation the button
+            below uses, so it can't skip required fields. */}
         {fromCart && (
           <View style={styles.subStepsRow}>
-            <View style={[styles.subStep, showDetails && styles.subStepActive]}>
+            <TouchableOpacity
+              style={[styles.subStep, showDetails && styles.subStepActive]}
+              onPress={() => setStep('details')}
+              activeOpacity={0.7}
+            >
               <Text style={[styles.subStepText, showDetails && styles.subStepTextActive]}>1 · Where</Text>
-            </View>
-            <View style={[styles.subStep, showSummary && styles.subStepActive]}>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.subStep, showSummary && styles.subStepActive]}
+              onPress={handleContinueToPayment}
+              activeOpacity={0.7}
+            >
               <Text style={[styles.subStepText, showSummary && styles.subStepTextActive]}>2 · Order & Payment</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -974,7 +1002,7 @@ function OnboardingPayment({ route, navigation }) {
                       {oneTimeCartItems.map((it) => (
                         <View key={it.serviceId} style={styles.row}>
                           <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.price)}</Text>
+                          <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price)}</Text>
                         </View>
                       ))}
                       {currency !== 'INR' && prioritySurcharge > 0 && (
@@ -1017,7 +1045,7 @@ function OnboardingPayment({ route, navigation }) {
                       {recurringCartItems.map((it) => (
                         <View key={it.serviceId} style={styles.row}>
                           <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.price))}{it.billingInterval ? '/mo' : ''}</Text>
+                          <Text style={styles.rowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price))}{it.billingInterval ? '/mo' : ''}</Text>
                         </View>
                       ))}
                       <TouchableOpacity
@@ -1265,6 +1293,12 @@ function OnboardingPayment({ route, navigation }) {
         onSuccess={handleCheckoutSuccess}
         onCancel={handleCheckoutCancel}
         title="Secure Payment"
+      />
+
+      <OnboardingCartModal
+        visible={cartModalVisible}
+        onClose={() => setCartModalVisible(false)}
+        navigation={navigation}
       />
 
     </View>

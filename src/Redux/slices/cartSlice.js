@@ -248,9 +248,17 @@ const cartSlice = createSlice({
       })
       .addCase(addServerCartItem.fulfilled, applyCount)
       .addCase(removeServerCartItem.fulfilled, applyCount)
-      .addCase(clearServerCart.fulfilled, (state) => {
-        state.items = [];
-        state.serverCount = 0;
+      // clearServerCart's payload is the freshly re-fetched server cart (see
+      // cartApi.clearCartItems) — adopt whatever it actually reports rather
+      // than blindly forcing items=[]. Each row's DELETE is attempted
+      // independently and a failure there is swallowed (so one bad row can't
+      // block the rest), so trusting the real GET here is what stops a
+      // leftover un-deleted row from silently reappearing (and the cart icon
+      // with it) the next time the cart is re-fetched.
+      .addCase(clearServerCart.fulfilled, (state, action) => {
+        const serverItems = action.payload?.items || [];
+        mergeServerIntoLocal(state, serverItems);
+        state.serverCount = action.payload?.count ?? 0;
       })
       .addCase(checkoutCart.pending, (state) => {
         state.checkoutStatus = 'loading';
@@ -313,8 +321,19 @@ export const selectPricedCity = (s) => s.cart.pricedCity;
 // fetched from GET /customer/cart), the local item count for guests.
 export const selectCartBadgeCount = (s) =>
   s.user?.isAuthenticated ? s.cart.serverCount : s.cart.items.length;
+// Sum of each line's `base` (pre-GST vendor price) — GET /customer/cart's
+// real per-service figure once a city is on file. Falls back to `price`
+// (base+gst combined) for a line that doesn't have it yet — either a local
+// guest-cart item not yet synced to the server (see ServiceInfo.js's
+// addServiceToCart, which never sets base/gstAmount at all), or a quoted
+// service with no fixed price.
 export const selectCartSubtotal = (s) =>
-  s.cart.items.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+  s.cart.items.reduce((sum, i) => sum + (Number(i.base ?? i.price) || 0), 0);
+// Sum of each line's `gst_amount` — the real per-service GST GET
+// /customer/cart returns alongside `base`. 0 for a line that doesn't have it
+// yet (same cases as selectCartSubtotal's fallback above).
+export const selectCartGstTotal = (s) =>
+  s.cart.items.reduce((sum, i) => sum + (Number(i.gstAmount) || 0), 0);
 export const selectIsInCart = (serviceId) => (s) =>
   s.cart.items.some(i => i.serviceId === serviceId);
 

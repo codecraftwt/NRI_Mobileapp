@@ -4,12 +4,14 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
+import OnboardingCartModal from '../../../Components/OnboardingCartModal';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
 import { useInternationalStates } from '../../../Hooks/useInternationalStates';
 import { useInternationalCities } from '../../../Hooks/useInternationalCities';
 import { saveUserProfile, logoutUser } from '../../../Redux/slices/userSlice';
+import { selectCartItems } from '../../../Redux/slices/cartSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
 
@@ -263,6 +265,11 @@ function OnboardingProfile({ navigation }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(state => state.user.user);
+  // Cart icon in the top bar is only relevant to the guest-service-then-register
+  // flow: a guest who added a service before registering/signing in. Hidden
+  // whenever the cart is empty (plain membership registration, no cart involved).
+  const cartItems = useSelector(selectCartItems);
+  const [cartModalVisible, setCartModalVisible] = useState(false);
   const { countries, countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
   const [country, setCountry] = useState(user?.countryOfResidence || '');
@@ -382,7 +389,15 @@ function OnboardingProfile({ navigation }) {
       <View style={styles.bgShape1} />
       <View style={styles.bgShape2} />
       <View style={styles.bgShape3} />
-      <OnboardingTopBar navigation={navigation} onLogout={handleLogout} />
+      <OnboardingTopBar
+        navigation={navigation}
+        onLogout={handleLogout}
+        // Always available on this step (not just once the cart already has
+        // items) — the drawer's own empty state lets the customer browse and
+        // add a service, or come back here having removed everything.
+        onCartPress={() => setCartModalVisible(true)}
+        cartCount={cartItems.length}
+      />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <StepIndicator steps={ONBOARDING_STEPS} currentStep={1} />
 
@@ -505,6 +520,11 @@ function OnboardingProfile({ navigation }) {
         </View>
       </ScrollView>
       <AppAlert {...alertProps} />
+      <OnboardingCartModal
+        visible={cartModalVisible}
+        onClose={() => setCartModalVisible(false)}
+        navigation={navigation}
+      />
     </View>
   );
 }

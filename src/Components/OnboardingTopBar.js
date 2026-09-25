@@ -12,7 +12,7 @@ const colors = {
   accent: '#A64416',  // Chocolate
 };
 
-function OnboardingTopBar({ navigation, onBack, onLogout }) {
+function OnboardingTopBar({ navigation, onBack, onLogout, onCartPress, cartCount }) {
   return (
     <View style={styles.container}>
       {onBack ? (
@@ -31,17 +31,38 @@ function OnboardingTopBar({ navigation, onBack, onLogout }) {
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       )}
+      {onCartPress && (
+        <TouchableOpacity style={styles.cartBtn} onPress={onCartPress} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Icon name="shopping-cart" size={20} color={colors.primary} />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>
+          )}
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 12, backgroundColor: 'transparent' },
+  // backBtn/logoutBtn/cartBtn are all position: 'absolute' (independent left/
+  // right/center slots) — when onBack replaces brandRow (the only normal-flow
+  // child), the container has nothing left contributing height and collapses
+  // to just its padding, letting the icons below it overflow into whatever's
+  // rendered next (e.g. a scrolled card). minHeight guarantees the row is
+  // always tall enough to actually contain them.
+  container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 12, minHeight: STATUS_BAR_HEIGHT + 44, backgroundColor: 'transparent' },
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   brandText: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', letterSpacing: -0.5 },
   backBtn: { padding: 4, position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10 },
   logoutBtn: { position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 12, backgroundColor: 'rgba(166,68,22,0.10)' },
   logoutText: { fontSize: 11, fontFamily: 'Montserrat-Bold', color: colors.accent },
+  cartBtn: { position: 'absolute', right: 16, top: STATUS_BAR_HEIGHT, zIndex: 10, padding: 4 },
+  cartBadge: {
+    position: 'absolute', top: -2, right: -4,
+    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3,
+    backgroundColor: '#D94625', justifyContent: 'center', alignItems: 'center',
+  },
+  cartBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
 });
 
 export default OnboardingTopBar;

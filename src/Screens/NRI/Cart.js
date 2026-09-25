@@ -4,9 +4,10 @@ import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { removeFromCart, clearCart, selectCartItems, selectCartSubtotal } from '../../Redux/slices/cartSlice';
+import { clearCart, clearServerCart, selectCartItems, selectCartSubtotal, selectCartGstTotal } from '../../Redux/slices/cartSlice';
 import { usePlans } from '../../Hooks/usePlans';
 import { useCartPriceSync } from '../../Hooks/useCartPriceSync';
+import { useCart } from '../../Hooks/useCart';
 import SubmitRequest from './SubmitRequest';
 
 const GST_RATE = 0.18;
@@ -28,8 +29,25 @@ function SummaryRow({ label, sub, value, strong }) {
 function Cart({ navigation }) {
   const dispatch = useDispatch();
   const items = useSelector(selectCartItems);
+  // Services total is each line's `base` (pre-GST vendor price); GST is each
+  // line's real `gst_amount` — both come straight off GET /customer/cart
+  // (see selectCartSubtotal/selectCartGstTotal), not the combined `price`.
   const servicesTotal = useSelector(selectCartSubtotal);
+  const servicesGst = useSelector(selectCartGstTotal);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  // The definitive "onboarding finished" signal (see selectOnboardingRoute in
+  // onboardingSlice.js) — an authenticated account with no active membership
+  // yet is still mid-registration (e.g. registered, then tapped "Keep
+  // Browsing"/"Add More Services" from the onboarding cart drawer to add
+  // another service). That account must keep seeing this same guest-style
+  // cart, not SubmitRequest (which assumes membership is already active).
+  const membership = useSelector(s => s.user?.user?.membership);
+  const hasMembership = !!membership && membership !== 'None';
+  // remove() dispatches the local reducer AND (when authenticated) DELETE
+  // /customer/cart/items/{serviceId} — without the server call, a removed
+  // item would silently reappear the next time the authenticated cart is
+  // re-fetched (e.g. reopening the onboarding cart drawer).
+  const { remove: removeCartItem } = useCart();
   // Remove-item / clear-cart confirm modal — { title, message, confirmLabel, onConfirm } | null.
   // Declared before the early return (like the hooks below) so hook order stays stable.
   const [confirmState, setConfirmState] = useState(null);
@@ -38,12 +56,15 @@ function Cart({ navigation }) {
   // summary below; the authenticated branch ignores it.
   const { regularPlans } = usePlans();
   // Keep the guest cart's service prices exact (matches OnboardingPayment). Gated
-  // to guests so the authenticated SubmitRequest path never triggers a refetch.
-  useCartPriceSync(!isAuthenticated);
+  // off once there's an active membership, so the SubmitRequest path never
+  // triggers a refetch.
+  useCartPriceSync(!hasMembership);
 
-  // Signed-in members get the "Submit Request" checkout (create + pay for a
-  // service request). Guests keep the membership + sign-in/register cart below.
-  if (isAuthenticated) {
+  // Members with an active membership get the "Submit Request" checkout
+  // (create + pay for a service request). Everyone else — a real guest, or an
+  // authenticated account still mid-registration — keeps the membership +
+  // sign-in/register cart below.
+  if (isAuthenticated && hasMembership) {
     return <SubmitRequest navigation={navigation} />;
   }
 
@@ -58,9 +79,6 @@ function Cart({ navigation }) {
   const membershipGst = Math.round(membershipRate * GST_RATE * 100) / 100;
   const membershipTotal = membershipRate + membershipGst;
 
-  // The backend does not apply GST to services when they are bundled into the
-  // membership subscription checkout (guest flow).
-  const servicesGst = 0;
   const grandTotal = servicesTotal + servicesGst + membershipTotal;
 
   const empty = items.length === 0;
@@ -70,7 +88,7 @@ function Cart({ navigation }) {
       title: 'Remove Service',
       message: `Remove "${item.name}" from your cart?`,
       confirmLabel: 'Remove',
-      onConfirm: () => dispatch(removeFromCart(item.serviceId)),
+      onConfirm: () => removeCartItem(item.serviceId),
     });
   };
 
@@ -79,7 +97,10 @@ function Cart({ navigation }) {
       title: 'Clear Cart',
       message: 'Remove all services from your cart?',
       confirmLabel: 'Clear Cart',
-      onConfirm: () => dispatch(clearCart()),
+      // Authenticated (mid-onboarding): DELETE every server-cart row so a
+      // clear doesn't leave items to reappear on the next fetch. Real guest:
+      // no server cart yet — the plain local reset is enough.
+      onConfirm: () => (isAuthenticated ? dispatch(clearServerCart(items)) : dispatch(clearCart())),
     });
   };
 
@@ -173,26 +194,36 @@ function Cart({ navigation }) {
             </View>
           </View>
 
-          {/* Membership / auth prompt (guests only) */}
-          {!isAuthenticated && (
+          {/* Membership / auth prompt — shown whenever there's no active
+              membership yet, whether that's a real guest or an authenticated
+              account still mid-registration (see hasMembership above). */}
+          {!hasMembership && (
             <View style={styles.authCard}>
               <Text style={styles.authTitle}>Almost there</Text>
               <Text style={styles.authDesc}>
                 Your account needs an active NRI Circle membership before we can send your
                 service request to a vendor.
               </Text>
-              <View style={styles.authBtnRow}>
-                <TouchableOpacity style={styles.signInBtn} onPress={() => navigation.navigate('Login')}>
-                  <Text style={styles.signInText}>Sign In</Text>
+              {isAuthenticated ? (
+                <TouchableOpacity style={styles.continueMembershipBtn} onPress={() => navigation.navigate('OnboardingProfile')}>
+                  <Text style={styles.continueMembershipText}>Continue to Membership Payment</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.registerBtn} onPress={() => navigation.navigate('Register')}>
-                  <Text style={styles.registerText}>Register</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.authFoot}>
-                Already a member? Sign in and we'll pick up right where you left off. New here?
-                Register — your cart is saved.
-              </Text>
+              ) : (
+                <>
+                  <View style={styles.authBtnRow}>
+                    <TouchableOpacity style={styles.signInBtn} onPress={() => navigation.navigate('Login')}>
+                      <Text style={styles.signInText}>Sign In</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.registerBtn} onPress={() => navigation.navigate('Register')}>
+                      <Text style={styles.registerText}>Register</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.authFoot}>
+                    Already a member? Sign in and we'll pick up right where you left off. New here?
+                    Register — your cart is saved.
+                  </Text>
+                </>
+              )}
             </View>
           )}
 
@@ -205,7 +236,7 @@ function Cart({ navigation }) {
             <SummaryRow label="Services" value={String(items.length)} />
             <SummaryRow label="Services total" value={fmt(servicesTotal)} />
             <SummaryRow label="Services GST" sub={servicesGst > 0 ? "(18%)" : "(Included in Membership)"} value={fmt(servicesGst)} />
-            {!isAuthenticated && (
+            {!hasMembership && (
               <>
                 <View style={styles.divider} />
                 <SummaryRow label="Membership rate" value={fmt(membershipRate)} />
@@ -223,13 +254,13 @@ function Cart({ navigation }) {
               account and is billed once, annually.
             </Text>
 
-            {isAuthenticated ? (
+            {hasMembership ? (
               <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('AppHome')}>
                 <Text style={styles.primaryBtnText}>Continue to Checkout</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={styles.keepBrowsingBtn} onPress={() => navigation.navigate('GuestServices')}>
-                <Text style={styles.keepBrowsingText}>Keep Browsing</Text>
+                <Text style={styles.keepBrowsingText}>Back to Services</Text>
               </TouchableOpacity>
             )}
 
@@ -343,6 +374,8 @@ const styles = StyleSheet.create({
   registerBtn: { flex: 1, backgroundColor: '#F97316', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   registerText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
   authFoot: { fontSize: 11, lineHeight: 16, color: '#94A3B8' },
+  continueMembershipBtn: { backgroundColor: '#F97316', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  continueMembershipText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 
   summaryCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18,
