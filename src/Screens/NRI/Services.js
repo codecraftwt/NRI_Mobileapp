@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, FlatList, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Image, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, FlatList, TouchableOpacity, TextInput, ActivityIndicator, StatusBar, Modal, Image, RefreshControl, PanResponder } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearServiceLocation } from '../../Redux/slices/serviceLocationSlice';
@@ -266,6 +266,18 @@ function Services({ navigation, route }) {
   // Reset the filter back to "All Categories" (show every service) and clear search.
   const resetFilter = () => { setActiveCatName(ALL_CAT); setSearch(''); setFilterOpen(false); };
 
+  // Handle bar closes on release regardless of movement — a plain tap AND a
+  // drag-down (which a TouchableOpacity's onPress would cancel past its
+  // press-retention distance) both close the sheet.
+  const filterHandlePanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: () => setFilterOpen(false),
+      onPanResponderTerminate: () => setFilterOpen(false),
+    })
+  ).current;
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
@@ -448,7 +460,9 @@ function Services({ navigation, route }) {
       <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
         <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)}>
           <TouchableOpacity style={styles.filterSheet} activeOpacity={1} onPress={() => {}}>
-            <View style={styles.filterHandle} />
+            <View style={styles.filterHandleWrap} {...filterHandlePanResponder.panHandlers}>
+              <View style={styles.filterHandle} />
+            </View>
             <View style={styles.filterHeaderRow}>
               <Text style={styles.filterTitle}>Filter by category</Text>
             </View>
@@ -574,7 +588,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28, maxHeight: '75%',
   },
-  filterHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1', alignSelf: 'center', marginBottom: 14 },
+  // Tap target for closing via the handle — the visible bar (filterHandle)
+  // is only 5px tall, too small to comfortably tap on its own.
+  filterHandleWrap: { alignItems: 'center', paddingVertical: 8, marginBottom: 6 },
+  filterHandle: { width: 40, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1' },
   filterHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   filterTitle: { fontSize: 17, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   filterReset: { fontSize: 14, color: '#D94625', fontFamily: typography.h4.fontFamily },
