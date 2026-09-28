@@ -44,7 +44,16 @@ function mapCartItem(raw) {
     // is submitted (see JobDetail.js/TicketDetail.js propose-price flow).
     // `price` above is meaningless for these (0, not a real quote), so callers
     // must check this flag before showing/charging any amount.
-    isQuoted: !!(pricing.is_quoted ?? raw.is_quoted ?? svc.pricing?.is_quoted),
+    isQuoted: !!(
+      raw.is_quoted ??
+      pricing.is_quoted ??
+      svc.is_quoted ??
+      svc.pricing?.is_quoted ??
+      raw.pricing?.is_quoted ??
+      (raw.label === 'Quoted' || pricing.label === 'Quoted' || svc.label === 'Quoted') ??
+      (raw.label?.toLowerCase() === 'quoted' || pricing.label?.toLowerCase() === 'quoted' || svc.label?.toLowerCase() === 'quoted')
+    ),
+    label: raw.label ?? pricing.label ?? svc.label ?? null,
     price: Number(price) || 0,
     base: raw.base != null ? Number(raw.base) : null,
     gstAmount: raw.gst_amount != null ? Number(raw.gst_amount) : null,

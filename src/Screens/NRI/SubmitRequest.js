@@ -198,9 +198,17 @@ function SubmitRequest({ navigation }) {
   // bound to recurring_price via useCartPriceSync.
   const oneTimeItems = items.filter(i => !i.isRecurring);
   const recurringItems = items.filter(i => i.isRecurring);
+  const isQuotedService = (item) => Boolean(
+    item?.isQuoted ||
+    item?.is_quoted ||
+    item?.pricing?.is_quoted ||
+    item?.label === 'Quoted' ||
+    item?.label?.toLowerCase() === 'quoted' ||
+    (item?.pricingBasis === null && item?.categoryBaseBookable === null)
+  );
   // True only when this checkout will hit the dedicated quote-only endpoint
   // (POST /customer/tickets/quoted/{service}, see handleSubmit below) — a
-  // cart holding EXACTLY one quoted service (one-time OR recurring — the
+  // cart holding quoted service(s) (one-time OR recurring — the
   // endpoint doesn't care about billing_mode, a quoted service just has no
   // fixed price either way) and nothing else. A quoted item no longer needs
   // a fixed price at booking (a vendor/RM proposes one after the request is
@@ -210,7 +218,7 @@ function SubmitRequest({ navigation }) {
   // UI must stay visible — the moment a quoted item is mixed with another
   // priced/recurring service; those still owe real money and go through the
   // normal paid checkout below.
-  const isQuotedOnlyCart = items.length === 1 && items[0].isQuoted;
+  const isQuotedOnlyCart = items.length > 0 && items.every(isQuotedService);
   // A cart that's ENTIRELY recurring is its own pay-first flow (same
   // contract as CreateTicket's single-recurring-service subscribe: only
   // service_ids/gateway/state_id/city_id up front via POST
@@ -232,8 +240,8 @@ function SubmitRequest({ navigation }) {
   // creates the ticket directly via bookQuotedTicket() — no paymentId
   // round-trip required.
   const payFirstEligible = (recurringItems.length === 0 || isPureRecurring)
-    && !oneTimeItems.some(i => i.isQuoted)
-    && !recurringItems.some(i => i.isQuoted);
+    && !oneTimeItems.some(isQuotedService)
+    && !recurringItems.some(isQuotedService);
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -699,12 +707,12 @@ function SubmitRequest({ navigation }) {
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
 
-      // A cart holding exactly one quoted service skips price/checkout
+      // A cart holding quoted service(s) skips price/checkout
       // entirely — POST /customer/tickets/quoted/{service} creates the
       // ticket in a single step, no payment yet. A vendor proposes a price
       // after review; the customer pays it later the normal way, once
       // approved (see TicketDetail.js's "Additional Payment Requested" card).
-      if (items.length === 1 && items[0].isQuoted) {
+      if (isQuotedOnlyCart && items.length > 0) {
         const propertyId = properties.find(p => p.nickname === reqForm.property)?.id || null;
         const familyMemberId = await resolveFamilyMemberId();
         await bookQuotedTicket({
@@ -1214,27 +1222,26 @@ function SubmitRequest({ navigation }) {
           </>
           ) : (
           <>
-          {/* Mixed cart (one-time + recurring together) — old details→payment
-              flow, unchanged; the recurring item still surfaces as a
-              pending_recurring_bundle to complete separately after checkout. */}
-          {/* Step indicator */}
-          <View style={styles.stepper}>
-            <View style={styles.stepRow}>
-              <View style={[styles.stepCircle, styles.stepCircleActive]}>
-                {step === 'payment'
-                  ? <Icon name="check" size={16} color="#FFFFFF" />
-                  : <Text style={styles.stepNumActive}>1</Text>}
+          {/* Step indicator — hidden for quoted services because there is no payment step */}
+          {!isQuotedOnlyCart && (
+            <View style={styles.stepper}>
+              <View style={styles.stepRow}>
+                <View style={[styles.stepCircle, styles.stepCircleActive]}>
+                  {step === 'payment'
+                    ? <Icon name="check" size={16} color="#FFFFFF" />
+                    : <Text style={styles.stepNumActive}>1</Text>}
+                </View>
+                <View style={[styles.stepLine, step === 'payment' && styles.stepLineActive]} />
+                <View style={[styles.stepCircle, step === 'payment' && styles.stepCircleActive]}>
+                  <Text style={[styles.stepNum, step === 'payment' && styles.stepNumActive]}>2</Text>
+                </View>
               </View>
-              <View style={[styles.stepLine, step === 'payment' && styles.stepLineActive]} />
-              <View style={[styles.stepCircle, step === 'payment' && styles.stepCircleActive]}>
-                <Text style={[styles.stepNum, step === 'payment' && styles.stepNumActive]}>2</Text>
+              <View style={styles.stepLabels}>
+                <Text style={[styles.stepLabel, styles.stepLabelActive]}>Details & Documents</Text>
+                <Text style={[styles.stepLabel, styles.stepLabelRight, step === 'payment' && styles.stepLabelActive]}>Payment</Text>
               </View>
             </View>
-            <View style={styles.stepLabels}>
-              <Text style={[styles.stepLabel, styles.stepLabelActive]}>Details & Documents</Text>
-              <Text style={[styles.stepLabel, styles.stepLabelRight, step === 'payment' && styles.stepLabelActive]}>Payment</Text>
-            </View>
-          </View>
+          )}
 
           {step === 'details' && (
           <>
