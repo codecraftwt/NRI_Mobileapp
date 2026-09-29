@@ -14,8 +14,8 @@ import { formatAmount } from '../../../Utils/currency';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import OnboardingCartModal from '../../../Components/OnboardingCartModal';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
-import { updateProfile, updateMembership } from '../../../Redux/slices/userSlice';
-import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
+import { updateProfile, updateMembership, saveUserProfile } from '../../../Redux/slices/userSlice';
+import { setPendingCustomPlanRequest, setOnboardingStep, setOnboardingPaymentSubStep, setCartReqForm, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
 import { useCart } from '../../../Hooks/useCart';
@@ -46,6 +46,16 @@ const { width: W, height: H } = Dimensions.get('window');
 const GST_RATE = 0.18;
 // Matches the family member API's relationship enum (same as SubmitRequest).
 const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+
+export const isQuotedService = (item) => Boolean(
+  item?.isQuoted ||
+  item?.is_quoted ||
+  item?.pricing?.isQuoted ||
+  item?.pricing?.is_quoted ||
+  item?.label === 'Quoted' ||
+  item?.label?.toLowerCase() === 'quoted' ||
+  (item?.pricingBasis == null && (item?.isQuoted || item?.is_quoted))
+);
 
 function toAmount(value) {
   const amount = Number(value);
@@ -174,6 +184,18 @@ function FormSelect({ label, required, value, placeholder, options, disabled, lo
 function OnboardingPayment({ route, navigation }) {
   const { profile, customQuote: routeCustomQuote } = route.params || {};
   const dispatch = useDispatch();
+  const userId = useSelector(s => onboardingUserKey(s.user.user));
+  const draftProfile = useSelector(s => s.onboarding?.draftProfileByUser?.[userId]);
+  const savedSubStep = useSelector(s => s.onboarding?.paymentSubStepByUser?.[userId]);
+  const savedReqForm = useSelector(s => s.onboarding?.cartReqFormByUser?.[userId]);
+  const effectiveProfile = profile || draftProfile;
+
+  useEffect(() => {
+    if (userId != null) {
+      dispatch(setOnboardingStep({ userId, step: 'OnboardingPayment' }));
+    }
+  }, [dispatch, userId]);
+
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
   const plan = regularPlans.find(p => p.isPopular) || regularPlans[0] || null;
   const {
@@ -260,7 +282,6 @@ function OnboardingPayment({ route, navigation }) {
   // empty cart this is a plain membership registration — unchanged.
   const cartItems = useSelector(selectCartItems);
   const savedLocation = useSelector(s => s.serviceLocation);
-  const userId = useSelector(s => onboardingUserKey(s.user.user));
   const fromCart = cartItems.length > 0;
 
   // The user is already authenticated by this point (registerUser.fulfilled
@@ -285,22 +306,21 @@ function OnboardingPayment({ route, navigation }) {
   // from their dashboard. Split the cart so the platform/membership fee shown
   // and charged here never double-counts a recurring item's price.
   const oneTimeCartItems = cartItems.filter(i => !i.isRecurring);
+  const pricedOneTimeCartItems = oneTimeCartItems.filter(i => !isQuotedService(i));
+  const quotedOneTimeCartItems = oneTimeCartItems.filter(i => isQuotedService(i));
   const recurringCartItems = cartItems.filter(i => i.isRecurring);
-  // `base` (pre-GST vendor price) — falls back to `price` for a line that
-  // doesn't have it yet (unsynced local guest-cart item, or a quoted
-  // service). GST is summed separately below from `gstAmount` so the two
-  // combine into the real payable without double-counting (see servicesGst).
-  const servicesSubtotal = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.base ?? it.price) || 0), 0);
+  const isQuotedOnlyOneTimeCart = oneTimeCartItems.length > 0 && pricedOneTimeCartItems.length === 0;
+
+  // `base` (pre-GST vendor price) — only sums priced services. Quoted services
+  // have no upfront charge at checkout (fee quoted after request submission).
+  const servicesSubtotal = pricedOneTimeCartItems.reduce((sum, it) => sum + (Number(it.base ?? it.price) || 0), 0);
   // Priority/urgency only applies to a one-time service request — a cart
-  // that's entirely recurring has nothing being booked at registration time
-  // to apply it to (the recurring item is priced/paid separately later), so
-  // the field is pointless and gets hidden for it.
+  // that's entirely recurring or quoted-only has no upfront priced service to
+  // apply a surcharge to, so the field gets hidden for it.
   const pureRecurringCart = fromCart && oneTimeCartItems.length === 0 && recurringCartItems.length > 0;
-  // A recurring-only cart has nothing priced at this checkout (see above), so
-  // it doesn't count as "services" for coupon purposes either — only a
-  // one-time cart item actually rides this charge and can be discounted by a
-  // services coupon.
-  const hasServicesInCart = oneTimeCartItems.length > 0;
+  // A recurring-only or quoted-only cart has nothing priced at this checkout (see above), so
+  // only priced one-time cart items can be discounted by a services coupon.
+  const hasServicesInCart = pricedOneTimeCartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -319,7 +339,7 @@ function OnboardingPayment({ route, navigation }) {
   const [submitting, setSubmitting] = useState(false);
   // Two-step sub-flow for the cart path: 'details' (booking location) then
   // 'summary' (order summary + payment). Plain membership skips straight to summary.
-  const [step, setStep] = useState('details');
+  const [step, setStep] = useState(savedSubStep || 'details');
   // Top-bar cart icon — same guest-service-then-register flow as
   // OnboardingProfile, only shown when the cart isn't empty.
   const [cartModalVisible, setCartModalVisible] = useState(false);
@@ -332,13 +352,17 @@ function OnboardingPayment({ route, navigation }) {
   // city the services were priced for).
   const firstItem = cartItems[0] || {};
   const [reqForm, setReqForm] = useState({
-    fullName: '', relation: '', taluka: '', address: '', notes: '',
-    state: firstItem.stateName || savedLocation?.stateName || '',
-    city: firstItem.cityName || savedLocation?.cityName || '',
+    fullName: savedReqForm?.fullName || '',
+    relation: savedReqForm?.relation || '',
+    taluka: savedReqForm?.taluka || '',
+    address: savedReqForm?.address || '',
+    notes: savedReqForm?.notes || '',
+    state: savedReqForm?.state || firstItem.stateName || savedLocation?.stateName || '',
+    city: savedReqForm?.city || firstItem.cityName || savedLocation?.cityName || '',
     // Prefill the PIN code the guest picked when choosing services (carried on
     // the cart item), so they don't re-enter it after registering.
-    pincode: firstItem.pincode || savedLocation?.pincode || '',
-    priority: '',
+    pincode: savedReqForm?.pincode || firstItem.pincode || savedLocation?.pincode || '',
+    priority: savedReqForm?.priority || '',
   });
   const setField = (key, val) => setReqForm(prev => ({ ...prev, [key]: val }));
 
@@ -350,7 +374,7 @@ function OnboardingPayment({ route, navigation }) {
   const priorityLabelOf = (p) => `${p.name} — ${toAmount(p.surcharge) > 0 ? formatUsd(p.surcharge) : 'Free'}`;
   const priorityLabels = priorities.map(priorityLabelOf);
   const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
-  const prioritySurcharge = fromCart && !pureRecurringCart ? toAmount(selectedPriority?.surcharge) : 0;
+  const prioritySurcharge = fromCart && !pureRecurringCart && !isQuotedOnlyOneTimeCart ? toAmount(selectedPriority?.surcharge) : 0;
 
   useEffect(() => {
     const stateName = firstItem.stateName || savedLocation?.stateName || '';
@@ -451,7 +475,7 @@ function OnboardingPayment({ route, navigation }) {
   // here once is the real payable, not a double charge on top of an
   // already-GST-inclusive figure.
   const servicesBase = servicesSubtotal + prioritySurcharge;
-  const servicesGst = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.gstAmount) || 0), 0);
+  const servicesGst = pricedOneTimeCartItems.reduce((sum, it) => sum + (Number(it.gstAmount) || 0), 0);
   const servicesPayable = servicesBase + servicesGst;
   // Recurring cart items shown below (not part of this payment — see
   // recurringChip render below) still need their own GST/total, same as the
@@ -476,8 +500,8 @@ function OnboardingPayment({ route, navigation }) {
   const itemPriceInr = (it) => (it.priceInr != null ? Number(it.priceInr) : convertUsdAmountToInr(it.price, plan));
   const itemBaseInr = (it) => (it.baseInr != null ? Number(it.baseInr) : convertUsdAmountToInr(it.base, plan));
   const itemGstInr = (it) => (it.gstAmountInr != null ? Number(it.gstAmountInr) : convertUsdAmountToInr(it.gstAmount, plan));
-  const servicesSubtotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
-  const servicesGstTotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
+  const servicesSubtotalInr = pricedOneTimeCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
+  const servicesGstTotalInr = pricedOneTimeCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
   const servicesPayableInr = servicesSubtotalInr;
   // INR counterparts of the recurring GST/total above, same convention.
   const recurringGstTotalInr = recurringCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
@@ -623,13 +647,22 @@ function OnboardingPayment({ route, navigation }) {
     // Fall back to the ticket the auto-quote effect already created above
     // (the rare "no fee owed" branch) if this payment itself didn't raise one.
     const resolvedCustomPlanTicket = customPlanTicket || preCreatedCustomPlanTicket;
+    if (effectiveProfile) {
+      dispatch(saveUserProfile({
+        phone: effectiveProfile.phone?.trim(),
+        whatsappNumber: effectiveProfile.whatsapp ? effectiveProfile.whatsapp.trim() : undefined,
+        nriCountry: effectiveProfile.countryOfResidence,
+        nriCity: effectiveProfile.city,
+        stateId: effectiveProfile.stateId,
+      }));
+    }
     dispatch(updateProfile({
-      countryOfResidence: profile?.countryOfResidence,
-      stateProvince: profile?.stateProvince,
-      city: profile?.city,
-      homeState: profile?.homeState,
-      phone: profile?.phone,
-      whatsapp: profile?.whatsapp,
+      countryOfResidence: effectiveProfile?.countryOfResidence,
+      stateProvince: effectiveProfile?.stateProvince,
+      city: effectiveProfile?.city,
+      homeState: effectiveProfile?.homeState,
+      phone: effectiveProfile?.phone,
+      whatsapp: effectiveProfile?.whatsapp,
       // Remember the plan price paid at registration (USD) so the dashboard
       // membership card can show it even before the API echoes a price.
       planPrice: basePrice,
@@ -873,11 +906,15 @@ function OnboardingPayment({ route, navigation }) {
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
-    if (!pureRecurringCart && !reqForm.priority) missing.push('Priority');
+    if (!pureRecurringCart && !isQuotedOnlyOneTimeCart && !reqForm.priority) missing.push('Priority');
 
     if (missing.length) {
       showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`, 'error');
       return;
+    }
+    if (userId != null) {
+      dispatch(setOnboardingPaymentSubStep({ userId, subStep: 'summary' }));
+      dispatch(setCartReqForm({ userId, reqForm }));
     }
     setStep('summary');
   };
@@ -894,7 +931,16 @@ function OnboardingPayment({ route, navigation }) {
       <View style={styles.bgShape3} />
       <OnboardingTopBar
         navigation={navigation}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (userId != null) {
+            dispatch(setOnboardingStep({ userId, step: 'OnboardingProfile' }));
+          }
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.replace('OnboardingProfile');
+          }
+        }}
         // Always available on this step (not just once the cart already has
         // items) — the drawer's own empty state lets the customer browse and
         // add a service, or come back here having removed everything.
@@ -921,7 +967,10 @@ function OnboardingPayment({ route, navigation }) {
           <View style={styles.subStepsRow}>
             <TouchableOpacity
               style={[styles.subStep, showDetails && styles.subStepActive]}
-              onPress={() => setStep('details')}
+              onPress={() => {
+                setStep('details');
+                if (userId != null) dispatch(setOnboardingPaymentSubStep({ userId, subStep: 'details' }));
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.subStepText, showDetails && styles.subStepTextActive]}>1 · Where</Text>
@@ -963,7 +1012,7 @@ function OnboardingPayment({ route, navigation }) {
             <Text style={styles.fieldLabel}>PIN Code *</Text>
             <TextInput style={styles.input} placeholder="e.g. 416002" placeholderTextColor="#94A3B8" keyboardType="number-pad" value={reqForm.pincode} onChangeText={t => setField('pincode', t)} />
 
-            {!pureRecurringCart && (
+            {!pureRecurringCart && !isQuotedOnlyOneTimeCart && (
               <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
             )}
 
@@ -1047,24 +1096,31 @@ function OnboardingPayment({ route, navigation }) {
                         <Icon name="shopping-cart" size={13} color={C.accent} />
                         <Text style={styles.servicesChipText}>Services ({oneTimeCartItems.length})</Text>
                       </View>
-                      {oneTimeCartItems.map((it) => (
-                        <View key={it.serviceId} style={styles.row}>
-                          <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price)}</Text>
-                        </View>
-                      ))}
+                      {oneTimeCartItems.map((it) => {
+                        const isQuoted = isQuotedService(it);
+                        return (
+                          <View key={it.serviceId} style={styles.row}>
+                            <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
+                            <Text style={[styles.rowValue, isQuoted && { color: C.accent, fontWeight: '600' }]}>
+                              {isQuoted
+                                ? 'On quote'
+                                : (currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price))}
+                            </Text>
+                          </View>
+                        );
+                      })}
                       {currency !== 'INR' && prioritySurcharge > 0 && (
                         <View style={styles.row}>
                           <Text style={styles.rowLabel}>Priority ({selectedPriority?.name})</Text>
                           <Text style={styles.rowValue}>+{formatUsd(prioritySurcharge)}</Text>
                         </View>
                       )}
-                      <View style={styles.row}>
-                        <Text style={styles.rowLabel}>
-                          Services GST {(cartCouponGst != null ? cartCouponGst > 0 : (currency === 'INR' ? servicesGstTotalInr > 0 : servicesGst > 0)) ? "(18%)" : "(Included in Membership)"}
-                        </Text>
-                        <Text style={styles.rowValue}>{formatAmount(servicesGstDisplay, currency)}</Text>
-                      </View>
+                      {!isQuotedOnlyOneTimeCart && servicesGstDisplay > 0 && (
+                        <View style={styles.row}>
+                          <Text style={styles.rowLabel}>Services GST (18%)</Text>
+                          <Text style={styles.rowValue}>{formatAmount(servicesGstDisplay, currency)}</Text>
+                        </View>
+                      )}
                       {cartCouponDiscount > 0 && (
                         <View style={styles.row}>
                           <Text style={[styles.rowLabel, { color: '#10B981' }]}>Coupon Discount (Services)</Text>
@@ -1073,13 +1129,19 @@ function OnboardingPayment({ route, navigation }) {
                       )}
                       <View style={styles.row}>
                         <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Services Total</Text>
-                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(servicesPayableDisplay, currency)}</Text>
+                        <Text style={[styles.rowValue, styles.rowValueStrong]}>
+                          {isQuotedOnlyOneTimeCart ? 'To be confirmed' : formatAmount(servicesPayableDisplay, currency)}
+                        </Text>
                       </View>
-                      {cartCouponDiscount > 0 && (
+                      {isQuotedOnlyOneTimeCart ? (
+                        <Text style={styles.combinedNote}>
+                          Quoted services have no upfront fee at checkout — a custom quote will be shared once your request is submitted.
+                        </Text>
+                      ) : cartCouponDiscount > 0 ? (
                         <Text style={styles.combinedNote}>
                           Already reflected in Services Total and Amount Payable below — the backend confirms the exact figure at checkout.
                         </Text>
-                      )}
+                      ) : null}
                     </>
                   )}
 
@@ -1152,8 +1214,9 @@ function OnboardingPayment({ route, navigation }) {
               </View>
               {fromCart && oneTimeCartItems.length > 0 && (
                 <Text style={styles.combinedNote}>
-                  Included in the amount payable above — one-time services are paid together with
-                  your membership in this one payment.
+                  {isQuotedOnlyOneTimeCart
+                    ? 'Only your membership fee is charged today. Service quotes will be provided after submission.'
+                    : 'Included in the amount payable above — one-time services are paid together with your membership in this one payment.'}
                 </Text>
               )}
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, FlatList, ActivityIndicator, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -10,7 +10,8 @@ import { useCountries } from '../../../Hooks/useCountries';
 import { useStates } from '../../../Hooks/useStates';
 import { useInternationalStates } from '../../../Hooks/useInternationalStates';
 import { useInternationalCities } from '../../../Hooks/useInternationalCities';
-import { saveUserProfile, logoutUser } from '../../../Redux/slices/userSlice';
+import { logoutUser } from '../../../Redux/slices/userSlice';
+import { setOnboardingStep, setDraftProfile, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { selectCartItems } from '../../../Redux/slices/cartSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
@@ -265,6 +266,8 @@ function OnboardingProfile({ navigation }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(state => state.user.user);
+  const userId = useSelector(state => onboardingUserKey(state.user.user));
+  const draftProfile = useSelector(state => state.onboarding?.draftProfileByUser?.[userId]);
   // Cart icon in the top bar is only relevant to the guest-service-then-register
   // flow: a guest who added a service before registering/signing in. Hidden
   // whenever the cart is empty (plain membership registration, no cart involved).
@@ -272,17 +275,23 @@ function OnboardingProfile({ navigation }) {
   const [cartModalVisible, setCartModalVisible] = useState(false);
   const { countries, countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
   const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
-  const [country, setCountry] = useState(user?.countryOfResidence || '');
-  const [stateProvince, setStateProvince] = useState(user?.stateProvince || '');
-  const [city, setCity] = useState(user?.city || '');
-  const [homeState, setHomeState] = useState(user?.homeState || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '');
+  const [country, setCountry] = useState(draftProfile?.countryOfResidence || user?.countryOfResidence || '');
+  const [stateProvince, setStateProvince] = useState(draftProfile?.stateProvince || user?.stateProvince || '');
+  const [city, setCity] = useState(draftProfile?.city || user?.city || '');
+  const [homeState, setHomeState] = useState(draftProfile?.homeState || user?.homeState || '');
+  const [phone, setPhone] = useState(draftProfile?.phone || user?.phone || '');
+  const [whatsapp, setWhatsapp] = useState(draftProfile?.whatsapp || user?.whatsapp || '');
   const [submitting, setSubmitting] = useState(false);
   // Each dial-code picker tracks its own country (by iso2). Until the user taps
   // a field's flag, it falls back to the Country of Residence selection below.
   const [phoneIso, setPhoneIso] = useState('');
   const [whatsappIso, setWhatsappIso] = useState('');
+
+  useEffect(() => {
+    if (userId != null) {
+      dispatch(setOnboardingStep({ userId, step: 'OnboardingProfile' }));
+    }
+  }, [dispatch, userId]);
 
   const residenceCountry = countries.find(c => c.name === country) || null;
   const phoneCountry = countries.find(c => c.isoCode === phoneIso) || residenceCountry;
@@ -338,33 +347,28 @@ function OnboardingProfile({ navigation }) {
     setWhatsapp(prev => withDialCode(prev, c.phoneCode));
   };
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!country || !stateProvince || !city || !homeState || !hasDigits(phone)) {
       showAlert('Missing Fields', 'Please fill in all required fields before continuing.');
       return;
     }
     const stateId = states.find(s => s.name === homeState)?.id;
-    setSubmitting(true);
-    try {
-      await dispatch(saveUserProfile({
-        phone: phone.trim(),
-        whatsappNumber: hasDigits(whatsapp) ? whatsapp.trim() : undefined,
-        nriCountry: country,
-        nriCity: city,
-        stateId,
-      })).unwrap();
-      navigation.navigate('OnboardingPayment', {
-        profile: { countryOfResidence: country, stateProvince, city, homeState, phone, whatsapp },
-      });
-    } catch (error) {
-      // The backend validates phone/whatsapp_number per-country (libphonenumber)
-      // and returns a 422 with a field-specific message — surface that instead
-      // of the generic top-level message so the user knows what to fix.
-      const fieldMessage = error?.errors?.phone?.[0] || error?.errors?.whatsapp_number?.[0];
-      showAlert('Could Not Save Profile', fieldMessage || error?.message || 'Please try again.');
-    } finally {
-      setSubmitting(false);
+    const profileData = {
+      countryOfResidence: country,
+      stateProvince,
+      city,
+      homeState,
+      stateId,
+      phone: phone.trim(),
+      whatsapp: hasDigits(whatsapp) ? whatsapp.trim() : undefined,
+    };
+    if (userId != null) {
+      dispatch(setOnboardingStep({ userId, step: 'OnboardingPayment' }));
+      dispatch(setDraftProfile({ userId, profile: profileData }));
     }
+    navigation.navigate('OnboardingPayment', {
+      profile: profileData,
+    });
   };
 
   const handleLogout = () => {

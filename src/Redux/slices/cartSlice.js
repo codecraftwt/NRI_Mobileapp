@@ -328,18 +328,28 @@ export const selectPricedCity = (s) => s.cart.pricedCity;
 export const selectCartBadgeCount = (s) =>
   s.user?.isAuthenticated ? s.cart.serverCount : s.cart.items.length;
 // Sum of each line's `base` (pre-GST vendor price) — GET /customer/cart's
-// real per-service figure once a city is on file. Falls back to `price`
-// (base+gst combined) for a line that doesn't have it yet — either a local
-// guest-cart item not yet synced to the server (see ServiceInfo.js's
-// addServiceToCart, which never sets base/gstAmount at all), or a quoted
-// service with no fixed price.
+// real per-service figure once a city is on file. Quoted services (isQuoted /
+// label === 'Quoted') have no upfront charge and contribute 0 here.
 export const selectCartSubtotal = (s) =>
-  s.cart.items.reduce((sum, i) => sum + (Number(i.base ?? i.price) || 0), 0);
+  s.cart.items.reduce((sum, i) => {
+    const isQuoted = Boolean(
+      i.isQuoted || i.is_quoted || i.pricing?.isQuoted || i.pricing?.is_quoted ||
+      i.label === 'Quoted' || i.label?.toLowerCase() === 'quoted'
+    );
+    if (isQuoted) return sum;
+    return sum + (Number(i.base ?? i.price) || 0);
+  }, 0);
 // Sum of each line's `gst_amount` — the real per-service GST GET
-// /customer/cart returns alongside `base`. 0 for a line that doesn't have it
-// yet (same cases as selectCartSubtotal's fallback above).
+// /customer/cart returns alongside `base`. 0 for quoted services.
 export const selectCartGstTotal = (s) =>
-  s.cart.items.reduce((sum, i) => sum + (Number(i.gstAmount) || 0), 0);
+  s.cart.items.reduce((sum, i) => {
+    const isQuoted = Boolean(
+      i.isQuoted || i.is_quoted || i.pricing?.isQuoted || i.pricing?.is_quoted ||
+      i.label === 'Quoted' || i.label?.toLowerCase() === 'quoted'
+    );
+    if (isQuoted) return sum;
+    return sum + (Number(i.gstAmount) || 0);
+  }, 0);
 export const selectIsInCart = (serviceId) => (s) =>
   s.cart.items.some(i => i.serviceId === serviceId);
 

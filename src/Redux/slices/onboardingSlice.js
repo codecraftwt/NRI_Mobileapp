@@ -8,6 +8,10 @@ import { registerUser } from './userSlice';
 // of being dropped onto the dashboard.
 const initialState = {
   completedByUser: {}, // { [userId]: boolean }
+  stepByUser: {}, // { [userId]: 'OnboardingProfile' | 'OnboardingPayment' }
+  draftProfileByUser: {}, // { [userId]: object }
+  paymentSubStepByUser: {}, // { [userId]: 'details' | 'summary' }
+  cartReqFormByUser: {}, // { [userId]: object }
   // Set when a guest taps "Request a Quote" (Services.js) before signing in —
   // survives the auth-identity store reset (this slice is exempt, see
   // store.js) so OnboardingPayment.js can still see it after
@@ -28,11 +32,58 @@ const onboardingSlice = createSlice({
   reducers: {
     markOnboardingComplete: (state, action) => {
       const userId = action.payload;
-      if (userId != null) state.completedByUser[userId] = true;
+      if (userId != null) {
+        if (!state.completedByUser) state.completedByUser = {};
+        state.completedByUser[userId] = true;
+        if (state.stepByUser) delete state.stepByUser[userId];
+        if (state.draftProfileByUser) delete state.draftProfileByUser[userId];
+        if (state.paymentSubStepByUser) delete state.paymentSubStepByUser[userId];
+        if (state.cartReqFormByUser) delete state.cartReqFormByUser[userId];
+      }
     },
     markOnboardingIncomplete: (state, action) => {
       const userId = action.payload;
-      if (userId != null) state.completedByUser[userId] = false;
+      if (userId != null) {
+        if (!state.completedByUser) state.completedByUser = {};
+        state.completedByUser[userId] = false;
+      }
+    },
+    setOnboardingStep: (state, action) => {
+      const { userId, step } = action.payload || {};
+      if (userId != null && step) {
+        if (!state.stepByUser) state.stepByUser = {};
+        state.stepByUser[userId] = step;
+      }
+    },
+    setDraftProfile: (state, action) => {
+      const { userId, profile } = action.payload || {};
+      if (userId != null && profile) {
+        if (!state.draftProfileByUser) state.draftProfileByUser = {};
+        state.draftProfileByUser[userId] = profile;
+      }
+    },
+    setOnboardingPaymentSubStep: (state, action) => {
+      const { userId, subStep } = action.payload || {};
+      if (userId != null && subStep) {
+        if (!state.paymentSubStepByUser) state.paymentSubStepByUser = {};
+        state.paymentSubStepByUser[userId] = subStep;
+      }
+    },
+    setCartReqForm: (state, action) => {
+      const { userId, reqForm } = action.payload || {};
+      if (userId != null && reqForm) {
+        if (!state.cartReqFormByUser) state.cartReqFormByUser = {};
+        state.cartReqFormByUser[userId] = reqForm;
+      }
+    },
+    clearDraftProfile: (state, action) => {
+      const userId = action.payload;
+      if (userId != null) {
+        if (state.draftProfileByUser) delete state.draftProfileByUser[userId];
+        if (state.stepByUser) delete state.stepByUser[userId];
+        if (state.paymentSubStepByUser) delete state.paymentSubStepByUser[userId];
+        if (state.cartReqFormByUser) delete state.cartReqFormByUser[userId];
+      }
     },
     setPendingCustomPlanRequest: (state, action) => {
       state.pendingCustomPlanRequest = !!action.payload;
@@ -42,7 +93,15 @@ const onboardingSlice = createSlice({
     // A freshly registered account has, by definition, not onboarded yet.
     builder.addCase(registerUser.fulfilled, (state, action) => {
       const userId = onboardingUserKey(action.payload.user);
-      if (userId != null) state.completedByUser[userId] = false;
+      if (userId != null) {
+        if (!state.completedByUser) state.completedByUser = {};
+        if (!state.stepByUser) state.stepByUser = {};
+        state.completedByUser[userId] = false;
+        state.stepByUser[userId] = 'OnboardingProfile';
+        if (state.draftProfileByUser) delete state.draftProfileByUser[userId];
+        if (state.paymentSubStepByUser) delete state.paymentSubStepByUser[userId];
+        if (state.cartReqFormByUser) delete state.cartReqFormByUser[userId];
+      }
     });
   },
 });
@@ -69,7 +128,7 @@ export function selectOnboardingRoute(state) {
   const membership = user?.membership;
   const hasMembership = !!membership && membership !== 'None';
 
-  const record = state.onboarding.completedByUser[userId];
+  const record = state.onboarding?.completedByUser?.[userId];
   if (record !== undefined) {
     if (record) return 'AppHome';
     // Local record says this device left the wizard mid-flow — but if the
@@ -80,14 +139,26 @@ export function selectOnboardingRoute(state) {
     // local flag instead of sending an already-active member back through
     // registration, where POST /membership/checkout would just reject them
     // for already having one.
-    return hasMembership ? 'AppHome' : 'OnboardingProfile';
+    if (hasMembership) return 'AppHome';
+
+    const step = state.onboarding?.stepByUser?.[userId];
+    if (step === 'OnboardingPayment') return 'OnboardingPayment';
+    return 'OnboardingProfile';
   }
 
   // No local record. Only trust an explicitly-false `onboarded` flag (the flag
   // is otherwise a client-side guess that defaults to `true`); the definitive
   // server-side signal is an active/purchased membership.
-  if (user?.onboarded === false) return 'OnboardingProfile';
-  return hasMembership ? 'AppHome' : 'OnboardingProfile';
+  if (user?.onboarded === false) {
+    const step = state.onboarding?.stepByUser?.[userId];
+    if (step === 'OnboardingPayment') return 'OnboardingPayment';
+    return 'OnboardingProfile';
+  }
+  if (hasMembership) return 'AppHome';
+  
+  const step = state.onboarding?.stepByUser?.[userId];
+  if (step === 'OnboardingPayment') return 'OnboardingPayment';
+  return 'OnboardingProfile';
 }
 
 // Root route for an authenticated user, accounting for account role FIRST —
@@ -106,5 +177,14 @@ export function selectAuthenticatedRoute(state) {
   return selectOnboardingRoute(state);
 }
 
-export const { markOnboardingComplete, markOnboardingIncomplete, setPendingCustomPlanRequest } = onboardingSlice.actions;
+export const {
+  markOnboardingComplete,
+  markOnboardingIncomplete,
+  setOnboardingStep,
+  setDraftProfile,
+  setOnboardingPaymentSubStep,
+  setCartReqForm,
+  clearDraftProfile,
+  setPendingCustomPlanRequest,
+} = onboardingSlice.actions;
 export default onboardingSlice.reducer;
