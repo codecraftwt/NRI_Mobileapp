@@ -142,7 +142,7 @@ export async function checkoutMembership({
   customQuoteServiceId, customQuoteSubject, customQuoteMessage,
   familyMemberName, familyMemberRelationship,
   stateId, cityId, talukaId, address, pincode, urgency,
-  preferredDate, customerNotes, documents
+  customerNotes, documents
 }) {
   try {
     const payload = {
@@ -171,7 +171,6 @@ export async function checkoutMembership({
       address: address || undefined,
       pincode: pincode || undefined,
       urgency: urgency || undefined,
-      preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
     

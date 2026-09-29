@@ -32,11 +32,16 @@ export async function getServiceSubscriptions() {
 }
 
 // Pay-first: this only prices the selection and starts payment — nothing is
-// created server-side until the returned payment_id is confirmed via
-// finalizeServiceSubscription() below, so there's no who/where or documents
-// on this call at all — always plain JSON. All the selected services must
-// share the same billing interval and allow recurring.
-export async function createServiceSubscription({ serviceIds, gateway, currency, stateId, cityId, pincode }) {
+// created server-side until the returned payment_id is confirmed. All the
+// selected services must share the same billing interval and allow
+// recurring. familyMemberId/talukaId/address/customerNotes are optional —
+// sending `address` here activates the one-shot path: the subscription
+// activates automatically once payment clears (finish_required: false on
+// the response, no separate finalizeServiceSubscription() call needed).
+// Subscriptions never accept files/documents, in either path.
+export async function createServiceSubscription({
+  serviceIds, gateway, currency, stateId, cityId, pincode, familyMemberId, talukaId, address, customerNotes,
+}) {
   try {
     const response = await apiClient.post('/customer/service-subscriptions', {
       service_ids: serviceIds,
@@ -45,6 +50,10 @@ export async function createServiceSubscription({ serviceIds, gateway, currency,
       state_id: stateId,
       city_id: cityId || undefined,
       pincode: pincode || undefined,
+      family_member_id: familyMemberId || undefined,
+      taluka_id: talukaId || undefined,
+      address: address || undefined,
+      customer_notes: customerNotes || undefined,
     });
 
     const data = response.data?.data || {};
@@ -76,12 +85,11 @@ export async function createServiceSubscription({ serviceIds, gateway, currency,
 // createServiceSubscription() above has cleared. Safe to call twice — an
 // already-finalized payment_id just returns the existing subscription.
 export async function finalizeServiceSubscription(paymentId, {
-  familyMemberId, propertyId, talukaId, address, customerNotes,
+  familyMemberId, talukaId, address, customerNotes,
 }) {
   try {
     const response = await apiClient.post(`/customer/service-subscriptions/${paymentId}/finalize`, {
       family_member_id: familyMemberId,
-      property_id: propertyId || undefined,
       taluka_id: talukaId || undefined,
       address,
       customer_notes: customerNotes || undefined,

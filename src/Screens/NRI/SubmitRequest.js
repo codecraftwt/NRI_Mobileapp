@@ -1,15 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Image, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
-import { setPendingTicketFinalize, setPendingSubscriptionFinalize } from '../../Redux/slices/pendingRequestsSlice';
+import { setPendingTicketFinalize, clearPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
-import { useProperties } from '../../Hooks/useProperties';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
@@ -19,8 +18,8 @@ import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
-import CustomDateTimePicker from '../../Components/CustomDateTimePicker';
-import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
+import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
@@ -33,7 +32,8 @@ import { useToast } from '../../context/ToastContext';
 const GST_RATE = 0.18;
 // Matches the family member API's relationship enum (same as CreateTicket).
 const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
-const NO_PROPERTY = 'Not applicable';
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_FILES = 5;
 
 const fmt = (v) => `$${(Number(v) || 0).toFixed(2)}`;
 
@@ -107,22 +107,19 @@ function SubmitRequest({ navigation }) {
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   // Available gateways come from the backend (already NRI + admin-toggle gated).
   const { currency, setCurrency, gateways } = useCurrencyGateways();
-  // Populates the Property dropdown below — same source AddProperty.js writes
-  // to, so a property added there shows up here without a manual refresh
-  // (both read the same Redux slice).
-  const { properties } = useProperties();
   // Resolves the who-for-this fields into a family_member_id — needed by
   // POST /customer/tickets/quoted/{service} (see resolveFamilyMemberId below).
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
 
   const [reqForm, setReqForm] = useState({
-    fullName: '', relation: '', property: NO_PROPERTY,
+    fullName: '', relation: '',
     state: items[0]?.stateName || savedLocation?.stateName || '',
     city: items[0]?.cityName || savedLocation?.cityName || '',
     taluka: '',
-    address: '', pincode: items[0]?.pincode || savedLocation?.pincode || '', preferredAt: '', priority: '', notes: '',
+    address: '', pincode: items[0]?.pincode || savedLocation?.pincode || '', priority: '', notes: '',
   });
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
+  const [files, setFiles] = useState([]);
   const [pincodeLocation, setPincodeLocation] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   useEffect(() => {
@@ -141,9 +138,6 @@ function SubmitRequest({ navigation }) {
   // two-step request form ('details' → 'payment').
   const [page, setPage] = useState('cart');
   const [step, setStep] = useState('details');
-  // Preferred date/time picker (past dates disabled — today onward only).
-  const [preferredDate, setPreferredDate] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { stateNames, states } = useStates();
   const { cityNames, cities } = useCities(reqForm.state);
@@ -153,6 +147,7 @@ function SubmitRequest({ navigation }) {
   const {
     quote, quoteLoading, quoteFailed, quoteError, fetchQuote,
     bookQuotedTicket, bookQuotedLoading,
+    finalizeTicket: finalizeTicketAction, finalizeLoading,
     reset,
   } = useTicketBooking();
   // Generic gateway-payment verification (shared with membership/billing
@@ -163,25 +158,18 @@ function SubmitRequest({ navigation }) {
   // payment_required/ticket_id/amount_due, same shape the old pre-cart ticket
   // flow used. Actually starting Stripe/Razorpay is still the existing
   // POST /customer/billing/ticket/{id}/pay call.
-  const { pay: payForTicket, payLoading, verifyPayment, verifyLoading } = useBilling();
-  const { createLoading: subscribeLoading, createSubscription } = useServiceSubscription();
-  // Live INR preview for a pure-recurring cart: POST /customer/service-subscriptions
-  // is pay-first (creates a draft Payment) — there's no separate quote-only
-  // endpoint for subscriptions like /customer/tickets/quote has for one-time
-  // items — so this reuses the same live-quote-via-the-real-endpoint pattern
-  // CustomPlanNew.js already uses: debounce a call, cache it by fingerprint,
-  // and reuse that exact payment at actual submit instead of creating a
-  // second one. Only fires when INR is selected — the USD total already
-  // displays correctly from the local cart-item math with no extra call.
-  const [recurringQuote, setRecurringQuote] = useState(null); // { fingerprint, ...createSubscription() result }
-  const [recurringQuoteLoading, setRecurringQuoteLoading] = useState(false);
-  const [recurringQuoteError, setRecurringQuoteError] = useState(null);
-  const lastFetchedRecurringFingerprintRef = useRef(null);
-  // A recurring cart service that wasn't (fully) paid for by this checkout —
-  // either because the checkout itself is pure-recurring (payment_required:
-  // false, nothing to pay via a ticket) or because it rode alongside a
-  // one-time gateway payment as a leftover (see checkoutCart in cartApi.js).
-  const [pendingBundle, setPendingBundle] = useState(null);
+  const {
+    pay: payForTicket, payLoading, verifyPayment, verifyLoading,
+    subscribeRecurring, subscribeRecurringLoading,
+  } = useBilling();
+  // Only used for the rare case where the backend still reports a recurring
+  // bundle's payment as needing a separate finalize (see
+  // finalizeSubscriptionAfterPayment below) — the create/subscribe calls
+  // themselves already send who/where up front.
+  const {
+    createSubscription, createLoading: subscribeLoading,
+    finalizeSubscription: finalizeSubscriptionAction, finalizeLoading: finalizeSubscriptionLoading,
+  } = useServiceSubscription();
 
   // Clear any stale booking state (quote status etc.) left over from a
   // previous request so the Submit button never sticks behind an old spinner.
@@ -219,29 +207,13 @@ function SubmitRequest({ navigation }) {
   // priced/recurring service; those still owe real money and go through the
   // normal paid checkout below.
   const isQuotedOnlyCart = items.length > 0 && items.every(isQuotedService);
-  // A cart that's ENTIRELY recurring is its own pay-first flow (same
-  // contract as CreateTicket's single-recurring-service subscribe: only
-  // service_ids/gateway/state_id/city_id up front via POST
-  // /service-subscriptions, who/where collected after payment on
-  // FinishRequest). A MIXED cart (one-time + recurring together) still goes
-  // through the old details→payment→checkoutCart flow below, unchanged —
-  // that's the only shape actually created via checkoutCart's combined
-  // ticket + pending_recurring_bundle response.
+  // A cart that's ENTIRELY recurring goes through checkoutCart() below same as
+  // everything else — it already collects who/where up front and surfaces the
+  // recurring subscription via pending_recurring_bundle (see checkoutCart's
+  // own docs in cartApi.js). A MIXED cart (one-time + recurring together)
+  // goes through the same call — that's the only shape actually created via
+  // checkoutCart's combined ticket + pending_recurring_bundle response.
   const isPureRecurring = oneTimeItems.length === 0 && recurringItems.length > 0;
-  // Pay-first (booking-details → payment → FinishRequest) applies to a cart
-  // that's entirely one kind or the other — plain one-time, or plain recurring.
-  // EXCEPT a quoted item (one-time OR recurring): pay-first only works because
-  // checkoutPayFirst/createSubscription returns a paymentId that anchors the
-  // deferred finalizeTicket() call on FinishRequest — but a quoted item has no
-  // price, so the backend has nothing to create a Payment against and returns
-  // payment_id: null. That leaves FinishRequest with no pending ticket to
-  // finish (nothingPending), so the request silently never gets created.
-  // Route it through isQuotedOnlyCart's details→submit flow instead, which
-  // creates the ticket directly via bookQuotedTicket() — no paymentId
-  // round-trip required.
-  const payFirstEligible = (recurringItems.length === 0 || isPureRecurring)
-    && !oneTimeItems.some(isQuotedService)
-    && !recurringItems.some(isQuotedService);
   // GET /customer/cart now returns is_base_service/is_addon/category_id
   // inline on every line (backend fix) — classify straight off the cart item.
   // extra_services must all be is_base_service; addons must all be is_addon;
@@ -331,7 +303,7 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqForm.pincode]);
 
-  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading || subscribeLoading || bookQuotedLoading;
+  const loading = submissionInProgress || checkoutLoading || payLoading || verifyLoading || bookQuotedLoading || finalizeLoading || subscribeRecurringLoading || finalizeSubscriptionLoading || subscribeLoading;
 
   // Authoritative pricing from the ticket quote API (same source the cards /
   // backend use) — keeps the estimated amount, GST and total in sync with the
@@ -356,54 +328,23 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteKey]);
 
-  // Live INR preview for a pure-recurring cart (see recurringQuote state
-  // above) — identifies which exact inputs a fetched quote belongs to, so a
-  // stale one (fields edited after fetching) is never reused/charged against.
-  const recurringFingerprint = `${recurringItems.map(i => i.serviceId).join(',')}|${paymentMethod}|${currency}|${quoteStateId}|${quoteCityId}|${reqForm.pincode.trim()}`;
-  const fetchRecurringQuote = async (fingerprint) => {
-    setRecurringQuoteLoading(true);
-    setRecurringQuoteError(null);
-    try {
-      const result = await createSubscription({
-        serviceIds: recurringItems.map(i => i.serviceId),
-        gateway: paymentMethod,
-        currency,
-        stateId: quoteStateId,
-        cityId: quoteCityId,
-        pincode: reqForm.pincode.trim(),
-      }).unwrap();
-      lastFetchedRecurringFingerprintRef.current = fingerprint;
-      setRecurringQuote({ fingerprint, ...result });
-    } catch (error) {
-      setRecurringQuoteError(error?.message || "Couldn't calculate the ₹ amount for this subscription.");
-    } finally {
-      setRecurringQuoteLoading(false);
-    }
-  };
-  useEffect(() => {
-    if (!isPureRecurring || isQuotedOnlyCart || currency !== 'INR' || recurringItems.length === 0 || !paymentMethod || !quoteStateId || !quoteCityId) return;
-    if (lastFetchedRecurringFingerprintRef.current === recurringFingerprint) return;
-    const timer = setTimeout(() => fetchRecurringQuote(recurringFingerprint), 900);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPureRecurring, currency, recurringFingerprint]);
-
-  // amount_inr is a single bundle total (no per-item/GST split from the
-  // backend) — derive a GST-inclusive base/GST split at the standard 18% rate
-  // (same convention as the USD estimate above), then divide the base across
-  // items proportional to their USD price so multi-service subscriptions
-  // still show a line each, summing back to the real converted total.
-  const recurringQuoteReady = currency === 'INR' && recurringQuote?.fingerprint === recurringFingerprint && recurringQuote?.amountInr != null;
-  const recurringAmountInr = recurringQuoteReady ? Number(recurringQuote.amountInr) : null;
-  const recurringBaseInr = recurringAmountInr != null ? Math.round((recurringAmountInr / (1 + GST_RATE)) * 100) / 100 : null;
-  const recurringGstInr = recurringAmountInr != null ? Math.round((recurringAmountInr - recurringBaseInr) * 100) / 100 : null;
-  const recurringItemAmountInr = (item) => {
-    if (recurringBaseInr == null || recurringSubtotal <= 0) return null;
-    const itemBaseUsd = Number(item.base != null ? item.base : item.price) || 0;
-    const usdBaseTotal = recurringItems.reduce((sum, i) => sum + (Number(i.base != null ? i.base : i.price) || 0), 0);
-    if (usdBaseTotal <= 0) return null;
-    return Math.round((recurringBaseInr * (itemBaseUsd / usdBaseTotal)) * 100) / 100;
-  };
+  // INR preview for a pure-recurring cart — GET /customer/cart already
+  // returns priceInr/baseInr/gstAmountInr alongside the USD figures on every
+  // cart line (same fields the one-time estimate would use), so this is pure
+  // local math, same as the USD subtotal above. Previously this called the
+  // real pay-first POST /customer/service-subscriptions endpoint just to get
+  // a converted total, which silently created a real payment/subscription
+  // attempt on the backend every time the currency toggle changed — fixed by
+  // reading the numbers the cart already carries instead of creating one.
+  const recurringAmountInr = recurringItems.every(i => i.priceInr != null)
+    ? recurringItems.reduce((sum, i) => sum + Number(i.priceInr || 0), 0)
+    : null;
+  const recurringGstInr = recurringItems.every(i => i.gstAmountInr != null)
+    ? recurringItems.reduce((sum, i) => sum + Number(i.gstAmountInr || 0), 0)
+    : null;
+  const recurringItemAmountInr = (item) => (
+    item.baseInr != null ? item.baseInr : item.priceInr
+  );
 
   // The quote API returns the address-specific pre-GST service amount,
   // GST amount, and GST-inclusive total. Use it directly when available; fall
@@ -456,9 +397,25 @@ function SubmitRequest({ navigation }) {
   const quoteBlocking = !isQuotedOnlyCart && oneTimeItems.length > 0 && quoteFailed;
   const quoteErrorMessage = quoteError?.message || 'One or more selected services aren\'t available for your selected city. Please review your cart.';
 
-  const formattedPreferred = preferredDate
-    ? preferredDate.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '';
+  const handleChooseFiles = async () => {
+    if (files.length >= MAX_FILES) { Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`); return; }
+    try {
+      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: true });
+      const remainingSlots = MAX_FILES - files.length;
+      const candidates = results.slice(0, remainingSlots);
+      const accepted = candidates.filter(f => !f.size || f.size <= MAX_FILE_SIZE_BYTES);
+      const oversized = candidates.filter(f => f.size && f.size > MAX_FILE_SIZE_BYTES);
+      if (accepted.length > 0) {
+        const localized = await resolveLocalCopies(accepted);
+        setFiles(prev => [...prev, ...localized.map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size }))]);
+      }
+      if (oversized.length > 0) Alert.alert('File Too Large', `${oversized.length} file(s) were skipped because they exceed 5 MB.`);
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      Alert.alert('Error', 'Could not select the file(s). Please try again.');
+    }
+  };
+  const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
 
   // POST /customer/tickets/quoted/{service} needs an existing family_member_id
   // (unlike checkoutCart, which still takes raw name/relationship) — reuse a
@@ -519,7 +476,7 @@ function SubmitRequest({ navigation }) {
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.address.trim()) missing.push('Full Address');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
-    if (!reqForm.priority) missing.push('Priority');
+    if (!isPureRecurring && !reqForm.priority) missing.push('Priority');
     if (missing.length) {
       showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
       return false;
@@ -536,162 +493,110 @@ function SubmitRequest({ navigation }) {
     setStep('payment');
   };
 
-  // Pay-first path (payFirstEligible only): validates just the booking-details
-  // fields, prices/pays the cart, then hands off to FinishRequest — nothing is
-  // created server-side until that screen's finalize call succeeds. Both a
-  // pure one-time cart and a pure recurring cart need state/city/pincode;
-  // priority is a ticket-quote-only input.
-  const validateBookingDetails = () => {
-    const missing = [];
-    if (!reqForm.state) missing.push('State');
-    if (!reqForm.city) missing.push('City / District');
-    if (!reqForm.pincode.trim()) missing.push('PIN Code');
-    if (!isPureRecurring && !reqForm.priority) missing.push('Priority');
-    if (missing.length) {
-      showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
-      return false;
+  // The backend's checkout-bundles/subscribe-recurring endpoint doesn't
+  // always carry forward the who/where already given in the earlier
+  // checkoutCart() call — when its payment-verify response still reports
+  // pendingSubscriptionFinalize, finish it immediately with what's already
+  // collected on this screen instead of leaving it to surface later as a
+  // "pending" prompt on Requests/FinishRequest.
+  const finalizeSubscriptionAfterPayment = async (paymentId) => {
+    try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
+      await finalizeSubscriptionAction({
+        paymentId,
+        familyMemberId,
+        talukaId,
+        address: reqForm.address.trim(),
+        customerNotes: reqForm.notes || undefined,
+      }).unwrap();
+    } catch (error) {
+      showAlert('Almost Done', error?.message || 'Payment succeeded, but we could not finish activating your subscription yet. Find "Finish Request" under Requests to complete it.');
     }
-    return true;
   };
 
-  const handlePayFirst = async () => {
-    if (loading || submissionLockRef.current) return;
-    if (!validateBookingDetails()) return;
-    if (!isPureRecurring && quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
-
-    submissionLockRef.current = true;
-    setSubmissionInProgress(true);
+  // A recurring item that rode alongside a one-time gateway payment as a
+  // leftover on a MIXED cart (a pure-recurring cart is handled directly in
+  // handleSubmit below and never reaches here) is charged right here,
+  // straight into the same Stripe/Razorpay checkout every other payment in
+  // this screen uses — no separate "Complete Your Subscription" confirmation
+  // step in between. It still resurfaces later via the Dashboard's
+  // pending_recurring_bundles if this doesn't complete.
+  const handlePostCheckout = async (bundle) => {
+    if (!bundle?.bundleId) {
+      await finishSuccess();
+      return;
+    }
     try {
-      const stateId = states.find(s => s.name === reqForm.state)?.id;
-      const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
-
-      if (isPureRecurring) {
-        // Same contract as CreateTicket's subscribe: only service_ids/gateway/
-        // state_id/city_id up front via POST /service-subscriptions — who this
-        // is for, the address, and any required documents are collected after
-        // payment on FinishRequest (mode: 'subscription'). Reuse the live ₹
-        // preview quote (see recurringQuote above) if it matches exactly
-        // what's on screen right now — avoids creating a second draft
-        // payment for the same subscription.
-        const result = (recurringQuote && recurringQuote.fingerprint === recurringFingerprint)
-          ? recurringQuote
-          : await createSubscription({
-              serviceIds: recurringItems.map(i => i.serviceId),
-              gateway: paymentMethod,
-              currency,
-              stateId,
-              cityId,
-              pincode: reqForm.pincode.trim(),
-            }).unwrap();
-
-        if (result.paymentId) {
-          dispatch(setPendingSubscriptionFinalize({
-            userId,
-            paymentId: result.paymentId,
-            serviceIds: recurringItems.map(i => i.serviceId),
-            serviceNames: recurringItems.map(i => i.name),
-            stateId, cityId,
-            stateName: reqForm.state, cityName: reqForm.city,
-            amount: currency === 'INR' && result.amountInr != null ? result.amountInr : result.amount,
-            currency: currency === 'INR' && result.amountInr != null ? 'INR' : result.currency,
-            origin: 'cart',
-          }));
-        }
-
-        if (result.checkoutUrl) {
-          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, payFirst: true, kind: 'subscription' });
-          submissionLockRef.current = false;
-          setSubmissionInProgress(false);
-          return;
-        }
-        if (result.order) {
-          await runRazorpayPayment({
-            order: result.order,
-            paymentId: result.paymentId,
-            name: 'NRI Circle',
-            description: 'Recurring service subscription',
-            user,
-            verify: (params) => verifyPayment(params).unwrap(),
-          });
-        }
-        navigation.navigate('FinishRequest', { mode: 'subscription', paymentId: result.paymentId });
+      const result = await subscribeRecurring(bundle.bundleId, currency).unwrap();
+      if (result.checkoutUrl) {
+        // Stripe — open the hosted checkout page; handleCheckoutSuccess
+        // finishes up (isSubscriptionCheckout tells it to check for a still-
+        // pending finalize once this session verifies).
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, isSubscriptionCheckout: true });
         submissionLockRef.current = false;
         setSubmissionInProgress(false);
         return;
       }
-
-      const result = await checkoutPayFirst({
-        gateway: paymentMethod,
-        currency,
-        couponCode: couponCode.trim() || undefined,
-        stateId,
-        cityId,
-        pincode: reqForm.pincode.trim(),
-        urgency: selectedPriority?.slug || 'standard',
-      }).unwrap();
-
-      if (result.paymentId) {
-        dispatch(setPendingTicketFinalize({
-          userId,
-          paymentId: result.paymentId,
-          serviceIds: oneTimeItems.map(i => i.serviceId),
-          serviceNames: oneTimeItems.map(i => i.name),
-          stateId, cityId,
-          stateName: reqForm.state, cityName: reqForm.city,
-          amount: result.amount, currency: result.currency,
-          origin: 'cart',
-        }));
-      }
-
-      if (result.requiresPayment && result.checkoutUrl) {
-        // Stripe — open the hosted checkout page; handleCheckoutSuccess routes
-        // to FinishRequest once it redirects back with a session_id.
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, payFirst: true });
-        submissionLockRef.current = false;
-        setSubmissionInProgress(false);
-        return;
-      }
-      if (result.requiresPayment && result.order) {
+      if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
-        await runRazorpayPayment({
+        const verifyResult = await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle',
-          description: 'Service request',
+          description: bundle.serviceNames || 'Recurring service subscription',
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
+        if (verifyResult?.data?.pendingSubscriptionFinalize?.paymentId) {
+          await finalizeSubscriptionAfterPayment(verifyResult.data.pendingSubscriptionFinalize.paymentId);
+        }
+      } else if (Number(result.amount) !== 0) {
+        // No checkout_url/order came back, and this wasn't confirmed free
+        // (amount isn't exactly 0 — it may even be missing entirely, seen
+        // with certain currency/gateway combinations like INR) — never
+        // silently activate an unconfirmed-free subscription.
+        throw new Error('Could not start payment for your recurring service. Please try again, or try a different currency/payment method.');
       }
-      // Either nothing was owed (requires_payment: false, e.g. wallet/free) or
-      // the Razorpay payment above just cleared — either way, finish the
-      // request on FinishRequest (it reads the pending state we just set).
-      navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: result.paymentId });
-      submissionLockRef.current = false;
-      setSubmissionInProgress(false);
+      await finishSuccess();
     } catch (error) {
-      const fieldErrors = error?.errors
-        ? Object.entries(error.errors).flatMap(([, v]) => v).join('\n')
-        : '';
-      const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
-        || (isPureRecurring ? 'Could not start your subscription. Please try again.' : 'Could not start payment. Please try again.');
-      showAlert(isPureRecurring ? 'Subscription Failed' : 'Payment Failed', msg);
+      // A subscription for this bundle is already active (e.g. a retried
+      // tap after the app backgrounded mid-payment) — nothing to do.
+      if (error?.status === 409) {
+        await finishSuccess();
+        return;
+      }
+      showAlert('Subscription Failed', error?.message || 'Could not start payment for your recurring service. Please try again from Requests.');
       submissionLockRef.current = false;
       setSubmissionInProgress(false);
     }
   };
 
-  // A recurring cart item that's still unpaid after checkout (either the
-  // whole cart was pure-recurring — nothing to pay via a ticket — or it rode
-  // alongside a one-time gateway payment as a leftover) surfaces its own
-  // "Complete Payment" prompt instead of the plain success alert; either way
-  // it also resurfaces later via the Dashboard's pending_recurring_bundles.
-  const handlePostCheckout = async (bundle) => {
-    if (bundle) {
-      setPendingBundle(bundle);
-      submissionLockRef.current = false;
-      setSubmissionInProgress(false);
-    } else {
+  // Only reachable when files are attached AND the cart has no recurring
+  // item (payFirstCartCheckout rejects recurring items, and subscriptions
+  // never accept files) — a plain one-time cart with a photo/document
+  // attached. checkoutCart() can't carry files (JSON-only), so this falls
+  // back to the old create→pay→finalize sequence, using the who/where
+  // already collected on this screen instead of a separate FinishRequest
+  // step. dispatches setPendingTicketFinalize first so a crash between
+  // payment and this finalize call is still resumable via the Requests.js
+  // "Finish Request" banner.
+  const finalizeAfterPayment = async (paymentId) => {
+    try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
+      await finalizeTicketAction({
+        paymentId,
+        familyMemberId,
+        talukaId,
+        address: reqForm.address.trim(),
+        customerNotes: reqForm.notes || undefined,
+        files,
+      }).unwrap();
+      dispatch(clearPendingTicketFinalize({ userId, paymentId }));
       await finishSuccess();
+    } catch (error) {
+      showAlert('Submission Failed', error?.message || 'Payment succeeded but we could not finish creating your request. It will appear under "Finish Request" in your Requests tab — please complete it there.');
     }
   };
 
@@ -713,18 +618,123 @@ function SubmitRequest({ navigation }) {
       // after review; the customer pays it later the normal way, once
       // approved (see TicketDetail.js's "Additional Payment Requested" card).
       if (isQuotedOnlyCart && items.length > 0) {
-        const propertyId = properties.find(p => p.nickname === reqForm.property)?.id || null;
         const familyMemberId = await resolveFamilyMemberId();
         await bookQuotedTicket({
           serviceId: items[0].serviceId,
-          stateId, cityId, talukaId, propertyId, familyMemberId,
+          stateId, cityId, talukaId, familyMemberId,
           address: reqForm.address.trim(),
           pincode: reqForm.pincode.trim(),
           urgency: selectedPriority?.slug || 'standard',
-          preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
           customerNotes: reqForm.notes || undefined,
+          files,
         }).unwrap();
         await finishSuccess();
+        return;
+      }
+
+      // A file can only ride the old pay-first→finalize sequence (checkoutCart
+      // is JSON-only) — the Photos/Documents field is hidden whenever the cart
+      // has a recurring item, so this is always a plain one-time cart here.
+      if (files.length > 0 && recurringItems.length === 0) {
+        const result = await checkoutPayFirst({
+          gateway: paymentMethod,
+          currency,
+          couponCode: couponCode.trim() || undefined,
+          stateId,
+          cityId,
+          pincode: reqForm.pincode.trim(),
+          urgency: selectedPriority?.slug || 'standard',
+        }).unwrap();
+
+        if (result.paymentId) {
+          dispatch(setPendingTicketFinalize({
+            userId,
+            paymentId: result.paymentId,
+            serviceIds: oneTimeItems.map(i => i.serviceId),
+            serviceNames: oneTimeItems.map(i => i.name),
+            stateId, cityId,
+            stateName: reqForm.state, cityName: reqForm.city,
+            amount: result.amount, currency: result.currency,
+            origin: 'cart',
+          }));
+        }
+
+        if (result.checkoutUrl) {
+          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, finalizeAfter: true });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+          return;
+        }
+        if (result.order) {
+          await runRazorpayPayment({
+            order: result.order,
+            paymentId: result.paymentId,
+            name: 'NRI Circle',
+            description: 'Service request',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+        } else if (Number(result.amount) !== 0) {
+          // No checkout_url/order came back, and this wasn't confirmed free
+          // (amount isn't exactly 0 — it may even be missing entirely, seen
+          // with certain currency/gateway combinations like INR) — never
+          // silently finish an unconfirmed-free request.
+          throw new Error('Could not start payment for this request. Please try again, or try a different currency/payment method.');
+        }
+        await finalizeAfterPayment(result.paymentId);
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
+
+      // A pure-recurring cart — POST /customer/service-subscriptions accepts
+      // who/where directly (same one-shot contract as the single-service
+      // subscribe flow in CreateTicket.js), so this skips checkoutCart() and
+      // the checkout-bundle detour entirely: the subscription activates the
+      // moment payment clears, no separate finalize needed in the normal
+      // case. finalizeSubscriptionAfterPayment is still checked as a safety
+      // net in case the backend reports it pending anyway.
+      if (isPureRecurring) {
+        const familyMemberId = await resolveFamilyMemberId();
+        const result = await createSubscription({
+          serviceIds: recurringItems.map(i => i.serviceId),
+          gateway: paymentMethod,
+          currency,
+          stateId, cityId,
+          pincode: reqForm.pincode.trim(),
+          familyMemberId, talukaId,
+          address: reqForm.address.trim(),
+          customerNotes: reqForm.notes || undefined,
+        }).unwrap();
+
+        if (result.checkoutUrl) {
+          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, isSubscriptionCheckout: true });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+          return;
+        }
+        if (result.order) {
+          const verifyResult = await runRazorpayPayment({
+            order: result.order,
+            paymentId: result.paymentId,
+            name: 'NRI Circle',
+            description: 'Recurring service subscription',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+          if (verifyResult?.data?.pendingSubscriptionFinalize?.paymentId) {
+            await finalizeSubscriptionAfterPayment(verifyResult.data.pendingSubscriptionFinalize.paymentId);
+          }
+        } else if (Number(result.amount) !== 0) {
+          // No checkout_url/order came back, and this wasn't confirmed free
+          // (amount isn't exactly 0 — it may even be missing entirely, seen
+          // with certain currency/gateway combinations like INR) — never
+          // silently activate an unconfirmed-free subscription.
+          throw new Error('Could not start payment for this subscription. Please try again, or try a different currency/payment method.');
+        }
+        await finishSuccess();
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
         return;
       }
 
@@ -738,15 +748,55 @@ function SubmitRequest({ navigation }) {
         address: reqForm.address.trim(),
         pincode: reqForm.pincode.trim(),
         urgency: selectedPriority?.slug || 'standard',
-        preferredDate: preferredDate ? preferredDate.toISOString().slice(0, 10) : undefined,
         customerNotes: reqForm.notes || undefined,
       }).unwrap();
 
-      if (result.paymentRequired && result.ticketId) {
-        // /cart/checkout only creates the ticket(s) and validates the
-        // recurring/PayPal restriction — confirmed live it does NOT start a
-        // gateway session itself (no checkout_url/order on its response).
-        // Pay the created ticket the same way the pre-cart flow always did.
+      if (!result.ticketId && (result.checkoutUrl || result.order || result.paymentRequired)) {
+        // Pay-first fallback — confirmed live: /cart/checkout can come back
+        // with no ticket_id at all yet (checkout_url/order/amount sitting
+        // directly on this response instead), meaning the ticket isn't
+        // created until this payment clears. Handle it exactly like the
+        // file-attached pay-first path above: pay now, finalize (with the
+        // who/where already collected here) right after.
+        if (result.paymentId) {
+          dispatch(setPendingTicketFinalize({
+            userId,
+            paymentId: result.paymentId,
+            serviceIds: oneTimeItems.map(i => i.serviceId),
+            serviceNames: oneTimeItems.map(i => i.name),
+            stateId, cityId,
+            stateName: reqForm.state, cityName: reqForm.city,
+            amount: result.amount, currency: result.currency,
+            origin: 'cart',
+          }));
+        }
+        if (result.checkoutUrl) {
+          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, finalizeAfter: true });
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+          return;
+        }
+        if (result.order) {
+          await runRazorpayPayment({
+            order: result.order,
+            paymentId: result.paymentId,
+            name: 'NRI Circle',
+            description: 'Service request',
+            user,
+            verify: (params) => verifyPayment(params).unwrap(),
+          });
+        } else if (Number(result.amount) !== 0) {
+          throw new Error('Could not start payment for this request. Please try again, or try a different currency/payment method.');
+        }
+        await finalizeAfterPayment(result.paymentId);
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
+
+      if (result.ticketId) {
+        // The ticket already exists — pay it separately, the same way the
+        // pre-cart flow always did.
         const pay = await payForTicket('ticket', result.ticketId, paymentMethod, false, currency).unwrap();
         if (pay.checkoutUrl) {
           // Stripe — open the hosted checkout page; confirmed in
@@ -766,15 +816,21 @@ function SubmitRequest({ navigation }) {
             verify: (params) => verifyPayment(params).unwrap(),
           });
           await handlePostCheckout(result.pendingRecurringBundle);
+        } else if (Number(pay.amount) !== 0) {
+          // No checkout_url/order came back, and this wasn't confirmed free
+          // (amount isn't exactly 0 — it may even be missing entirely, seen
+          // with certain currency/gateway combinations like INR) — never
+          // silently finish an unconfirmed-free request.
+          throw new Error('Could not start payment for this request. Please try again, or try a different currency/payment method.');
         } else {
-          // Wallet covered it via the ticket-pay call itself.
+          // Confirmed nothing owed (amount is exactly 0) — the ticket itself
+          // is free/fully covered.
           await handlePostCheckout(result.pendingRecurringBundle);
         }
       } else {
-        // Nothing to pay via a gateway — either wallet covered a one-time
-        // ticket during checkout itself, or the cart was pure-recurring
-        // (payment_required: false, tickets: []) and the only thing left is
-        // the pending bundle prompt.
+        // Nothing to pay via a gateway — wallet covered the one-time ticket
+        // during checkout itself; the only thing left is the recurring
+        // leftover, if this mixed cart had one.
         await handlePostCheckout(result.pendingRecurringBundle);
       }
     } catch (error) {
@@ -805,12 +861,19 @@ function SubmitRequest({ navigation }) {
     submissionLockRef.current = true;
     setSubmissionInProgress(true);
     try {
-      if (session?.paymentId) await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
-      if (session?.payFirst) {
-        navigation.navigate('FinishRequest', {
-          mode: session?.kind === 'subscription' ? 'subscription' : 'ticket',
-          paymentId: session.paymentId,
-        });
+      let verifyResult = null;
+      if (session?.paymentId) verifyResult = await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+      if (session?.finalizeAfter) {
+        await finalizeAfterPayment(session.paymentId);
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        return;
+      }
+      if (session?.isSubscriptionCheckout) {
+        if (verifyResult?.data?.pendingSubscriptionFinalize?.paymentId) {
+          await finalizeSubscriptionAfterPayment(verifyResult.data.pendingSubscriptionFinalize.paymentId);
+        }
+        await finishSuccess();
         submissionLockRef.current = false;
         setSubmissionInProgress(false);
         return;
@@ -931,7 +994,7 @@ function SubmitRequest({ navigation }) {
           {/* Page 1 — selected services + estimated price */}
           <Text style={styles.sectionLabel}>SELECTED SERVICES</Text>
           {items.map((it) => (
-            <View key={it.serviceId} style={styles.itemCard}>
+            <View key={`${it.serviceId}-${it.isRecurring ? 'recurring' : 'one-time'}`} style={styles.itemCard}>
               <View style={styles.itemIcon}>
                 {it.imageUrl ? (
                   <Image source={{ uri: it.imageUrl }} style={styles.itemIconImage} resizeMode="cover" />
@@ -1022,11 +1085,8 @@ function SubmitRequest({ navigation }) {
                   <Icon name="autorenew" size={13} color="#B45309" />
                   <Text style={styles.recurringChipText}>Recurring Subscription ({recurringItems.length})</Text>
                 </View>
-                {currency === 'INR' && !recurringQuoteReady ? (
-                  <SummaryRow
-                    label={recurringQuoteError || 'Calculating ₹ amount…'}
-                    value={recurringQuoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
-                  />
+                {currency === 'INR' && recurringAmountInr == null ? (
+                  <SummaryRow label="₹ amount unavailable for this subscription" value="" />
                 ) : (
                   <>
                     {recurringItems.map((it) => (
@@ -1055,172 +1115,6 @@ function SubmitRequest({ navigation }) {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {payFirstEligible ? (
-          <>
-          {/* Pay-first: booking details + payment in one step (booking-details.png).
-              Who/where + documents are collected AFTER payment, on FinishRequest. */}
-          <View style={styles.card}>
-            <View style={styles.cardHeadRow}><Icon name="place" size={16} color="#20304C" /><Text style={styles.cardTitle}>Where</Text></View>
-
-            <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
-            <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
-
-            <Text style={styles.fieldLabel}>PIN Code *</Text>
-            <View style={styles.pincodeRow}>
-              <TextInput
-                style={[styles.input, styles.pincodeInput]}
-                placeholder="e.g. 416002"
-                placeholderTextColor="#94A3B8"
-                keyboardType="number-pad"
-                maxLength={6}
-                value={reqForm.pincode}
-                onChangeText={t => setField('pincode', t.replace(/[^0-9]/g, ''))}
-              />
-              {pincodeLoading && <ActivityIndicator size="small" color="#D94625" />}
-            </View>
-            {!!pincodeLocation?.cityName && (
-              <Text style={styles.pincodeHint}>
-                {pincodeLocation.cityName}{pincodeLocation.stateName ? `, ${pincodeLocation.stateName}` : ''}
-              </Text>
-            )}
-
-            {!isPureRecurring && (
-              <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
-            )}
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardHeadRow}><Icon name="receipt-long" size={16} color="#20304C" /><Text style={styles.cardTitle}>{isQuotedOnlyCart ? 'Request Summary' : 'Payment'}</Text></View>
-
-            {isQuotedOnlyCart ? (
-              <View style={styles.quoteOnlyBanner}>
-                <Icon name="info-outline" size={18} color="#92400E" />
-                <Text style={styles.quoteOnlyBannerText}>
-                  One or more services in your cart don't have a fixed price. Submit your request — a vendor will propose a price, and you'll only be asked to pay once it's confirmed.
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.fieldLabel}>Have a coupon?</Text>
-                <View style={styles.couponRow}>
-                  <TextInput style={[styles.input, styles.couponInput]} placeholder="e.g. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={couponCode} onChangeText={handleCouponTextChange} />
-                  <TouchableOpacity
-                    style={styles.applyBtn}
-                    onPress={appliedCartCoupon ? handleRemoveCoupon : handleApplyCoupon}
-                    disabled={cartCouponApplyLoading}
-                  >
-                    {cartCouponApplyLoading ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.applyBtnText}>{appliedCartCoupon ? 'Remove' : 'Apply'}</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                  <Icon name="local-offer" size={14} color="#D94625" />
-                  <Text style={styles.viewCouponsLink}>View available coupons</Text>
-                  <Icon name="expand-more" size={16} color="#D94625" />
-                </TouchableOpacity>
-
-                <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
-                <CurrencyToggle value={currency} onChange={setCurrency} />
-                <Text style={styles.fieldLabel}>Payment Method</Text>
-                {gateways.map(g => (
-                  <TouchableOpacity
-                    key={g.value}
-                    style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
-                    activeOpacity={0.8}
-                    onPress={() => setPaymentMethod(g.value)}
-                  >
-                    <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.gatewayName}>{g.label}</Text>
-                      {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
-                    </View>
-                    <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-
-            <View style={styles.divider} />
-            {isPureRecurring ? (
-              <>
-                {currency === 'INR' && !recurringQuoteReady ? (
-                  <SummaryRow
-                    label={recurringQuoteError || 'Calculating ₹ amount…'}
-                    value={recurringQuoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
-                  />
-                ) : (
-                  <>
-                    {recurringItems.map((it) => (
-                      <SummaryRow
-                        key={it.serviceId}
-                        label={it.name}
-                        value={currency === 'INR' ? formatAmount(recurringItemAmountInr(it), 'INR') : fmt(it.base != null ? it.base : it.price)}
-                      />
-                    ))}
-                    <SummaryRow label="Subscription GST" value={currency === 'INR' ? formatAmount(recurringGstInr, 'INR') : fmt(recurringGstTotal)} />
-                  </>
-                )}
-                <Text style={styles.disclaimer}>Billed automatically each {recurringInterval} until you cancel.</Text>
-              </>
-            ) : (!isQuotedOnlyCart && oneTimeItems.length > 0) && (
-              <>
-                {quoteBlocking && (
-                  <View style={styles.quoteErrorBox}>
-                    <Icon name="error-outline" size={16} color="#B91C1C" />
-                    <Text style={styles.quoteErrorText}>{quoteErrorMessage}</Text>
-                  </View>
-                )}
-                <SummaryRow label="Services" value={String(oneTimeItems.length)} />
-                {currency === 'INR' && !estQuoteReadyInr ? (
-                  <SummaryRow
-                    label={quoteError || 'Calculating ₹ amount…'}
-                    value={quoteLoading ? <ActivityIndicator size="small" color="#D94625" /> : ''}
-                  />
-                ) : (
-                  <>
-                    <SummaryRow label="Services total" value={currency === 'INR' ? formatAmount(estAmountInr, 'INR') : fmt(estAmount)} />
-                    {currency !== 'INR' && estSurcharge > 0 && <SummaryRow label="Express surcharge" value={`+${fmt(estSurcharge)}`} />}
-                    {currency !== 'INR' && estDiscount > 0 && <SummaryRow label="Discount" value={`-${fmt(estDiscount)}`} />}
-                    <SummaryRow label="Services GST" sub="(18%)" value={currency === 'INR' ? formatAmount(estGstInr, 'INR') : fmt(estGst)} />
-                  </>
-                )}
-              </>
-            )}
-            <View style={styles.payBox}>
-              <Text style={styles.payLabel}>{isQuotedOnlyCart ? 'Price' : "You'll pay"}</Text>
-              <Text style={styles.payValue}>
-                {isQuotedOnlyCart ? 'To be confirmed' : (
-                  <>
-                    {currency === 'INR'
-                      ? (isPureRecurring
-                          ? (recurringQuoteReady ? formatAmount(recurringAmountInr, 'INR') : '…')
-                          : (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…'))
-                      : fmt(isPureRecurring ? recurringSubtotal : estTotal)}
-                    {isPureRecurring ? `/${recurringInterval}` : ''}
-                  </>
-                )}
-              </Text>
-            </View>
-
-            {loading ? (
-              <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
-            ) : (
-              <TouchableOpacity
-                style={[styles.submitBtn, !isQuotedOnlyCart && ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
-                activeOpacity={0.9}
-                onPress={handlePayFirst}
-                disabled={!isQuotedOnlyCart && ((!isPureRecurring && quoteBlocking) || (currency === 'INR' && isPureRecurring && !recurringQuoteReady) || (currency === 'INR' && !isPureRecurring && !estQuoteReadyInr))}
-              >
-                <Text style={styles.submitBtnText}>{isQuotedOnlyCart ? 'Submit Request' : 'Continue to Payment'}</Text>
-                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-          </>
-          ) : (
           <>
           {/* Step indicator — hidden for quoted services because there is no payment step */}
           {!isQuotedOnlyCart && (
@@ -1253,7 +1147,6 @@ function SubmitRequest({ navigation }) {
             <TextInput style={styles.input} placeholder="Family member's name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
 
             <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
-            <FormSelect label="Property (optional)" value={reqForm.property} placeholder="Not applicable" options={[NO_PROPERTY, ...properties.map(p => p.nickname)]} onSelect={v => setField('property', v)} />
             <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
             <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
             <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
@@ -1280,24 +1173,32 @@ function SubmitRequest({ navigation }) {
               </Text>
             )}
 
-            <Text style={styles.fieldLabel}>Preferred Date & Time</Text>
-            <TouchableOpacity style={[styles.selectBox, { marginBottom: 14 }]} activeOpacity={0.7} onPress={() => setShowDatePicker(true)}>
-              <Text style={[styles.selectText, !formattedPreferred && styles.selectPlaceholder]}>
-                {formattedPreferred || 'dd-mm-yyyy --:--'}
-              </Text>
-              <Icon name="event" size={18} color="#64748B" />
-            </TouchableOpacity>
-            <CustomDateTimePicker
-              visible={showDatePicker}
-              mode="datetime"
-              value={preferredDate}
-              minimumDate={new Date()}
-              title="Preferred Date & Time"
-              onConfirm={(date) => { setPreferredDate(date); setShowDatePicker(false); }}
-              onCancel={() => setShowDatePicker(false)}
-            />
+            {!isPureRecurring && (
+              <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            )}
 
-            <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
+            {recurringItems.length === 0 && (
+              <>
+                <Text style={styles.fieldLabel}>Photos / Documents <Text style={styles.fieldHint}>(optional, up to {MAX_FILES})</Text></Text>
+                <View style={styles.docInputRow}>
+                  <TouchableOpacity style={styles.docChooseBtn} onPress={handleChooseFiles} activeOpacity={0.7}>
+                    <Icon name="attach-file" size={16} color="#20304C" />
+                    <Text style={styles.docChooseBtnText}>Choose Files</Text>
+                  </TouchableOpacity>
+                  {files.length === 0 && <Text style={styles.docFileName}>No file chosen</Text>}
+                </View>
+                {files.map(f => (
+                  <View key={f.uri} style={styles.filePill}>
+                    <Icon name={f.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#20304C" />
+                    <Text style={styles.filePillText} numberOfLines={1}>{f.name}</Text>
+                    <TouchableOpacity onPress={() => handleRemoveFile(f.uri)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Icon name="close" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <Text style={styles.fieldHint}>JPG, PNG or PDF, max 5 MB each.</Text>
+              </>
+            )}
 
             <Text style={styles.fieldLabel}>Additional Notes</Text>
             <TextInput style={[styles.input, styles.inputMultiline]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={reqForm.notes} onChangeText={t => setField('notes', t)} />
@@ -1412,8 +1313,10 @@ function SubmitRequest({ navigation }) {
               <Text style={styles.payLabel}>{isQuotedOnlyCart ? 'Price' : "You'll pay"}</Text>
               <Text style={styles.payValue}>
                 {isQuotedOnlyCart ? 'To be confirmed' : (
-                  currency === 'INR' && oneTimeItems.length > 0
-                    ? (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…')
+                  currency === 'INR'
+                    ? (oneTimeItems.length > 0
+                        ? (estQuoteReadyInr ? formatAmount(estTotalInr, 'INR') : '…')
+                        : (recurringAmountInr != null ? formatAmount(recurringAmountInr, 'INR') : '…'))
                     : fmt(oneTimeItems.length > 0 ? estTotal : recurringSubtotal)
                 )}
               </Text>
@@ -1437,7 +1340,6 @@ function SubmitRequest({ navigation }) {
           </>
           )}
           </>
-          )}
         </ScrollView>
       )}
 
@@ -1447,13 +1349,6 @@ function SubmitRequest({ navigation }) {
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}
         title="Secure Payment"
-      />
-
-      <PendingRecurringBundleModal
-        visible={!!pendingBundle}
-        bundle={pendingBundle}
-        onClose={() => { setPendingBundle(null); finishSuccess(); }}
-        onSuccess={() => { setPendingBundle(null); finishSuccess(); }}
       />
 
       <Modal visible={showCouponsModal} transparent animationType="fade" onRequestClose={() => setShowCouponsModal(false)}>
@@ -1550,6 +1445,12 @@ const styles = StyleSheet.create({
 
   fieldLabel: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#20304C', marginBottom: 6, marginTop: 2 },
   fieldHint: { fontSize: 11.5, color: '#94A3B8', lineHeight: 17, marginBottom: 2 },
+  docInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  docChooseBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 44, backgroundColor: '#F8FAFC' },
+  docChooseBtnText: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#20304C' },
+  docFileName: { flex: 1, fontSize: 12.5, color: '#94A3B8' },
+  filePill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EEF2FB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 },
+  filePillText: { flex: 1, fontSize: 12.5, color: '#1E293B' },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, marginBottom: 14 },
   inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
   pincodeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

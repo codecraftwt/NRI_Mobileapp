@@ -260,7 +260,7 @@ export async function validateCartCoupon({ code, cityId } = {}) {
 // Same shape as membershipApi.checkoutMembership's combined-cart checkout.
 export async function checkoutCart({
   gateway, currency, couponCode, familyMemberName, familyMemberRelationship, stateId,
-  cityId, talukaId, address, pincode, urgency, preferredDate, customerNotes,
+  cityId, talukaId, address, pincode, urgency, customerNotes,
 }) {
   try {
     const fields = {
@@ -275,22 +275,28 @@ export async function checkoutCart({
       address,
       pincode: pincode || undefined,
       urgency,
-      preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
     const response = await apiClient.post('/customer/cart/checkout', fields);
     const data = response.data?.data || {};
-    // Confirmed live: this response never carries checkout_url/order/
-    // payment_id — /cart/checkout only creates the ticket(s) + validates the
-    // recurring/PayPal restriction. Payment is started separately via
-    // POST /customer/billing/ticket/{id}/pay (billingApi.payBillableItem,
-    // see SubmitRequest.js) using the ticket_id returned here.
+    // Confirmed live this response can come back in TWO different shapes:
+    // (a) the ticket already exists — `tickets`/`ticket_id`/`payment_required`/
+    // `amount_due`, and payment is a separate POST /customer/billing/ticket/
+    // {id}/pay call (billingApi.payBillableItem, see SubmitRequest.js); or
+    // (b) a pay-first fallback — no ticket_id at all yet, `requires_payment`/
+    // `order`/`checkout_url`/`amount` sit directly on this response instead,
+    // and the ticket isn't created until that payment clears (same contract
+    // as ticketApi.finalizeTicket's paymentId). Map both sets of fields so
+    // callers can branch on whichever one actually came back.
     return {
       tickets: (data.tickets || []).map(mapCheckoutTicket).filter(Boolean),
       ticketId: data.ticket_id ?? null,
-      paymentRequired: !!data.payment_required,
-      amountDue: data.amount_due,
+      paymentRequired: !!(data.payment_required ?? data.requires_payment),
+      amountDue: data.amount_due ?? data.amount ?? null,
       paymentId: data.payment_id ?? null,
+      gateway: data.gateway ?? null,
+      amount: data.amount ?? null,
+      currency: data.currency ?? null,
       // Same checkoutUrl/order shape as every other gateway checkout in the
       // app (StripeCheckoutModal / runRazorpayPayment).
       checkoutUrl: data.checkout_url || null,

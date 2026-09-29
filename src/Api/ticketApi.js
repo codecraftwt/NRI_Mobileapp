@@ -199,10 +199,11 @@ function mapTicket(raw) {
   };
 }
 
-// Pay-first: POST /customer/tickets no longer creates anything — it only
-// prices the selection and starts payment. Nothing is created server-side
-// until the returned payment_id is confirmed via finalizeTicket() below, so
-// there are no files/who-where fields on this call at all — always plain JSON.
+// POST /customer/tickets: pricing/payment always happens here. Who/where
+// (see createTicket below) is optional — when sent, the ticket is created
+// the moment payment clears (one-shot); when omitted (e.g. a file needs
+// attaching, which this JSON-only call can never carry), nothing is created
+// server-side until the returned payment_id is confirmed via finalizeTicket().
 function mapPayFirstCheckout(raw, message) {
   return {
     requiresPayment: !!raw.requires_payment,
@@ -218,8 +219,15 @@ function mapPayFirstCheckout(raw, message) {
   };
 }
 
+// familyMemberId/talukaId/address/customerNotes are optional — sending
+// `address` here (alongside the rest) activates the one-shot path: the
+// ticket is created the moment payment clears, no separate finalizeTicket()
+// call needed. Omit them (e.g. a file needs to be attached, which this
+// JSON-only call can never carry) to keep the old two-step create→finalize
+// flow instead.
 export async function createTicket({
   serviceId, extraServices, addons, couponCode, stateId, cityId, pincode, urgency, gateway, currency,
+  familyMemberId, talukaId, address, customerNotes,
 }) {
   try {
     const response = await apiClient.post('/customer/tickets', {
@@ -233,6 +241,10 @@ export async function createTicket({
       urgency,
       gateway,
       currency: currency || undefined,
+      family_member_id: familyMemberId || undefined,
+      taluka_id: talukaId || undefined,
+      address: address || undefined,
+      customer_notes: customerNotes || undefined,
     });
     return mapPayFirstCheckout(response.data?.data || {}, response.data?.message);
   } catch (error) {
@@ -245,7 +257,7 @@ export async function createTicket({
 // returns the existing ticket. Sends multipart when there are attachments to
 // upload, plain JSON otherwise.
 export async function finalizeTicket(paymentId, {
-  familyMemberId, propertyId, talukaId, address, preferredDate, customerNotes, files,
+  familyMemberId, talukaId, address, customerNotes, files,
 }) {
   try {
     const hasFiles = files && files.length > 0;
@@ -254,10 +266,8 @@ export async function finalizeTicket(paymentId, {
     if (hasFiles) {
       const fields = {
         family_member_id: familyMemberId || undefined,
-        property_id: propertyId || undefined,
         taluka_id: talukaId || undefined,
         address,
-        preferred_date: preferredDate || undefined,
         customer_notes: customerNotes || undefined,
       };
       const uploadFiles = files.map(f => ({ field: 'attachments[]', uri: f.uri, name: f.name, type: f.type }));
@@ -265,10 +275,8 @@ export async function finalizeTicket(paymentId, {
     } else {
       response = await apiClient.post(`/customer/tickets/${paymentId}/finalize`, {
         family_member_id: familyMemberId || undefined,
-        property_id: propertyId || undefined,
         taluka_id: talukaId || undefined,
         address,
-        preferred_date: preferredDate || undefined,
         customer_notes: customerNotes || undefined,
       });
     }
@@ -294,7 +302,7 @@ export async function finalizeTicket(paymentId, {
 // multipart when there are attachments to upload, plain JSON otherwise (same
 // convention as finalizeTicket above).
 export async function bookQuotedTicket(serviceId, {
-  stateId, cityId, urgency, address, pincode, familyMemberId, propertyId, talukaId, preferredDate, customerNotes, files,
+  stateId, cityId, urgency, address, pincode, familyMemberId, talukaId, customerNotes, files,
 }) {
   try {
     const fields = {
@@ -304,9 +312,7 @@ export async function bookQuotedTicket(serviceId, {
       address,
       pincode: pincode || undefined,
       family_member_id: familyMemberId || undefined,
-      property_id: propertyId || undefined,
       taluka_id: talukaId || undefined,
-      preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     };
     const hasFiles = files && files.length > 0;

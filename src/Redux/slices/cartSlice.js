@@ -61,7 +61,13 @@ function mergeServerIntoLocal(state, serverItems) {
         isRecurring: si.billingMode ? si.billingMode === 'recurring' : existing.isRecurring,
       };
     }
-    return si;
+    // A server row with no local match at all (e.g. the guest cart was empty,
+    // or this line was added from another session/device) — mapCartItem only
+    // ever sets `billingMode`, never `isRecurring`, so without this it's left
+    // undefined and every isRecurring-based filter (oneTimeItems/
+    // recurringItems everywhere) silently treats a real recurring line as
+    // one-time.
+    return { ...si, isRecurring: si.billingMode === 'recurring' };
   });
 }
 

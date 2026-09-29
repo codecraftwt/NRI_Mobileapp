@@ -170,17 +170,15 @@ export async function getCheckoutBundle(bundleId) {
 // Submits who/where for a checkout-bundle — this is what actually creates the
 // tickets for a combined-cart registration/membership checkout.
 export async function finishCheckoutBundle(bundleId, {
-  familyMemberName, familyMemberRelationship, propertyId, talukaId, address,
-  preferredDate, customerNotes,
+  familyMemberName, familyMemberRelationship, talukaId, address,
+  customerNotes,
 }) {
   try {
     const response = await apiClient.post(`/customer/billing/checkout-bundles/${bundleId}/finish`, {
       family_member_name: familyMemberName || undefined,
       family_member_relationship: familyMemberRelationship || undefined,
-      property_id: propertyId || undefined,
       taluka_id: talukaId || undefined,
       address,
-      preferred_date: preferredDate || undefined,
       customer_notes: customerNotes || undefined,
     });
     const data = response.data?.data || {};

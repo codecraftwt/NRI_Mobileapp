@@ -19,7 +19,7 @@ import { setPendingCustomPlanRequest, onboardingUserKey } from '../../../Redux/s
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
 import { useCart } from '../../../Hooks/useCart';
-import { setPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
+import { setPendingBundleFinish, clearPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { getServices } from '../../../Api/catalogApi';
 import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
@@ -29,7 +29,9 @@ import { useMembershipCheckout } from '../../../Hooks/useMembershipCheckout';
 import { createCustomPlan as createCustomPlanRequestAction } from '../../../Redux/slices/customPlanSlice';
 import { useStates } from '../../../Hooks/useStates';
 import { useCities } from '../../../Hooks/useCities';
+import { useTalukas } from '../../../Hooks/useTalukas';
 import { usePriorities } from '../../../Hooks/usePriorities';
+import { useBilling } from '../../../Hooks/useBilling';
 import { lightColors as baseColors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../../theme';
 
 const C = {
@@ -42,6 +44,8 @@ const colors = C;
 const { width: W, height: H } = Dimensions.get('window');
 
 const GST_RATE = 0.18;
+// Matches the family member API's relationship enum (same as SubmitRequest).
+const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 function toAmount(value) {
   const amount = Number(value);
@@ -320,12 +324,15 @@ function OnboardingPayment({ route, navigation }) {
   // OnboardingProfile, only shown when the cart isn't empty.
   const [cartModalVisible, setCartModalVisible] = useState(false);
 
-  // "Where — for your cart's service requests" — just enough to price/pay.
-  // Who this is for, the exact address, and documents are collected on
-  // FinishRequest, after payment. Location prefilled from the first cart item
-  // (the city the services were priced for).
+  // "Who / Where — for your cart's service requests" — collected up front,
+  // sent together with the membership pay request (checkoutMembership already
+  // accepts who/where one-shot) and, if a cart bundle still needs finishing,
+  // reused inline right after payment (see finishUp below) — no separate
+  // FinishRequest step. Location prefilled from the first cart item (the
+  // city the services were priced for).
   const firstItem = cartItems[0] || {};
   const [reqForm, setReqForm] = useState({
+    fullName: '', relation: '', taluka: '', address: '', notes: '',
     state: firstItem.stateName || savedLocation?.stateName || '',
     city: firstItem.cityName || savedLocation?.cityName || '',
     // Prefill the PIN code the guest picked when choosing services (carried on
@@ -337,7 +344,9 @@ function OnboardingPayment({ route, navigation }) {
 
   const { stateNames, states } = useStates();
   const { cityNames, cities } = useCities(reqForm.state);
+  const { talukaNames, talukas } = useTalukas(null, reqForm.city);
   const { priorities } = usePriorities();
+  const { finishBundle } = useBilling();
   const priorityLabelOf = (p) => `${p.name} — ${toAmount(p.surcharge) > 0 ? formatUsd(p.surcharge) : 'Free'}`;
   const priorityLabels = priorities.map(priorityLabelOf);
   const selectedPriority = priorities.find(p => priorityLabelOf(p) === reqForm.priority) || null;
@@ -444,6 +453,13 @@ function OnboardingPayment({ route, navigation }) {
   const servicesBase = servicesSubtotal + prioritySurcharge;
   const servicesGst = oneTimeCartItems.reduce((sum, it) => sum + (Number(it.gstAmount) || 0), 0);
   const servicesPayable = servicesBase + servicesGst;
+  // Recurring cart items shown below (not part of this payment — see
+  // recurringChip render below) still need their own GST/total, same as the
+  // one-time services above, so the "not charged now" figure shown is the
+  // real amount the subscription will actually bill, not just its pre-GST base.
+  const recurringBase = recurringCartItems.reduce((sum, it) => sum + (Number(it.base ?? it.price) || 0), 0);
+  const recurringGst = recurringCartItems.reduce((sum, it) => sum + (Number(it.gstAmount) || 0), 0);
+  const recurringPayable = recurringBase + recurringGst;
   // INR counterpart — GET /customer/cart returns price_inr alongside price
   // per line (price_inr = base_inr + gst_amount_inr, same GST-inclusive
   // convention as price above) for an AUTHENTICATED cart. This screen's cart
@@ -463,6 +479,9 @@ function OnboardingPayment({ route, navigation }) {
   const servicesSubtotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
   const servicesGstTotalInr = oneTimeCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
   const servicesPayableInr = servicesSubtotalInr;
+  // INR counterparts of the recurring GST/total above, same convention.
+  const recurringGstTotalInr = recurringCartItems.reduce((sum, it) => sum + itemGstInr(it), 0);
+  const recurringPayableInr = recurringCartItems.reduce((sum, it) => sum + itemPriceInr(it), 0);
   // Once a services coupon is applied (see hasServicesInCart/cartCouponResult
   // above), POST /customer/cart/validate-coupon has already priced the whole
   // cart for us — discount, gst_amount, and total — so use its numbers
@@ -592,11 +611,14 @@ function OnboardingPayment({ route, navigation }) {
   // still can, so only treat the cart as booked/clearable when the backend
   // actually confirmed it rode along, not just because fromCart was true.
   // `bundleInfo` is { bundleId, serviceNames } resolved via resolveBundleInfo()
-  // — present whenever combined_cart rode along. Under the new pay-first
-  // contract nothing is created yet even though the membership payment
-  // cleared: who/where + documents still need to go through FinishRequest
-  // (mode: 'bundle') via POST /billing/checkout-bundles/{id}/finish before
-  // OnboardingWelcome.
+  // — present whenever combined_cart rode along. Nothing is created yet even
+  // though the membership payment cleared: the cart's tickets still need
+  // POST /billing/checkout-bundles/{id}/finish, called inline right here
+  // using the who/where already collected in the "1 · Where" step — no
+  // separate FinishRequest screen. setPendingBundleFinish/
+  // clearPendingBundleFinish still bracket the call so a crash between
+  // payment and this finish call is resumable via Requests.js's "Finish
+  // Request" banner.
   const finishUp = async (pendingRecurringBundle, combinedCart = true, customPlanTicket = null, bundleInfo = null) => {
     // Fall back to the ticket the auto-quote effect already created above
     // (the rare "no fee owed" branch) if this payment itself didn't raise one.
@@ -644,22 +666,25 @@ function OnboardingPayment({ route, navigation }) {
         stateName: reqForm.state,
         cityName: reqForm.city,
       }));
-      // FinishRequest (who/where + documents) comes right after payment —
-      // OnboardingWelcome only shows once that's actually done (see its
-      // success navigation to 'OnboardingWelcome').
-      navigation.navigate('FinishRequest', {
-        mode: 'bundle',
-        bundleId,
-        plan,
-        pendingRecurringBundle,
-        customPlanTicket: resolvedCustomPlanTicket,
-      });
-      return;
+      try {
+        await finishBundle({
+          bundleId,
+          familyMemberName: reqForm.fullName.trim(),
+          familyMemberRelationship: reqForm.relation.toLowerCase(),
+          talukaId: talukas.find(t => t.name === reqForm.taluka)?.id || null,
+          address: reqForm.address.trim(),
+          customerNotes: reqForm.notes || undefined,
+        }).unwrap();
+        dispatch(clearPendingBundleFinish({ userId, bundleId }));
+        dispatch(clearCart());
+      } catch (error) {
+        showAlert('Almost Done', error?.message || 'Your membership is active, but we could not finish creating your service request(s) yet. Find "Finish Request" under Requests to complete it.', 'error');
+      }
+    } else if (cartWasBooked) {
+      // No bundle to finish (no cart, or the cart didn't ride along) — nothing
+      // left to clear/create, go straight to the welcome screen as before.
+      dispatch(clearCart());
     }
-
-    // No bundle to finish (no cart, or the cart didn't ride along) — nothing
-    // left to clear/create, go straight to the welcome screen as before.
-    if (cartWasBooked) dispatch(clearCart());
 
     navigation.replace('OnboardingWelcome', {
       plan,
@@ -750,6 +775,11 @@ function OnboardingPayment({ route, navigation }) {
         cityId: cities.find(c => c.name === reqForm.city)?.id || (fromCart ? (cartItems[0]?.cityId || savedLocation?.cityId) : undefined) || undefined,
         pincode: reqForm.pincode?.trim() || undefined,
         urgency: selectedPriority?.slug || 'standard',
+        familyMemberName: fromCart ? reqForm.fullName.trim() || undefined : undefined,
+        familyMemberRelationship: fromCart ? reqForm.relation.toLowerCase() || undefined : undefined,
+        talukaId: fromCart ? (talukas.find(t => t.name === reqForm.taluka)?.id || undefined) : undefined,
+        address: fromCart ? reqForm.address.trim() || undefined : undefined,
+        customerNotes: fromCart ? reqForm.notes || undefined : undefined,
       }).unwrap();
 
       if (result.checkoutUrl) {
@@ -775,6 +805,12 @@ function OnboardingPayment({ route, navigation }) {
         // PayPal auto-renew returns a plan_id for a native SDK flow not built
         // on mobile — steer to a supported gateway instead of a false success.
         showAlert('Not Available', 'This payment method isn\'t supported in the app yet. Please choose Card (Stripe) or Razorpay.', 'error');
+      } else if (Number(result.amount) !== 0) {
+        // No checkout_url/order/plan_id came back, and this wasn't confirmed
+        // free (amount isn't exactly 0 — it may even be missing entirely,
+        // seen with certain currency/gateway combinations like INR) — never
+        // silently activate an unconfirmed-free membership.
+        showAlert('Payment Failed', 'Could not start payment for this membership. Please try again, or try a different currency/payment method.', 'error');
       } else {
         // Wallet credits / free plan covered the full amount — nothing to pay,
         // so verify() was never called; fall back to the checkout bundle
@@ -827,12 +863,13 @@ function OnboardingPayment({ route, navigation }) {
     setSubmitting(false);
   };
 
-  // Validate the pre-pay booking-details fields (location + priority) before
-  // moving to payment — who/where + documents are collected afterward on
-  // FinishRequest, once the membership payment (and the cart bundle it
-  // creates) has actually cleared.
+  // Validate the pre-pay who/where + booking-details fields before moving to
+  // payment — collected here now, sent together with the pay request.
   const handleContinueToPayment = () => {
     const missing = [];
+    if (!reqForm.fullName.trim()) missing.push('Full Name');
+    if (!reqForm.relation) missing.push('Relation');
+    if (!reqForm.address.trim()) missing.push('Full Address');
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.pincode.trim()) missing.push('PIN Code');
@@ -899,15 +936,25 @@ function OnboardingPayment({ route, navigation }) {
           </View>
         )}
 
-        {/* Pay-first: only what's needed to price/pay the cart's service
-            requests. Who this is for, the exact address, and any documents
-            are collected on FinishRequest, right after payment. */}
+        {/* Who this is for, the exact address, and the pricing/booking
+            details for the cart's service request(s) — collected together,
+            before payment. */}
         {showDetails && (
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Icon name="place" size={16} color={C.primary} />
-              <Text style={styles.cardHeaderText}>Where — for your cart's service requests</Text>
+              <Text style={styles.cardHeaderText}>Who / Where — for your cart's service requests</Text>
             </View>
+
+            <Text style={styles.fieldLabel}>Full Name *</Text>
+            <TextInput style={styles.input} placeholder="Family member's name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
+
+            <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
+
+            <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
+
+            <Text style={styles.fieldLabel}>Full Address *</Text>
+            <TextInput style={[styles.input, styles.textArea]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={reqForm.address} onChangeText={t => setField('address', t)} />
 
             <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
 
@@ -920,7 +967,8 @@ function OnboardingPayment({ route, navigation }) {
               <FormSelect label="Priority" required value={reqForm.priority} placeholder="Standard — Free" options={priorityLabels} onSelect={v => setField('priority', v)} />
             )}
 
-            <Text style={styles.fieldHint}>Who this is for, the exact address, and any notes/attachments are collected on the next step, after payment.</Text>
+            <Text style={styles.fieldLabel}>Additional Notes</Text>
+            <TextInput style={[styles.input, styles.textArea]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={reqForm.notes} onChangeText={t => setField('notes', t)} />
           </View>
         )}
 
@@ -1048,6 +1096,14 @@ function OnboardingPayment({ route, navigation }) {
                           <Text style={styles.rowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price))}{it.billingInterval ? '/mo' : ''}</Text>
                         </View>
                       ))}
+                      <View style={styles.row}>
+                        <Text style={styles.rowLabel}>Recurring GST (18%)</Text>
+                        <Text style={styles.rowValue}>{formatAmount(currency === 'INR' ? recurringGstTotalInr : recurringGst, currency)}</Text>
+                      </View>
+                      <View style={styles.row}>
+                        <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Recurring Total</Text>
+                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(currency === 'INR' ? recurringPayableInr : recurringPayable, currency)}/mo</Text>
+                      </View>
                       <TouchableOpacity
                         style={styles.recurringNoteRow}
                         activeOpacity={0.7}
@@ -1392,6 +1448,7 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontFamily: 'Montserrat-Bold', color: colors.primary, marginBottom: 6, marginTop: 2, letterSpacing: 0.2 },
   fieldHint: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17, marginTop: 4 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, fontFamily: 'Poppins-Regular', marginBottom: 14 },
+  textArea: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
   inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
   selectBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: radius.lg, paddingHorizontal: 14, height: 48 },
   selectBoxDisabled: { opacity: 0.5 },

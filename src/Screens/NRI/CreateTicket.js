@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { setPendingTicketFinalize, setPendingSubscriptionFinalize } from '../../Redux/slices/pendingRequestsSlice';
+import { setPendingTicketFinalize, clearPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -31,15 +31,23 @@ import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useMembership } from '../../Hooks/useMembership';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
+import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import { useTalukas } from '../../Hooks/useTalukas';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
+import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 
 const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
 const REQUEST_TYPES = [ONE_TIME, RECURRING];
+// Matches the family member API's relationship enum (same as SubmitRequest).
+const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_FILES = 5;
 // Standard GST rate used for the instant local estimate (shown before a state
 // is picked). The server quote returns the authoritative gst_rate/gst_amount
 // once state_id is available and takes over from this estimate.
@@ -140,11 +148,17 @@ function CreateTicket({ route, navigation }) {
   const [state, setState] = useState(route.params?.initialState || '');
   const [city, setCity] = useState(route.params?.initialCity || '');
   const [pincode, setPincode] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [relation, setRelation] = useState('');
+  const [taluka, setTaluka] = useState('');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+  const [files, setFiles] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [showCouponsModal, setShowCouponsModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('stripe');
   // While the hosted-checkout WebView (Stripe/PayPal) is open:
-  // { url, paymentId?, kind, successTitle, successMessage }
+  // { url, paymentId?, kind?, finalizeAfter? }
   const [checkoutSession, setCheckoutSession] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
@@ -164,6 +178,8 @@ function CreateTicket({ route, navigation }) {
   const locationLocked = !!(route.params?.initialState && route.params?.initialCity);
   const { priorities, loading: prioritiesLoading, failed: prioritiesFailed, retry: retryPriorities } = usePriorities();
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
+  const { talukaNames, talukas } = useTalukas(null, city);
+  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
   const { membership, usage } = useMembership();
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
@@ -191,7 +207,10 @@ function CreateTicket({ route, navigation }) {
 
   // Recurring services for the subscription flow (Service.allows_recurring).
   const { recurring: recurringServices, loading: loadingRecurring } = useServiceGroups(serviceCategory, state, cityId);
-  const { createLoading: subscribeLoading, createSubscription } = useServiceSubscription();
+  const {
+    createLoading: subscribeLoading, createSubscription,
+    finalizeSubscription: finalizeSubscriptionAction, finalizeLoading: finalizeSubscriptionLoading,
+  } = useServiceSubscription();
 
   // Available coupons come from the customer wallet (GET /customer/wallet),
   // fetched on demand when the coupons modal opens.
@@ -208,6 +227,8 @@ function CreateTicket({ route, navigation }) {
     clearCoupon,
     submitLoading,
     submitTicket,
+    finalizeTicket: finalizeTicketAction,
+    finalizeLoading,
     verifyLoading,
     verifyPayment,
     reset: resetBooking,
@@ -342,13 +363,46 @@ function CreateTicket({ route, navigation }) {
   const selectedSubscriptionServices = recurringServices.filter(s => selectedSubscriptionIds.includes(s.id));
   const subscriptionMonthlyTotal = selectedSubscriptionServices.reduce((sum, s) => sum + (s.pricing?.customerPrice || 0), 0);
 
-  // city_id (a resolved city) is required by the backend for both flows. Both
-  // are pay-first now: who/where + documents are collected afterward on
-  // FinishRequest, once the payment started here has cleared.
+  // city_id (a resolved city) is required by the backend for both flows.
+  // Who/where is now collected up front (fullName/relation/address), same
+  // as the cart checkout screen — sent together with the pay request so the
+  // ticket/subscription is created the moment payment clears.
+  const hasWhoWhere = fullName.trim().length > 0 && !!relation && address.trim().length > 0;
   const isValid = isRecurring
-    ? (serviceCategory && selectedSubscriptionIds.length > 0 && !!state && !!cityId && pincode.trim().length > 0)
+    ? (serviceCategory && selectedSubscriptionIds.length > 0 && !!state && !!cityId && pincode.trim().length > 0 && hasWhoWhere)
     : (serviceCategory && selectedBaseServiceIds.length > 0 && !!prioritySlug
-        && !!state && !!cityId && pincode.trim().length > 0);
+        && !!state && !!cityId && pincode.trim().length > 0 && hasWhoWhere);
+
+  const resolveFamilyMemberId = async () => {
+    const name = fullName.trim();
+    const relationship = relation.toLowerCase();
+    const existing = familyMembers.find(
+      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
+    );
+    if (existing) return existing.id;
+    const created = await createFamilyMember({ name, relationship }).unwrap();
+    return created.id;
+  };
+
+  const handleChooseFiles = async () => {
+    if (files.length >= MAX_FILES) { Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`); return; }
+    try {
+      const results = await pick({ type: [docTypes.images, docTypes.pdf], allowMultiSelection: true });
+      const remainingSlots = MAX_FILES - files.length;
+      const candidates = results.slice(0, remainingSlots);
+      const accepted = candidates.filter(f => !f.size || f.size <= MAX_FILE_SIZE_BYTES);
+      const oversized = candidates.filter(f => f.size && f.size > MAX_FILE_SIZE_BYTES);
+      if (accepted.length > 0) {
+        const localized = await resolveLocalCopies(accepted);
+        setFiles(prev => [...prev, ...localized.map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size }))]);
+      }
+      if (oversized.length > 0) Alert.alert('File Too Large', `${oversized.length} file(s) were skipped because they exceed 5 MB.`);
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      Alert.alert('Error', 'Could not select the file(s). Please try again.');
+    }
+  };
+  const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
 
   const handlePincodeLookup = () => {
     if (!pincode || pincode.trim().length < 4) {
@@ -439,28 +493,75 @@ function CreateTicket({ route, navigation }) {
   // Services tab's list), not just the previous screen.
   const goToServices = () => navigation.navigate('Services', { screen: 'ServicesMain' });
 
+  // Who/where is collected up front now (see fullName/relation/address state
+  // above) and sent together with the pay request whenever possible — see
+  // finalizeAfterPayment below for the one exception (a file attached to a
+  // one-time ticket, which the pay-first call can't carry).
+  const finalizeAfterPayment = async (paymentId) => {
+    try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const talukaId = talukas.find(t => t.name === taluka)?.id || null;
+      await finalizeTicketAction({
+        paymentId,
+        familyMemberId,
+        talukaId,
+        address: address.trim(),
+        customerNotes: notes || undefined,
+        files,
+      }).unwrap();
+      dispatch(clearPendingTicketFinalize({ userId, paymentId }));
+      showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
+        { text: 'OK', onPress: goToServices },
+      ]);
+    } catch (error) {
+      showAlert('Submission Failed', error?.message || 'Payment succeeded but we could not finish creating your request. It will appear under "Finish Request" in your Requests tab — please complete it there.');
+    }
+  };
+
+  // Safety net for the rare case where the backend still reports a
+  // subscription's payment as needing a separate finalize even though
+  // who/where was already sent with the create call — finish it immediately
+  // with what's already collected here instead of leaving it to surface
+  // later as a "pending" prompt on Requests/FinishRequest.
+  const finalizeSubscriptionAfterPayment = async (paymentId) => {
+    try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const talukaId = talukas.find(t => t.name === taluka)?.id || null;
+      await finalizeSubscriptionAction({
+        paymentId,
+        familyMemberId,
+        talukaId,
+        address: address.trim(),
+        customerNotes: notes || undefined,
+      }).unwrap();
+    } catch (error) {
+      showAlert('Almost Done', error?.message || 'Payment succeeded, but we could not finish activating your subscription yet. Find "Finish Request" under Requests to complete it.');
+    }
+  };
+
   // Called once the hosted-checkout WebView (Stripe/PayPal) redirects back
-  // with a session_id. Both tickets and subscriptions are pay-first now:
-  // the payment_id is confirmed via /payments/verify, then handed off to
-  // FinishRequest to actually create the ticket/subscription (who/where +
-  // documents).
+  // with a session_id, confirmed via /payments/verify.
   const handleCheckoutSuccess = async (sessionId) => {
     const session = checkoutSession;
     setCheckoutSession(null);
     try {
+      let verifyResult = null;
       if (session?.paymentId) {
-        await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
+        verifyResult = await verifyPayment({ paymentId: session.paymentId, sessionId }).unwrap();
       }
-      if (session?.payFirst) {
-        navigation.navigate('FinishRequest', {
-          mode: session?.kind === 'subscription' ? 'subscription' : 'ticket',
-          paymentId: session.paymentId,
-        });
+      if (session?.finalizeAfter) {
+        await finalizeAfterPayment(session.paymentId);
         return;
       }
-      showAlert(session?.successTitle || 'Payment Successful', session?.successMessage || 'Your payment has been confirmed.', [
-        { text: 'OK', onPress: goToServices },
-      ]);
+      const isSub = session?.kind === 'subscription';
+      if (isSub && verifyResult?.data?.pendingSubscriptionFinalize?.paymentId) {
+        await finalizeSubscriptionAfterPayment(verifyResult.data.pendingSubscriptionFinalize.paymentId);
+      }
+      showAlert(
+        isSub ? 'Subscription Activated' : 'Request Submitted',
+        isSub ? 'Your recurring subscription is now active. Track it under Billing & Payments.' : 'Your service request has been submitted. Track its progress under Requests.',
+        [{ text: 'OK', onPress: goToServices }]
+      );
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.');
     }
@@ -477,12 +578,14 @@ function CreateTicket({ route, navigation }) {
     );
   };
 
-  // Pay-first: this only prices the selection and starts payment — nothing is
-  // created until FinishRequest's finalize call succeeds (see mode:
-  // 'subscription' there).
+  // One-shot: who/where is sent together with the pay request, so the
+  // subscription activates automatically once payment clears — subscriptions
+  // never accept files, so there's nothing to finalize afterward.
   const submitSubscription = async (gateway) => {
     if (!isValid) return;
     try {
+      const familyMemberId = await resolveFamilyMemberId();
+      const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       const result = await createSubscription({
         serviceIds: selectedSubscriptionIds,
         gateway,
@@ -490,33 +593,22 @@ function CreateTicket({ route, navigation }) {
         stateId,
         cityId,
         pincode: pincode.trim(),
+        familyMemberId,
+        talukaId,
+        address: address.trim(),
+        customerNotes: notes || undefined,
       }).unwrap();
-
-      if (result.paymentId) {
-        dispatch(setPendingSubscriptionFinalize({
-          userId,
-          paymentId: result.paymentId,
-          serviceIds: selectedSubscriptionIds,
-          serviceNames: selectedSubscriptionServices.map(s => s.name),
-          stateId,
-          cityId,
-          stateName: state,
-          cityName: city,
-          amount: result.amount,
-          currency: result.currency,
-        }));
-      }
 
       if (result.checkoutUrl) {
         // Stripe / PayPal hosted checkout — open in the in-app WebView;
-        // handleCheckoutSuccess routes to FinishRequest once it redirects
+        // handleCheckoutSuccess shows the success alert once it redirects
         // back with a session_id.
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, kind: 'subscription', payFirst: true });
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, kind: 'subscription' });
         return;
       }
       if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
-        await runRazorpayPayment({
+        const verifyResult = await runRazorpayPayment({
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle',
@@ -524,8 +616,19 @@ function CreateTicket({ route, navigation }) {
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
+        if (verifyResult?.data?.pendingSubscriptionFinalize?.paymentId) {
+          await finalizeSubscriptionAfterPayment(verifyResult.data.pendingSubscriptionFinalize.paymentId);
+        }
+      } else if (Number(result.amount) !== 0) {
+        // No checkout_url/order came back, and this wasn't confirmed free
+        // (amount isn't exactly 0 — it may even be missing entirely, seen
+        // with certain currency/gateway combinations like INR) — never
+        // silently activate an unconfirmed-free subscription.
+        throw new Error('Could not start payment for this subscription. Please try again, or try a different currency/payment method.');
       }
-      navigation.navigate('FinishRequest', { mode: 'subscription', paymentId: result.paymentId });
+      showAlert('Subscription Activated', 'Your recurring subscription is now active. Track it under Billing & Payments.', [
+        { text: 'OK', onPress: goToServices },
+      ]);
     } catch (error) {
       showAlert('Subscription Failed', error?.message || 'Could not start your subscription. Please try again.');
     }
@@ -538,9 +641,13 @@ function CreateTicket({ route, navigation }) {
       submitSubscription(paymentMethod);
       return;
     }
+    const hasFiles = files.length > 0;
     try {
-      // Pay-first: this only prices the selection and starts payment — nothing
-      // is created until FinishRequest's finalize call succeeds.
+      const talukaId = talukas.find(t => t.name === taluka)?.id || null;
+      // A file can only ride the old pay-first→finalize sequence (this call
+      // is JSON-only) — omit who/where here and finalize afterward instead.
+      // Otherwise send who/where together with the pay request (one-shot).
+      const familyMemberId = hasFiles ? null : await resolveFamilyMemberId();
       const result = await submitTicket({
         serviceId: selectedBaseServiceIds[0],
         extraServices: selectedBaseServiceIds.slice(1),
@@ -552,9 +659,10 @@ function CreateTicket({ route, navigation }) {
         urgency: prioritySlug || 'standard',
         gateway: paymentMethod,
         currency,
+        ...(hasFiles ? {} : { familyMemberId, talukaId, address: address.trim(), customerNotes: notes || undefined }),
       }).unwrap();
 
-      if (result.paymentId) {
+      if (hasFiles && result.paymentId) {
         dispatch(setPendingTicketFinalize({
           userId,
           paymentId: result.paymentId,
@@ -570,14 +678,14 @@ function CreateTicket({ route, navigation }) {
         }));
       }
 
-      if (result.requiresPayment && result.checkoutUrl) {
+      if (result.checkoutUrl) {
         // Stripe / PayPal hosted checkout — open in the in-app WebView;
-        // handleCheckoutSuccess routes to FinishRequest once it redirects
-        // back with a session_id.
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, payFirst: true });
+        // handleCheckoutSuccess finishes the flow once it redirects back
+        // with a session_id.
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, finalizeAfter: hasFiles });
         return;
       }
-      if (result.requiresPayment && result.order) {
+      if (result.order) {
         // Razorpay — no hosted page; drive the native SDK then verify inline.
         await runRazorpayPayment({
           order: result.order,
@@ -587,11 +695,21 @@ function CreateTicket({ route, navigation }) {
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
+      } else if (Number(result.amount) !== 0) {
+        // No checkout_url/order came back, and this wasn't confirmed free
+        // (amount isn't exactly 0 — it may even be missing entirely, seen
+        // with certain currency/gateway combinations like INR) — never
+        // silently finish an unconfirmed-free request. Require positive
+        // proof of "nothing owed" instead of assuming it.
+        throw new Error('Could not start payment for this request. Please try again, or try a different currency/payment method.');
       }
-      // Either nothing was owed (requires_payment: false) or the Razorpay
-      // payment above just cleared — either way, finish the request on
-      // FinishRequest (it reads the pending state we just set).
-      navigation.navigate('FinishRequest', { mode: 'ticket', paymentId: result.paymentId });
+      if (hasFiles) {
+        await finalizeAfterPayment(result.paymentId);
+      } else {
+        showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
+          { text: 'OK', onPress: goToServices },
+        ]);
+      }
     } catch (error) {
       showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
     }
@@ -805,9 +923,79 @@ function CreateTicket({ route, navigation }) {
           </>)}
         </View> */}
 
-        {/* Both flows are pay-first now: who this is for, the exact address,
-            and any required documents are collected on FinishRequest, after
-            payment — this only needs enough to price/pay the selection. */}
+        <Text style={styles.sectionTitle}>Who / Where</Text>
+        <View style={styles.card}>
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>Full Name<Text style={styles.required}> *</Text></Text>
+            <TextInput
+              style={styles.input}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Family member's name"
+              placeholderTextColor="#9CA3AF"
+            />
+          </View>
+          <SelectField
+            label="Relation"
+            required
+            value={relation}
+            placeholder="Select..."
+            options={RELATION_OPTIONS}
+            onSelect={setRelation}
+          />
+          <SelectField
+            label="Taluka"
+            value={taluka}
+            placeholder={city ? 'Select taluka...' : 'Select city first...'}
+            options={talukaNames}
+            disabled={!city}
+            onSelect={setTaluka}
+          />
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>Full Address<Text style={styles.required}> *</Text></Text>
+            <TextInput
+              style={styles.textArea}
+              value={address}
+              onChangeText={setAddress}
+              placeholder="House/flat no., street, landmark..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+            />
+          </View>
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>Additional Notes</Text>
+            <TextInput
+              style={styles.textArea}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Any specific requirements, access instructions, etc."
+              placeholderTextColor="#9CA3AF"
+              multiline
+            />
+          </View>
+          {!isRecurring && (
+            <View style={styles.fieldWrap}>
+              <Text style={styles.label}>Photos / Documents <Text style={styles.hint}>(optional, up to {MAX_FILES})</Text></Text>
+              <View style={styles.docInputRow}>
+                <TouchableOpacity style={styles.docChooseBtn} onPress={handleChooseFiles} activeOpacity={0.7}>
+                  <Text style={styles.docChooseBtnText}>Choose Files</Text>
+                </TouchableOpacity>
+                {files.length === 0 && <Text style={styles.docFileName}>No file chosen</Text>}
+              </View>
+              {files.map(f => (
+                <View key={f.uri} style={styles.filePill}>
+                  <Icon name={f.type?.includes('pdf') ? 'picture-as-pdf' : 'image'} size={14} color="#20304C" />
+                  <Text style={styles.filePillText} numberOfLines={1}>{f.name}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveFile(f.uri)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Icon name="close" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <Text style={styles.hint}>JPG, PNG or PDF, max 5 MB each.</Text>
+            </View>
+          )}
+        </View>
+
         <Text style={styles.sectionTitle}>Where</Text>
         <View style={styles.card}>
           <SelectField
@@ -1021,16 +1209,12 @@ function CreateTicket({ route, navigation }) {
             </>
           )}
 
-          <Text style={[styles.hint, { marginTop: 4 }]}>
-            Who this is for, the exact address, and any documents are collected on the next step, after payment.
-          </Text>
-
           <TouchableOpacity
-            style={[styles.submitBtn, (!isValid || submitLoading || verifyLoading || subscribeLoading) && styles.submitBtnDisabled]}
-            disabled={!isValid || submitLoading || verifyLoading || subscribeLoading}
+            style={[styles.submitBtn, (!isValid || submitLoading || verifyLoading || subscribeLoading || finalizeLoading || finalizeSubscriptionLoading) && styles.submitBtnDisabled]}
+            disabled={!isValid || submitLoading || verifyLoading || subscribeLoading || finalizeLoading || finalizeSubscriptionLoading}
             onPress={handleSubmit}
           >
-            {submitLoading || verifyLoading || subscribeLoading ? (
+            {submitLoading || verifyLoading || subscribeLoading || finalizeLoading || finalizeSubscriptionLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text style={styles.submitBtnText}>{isRecurring ? 'Subscribe' : 'Continue to Payment'}</Text>

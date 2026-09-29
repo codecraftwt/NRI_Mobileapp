@@ -117,7 +117,7 @@ function OnboardingCartModal({ visible, onClose, navigation }) {
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <Text style={styles.sectionLabel}>SELECTED SERVICES</Text>
             {items.map((it) => (
-              <View key={it.serviceId} style={styles.itemCard}>
+              <View key={`${it.serviceId}-${it.isRecurring ? 'recurring' : 'one-time'}`} style={styles.itemCard}>
                 <View style={styles.itemIcon}>
                   <Icon name="description" size={20} color="#20304C" />
                 </View>
