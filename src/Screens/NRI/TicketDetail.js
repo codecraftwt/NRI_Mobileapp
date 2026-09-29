@@ -402,7 +402,6 @@ function TicketDetail({ route, navigation }) {
                       <Text style={styles.timelineTime}>{formatDateTime(event.at)}</Text>
                     </View>
                     <Text style={styles.timelineTitle}>{event.note || 'Status updated'}</Text>
-                    {!!event.note && <Text style={styles.timelineSub}>{event.note}</Text>}
                   </View>
                 </View>
               );
