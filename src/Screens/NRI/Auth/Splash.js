@@ -109,7 +109,7 @@ export default function Splash({ navigation }) {
         return selectAuthenticatedRoute(store.getState());
       }
       if (result.payload?.status === 401) return 'Onboarding';
-      return 'AppHome';
+      return selectAuthenticatedRoute(store.getState());
     };
 
     Promise.all([resolveRoute(), minDelay]).then(([route]) => {

@@ -28,6 +28,7 @@ function toRegisterRequestBody({ name, email, phone, password, passwordConfirmat
 function toLoginRequestBody({ login: loginId, password, deviceName, fcmToken }) {
   return {
     login: loginId,
+    email: loginId,
     password,
     device_name: deviceName,
     fcm_token: fcmToken || undefined,
@@ -77,9 +78,9 @@ function extractRelationId(val, fallbackId) {
 // Dashboard. The reducers in userSlice.js decide what to do when this key is
 // absent, since only they know the existing local value.
 function mapAuthResponse(data, { onboardedOverride } = {}) {
-  const apiUser = data?.user || {};
+  const apiUser = data?.user || (data?.id || data?.email || data?.roles ? data : {});
   const customer = apiUser.customer || data?.customer || {};
-  const homeState = apiUser.state || null;
+  const homeState = apiUser.state || data?.state || null;
   // `customer.membership` (or `data.membership`) is NOT a plan-name string —
   // for an account with an active membership it's a nested object shaped
   // like {id, plan:{id,name,slug}, status, starts_at, expires_at, auto_renew,
@@ -93,7 +94,10 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     : membershipRaw || null;
   const membershipExpiry = (membershipRaw && typeof membershipRaw === 'object' ? membershipRaw.expires_at : null) || customer.membership_expiry || null;
   const relationshipManager = data?.rm ?? customer.rm ?? customer.relationship_manager;
-  const roles = Array.isArray(apiUser.roles) ? apiUser.roles : null;
+  const rawRoles = apiUser.roles || data?.roles || (apiUser.role ? [apiUser.role] : (data?.role ? [data.role] : []));
+  const roles = Array.isArray(rawRoles)
+    ? rawRoles.map(r => (typeof r === 'object' && r ? (r.name || r.slug || r.role || '') : String(r || ''))).filter(Boolean)
+    : (typeof rawRoles === 'string' ? [rawRoles] : []);
   const emailVerified = resolveEmailVerified(apiUser, customer, data);
   // Extended profile (DOB, gender, bio, emergency contact, India address) —
   // nested under `data.user.profile` on GET /auth/me and echoed back by
@@ -101,6 +105,14 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
   // Info screen can read them directly (and they survive an /auth/me refresh).
   const profileObj = apiUser.profile || {};
   const indiaAddr = profileObj.india_address || {};
+
+  const matchedRole = roles.find(r => /state[-_ ]?admin/i.test(r))
+    || roles.find(r => /admin/i.test(r))
+    || roles.find(r => /vendor/i.test(r))
+    || roles.find(r => /relationship|manager|\brm\b/i.test(r))
+    || apiUser.role
+    || roles[0]
+    || 'Customer';
 
   const user = {
     id: apiUser.id,
@@ -116,7 +128,8 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     // Redux, but on re-login the user is rebuilt from here, so it must be read
     // back from the auth payload (checked on both the user and customer object).
     avatarUri: extractPhotoUrl(apiUser) || extractPhotoUrl(customer) || null,
-    role: apiUser.role || (roles?.[0] ? roles[0].charAt(0).toUpperCase() + roles[0].slice(1) : 'Customer'),
+    roles,
+    role: typeof matchedRole === 'string' ? matchedRole : 'Customer',
     membership: membershipName || 'None',
     membershipExpiry,
     language: customer.preferred_language || customer.language || 'en',

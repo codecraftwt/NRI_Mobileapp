@@ -92,6 +92,9 @@ import RMNavigator from './RM/RMNavigator';
 // Import Admin Screens
 import AdminNavigator from './Admin/AdminNavigator';
 
+// Import State Admin Screens
+import StateAdminNavigator from './StateAdmin/StateAdminNavigator';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -467,6 +470,9 @@ export default function AppNavigator() {
 
       {/* Admin Flow — reached from the same Login screen based on account role */}
       <Stack.Screen name="AdminHome" component={AdminNavigator} />
+
+      {/* State Admin Flow — reached from Login screen for state-admin role */}
+      <Stack.Screen name="StateAdminHome" component={StateAdminNavigator} />
     </Stack.Navigator>
   );
 }

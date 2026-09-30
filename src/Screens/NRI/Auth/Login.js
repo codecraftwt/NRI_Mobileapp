@@ -56,7 +56,12 @@ function Login({ navigation }) {
         // so their APIs authenticate). Everyone else falls through to the
         // customer onboarding/dashboard flow.
         const role = String(result?.user?.role || '').toLowerCase();
-        if (/vendor/.test(role)) {
+        const roles = (result?.user?.roles || []).map(r => String(r?.name || r || '').toLowerCase());
+        if (/state[-_ ]?admin/i.test(role) || roles.some(r => /state[-_ ]?admin/i.test(r))) {
+          navigation.reset({ index: 0, routes: [{ name: 'StateAdminHome' }] });
+          return;
+        }
+        if (/vendor/.test(role) || roles.some(r => /vendor/.test(r))) {
           if (result?.user?.emailVerified === false) {
             // Same token-authenticated OTP screen the customer flow uses —
             // just points it at VendorHome instead of OnboardingProfile once verified.
@@ -66,7 +71,7 @@ function Login({ navigation }) {
           navigation.reset({ index: 0, routes: [{ name: 'VendorHome' }] });
           return;
         }
-        if (/relationship|manager|\brm\b/.test(role)) {
+        if (/relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r))) {
           if (result?.user?.emailVerified === false) {
             navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'RMHome' } }] });
             return;
@@ -74,7 +79,7 @@ function Login({ navigation }) {
           navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
           return;
         }
-        if (/admin/.test(role)) {
+        if (/admin/.test(role) || roles.some(r => /admin/.test(r))) {
           if (result?.user?.emailVerified === false) {
             navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'AdminHome' } }] });
             return;

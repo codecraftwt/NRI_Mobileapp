@@ -243,8 +243,16 @@ export async function handleNotificationNavigation(data, nav) {
   const hay = `${url.toLowerCase()} ${event} ${blob}`;
   const id = extractId(url) ?? idFromData(data);
   const role = currentRole();
-  const isVendor = /vendor/.test(role);
-  const isRm = /relationship|manager|\brm\b/.test(role);
+  const roles = (store.getState()?.user?.user?.roles || []).map(r => String(r).toLowerCase());
+  const isStateAdmin = /state-?admin/.test(role) || roles.includes('state-admin');
+  const isVendor = /vendor/.test(role) || roles.some(r => /vendor/.test(r));
+  const isRm = /relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r));
+
+  // ---- State Admin ----
+  if (isStateAdmin) {
+    closeInAppNotifications(nav);
+    return navigate('StateAdminHome');
+  }
 
   // ---- Relationship Manager ----
   // RM screens live under the Dashboard tab of the RMHome tab navigator. The

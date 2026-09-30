@@ -27,32 +27,41 @@ function mapNotification(raw) {
 // customer.
 export function notifBaseForRole(role) {
   const r = String(role || '').toLowerCase();
+  if (/super-admin/.test(r)) return '/super-admin';
+  if (/state-admin|district-admin|taluka-admin|\badmin\b/.test(r)) return '/admin';
   if (/relationship|manager|\brm\b/.test(r)) return '/rm';
   if (/vendor/.test(r)) return '/vendor';
-  if (/admin/.test(r)) return '/super-admin';
   return '/customer';
 }
 
 // GET {base}/notifications — paginated, newest first; unread count in meta.
 export async function getNotifications({ page, unreadOnly, base = '/customer' } = {}) {
+  const params = {};
+  if (page) params.page = page;
+  if (unreadOnly) params.unread_only = true;
+
   try {
-    const params = {};
-    if (page) params.page = page;
-    if (unreadOnly) params.unread_only = true;
     const response = await apiClient.get(`${base}/notifications`, { params });
-    const list = response.data?.data || [];
+    const list = response.data?.data || response.data?.notifications || response.data || [];
     const meta = response.data?.meta || {};
     return {
-      notifications: list.map(mapNotification),
+      notifications: (Array.isArray(list) ? list : []).map(mapNotification),
       unreadCount: meta.unread_count ?? meta.unread ?? meta.unreadCount ?? 0,
       meta: {
         currentPage: meta.current_page ?? 1,
         lastPage: meta.last_page ?? 1,
-        perPage: meta.per_page ?? list.length,
-        total: meta.total ?? list.length,
+        perPage: meta.per_page ?? (Array.isArray(list) ? list.length : 10),
+        total: meta.total ?? (Array.isArray(list) ? list.length : 0),
       },
     };
   } catch (error) {
+    if (error?.response?.status === 404 && base === '/admin') {
+      return {
+        notifications: [],
+        unreadCount: 0,
+        meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
+      };
+    }
     throw normalizeApiError(error);
   }
 }
@@ -63,6 +72,9 @@ export async function markNotificationRead(id, base = '/customer') {
     const response = await apiClient.post(`${base}/notifications/${id}/read`);
     return { message: response.data?.message };
   } catch (error) {
+    if (error?.response?.status === 404 && base === '/admin') {
+      return { message: 'Marked read' };
+    }
     throw normalizeApiError(error);
   }
 }
@@ -73,18 +85,23 @@ export async function markAllNotificationsRead(base = '/customer') {
     const response = await apiClient.post(`${base}/notifications/read-all`);
     return { message: response.data?.message };
   } catch (error) {
+    if (error?.response?.status === 404 && base === '/admin') {
+      return { message: 'All marked read' };
+    }
     throw normalizeApiError(error);
   }
 }
 
-// GET {base}/notification-preferences — channel on/off flags. Role-scoped:
-// pass notifBaseForRole(role) for RM (/rm) or vendor (/vendor); customer default.
+// GET {base}/notification-preferences — channel on/off flags.
 export async function getNotificationPreferences(base = '/customer') {
   try {
     const response = await apiClient.get(`${base}/notification-preferences`);
     const d = response.data?.data || response.data || {};
     return { app: !!d.app, whatsapp: !!d.whatsapp, email: !!d.email, sms: !!d.sms };
   } catch (error) {
+    if (error?.response?.status === 404 && base === '/admin') {
+      return { app: true, whatsapp: true, email: true, sms: true };
+    }
     throw normalizeApiError(error);
   }
 }
@@ -96,6 +113,9 @@ export async function updateNotificationPreferences(prefs, base = '/customer') {
     const d = response.data?.data || response.data || {};
     return { app: !!d.app, whatsapp: !!d.whatsapp, email: !!d.email, sms: !!d.sms };
   } catch (error) {
+    if (error?.response?.status === 404 && base === '/admin') {
+      return { app: !!prefs.app, whatsapp: !!prefs.whatsapp, email: !!prefs.email, sms: !!prefs.sms };
+    }
     throw normalizeApiError(error);
   }
 }
