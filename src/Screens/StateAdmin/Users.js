@@ -62,7 +62,7 @@ function getRoleBadgeStyle(role = '') {
   return { bg: '#F1F5F9', text: '#475569', border: '#E2E8F0', label: role || 'Staff' };
 }
 
-function UserCard({ user, onPress }) {
+function UserCard({ user }) {
   const badge = getRoleBadgeStyle(user.role);
   const initials = (user.name || 'U')
     .split(' ')
@@ -72,7 +72,7 @@ function UserCard({ user, onPress }) {
     .join('');
 
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(user)} activeOpacity={0.88}>
+    <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>{initials}</Text>
@@ -144,7 +144,7 @@ function UserCard({ user, onPress }) {
           </Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -311,12 +311,7 @@ function Users({ navigation, route }) {
         <FlatList
           data={users}
           keyExtractor={item => String(item.id)}
-          renderItem={({ item }) => (
-            <UserCard
-              user={item}
-              onPress={u => navigation.navigate('UserDetail', { userId: u.id, user: u })}
-            />
-          )}
+          renderItem={({ item }) => <UserCard user={item} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={

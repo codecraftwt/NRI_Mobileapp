@@ -57,7 +57,13 @@ function Login({ navigation }) {
         // customer onboarding/dashboard flow.
         const role = String(result?.user?.role || '').toLowerCase();
         const roles = (result?.user?.roles || []).map(r => String(r?.name || r || '').toLowerCase());
-        if (/state[-_ ]?admin/i.test(role) || roles.some(r => /state[-_ ]?admin/i.test(r))) {
+        // State/District/Taluka-Admin all share the same admin app shell —
+        // the backend scopes their dashboard/vendors/users data to each
+        // one's own coverage (state vs. district vs. taluka), so one route
+        // covers all three. Must come before the generic /admin/ check below,
+        // which would otherwise wrongly send district-admin/taluka-admin into
+        // the super-admin (AdminHome) shell instead.
+        if (/(state|district|taluka)[-_ ]?admin/i.test(role) || roles.some(r => /(state|district|taluka)[-_ ]?admin/i.test(r))) {
           navigation.reset({ index: 0, routes: [{ name: 'StateAdminHome' }] });
           return;
         }

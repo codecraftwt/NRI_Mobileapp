@@ -13,7 +13,6 @@ import DistrictBreakdown from '../../Screens/StateAdmin/DistrictBreakdown';
 import RecentTickets from '../../Screens/StateAdmin/RecentTickets';
 import Vendors from '../../Screens/StateAdmin/Vendors';
 import Users from '../../Screens/StateAdmin/Users';
-import UserDetail from '../../Screens/StateAdmin/UserDetail';
 import Profile from '../../Screens/StateAdmin/Profile';
 import Notifications from '../../Screens/NRI/Notifications';
 import NotificationPreferences from '../../Screens/StateAdmin/NotificationPreferences';
@@ -44,7 +43,6 @@ function DashboardStack() {
       <Stack.Screen name="RecentTickets" component={RecentTickets} />
       <Stack.Screen name="Vendors" component={Vendors} />
       <Stack.Screen name="Users" component={Users} />
-      <Stack.Screen name="UserDetail" component={UserDetail} />
     </Stack.Navigator>
   );
 }
@@ -61,7 +59,6 @@ function UsersStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="UsersMain" component={Users} />
-      <Stack.Screen name="UserDetail" component={UserDetail} />
     </Stack.Navigator>
   );
 }

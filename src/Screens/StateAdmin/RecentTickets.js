@@ -163,11 +163,13 @@ function RecentTickets() {
                   <View style={styles.ticketTop}>
                     <View style={styles.ticketIdRow}>
                       <Text style={styles.ticketNumber}>{t.ticketNumber}</Text>
-                      <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
-                        <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
-                          {t.priority.toUpperCase()}
-                        </Text>
-                      </View>
+                      {!!t.priority && (
+                        <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
+                          <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
+                            {t.priority.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
                       <Text style={[styles.statusText, { color: statusStyle.text }]}>

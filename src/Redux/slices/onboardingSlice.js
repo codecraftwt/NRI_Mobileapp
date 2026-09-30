@@ -172,7 +172,9 @@ export function selectOnboardingRoute(state) {
 export function selectAuthenticatedRoute(state) {
   const role = String(state.user.user?.role || '').toLowerCase();
   const roles = (state.user.user?.roles || []).map(r => String(r?.name || r || '').toLowerCase());
-  if (/state[-_ ]?admin/i.test(role) || roles.some(r => /state[-_ ]?admin/i.test(r))) return 'StateAdminHome';
+  // State/District/Taluka-Admin all share the StateAdminHome shell — must
+  // come before the generic /admin/ check below (see Login.handleSignIn).
+  if (/(state|district|taluka)[-_ ]?admin/i.test(role) || roles.some(r => /(state|district|taluka)[-_ ]?admin/i.test(r))) return 'StateAdminHome';
   if (/vendor/i.test(role) || roles.some(r => /vendor/i.test(r))) return 'VendorHome';
   if (/relationship|manager|\brm\b/i.test(role) || roles.some(r => /relationship|manager|\brm\b/i.test(r))) return 'RMHome';
   if (/admin/i.test(role) || roles.some(r => /admin/i.test(r))) return 'AdminHome';

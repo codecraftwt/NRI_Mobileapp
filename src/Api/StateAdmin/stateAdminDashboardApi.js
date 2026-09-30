@@ -4,6 +4,24 @@ function num(v) {
   return v == null ? 0 : Number(v);
 }
 
+// Reads the first present key and returns a Number — or `undefined` if NONE
+// of the keys exist on `raw`. Distinguishing "field not returned by this
+// role/scope" from "field returned as 0" is the whole point: state-admin's
+// GET /admin/dashboard (scope: "state") and district/taluka-admin's
+// (scope: "coverage") return entirely different `stats` shapes — confirmed
+// live:
+//   state:    { revenue, vendors, tickets, open, customers, escalated, pending_vendors }
+//   coverage: { vendors, open_tickets, total_tickets, overdue, unassigned, available_vendors }
+// Defaulting an absent field to 0 would render a misleading "0" card for a
+// metric that role was never sent — Dashboard.js instead hides any stat
+// card whose value is `undefined`.
+function pick(raw, keys) {
+  for (const k of keys) {
+    if (raw[k] != null) return num(raw[k]);
+  }
+  return undefined;
+}
+
 // Map a recent ticket object
 function mapRecentTicket(raw = {}) {
   return {
@@ -16,7 +34,10 @@ function mapRecentTicket(raw = {}) {
     customerPhone: raw.customer_phone || raw.customer?.phone || raw.user?.phone || null,
     status: (raw.status || 'open').toLowerCase(),
     statusLabel: raw.status_label || raw.statusLabel || null,
-    priority: (raw.priority || 'medium').toLowerCase(),
+    // No fallback to 'medium' — coverage-scope tickets don't carry a
+    // priority field at all, and defaulting one in would show a fake
+    // "MEDIUM" badge on every card. null means "not sent for this scope".
+    priority: raw.priority ? String(raw.priority).toLowerCase() : null,
     stateName: raw.state_name || raw.state?.name || null,
     districtName: raw.district_name || raw.district?.name || raw.city_name || raw.city?.name || null,
     cityName: raw.city_name || raw.city?.name || null,
@@ -92,18 +113,19 @@ export async function getStateAdminDashboard() {
     const statsRaw = data.stats || {};
 
     const stats = {
-      totalRegistrations: num(statsRaw.total_registrations ?? statsRaw.registrations),
-      completedMembers: num(statsRaw.completed_members ?? statsRaw.active_members),
-      pendingMembers: num(statsRaw.pending_members ?? statsRaw.pending_payments),
-      noMembershipMembers: num(statsRaw.no_membership_members),
-      totalRevenue: num(statsRaw.total_revenue ?? statsRaw.revenue),
-      activeTickets: num(statsRaw.active_tickets ?? statsRaw.open_tickets),
-      totalTickets: num(statsRaw.total_tickets ?? statsRaw.tickets_count),
-      resolvedTickets: num(statsRaw.resolved_tickets ?? statsRaw.closed_tickets),
-      pendingTickets: num(statsRaw.pending_tickets),
-      vendorCount: num(statsRaw.vendor_count ?? statsRaw.vendors_count ?? statsRaw.vendors),
-      customerCount: num(statsRaw.customer_count ?? statsRaw.customers_count ?? statsRaw.customers),
-      slaCompliance: statsRaw.sla_compliance != null ? num(statsRaw.sla_compliance) : null,
+      // State-scope only.
+      totalRevenue: pick(statsRaw, ['revenue', 'total_revenue']),
+      customerCount: pick(statsRaw, ['customers', 'customer_count', 'customers_count']),
+      escalatedTickets: pick(statsRaw, ['escalated', 'escalated_tickets']),
+      pendingVendors: pick(statsRaw, ['pending_vendors']),
+      // Coverage-scope (district/taluka-admin) only.
+      overdueTickets: pick(statsRaw, ['overdue', 'overdue_tickets']),
+      unassignedTickets: pick(statsRaw, ['unassigned', 'unassigned_tickets']),
+      availableVendors: pick(statsRaw, ['available_vendors']),
+      // Shared — present in both scopes, under different keys.
+      vendorCount: pick(statsRaw, ['vendors', 'vendor_count', 'vendors_count']),
+      totalTickets: pick(statsRaw, ['tickets', 'total_tickets', 'tickets_count']),
+      activeTickets: pick(statsRaw, ['open', 'open_tickets', 'active_tickets']),
       ...statsRaw, // Keep any extra backend fields accessible
     };
 

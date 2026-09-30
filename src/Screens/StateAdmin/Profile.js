@@ -4,9 +4,26 @@ import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { logoutUser } from '../../Redux/slices/userSlice';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 
 function initialsFor(name) {
   return (name || 'SA').trim().split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+}
+
+// This screen is shared by every role under the StateAdminHome shell
+// (State/District/Taluka-Admin, RM) — label everything off the real
+// `user.role` instead of hardcoding "State Admin".
+const ROLE_LABELS = {
+  'state-admin': 'State Admin',
+  'district-admin': 'District Admin',
+  'taluka-admin': 'Taluka Admin',
+  'rm': 'RM',
+  'relationship-manager': 'RM',
+};
+const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+function roleLabelFor(role) {
+  const key = String(role || '').toLowerCase();
+  return ROLE_LABELS[key] || titleCase(key) || 'Admin';
 }
 
 const MENU = [
@@ -19,16 +36,27 @@ const MENU = [
 function Profile({ navigation }) {
   const dispatch = useDispatch();
   const user = useSelector(state => state.user.user);
+  const { showAlert, alertProps } = useAppAlert();
 
-  const name = user?.name || 'State Admin';
+  const roleLabel = roleLabelFor(user?.role);
+  const name = user?.name || roleLabel;
   const email = user?.email || '';
   const phone = user?.phone || '';
   const stateName = user?.homeState || user?.state || 'State Jurisdiction';
 
   const handleLogout = () => {
-    dispatch(logoutUser()).finally(() => {
-      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-    });
+    showAlert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => {
+          dispatch(logoutUser()).finally(() => {
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          });
+        },
+      },
+    ]);
   };
 
   return (
@@ -39,7 +67,6 @@ function Profile({ navigation }) {
       <View style={styles.header}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.decorCircleSm} pointerEvents="none" />
-        <Text style={styles.headerTitle}>State Admin Profile</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -57,7 +84,7 @@ function Profile({ navigation }) {
               {!!phone && <Text style={styles.phone} numberOfLines={1}>{phone}</Text>}
               <View style={styles.rolePill}>
                 <Icon name="verified-user" size={13} color="#059669" />
-                <Text style={styles.roleText}>State Admin</Text>
+                <Text style={styles.roleText}>{roleLabel}</Text>
               </View>
             </View>
           </View>
@@ -95,6 +122,8 @@ function Profile({ navigation }) {
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -103,44 +132,40 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
 
   header: {
-    // Sized to its own content (status-bar inset + title + generous bottom
-    // padding) rather than a fixed height — a fixed height that doesn't
-    // account for the real per-device status-bar inset let the profile
-    // card's -44 overlap (see `scroll` below) eat into the title on devices
-    // with a taller inset. paddingBottom here must stay > the card's
-    // negative overlap so the title always clears it.
-    paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT + 14, paddingBottom: 52,
+    // No title text anymore — just a colored backdrop band behind the
+    // profile card's overlap (see `scroll` below), sized to the status-bar
+    // inset plus enough bottom padding to exceed the card's -40 overlap.
+    paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 40,
     backgroundColor: '#20304C',
     borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden',
   },
-  headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5, fontWeight: '700' },
   decorCircleLg: { position: 'absolute', top: -60, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.06)' },
   decorCircleSm: { position: 'absolute', bottom: -30, left: -20, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(253,230,138,0.08)' },
 
-  scroll: { marginTop: -44 },
+  scroll: { marginTop: -40 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
 
   profileCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18,
+    backgroundColor: '#FFFFFF', borderRadius: 22, padding: 14,
     shadowColor: '#20304C', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 6,
   },
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarRing: {
-    width: 76, height: 76, borderRadius: 38, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center',
+    width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center',
     shadowColor: '#20304C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, elevation: 4,
   },
-  avatar: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#20304C', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: '#FFFFFF', fontSize: 24, fontFamily: typography.h2.fontFamily, fontWeight: '700' },
-  identityText: { flex: 1, gap: 3 },
-  name: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A', fontWeight: '700' },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#20304C', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFFFFF', fontSize: 19, fontFamily: typography.h2.fontFamily, fontWeight: '700' },
+  identityText: { flex: 1, gap: 2 },
+  name: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', fontWeight: '700' },
   email: { fontSize: 13, color: '#64748B' },
   phone: { fontSize: 12, color: '#94A3B8' },
   rolePill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: 'flex-start', marginTop: 4 },
   roleText: { fontSize: 11, fontWeight: '700', color: '#059669' },
 
   jurisdictionBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#FFF7ED', borderRadius: 14, padding: 12, marginTop: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFF7ED', borderRadius: 12, padding: 10, marginTop: 12,
     borderWidth: 1, borderColor: '#FFEDD5',
   },
   jurisdictionLabel: { fontSize: 11, color: '#9A3412', fontWeight: '600' },

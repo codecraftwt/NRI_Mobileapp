@@ -244,7 +244,8 @@ export async function handleNotificationNavigation(data, nav) {
   const id = extractId(url) ?? idFromData(data);
   const role = currentRole();
   const roles = (store.getState()?.user?.user?.roles || []).map(r => String(r).toLowerCase());
-  const isStateAdmin = /state-?admin/.test(role) || roles.includes('state-admin');
+  // State/District/Taluka-Admin all share the StateAdminHome shell.
+  const isStateAdmin = /(state|district|taluka)-?admin/.test(role) || roles.some(r => /(state|district|taluka)-?admin/.test(r));
   const isVendor = /vendor/.test(role) || roles.some(r => /vendor/.test(r));
   const isRm = /relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r));
 

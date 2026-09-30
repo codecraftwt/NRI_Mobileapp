@@ -19,15 +19,28 @@ import { getUserAssignableRoles } from '../../Api/StateAdmin/stateAdminUsersApi'
 
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
 
+// Not every card applies to every role — confirmed live, state-admin's
+// GET /admin/dashboard (scope: "state") and district/taluka-admin's
+// (scope: "coverage") return entirely different `stats` shapes:
+//   state:    { revenue, vendors, tickets, open, customers, escalated, pending_vendors }
+//   coverage: { vendors, open_tickets, total_tickets, overdue, unassigned, available_vendors }
+// Dashboard only renders a card once real data has loaded AND that stat key
+// is actually present in the response (see stats?.[stat.id] check below) —
+// a card is never shown for a field the API didn't send.
 const STAT_ITEMS = [
-  { id: 'totalRegistrations', label: 'Registrations', icon: 'how-to-reg', color: '#3B82F6', bg: '#EFF6FF' },
-  { id: 'completedMembers', label: 'Active Members', icon: 'verified', color: '#059669', bg: '#ECFDF5' },
-  { id: 'pendingMembers', label: 'Pending Payment', icon: 'hourglass-top', color: '#F59E0B', bg: '#FFFBEB' },
+  // State-scope only.
   { id: 'totalRevenue', label: 'Total Revenue', icon: 'payments', color: '#16A34A', bg: '#F0FDF4', format: 'currency' },
-  { id: 'activeTickets', label: 'Active Tickets', icon: 'confirmation-number', color: '#EA580C', bg: '#FFF7ED' },
-  { id: 'resolvedTickets', label: 'Resolved Tickets', icon: 'check-circle-outline', color: '#10B981', bg: '#ECFDF5' },
+  { id: 'customerCount', label: 'Customers', icon: 'people', color: '#3B82F6', bg: '#EFF6FF' },
+  { id: 'escalatedTickets', label: 'Escalated', icon: 'report-problem', color: '#DC2626', bg: '#FEF2F2' },
+  { id: 'pendingVendors', label: 'Pending Vendors', icon: 'hourglass-top', color: '#F59E0B', bg: '#FFFBEB' },
+  // Coverage-scope (district/taluka-admin) only.
+  { id: 'overdueTickets', label: 'Overdue', icon: 'error-outline', color: '#DC2626', bg: '#FEF2F2' },
+  { id: 'unassignedTickets', label: 'Unassigned', icon: 'assignment-late', color: '#D97706', bg: '#FFFBEB' },
+  { id: 'availableVendors', label: 'Available Vendors', icon: 'how-to-reg', color: '#0891B2', bg: '#ECFEFF' },
+  // Shared — present in both scopes, under different keys.
   { id: 'vendorCount', label: 'Vendors', icon: 'engineering', color: '#8B5CF6', bg: '#F5F3FF' },
-  { id: 'slaCompliance', label: 'SLA Compliance', icon: 'shield', color: '#0EA5E9', bg: '#F0F9FF', format: 'percent' },
+  { id: 'totalTickets', label: 'Total Tickets', icon: 'confirmation-number', color: '#EA580C', bg: '#FFF7ED' },
+  { id: 'activeTickets', label: 'Active Tickets', icon: 'pending-actions', color: '#0EA5E9', bg: '#F0F9FF' },
 ];
 
 function formatStat(value, format) {
@@ -173,14 +186,16 @@ function Dashboard({ navigation }) {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#A64416']} />}
         >
-          {/* Quick Metrics Grid */}
+          {/* Quick Metrics Grid — while loading, show every card as a
+              placeholder for layout stability; once `stats` has arrived,
+              only render cards for fields that role's response actually sent. */}
           <View style={styles.statsGrid}>
-            {STAT_ITEMS.map(stat => {
+            {(loading && !stats ? STAT_ITEMS : STAT_ITEMS.filter(stat => stats?.[stat.id] !== undefined)).map(stat => {
               const handleStatPress = () => {
-                if (stat.id === 'vendorCount') navigation.navigate('Vendors');
-                else if (stat.id === 'activeTickets' || stat.id === 'resolvedTickets') navigation.navigate('Tickets');
-                else if (stat.id === 'totalRegistrations') navigation.navigate('Customers');
-                else if (stat.id === 'completedMembers' || stat.id === 'slaCompliance') navigation.navigate('Analysis');
+                if (['vendorCount', 'availableVendors', 'pendingVendors'].includes(stat.id)) navigation.navigate('Vendors');
+                else if (['activeTickets', 'totalTickets', 'overdueTickets', 'unassignedTickets', 'escalatedTickets'].includes(stat.id)) navigation.navigate('Tickets');
+                else if (stat.id === 'customerCount') navigation.navigate('Customers');
+                else if (stat.id === 'totalRevenue') navigation.navigate('Analysis');
               };
               return (
                 <TouchableOpacity
@@ -277,9 +292,11 @@ function Dashboard({ navigation }) {
                       <View style={styles.ticketCardTop}>
                         <View style={styles.ticketIdWrap}>
                           <Text style={styles.ticketNumber}>{t.ticketNumber}</Text>
-                          <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
-                            <Text style={[styles.priorityText, { color: priorityStyle.text }]}>{t.priority.toUpperCase()}</Text>
-                          </View>
+                          {!!t.priority && (
+                            <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
+                              <Text style={[styles.priorityText, { color: priorityStyle.text }]}>{t.priority.toUpperCase()}</Text>
+                            </View>
+                          )}
                         </View>
                         <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
                           <Text style={[styles.statusText, { color: statusStyle.text }]}>{t.status.toUpperCase()}</Text>
@@ -328,7 +345,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#20304C' },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT,
+    paddingTop: STATUS_BAR_HEIGHT - 12,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#20304C',
