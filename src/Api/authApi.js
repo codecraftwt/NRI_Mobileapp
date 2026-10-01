@@ -12,6 +12,7 @@ function toAbsolutePhotoUrl(url) {
 }
 
 function toRegisterRequestBody({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode, deviceName, fcmToken }) {
+  const validFcmToken = typeof fcmToken === 'string' && fcmToken.trim().length >= 20 ? fcmToken.trim() : undefined;
   return {
     name,
     email,
@@ -21,17 +22,18 @@ function toRegisterRequestBody({ name, email, phone, password, passwordConfirmat
     referral_code: referralCode || undefined,
     affiliate_code: affiliateCode || undefined,
     device_name: deviceName,
-    fcm_token: fcmToken || undefined,
+    fcm_token: validFcmToken,
   };
 }
 
 function toLoginRequestBody({ login: loginId, password, deviceName, fcmToken }) {
+  const validFcmToken = typeof fcmToken === 'string' && fcmToken.trim().length >= 20 ? fcmToken.trim() : undefined;
   return {
     login: loginId,
     email: loginId,
     password,
     device_name: deviceName,
-    fcm_token: fcmToken || undefined,
+    fcm_token: validFcmToken,
   };
 }
 
@@ -219,7 +221,11 @@ export async function logout() {
 // reach it. Call after login and again on every Firebase token rotation.
 export async function updateDeviceToken(fcmToken) {
   try {
-    const response = await apiClient.put('/auth/device-token', { fcm_token: fcmToken });
+    const tokenStr = typeof fcmToken === 'string' ? fcmToken.trim() : '';
+    if (tokenStr.length < 20) {
+      return { message: 'Skipped invalid FCM token' };
+    }
+    const response = await apiClient.put('/auth/device-token', { fcm_token: tokenStr });
     return { message: response.data?.message };
   } catch (error) {
     throw normalizeApiError(error);

@@ -22,8 +22,9 @@ export const registerUser = createAsyncThunk(
   async ({ name, email, phone, password, passwordConfirmation, referralCode, affiliateCode }, { rejectWithValue }) => {
     try {
       // Best-effort FCM token so the account is push-targetable from first
-      // login; App.js re-syncs it via PUT /auth/device-token if unavailable now.
+      // registration; App.js re-syncs it via PUT /auth/device-token if refreshed later.
       const fcmToken = await getFcmToken();
+      const validFcmToken = typeof fcmToken === 'string' && fcmToken.trim().length >= 20 ? fcmToken.trim() : undefined;
       return await authApi.register({
         name,
         email,
@@ -33,7 +34,7 @@ export const registerUser = createAsyncThunk(
         referralCode,
         affiliateCode,
         deviceName: getDeviceName(),
-        fcmToken,
+        fcmToken: validFcmToken,
       });
     } catch (error) {
       return rejectWithValue(error);
@@ -45,12 +46,13 @@ export const loginUser = createAsyncThunk(
   'user/login',
   async ({ login, password }, { rejectWithValue }) => {
     try {
-      // const fcmToken = await getFcmToken();
+      const fcmToken = await getFcmToken();
+      const validFcmToken = typeof fcmToken === 'string' && fcmToken.trim().length >= 20 ? fcmToken.trim() : undefined;
       return await authApi.login({
         login,
         password,
         deviceName: getDeviceName(),
-        // fcmToken,
+        fcmToken: validFcmToken,
       });
     } catch (error) {
       return rejectWithValue(error);
@@ -59,33 +61,36 @@ export const loginUser = createAsyncThunk(
 );
 
 // Push the current device's FCM token to the backend (post-login and on every
-// Firebase token rotation). No-op when not authenticated or no token yet.
+// Firebase token rotation). No-op when not authenticated or no valid token yet.
 export const syncDeviceToken = createAsyncThunk(
   'user/syncDeviceToken',
   async (token, { getState, rejectWithValue }) => {
     try {
       const state = getState();
-      if (!state.user?.isAuthenticated) return null;
+      if (!state.user?.isAuthenticated || !state.user?.token) return null;
       const fcmToken = token || (await getFcmToken());
-      if (!fcmToken) return null;
-      await authApi.updateDeviceToken(fcmToken);
-      return fcmToken;
+      const validFcmToken = typeof fcmToken === 'string' && fcmToken.trim().length >= 20 ? fcmToken.trim() : null;
+      if (!validFcmToken) return null;
+      await authApi.updateDeviceToken(validFcmToken);
+      return validFcmToken;
     } catch (error) {
       return rejectWithValue(error);
     }
   }
 );
 
-// Best-effort logout: always clears the local session, even if the server
-// call fails (network error, already-expired/invalid token) — the user's
-// intent to leave shouldn't be blocked by a revoke call we can't complete.
+// Call POST /api/v1/auth/logout before discarding the API token server-side,
+// ensuring the FCM token is detached from this user's account so pushes stop.
 export const logoutUser = createAsyncThunk(
   'user/logout',
-  async () => {
+  async (_, { getState }) => {
     try {
-      await authApi.logout();
+      const state = getState();
+      if (state.user?.token) {
+        await authApi.logout();
+      }
     } catch (error) {
-      // ignore — session is cleared locally regardless
+      console.log('[Logout] Server logout error (proceeding with local sign-out):', error);
     }
     return true;
   }

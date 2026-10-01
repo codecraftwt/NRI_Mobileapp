@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { login, logout } from '../Redux/slices/userSlice';
+import { login, logoutUser } from '../Redux/slices/userSlice';
 
 function SettingScreen() {
   const dispatch = useDispatch();
@@ -15,7 +15,7 @@ function SettingScreen() {
   };
 
   const handleLogout = () => {
-    dispatch(logout());
+    dispatch(logoutUser());
   };
 
   return (

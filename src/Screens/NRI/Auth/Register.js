@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { registerUser } from '../../../Redux/slices/userSlice';
+import { registerUser, syncDeviceToken } from '../../../Redux/slices/userSlice';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
 import AppAlert, { useAppAlert } from '../../../Components/AppAlert';
@@ -96,6 +96,7 @@ function Register({ navigation }) {
     }))
       .unwrap()
       .then(() => {
+        dispatch(syncDeviceToken());
         navigation.replace('VerifyEmail', { email: email.trim() });
       })
       .catch((error) => {
