@@ -11,36 +11,55 @@ function geoName(raw) {
 
 // `priority`/`urgency` come back as a priority-catalog object ({id, name,
 // slug, surcharge} — see usePriorities) on this endpoint, not a plain string
-// — String(raw.priority) on the raw object stringified to "[object Object]".
 function priorityName(raw) {
   if (!raw) return null;
   return typeof raw === 'string' ? raw : (raw.slug || raw.name || null);
 }
 
+const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
 // Map a single ticket from GET /api/v1/admin/tickets.
 export function mapStateAdminTicket(raw = {}) {
-  const vendorName = geoName(raw.vendor) || raw.vendor_name || null;
+  const vendorName = raw.assigned_vendor?.business_name || raw.assigned_vendor?.name || geoName(raw.vendor) || raw.vendor_name || null;
+  const cityName = raw.location?.city?.name || geoName(raw.city) || raw.city_name || null;
+  const stateName = raw.location?.state?.name || geoName(raw.state) || raw.state_name || null;
+  const categoryName = raw.category?.name || geoName(raw.service_category) || raw.service_category_name || null;
+  const priorityObj = raw.priority;
+  const prioritySlug = typeof priorityObj === 'object' && priorityObj ? (priorityObj.slug || priorityObj.name) : (priorityName(raw.priority) || priorityName(raw.urgency));
+  const priorityLabel = typeof priorityObj === 'object' && priorityObj ? (priorityObj.name || priorityObj.slug) : (prioritySlug ? titleCase(prioritySlug) : 'Standard');
+  const amountInr = raw.total_amount_inr != null ? num(raw.total_amount_inr) : (raw.amount != null ? num(raw.amount) : null);
+  const amountFormatted = amountInr != null && amountInr > 0 ? `₹${amountInr.toLocaleString('en-IN')}` : null;
+  const isQuoted = Boolean(raw.requires_price_confirmation ?? raw.is_quoted ?? raw.quoted);
+
   return {
     id: raw.id,
     ticketNumber: raw.ticket_number || raw.ticket_id || raw.ticketNumber || (raw.id ? `TICK-${raw.id}` : ''),
-    serviceName: raw.service_name || raw.service?.name || raw.title || 'Service Request',
-    customerName: raw.customer_name || raw.customer?.name || raw.user?.name || 'Customer',
-    customerEmail: raw.customer_email || raw.customer?.email || null,
-    customerPhone: raw.customer_phone || raw.customer?.phone || null,
+    serviceName: raw.service?.name || raw.service_name || raw.title || 'Service Request',
+    serviceCategoryName: categoryName,
+    categoryName,
+    customerName: raw.customer?.name || raw.customer_name || raw.user?.name || 'Customer',
+    customerEmail: raw.customer?.email || raw.customer_email || null,
+    customerPhone: raw.customer?.phone || raw.customer_phone || null,
     status: (raw.status || 'new').toLowerCase(),
-    statusLabel: raw.status_label || null,
-    priority: (priorityName(raw.priority) || priorityName(raw.urgency) || '').toLowerCase() || null,
+    statusLabel: raw.status_label || (raw.status ? titleCase(raw.status) : 'New'),
+    priority: (prioritySlug || '').toLowerCase() || 'standard',
+    priorityLabel,
+    assignedVendor: raw.assigned_vendor || null,
     vendorName,
-    isAssigned: vendorName != null || raw.vendor_id != null,
-    cityName: geoName(raw.city) || raw.city_name || null,
-    stateName: geoName(raw.state) || raw.state_name || null,
-    serviceCategoryName: geoName(raw.service_category) || raw.service_category_name || null,
-    // "Quoted" services have no fixed price at booking — a vendor/RM proposes
-    // one after the request is submitted (see TicketDetail.js's "Additional
-    // Payment Requested" flow on the customer side).
-    isQuoted: !!(raw.is_quoted ?? raw.quoted),
-    amount: raw.amount != null ? num(raw.amount) : null,
-    amountFormatted: raw.amount != null ? `₹${num(raw.amount).toLocaleString('en-IN')}` : null,
+    isAssigned: vendorName != null || raw.assigned_vendor != null || raw.vendor_id != null,
+    vendorAssignedAt: raw.vendor_assigned_at || null,
+    assignedRm: raw.assigned_rm || null,
+    assignedRmName: raw.assigned_rm?.name || null,
+    assignedTelecaller: raw.assigned_telecaller || null,
+    assignedTelecallerName: raw.assigned_telecaller?.name || null,
+    cityName,
+    stateName,
+    location: raw.location || null,
+    isQuoted,
+    requiresPriceConfirmation: !!raw.requires_price_confirmation,
+    isLineTicket: !!raw.is_line_ticket,
+    amount: amountInr,
+    amountFormatted,
     slaStatus: raw.sla_status || (raw.sla_breached ? 'breached' : 'within_sla'),
     createdAt: raw.created_at || null,
     updatedAt: raw.updated_at || null,
@@ -78,7 +97,7 @@ export async function getStateAdminTickets({
   quoted,
   from,
   to,
-  sort,
+  sort = 'latest',
   perPage = 10,
   page = 1,
 } = {}) {

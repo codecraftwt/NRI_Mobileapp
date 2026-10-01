@@ -179,11 +179,13 @@ function Tickets() {
           renderItem={({ item: t }) => {
             const statusStyle = getStatusStyle(t.status);
             const priorityStyle = getPriorityStyle(t.priority);
+            const locationStr = [t.cityName, t.stateName].filter(Boolean).join(', ');
+
             return (
               <View style={styles.ticketCard}>
                 <View style={styles.ticketTop}>
                   <View style={styles.ticketIdRow}>
-                    <Text style={styles.ticketNumber}>{t.ticketNumber}</Text>
+                    <Text style={styles.ticketNumber}>#{t.ticketNumber}</Text>
                     {!!t.priority && (
                       <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
                         <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
@@ -193,7 +195,7 @@ function Tickets() {
                     )}
                     {t.isQuoted && (
                       <View style={styles.quotedPill}>
-                        <Text style={styles.quotedPillText}>QUOTED</Text>
+                        <Text style={styles.quotedPillText}>ON QUOTE</Text>
                       </View>
                     )}
                   </View>
@@ -206,6 +208,12 @@ function Tickets() {
 
                 <Text style={styles.ticketTitle}>{t.serviceName}</Text>
 
+                {!!t.categoryName && (
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryBadgeText}>{t.categoryName.toUpperCase()}</Text>
+                  </View>
+                )}
+
                 <View style={styles.metaDivider} />
 
                 <View style={styles.metaGrid}>
@@ -213,12 +221,18 @@ function Tickets() {
                     <Icon name="person" size={14} color="#64748B" />
                     <Text style={styles.metaText} numberOfLines={1}>{t.customerName}</Text>
                   </View>
-                  {!!t.cityName && (
+                  {!!locationStr && (
                     <View style={styles.metaRow}>
                       <Icon name="place" size={14} color="#64748B" />
-                      <Text style={styles.metaText} numberOfLines={1}>{t.cityName}</Text>
+                      <Text style={styles.metaText} numberOfLines={1}>{locationStr}</Text>
                     </View>
                   )}
+                  <View style={styles.metaRow}>
+                    <Icon name="storefront" size={14} color={t.vendorName ? '#059669' : '#94A3B8'} />
+                    <Text style={[styles.metaText, t.vendorName && { color: '#059669', fontWeight: '600' }]} numberOfLines={1}>
+                      {t.vendorName || 'Unassigned'}
+                    </Text>
+                  </View>
                   {!!t.amountFormatted && (
                     <View style={styles.metaRow}>
                       <Icon name="payments" size={14} color="#16A34A" />
@@ -362,7 +376,21 @@ const styles = StyleSheet.create({
   quotedPillText: { fontSize: 9, fontWeight: '700', color: '#4338CA' },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   statusText: { fontSize: 10, fontWeight: '700' },
-  ticketTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 10 },
+  ticketTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
+  categoryBadge: {
+    backgroundColor: '#EEF2FB',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  categoryBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#20304C',
+    letterSpacing: 0.5,
+  },
 
   metaDivider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 10 },
   metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },

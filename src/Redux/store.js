@@ -52,6 +52,7 @@ import adminVendorsReducer from './slices/adminVendorsSlice';
 import stateAdminDashboardReducer from './slices/stateAdminDashboardSlice';
 import stateAdminVendorsReducer from './slices/stateAdminVendorsSlice';
 import stateAdminUsersReducer from './slices/stateAdminUsersSlice';
+import stateAdminTicketsReducer from './slices/stateAdminTicketsSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
 const persistConfig = {
@@ -166,6 +167,7 @@ const appReducer = combineReducers({
   stateAdminDashboard: stateAdminDashboardReducer,
   stateAdminVendors: stateAdminVendorsReducer,
   stateAdminUsers: stateAdminUsersReducer,
+  stateAdminTickets: stateAdminTicketsReducer,
 });
 
 const rootReducer = (state, action) => {
