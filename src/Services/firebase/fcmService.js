@@ -32,12 +32,26 @@ export async function requestUserPermission() {
       }
     }
 
+    // 1. Request Permission FIRST (This triggers the native iOS permission modal prompt!)
     const authStatus = await messaging().requestPermission();
     const enabled =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
       authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
     console.log('[FCM] Permission status:', authStatus, '-> enabled:', enabled);
+
+    // 2. Register for APNs & set foreground options ONLY IF permission is granted
+    if (enabled && Platform.OS === 'ios') {
+      if (!messaging().isDeviceRegisteredForRemoteMessages) {
+        await messaging().registerDeviceForRemoteMessages();
+      }
+      await messaging().setForegroundNotificationPresentationOptions({
+        alert: true,
+        badge: true,
+        sound: true,
+      });
+    }
+
     return enabled;
   } catch (error) {
     console.log('[FCM] requestUserPermission error:', error);
@@ -52,6 +66,11 @@ export async function requestUserPermission() {
  */
 export async function getFcmToken() {
   try {
+    if (Platform.OS === 'ios') {
+      if (!messaging().isDeviceRegisteredForRemoteMessages) {
+        await messaging().registerDeviceForRemoteMessages();
+      }
+    }
     const token = await messaging().getToken();
     console.log('[FCM] Token:', token);
     return token;

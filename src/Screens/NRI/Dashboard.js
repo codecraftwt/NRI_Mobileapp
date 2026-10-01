@@ -177,9 +177,14 @@ function Dashboard({ navigation }) {
       {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>
-          <View style={styles.greetingRow}>
-            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">Hello {user?.name || 'NRI Circle Member'} </Text>
-            <Animated.Text style={[styles.userName, { flexShrink: 0, transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
+          <View style={styles.greetingContainer}>
+            <View style={styles.helloRow}>
+              <Text style={styles.helloText}>Hello</Text>
+              <Animated.Text style={[styles.helloText, { marginLeft: 4, transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
+            </View>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+              {user?.name || 'NRI Circle Member'}
+            </Text>
           </View>
           {/* Absolutely positioned, independent of the greeting text's layout —
               guarantees the bell stays fixed top-right no matter how long the
@@ -427,11 +432,19 @@ const styles = StyleSheet.create({
   // paddingRight reserves the bell's footprint (44 width + 12 right offset +
   // some breathing room) so the name truncates before reaching it, instead of
   // rendering underneath the (higher-zIndex) absolutely-positioned bell.
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  greetingContainer: {
     flex: 1,
     paddingRight: 60,
+  },
+  helloRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  helloText: {
+    fontSize: 18,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   welcomeText: {
     ...typography.tiny,
@@ -442,10 +455,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   userName: {
-    fontSize: 26, // Matched screenshot
+    fontSize: 22,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
-    marginBottom: 4,
     textTransform: 'capitalize',
     flexShrink: 1,
   },

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginUser } from '../../../Redux/slices/userSlice';
+import { loginUser, syncDeviceToken } from '../../../Redux/slices/userSlice';
 import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
 import { store } from '../../../Redux/store';
 import { lightColors as baseColors } from '../../../theme/colors';
@@ -51,6 +51,7 @@ function Login({ navigation }) {
     dispatch(loginUser({ login: email.trim(), password }))
       .unwrap()
       .then((result) => {
+        dispatch(syncDeviceToken());
         // Role-based routing: vendor / relationship-manager accounts get their
         // own app shells (and, crucially, the auth token loginUser just stored,
         // so their APIs authenticate). Everyone else falls through to the
