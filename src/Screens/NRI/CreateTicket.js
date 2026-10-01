@@ -180,10 +180,23 @@ function CreateTicket({ route, navigation }) {
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
   const { talukaNames, talukas } = useTalukas(null, city);
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
-  const { membership, usage } = useMembership();
+  const { membership, usage, loading: membershipLoading } = useMembership();
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (!membershipLoading && (!membership || membership.status !== 'active')) {
+      showAlert(
+        'Active Membership Required',
+        'An active membership is required to book services. Please purchase a membership first.',
+        [
+          { text: 'Go Back', onPress: () => navigation.goBack() },
+          { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+        ]
+      );
+    }
+  }, [membership, membershipLoading]);
   const { currency, setCurrency, gateways } = useCurrencyGateways();
   // Keep the selected gateway valid against the backend's available list.
   useEffect(() => {
@@ -630,6 +643,17 @@ function CreateTicket({ route, navigation }) {
         { text: 'OK', onPress: goToServices },
       ]);
     } catch (error) {
+      if (error?.requiresMembership || error?.errors?.requires_membership || (error?.status === 403 && String(error?.message).toLowerCase().includes('membership'))) {
+        showAlert(
+          'Active Membership Required',
+          error?.message || 'An active membership is required to book services. Please purchase a membership first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+          ]
+        );
+        return;
+      }
       showAlert('Subscription Failed', error?.message || 'Could not start your subscription. Please try again.');
     }
   };
@@ -711,6 +735,17 @@ function CreateTicket({ route, navigation }) {
         ]);
       }
     } catch (error) {
+      if (error?.requiresMembership || error?.errors?.requires_membership || (error?.status === 403 && String(error?.message).toLowerCase().includes('membership'))) {
+        showAlert(
+          'Active Membership Required',
+          error?.message || 'An active membership is required to book services. Please purchase a membership first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+          ]
+        );
+        return;
+      }
       showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
     }
   };

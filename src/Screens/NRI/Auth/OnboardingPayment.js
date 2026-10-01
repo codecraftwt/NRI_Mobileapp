@@ -19,7 +19,7 @@ import { setPendingCustomPlanRequest, setOnboardingStep, setOnboardingPaymentSub
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
 import { useCart } from '../../../Hooks/useCart';
-import { setPendingBundleFinish, clearPendingBundleFinish } from '../../../Redux/slices/pendingRequestsSlice';
+import { setPendingBundleFinish, clearPendingBundleFinish, setPendingQuotedRequest } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
 import { getServices } from '../../../Api/catalogApi';
 import { useCartPriceSync } from '../../../Hooks/useCartPriceSync';
@@ -310,6 +310,13 @@ function OnboardingPayment({ route, navigation }) {
   const quotedOneTimeCartItems = oneTimeCartItems.filter(i => isQuotedService(i));
   const recurringCartItems = cartItems.filter(i => i.isRecurring);
   const isQuotedOnlyOneTimeCart = oneTimeCartItems.length > 0 && pricedOneTimeCartItems.length === 0;
+  // Every quoted item in the cart (one-time or recurring — the quoted-booking
+  // endpoint doesn't care about billing_mode, see cartSlice/SubmitRequest.js)
+  // — these never ride through the price-synced membership checkout below.
+  // Once payment succeeds (see finishUp), they're persisted as pending and
+  // handed off to FinishRequest's 'quoted' mode — same form a signed-in
+  // member sees — rather than booked silently in the background.
+  const allQuotedCartItems = cartItems.filter(i => isQuotedService(i));
 
   // `base` (pre-GST vendor price) — only sums priced services. Quoted services
   // have no upfront charge at checkout (fee quoted after request submission).
@@ -321,15 +328,42 @@ function OnboardingPayment({ route, navigation }) {
   // A recurring-only or quoted-only cart has nothing priced at this checkout (see above), so
   // only priced one-time cart items can be discounted by a services coupon.
   const hasServicesInCart = pricedOneTimeCartItems.length > 0;
+  const hasCartDetails = fromCart && pricedOneTimeCartItems.length > 0;
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
-  const { currency, setCurrency, gateways: allGateways } = useCurrencyGateways();
+  const { currency, setCurrency, gateways: allGateways, retry: retryGateways } = useCurrencyGateways();
   // PayPal never combines a pending custom-quote fee into this checkout
   // (same rule as it never combining a cart) — drop it from the picker
   // whenever a customQuote is bundled in.
   const gateways = customQuote ? allGateways.filter(g => g.value !== 'paypal') : allGateways;
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+
+  // The NRI country/state/city collected on OnboardingProfile only lives in
+  // local Redux (draftProfile) until finishUp() saves it to the backend
+  // (PUT /auth/profile) — but that only runs AFTER payment succeeds. The
+  // payment-gateways list above is fetched as soon as this screen mounts and
+  // is NRI/region-eligibility gated server-side (see usePaymentGateways), so
+  // without this, it's evaluated against a profile that doesn't have that
+  // data yet — e.g. Razorpay not showing up here even though the same
+  // account sees it correctly once fully registered. Save early and refetch
+  // once that's done so the picker reflects this account's real eligibility.
+  useEffect(() => {
+    if (!effectiveProfile) return;
+    dispatch(saveUserProfile({
+      phone: effectiveProfile.phone?.trim(),
+      whatsappNumber: effectiveProfile.whatsapp ? effectiveProfile.whatsapp.trim() : undefined,
+      nriCountry: effectiveProfile.countryOfResidence,
+      nriCity: effectiveProfile.city,
+      stateId: effectiveProfile.stateId,
+    })).unwrap().then(retryGateways).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Starts unset (not a hardcoded 'stripe') — gateways are admin-toggleable
+  // server-side, so assuming Stripe is available before the real list loads
+  // lets a fast tap submit checkout with a gateway that was never actually
+  // offered, 422ing with "Stripe payments are currently unavailable."
+  const [paymentMethod, setPaymentMethod] = useState(null);
   useEffect(() => {
     if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
       setPaymentMethod(gateways[0].value);
@@ -338,8 +372,8 @@ function OnboardingPayment({ route, navigation }) {
   }, [gateways]);
   const [submitting, setSubmitting] = useState(false);
   // Two-step sub-flow for the cart path: 'details' (booking location) then
-  // 'summary' (order summary + payment). Plain membership skips straight to summary.
-  const [step, setStep] = useState(savedSubStep || 'details');
+  // 'summary' (order summary + payment). Plain membership or quoted-only cart skips straight to summary.
+  const [step, setStep] = useState(hasCartDetails ? (savedSubStep || 'details') : 'summary');
   // Top-bar cart icon — same guest-service-then-register flow as
   // OnboardingProfile, only shown when the cart isn't empty.
   const [cartModalVisible, setCartModalVisible] = useState(false);
@@ -441,7 +475,9 @@ function OnboardingPayment({ route, navigation }) {
   const [legalModal, setLegalModal] = useState({ visible: false, tab: 'terms' });
   const openLegalModal = (tab) => setLegalModal({ visible: true, tab });
   const closeLegalModal = () => setLegalModal(prev => ({ ...prev, visible: false }));
-  const readyToPay = acceptTerms && !!signerName.trim() && !!signatureData;
+  // !!paymentMethod guards against submitting before the real gateway list
+  // has loaded (see the unset-by-default state above).
+  const readyToPay = acceptTerms && !!signerName.trim() && !!signatureData && !!paymentMethod;
 
   const showAlert = (title, message, type = 'info') => {
     setCustomAlert({ visible: true, title, message, type });
@@ -719,6 +755,41 @@ function OnboardingPayment({ route, navigation }) {
       dispatch(clearCart());
     }
 
+    // Quoted items never rode through the price-synced cart above (the
+    // backend 422s them there — see the sync loop in handlePay) and aren't
+    // part of bundleInfo/the priced cart either. Nothing is charged for them
+    // either way, but they still need their own
+    // POST /customer/tickets/quoted/{service} submission — same form a signed-
+    // in member sees (SubmitRequest.js's quoted-only path). Persist them as
+    // pending (survives an app kill, same as ticketFinalizes/bundleFinishes)
+    // — registration still finishes normally into OnboardingWelcome, and the
+    // "Finish Request" banner already at the top of Requests.js (see
+    // pendingFinishes there) is what surfaces this once the customer's in.
+    if (fromCart && allQuotedCartItems.length > 0) {
+      const chosenState = reqForm.state || firstItem.stateName || savedLocation?.stateName || '';
+      const chosenCity = reqForm.city || firstItem.cityName || savedLocation?.cityName || '';
+      const stateId = states.find(s => s.name === chosenState)?.id || null;
+      const cityId = cities.find(c => c.name === chosenCity)?.id || cartItems[0]?.cityId || savedLocation?.cityId || null;
+      allQuotedCartItems.forEach(item => {
+        dispatch(setPendingQuotedRequest({
+          userId,
+          serviceId: item.serviceId,
+          serviceName: item.name,
+          stateId,
+          cityId,
+          stateName: chosenState,
+          cityName: chosenCity,
+          talukaName: reqForm.taluka || undefined,
+          pincode: reqForm.pincode || firstItem.pincode || savedLocation?.pincode || undefined,
+          fullName: reqForm.fullName || undefined,
+          relation: reqForm.relation || undefined,
+          address: reqForm.address || undefined,
+          notes: reqForm.notes || undefined,
+        }));
+      });
+      dispatch(clearCart());
+    }
+
     navigation.replace('OnboardingWelcome', {
       plan,
       hasServiceRequests: cartWasBooked,
@@ -753,6 +824,10 @@ function OnboardingPayment({ route, navigation }) {
       showAlert('Signature Required', 'Please type your full legal name to sign before paying.', 'error');
       return;
     }
+    if (!paymentMethod) {
+      showAlert('No Payment Method', 'Please wait a moment for payment methods to load, then select one.', 'error');
+      return;
+    }
     // A coupon applied while there are services in the cart is always a
     // services/addon coupon (see hasServicesInCart above — the two coupon
     // flows never mix). The backend now 422s an addon coupon on any gateway
@@ -765,31 +840,52 @@ function OnboardingPayment({ route, navigation }) {
     payInFlightRef.current = true;
     setSubmitting(true);
     try {
+      // Services priced "on quote" (pricing.is_quoted) have no fixed price to
+      // sync — POST /customer/cart/items 422s them with errors.use_endpoint,
+      // pointing at POST /customer/tickets/quoted/{service} instead. They
+      // can't ride along in this price-synced membership checkout at all, so
+      // skip them here (checked client-side first; errors.use_endpoint is
+      // still the fallback in case a service isn't flagged isQuoted locally)
+      // rather than failing the whole registration over an unrelated item.
+      // They're handed off to FinishRequest's 'quoted' mode in finishUp() once
+      // payment succeeds (nothing is charged at booking anyway — a vendor/RM
+      // proposes a price afterward).
+      const skippedQuotedItems = [];
       if (fromCart) {
-        // Sync Redux cart to backend before checkout so they ride along with membership
         for (const item of cartItems) {
+          if (item.isQuoted) { skippedQuotedItems.push(item); continue; }
           try {
             await addCartItem(item.serviceId, item.isRecurring ? 'recurring' : 'one_time');
           } catch (e) {
+            if (e?.errors?.use_endpoint) { skippedQuotedItems.push(item); continue; }
             setSubmitting(false);
             showAlert('Cart Sync Failed', e?.message || 'Could not sync cart items.');
             return;
           }
         }
-        
-        try {
-          const cartRes = await apiClient.get('/customer/cart');
-          const count = cartRes.data?.data?.count ?? 0;
-          if (count === 0) {
-            setSubmitting(false);
-            showAlert('Cart Empty', 'Backend cart count is 0 after syncing items!');
-            return;
+
+        // Only verify the backend cart actually has something when at least one
+        // item was expected to sync — an all-quoted cart legitimately syncs zero
+        // items, which isn't a failure.
+        if (skippedQuotedItems.length < cartItems.length) {
+          try {
+            const cartRes = await apiClient.get('/customer/cart');
+            const count = cartRes.data?.data?.count ?? 0;
+            if (count === 0) {
+              setSubmitting(false);
+              showAlert('Cart Empty', 'Backend cart count is 0 after syncing items!');
+              return;
+            }
+          } catch (e) {
+              setSubmitting(false);
+              showAlert('Cart Fetch Failed', 'Could not verify backend cart.');
+              return;
           }
-        } catch (e) {
-            setSubmitting(false);
-            showAlert('Cart Fetch Failed', 'Could not verify backend cart.');
-            return;
         }
+
+        // skippedQuotedItems aren't lost — finishUp() below books each one
+        // via bookQuotedTicket() once this payment succeeds and the account
+        // actually exists to attach the request to.
       }
 
       const result = await checkout({
@@ -920,9 +1016,10 @@ function OnboardingPayment({ route, navigation }) {
   };
 
   // Cart path splits Step 2 into: details (booking location) → summary
-  // (order + payment). Plain membership shows the summary directly.
-  const showDetails = fromCart && step === 'details';
-  const showSummary = !fromCart || step === 'summary';
+  // (order + payment) ONLY when there are priced one-time services that bundle
+  // into this payment. Quoted-only / plain membership shows the summary directly.
+  const showDetails = hasCartDetails && step === 'details';
+  const showSummary = !hasCartDetails || step === 'summary';
 
   return (
     <View style={styles.container}>
@@ -959,11 +1056,8 @@ function OnboardingPayment({ route, navigation }) {
         <Text style={styles.title}>Complete your purchase</Text>
         <Text style={styles.subtitle}>Review your selection and choose how you'd like to pay.</Text>
 
-        {/* Two-step indicator (cart path only) — tappable: "Where" always goes
-            back (nothing to validate going backward); "Order & Payment" goes
-            through the same handleContinueToPayment validation the button
-            below uses, so it can't skip required fields. */}
-        {fromCart && (
+        {/* Two-step indicator (only when cart has priced services to bundle) */}
+        {hasCartDetails && (
           <View style={styles.subStepsRow}>
             <TouchableOpacity
               style={[styles.subStep, showDetails && styles.subStepActive]}
@@ -1028,7 +1122,7 @@ function OnboardingPayment({ route, navigation }) {
           </TouchableOpacity>
         )}
 
-        {showSummary && fromCart && (
+        {showSummary && hasCartDetails && (
           <TouchableOpacity style={styles.backToDetails} onPress={() => setStep('details')} activeOpacity={0.7}>
             <Icon name="arrow-back" size={16} color={C.primary} />
             <Text style={styles.backToDetailsText}>Back to details</Text>

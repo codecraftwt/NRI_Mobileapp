@@ -6,6 +6,8 @@ import Header from '../../Components/Header';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
+import { useMembership } from '../../Hooks/useMembership';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme';
@@ -191,7 +193,22 @@ function ServiceDetail({ route, navigation }) {
     setSwitchPrompt(null);
   };
 
+  const { membership, loading: membershipLoading } = useMembership();
+  const { showAlert, alertProps } = useAppAlert();
+
   const handleBook = () => {
+    if (!membershipLoading && (!membership || membership.status !== 'active')) {
+      showAlert(
+        'Active Membership Required',
+        'An active membership is required to book services. Please purchase a membership first.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+        ]
+      );
+      return;
+    }
+
     if (activeTab === 'recurring') {
       navigation.navigate('CreateTicket', {
         initialCategory: category.name,
@@ -382,6 +399,8 @@ function ServiceDetail({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      <AppAlert {...alertProps} />
     </View>
   );
 }

@@ -130,6 +130,9 @@ function mapPendingAdditionalCharge(raw) {
     // authoritative INR GST split (not derived locally at a flat rate).
     amountInr: raw.amount_inr != null ? Number(raw.amount_inr) : null,
     gstAmountInr: raw.gst_inr != null ? Number(raw.gst_inr) : null,
+    // Pre-summed amount_inr + gst_inr — the actual payable total in INR,
+    // distinct from amountInr which is the pre-GST portion alone.
+    totalAmountInr: raw.total_inr != null ? Number(raw.total_inr) : null,
     reason: raw.reason || null,
     requestedAt: raw.created_at || raw.requested_at || null,
   };

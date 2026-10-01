@@ -14,6 +14,7 @@ import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
 import { usePriorities } from '../../Hooks/usePriorities';
+import { useMembership } from '../../Hooks/useMembership';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
@@ -107,6 +108,7 @@ function SubmitRequest({ navigation }) {
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   // Available gateways come from the backend (already NRI + admin-toggle gated).
   const { currency, setCurrency, gateways } = useCurrencyGateways();
+  const { membership, loading: membershipLoading } = useMembership();
   // Resolves the who-for-this fields into a family_member_id — needed by
   // POST /customer/tickets/quoted/{service} (see resolveFamilyMemberId below).
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
@@ -121,7 +123,11 @@ function SubmitRequest({ navigation }) {
   const setField = (k, v) => setReqForm(p => ({ ...p, [k]: v }));
   const [files, setFiles] = useState([]);
   const [pincodeLocation, setPincodeLocation] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  // Starts unset (not a hardcoded 'stripe') — gateways are admin-toggleable
+  // server-side, so assuming Stripe is available before the real list loads
+  // lets a fast tap submit checkout with a gateway that was never actually
+  // offered, 422ing with "Stripe payments are currently unavailable."
+  const [paymentMethod, setPaymentMethod] = useState(null);
   useEffect(() => {
     if (gateways.length && !gateways.some(g => g.value === paymentMethod)) {
       setPaymentMethod(gateways[0].value);
@@ -134,10 +140,35 @@ function SubmitRequest({ navigation }) {
   const [goServicesOnAlertClose, setGoServicesOnAlertClose] = useState(false);
   const [submissionInProgress, setSubmissionInProgress] = useState(false);
   const submissionLockRef = useRef(false);
+  const oneTimeItems = items.filter(i => !i.isRecurring);
+  const recurringItems = items.filter(i => i.isRecurring);
+  const isQuotedService = (item) => Boolean(
+    item?.isQuoted ||
+    item?.is_quoted ||
+    item?.pricing?.is_quoted ||
+    item?.label === 'Quoted' ||
+    item?.label?.toLowerCase() === 'quoted' ||
+    (item?.pricingBasis === null && item?.categoryBaseBookable === null)
+  );
+  // True only when this checkout will hit the dedicated quote-only endpoint
+  // (POST /customer/tickets/quoted/{service}, see handleSubmit below) — a
+  // cart holding quoted service(s) (one-time OR recurring — the
+  // endpoint doesn't care about billing_mode, a quoted service just has no
+  // fixed price either way) and nothing else.
+  const isQuotedOnlyCart = items.length > 0 && items.every(isQuotedService);
+
   // Page 1: 'cart' (selected services + estimated price). Page 2: 'form' — the
-  // two-step request form ('details' → 'payment').
-  const [page, setPage] = useState('cart');
+  // two-step request form ('details' → 'payment'). For quoted services (no price
+  // to review), opens the submit request form directly.
+  const [page, setPage] = useState(isQuotedOnlyCart ? 'form' : 'cart');
   const [step, setStep] = useState('details');
+
+  useEffect(() => {
+    if (isQuotedOnlyCart) {
+      setPage('form');
+      setStep('details');
+    }
+  }, [isQuotedOnlyCart]);
 
   const { stateNames, states } = useStates();
   const { cityNames, cities } = useCities(reqForm.state);
@@ -177,36 +208,6 @@ function SubmitRequest({ navigation }) {
     reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Only one-time items ever become a ticket — a recurring item surfaces as
-  // pending_recurring_bundle after checkout instead (see cartApi.checkoutCart)
-  // and the ticket-quote endpoint below has no concept of billing_mode at all
-  // (it always prices as one-time), so a recurring item must never be sent
-  // through it. Its price is read straight off the cart, which is already
-  // bound to recurring_price via useCartPriceSync.
-  const oneTimeItems = items.filter(i => !i.isRecurring);
-  const recurringItems = items.filter(i => i.isRecurring);
-  const isQuotedService = (item) => Boolean(
-    item?.isQuoted ||
-    item?.is_quoted ||
-    item?.pricing?.is_quoted ||
-    item?.label === 'Quoted' ||
-    item?.label?.toLowerCase() === 'quoted' ||
-    (item?.pricingBasis === null && item?.categoryBaseBookable === null)
-  );
-  // True only when this checkout will hit the dedicated quote-only endpoint
-  // (POST /customer/tickets/quoted/{service}, see handleSubmit below) — a
-  // cart holding quoted service(s) (one-time OR recurring — the
-  // endpoint doesn't care about billing_mode, a quoted service just has no
-  // fixed price either way) and nothing else. A quoted item no longer needs
-  // a fixed price at booking (a vendor/RM proposes one after the request is
-  // submitted; the customer only pays once that's approved — see
-  // TicketDetail.js's "Additional Payment Requested" card), but that
-  // endpoint takes a single service, so this must stay false — and payment
-  // UI must stay visible — the moment a quoted item is mixed with another
-  // priced/recurring service; those still owe real money and go through the
-  // normal paid checkout below.
-  const isQuotedOnlyCart = items.length > 0 && items.every(isQuotedService);
   // A cart that's ENTIRELY recurring goes through checkoutCart() below same as
   // everything else — it already collects who/where up front and surfaces the
   // recurring subscription via pending_recurring_bundle (see checkoutCart's
@@ -489,8 +490,35 @@ function SubmitRequest({ navigation }) {
   // of advancing to step 'payment'.
   const handleContinue = () => {
     if (!validateDetails()) return;
+    if (!membershipLoading && (!membership || membership.status !== 'active')) {
+      showAlert(
+        'Active Membership Required',
+        'An active membership is required to book services. Please purchase a membership first.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+        ]
+      );
+      return;
+    }
     if (isQuotedOnlyCart) { handleSubmit(); return; }
     setStep('payment');
+  };
+
+  const handleProceedToForm = () => {
+    if (!membershipLoading && (!membership || membership.status !== 'active')) {
+      showAlert(
+        'Active Membership Required',
+        'An active membership is required to book services. Please purchase a membership first.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+        ]
+      );
+      return;
+    }
+    setStep('details');
+    setPage('form');
   };
 
   // The backend's checkout-bundles/subscribe-recurring endpoint doesn't
@@ -604,6 +632,10 @@ function SubmitRequest({ navigation }) {
     if (loading || submissionLockRef.current) return;
     if (!validateDetails()) { setStep('details'); return; }
     if (quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
+    if (!isQuotedOnlyCart && !paymentMethod) {
+      showAlert('No Payment Method', 'Please wait a moment for payment methods to load, then select one.');
+      return;
+    }
 
     submissionLockRef.current = true;
     setSubmissionInProgress(true);
@@ -834,6 +866,19 @@ function SubmitRequest({ navigation }) {
         await handlePostCheckout(result.pendingRecurringBundle);
       }
     } catch (error) {
+      if (error?.requiresMembership || error?.errors?.requires_membership || (error?.status === 403 && String(error?.message).toLowerCase().includes('membership'))) {
+        submissionLockRef.current = false;
+        setSubmissionInProgress(false);
+        showAlert(
+          'Active Membership Required',
+          error?.message || 'An active membership is required to book services. Please purchase a membership first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+          ]
+        );
+        return;
+      }
       // Surface the backend's exact reason (401 unauthenticated, 422 validation
       // / booking-rule / no-vendor-in-city / PayPal-rejects-recurring, etc.)
       // so failures are diagnosable. `errors.missing_base_service` (when a
@@ -965,7 +1010,7 @@ function SubmitRequest({ navigation }) {
 
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.headerBack} onPress={() => (page === 'form' ? setPage('cart') : navigation.goBack())}>
+          <TouchableOpacity style={styles.headerBack} onPress={() => ((page === 'form' && !isQuotedOnlyCart) ? setPage('cart') : navigation.goBack())}>
             <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -1108,7 +1153,7 @@ function SubmitRequest({ navigation }) {
             )}
           </View>
 
-          <TouchableOpacity style={styles.continueBtn} activeOpacity={0.9} onPress={() => { setStep('details'); setPage('form'); }}>
+          <TouchableOpacity style={styles.continueBtn} activeOpacity={0.9} onPress={handleProceedToForm}>
             <Text style={styles.continueBtnText}>Continue</Text>
             <Icon name="arrow-forward" size={18} color="#FFFFFF" />
           </TouchableOpacity>
@@ -1326,10 +1371,10 @@ function SubmitRequest({ navigation }) {
               <ActivityIndicator size="large" color="#D94625" style={{ marginTop: 18 }} />
             ) : (
               <TouchableOpacity
-                style={[styles.submitBtn, !isQuotedOnlyCart && (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
+                style={[styles.submitBtn, !isQuotedOnlyCart && (quoteBlocking || !paymentMethod || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr)) && styles.submitBtnDisabled]}
                 activeOpacity={0.9}
                 onPress={handleSubmit}
-                disabled={!isQuotedOnlyCart && (quoteBlocking || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr))}
+                disabled={!isQuotedOnlyCart && (quoteBlocking || !paymentMethod || (currency === 'INR' && oneTimeItems.length > 0 && !estQuoteReadyInr))}
               >
                 <Text style={styles.submitBtnText}>Submit Request</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />

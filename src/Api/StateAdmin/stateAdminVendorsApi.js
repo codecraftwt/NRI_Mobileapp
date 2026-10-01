@@ -23,6 +23,7 @@ export function mapStateAdminVendor(raw = {}) {
     phone: raw.phone || raw.contact_phone || '',
     vendorType: raw.vendor_type || raw.type || null,
     status: (raw.status || 'active').toLowerCase(),
+    statusLabel: raw.status_label || null,
     location,
     city: city || null,
     state: state || null,

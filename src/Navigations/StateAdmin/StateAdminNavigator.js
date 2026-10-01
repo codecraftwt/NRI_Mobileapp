@@ -11,6 +11,7 @@ import AdminRoles from '../../Screens/StateAdmin/AdminRoles';
 import Analysis from '../../Screens/StateAdmin/Analysis';
 import DistrictBreakdown from '../../Screens/StateAdmin/DistrictBreakdown';
 import RecentTickets from '../../Screens/StateAdmin/RecentTickets';
+import Tickets from '../../Screens/StateAdmin/Tickets';
 import Vendors from '../../Screens/StateAdmin/Vendors';
 import Users from '../../Screens/StateAdmin/Users';
 import Profile from '../../Screens/StateAdmin/Profile';
@@ -66,7 +67,7 @@ function UsersStack() {
 function TicketsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="TicketsMain" component={RecentTickets} />
+      <Stack.Screen name="TicketsMain" component={Tickets} />
     </Stack.Navigator>
   );
 }

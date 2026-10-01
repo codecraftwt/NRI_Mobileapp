@@ -14,29 +14,42 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
-import { useStateAdminVendors } from '../../Hooks/StateAdmin/useStateAdminVendors';
+import { useStateAdminTickets } from '../../Hooks/StateAdmin/useStateAdminTickets';
 
 const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-function statusBadge(status) {
-  const s = String(status || '').toLowerCase();
-  if (['active', 'approved', 'verified'].includes(s)) return { bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' };
-  if (['pending', 'pending_verification', 'under_review'].includes(s)) return { bg: '#FFFBEB', color: '#B45309', border: '#FDE68A' };
-  if (['suspended', 'rejected', 'blocked', 'inactive'].includes(s)) return { bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' };
-  return { bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' };
-}
-
+// Matches GET /admin/tickets' `status` enum — order drives the tab row.
 const STATUS_FILTERS = [
-  { id: 'all', label: 'All Status' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'active', label: 'Active' },
-  { id: 'suspended', label: 'Suspended' },
-  { id: 'under_review', label: 'Under Review' },
+  { id: 'all', label: 'All' },
+  { id: 'new', label: 'New' },
+  { id: 'assigned', label: 'Assigned' },
+  { id: 'in_progress', label: 'In Progress' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'escalated', label: 'Escalated' },
+  { id: 'cancelled', label: 'Cancelled' },
+  { id: 'refunded', label: 'Refunded' },
 ];
 
-function Vendors() {
+function getStatusStyle(status) {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('complet') || s.includes('refund')) return { bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' };
+  if (s.includes('progress') || s.includes('assign')) return { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' };
+  if (s === 'new') return { bg: '#F3E8FF', text: '#7E22CE', border: '#DDD6FE' };
+  if (s.includes('escalat')) return { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' };
+  if (s.includes('cancel')) return { bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' };
+  return { bg: '#F8FAFC', text: '#475569', border: '#E2E8F0' };
+}
+
+function getPriorityStyle(priority) {
+  const p = String(priority || '').toLowerCase();
+  if (p === 'urgent' || p === 'high') return { bg: '#FEE2E2', text: '#EF4444' };
+  if (p === 'medium') return { bg: '#FEF3C7', text: '#D97706' };
+  return { bg: '#F1F5F9', text: '#64748B' };
+}
+
+function Tickets() {
   const {
-    vendors,
+    tickets,
     meta,
     loading,
     loadingMore,
@@ -48,12 +61,13 @@ function Vendors() {
     setFilterStatus,
     fetchNextPage,
     refresh,
-  } = useStateAdminVendors();
+  } = useStateAdminTickets();
 
   const [refreshing, setRefreshing] = useState(false);
   const [statusModalVisible, setStatusModalVisible] = useState(false);
-  const total = meta?.total || vendors.length;
-  const activeStatusLabel = STATUS_FILTERS.find(f => f.id === filterStatus)?.label || 'All Status';
+  const total = meta?.total ?? tickets.length;
+  const statusCounts = meta?.statusCounts || {};
+  const activeStatusLabel = STATUS_FILTERS.find(f => f.id === filterStatus)?.label || 'All';
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -69,13 +83,13 @@ function Vendors() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Vendors</Text>
-            <Text style={styles.headerSub}>State & Geo Coverage Roster</Text>
+            <Text style={styles.headerTitle}>Tickets</Text>
+            <Text style={styles.headerSub}>Tickets across your jurisdiction</Text>
           </View>
           <View style={styles.headerActions}>
             {total > 0 && (
               <View style={styles.headerCount}>
-                <Icon name="engineering" size={15} color="#FDE68A" />
+                <Icon name="confirmation-number" size={15} color="#FDE68A" />
                 <Text style={styles.headerCountText}>{total}</Text>
               </View>
             )}
@@ -84,13 +98,13 @@ function Vendors() {
       </View>
 
       <View style={styles.body}>
-        {/* Search Bar */}
+        {/* Search + quick toggles */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
             <Icon name="search" size={20} color="#94A3B8" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search business, owner, email or phone..."
+              placeholder="Search ticket #, customer, phone..."
               placeholderTextColor="#94A3B8"
               value={search}
               onChangeText={setSearch}
@@ -126,14 +140,14 @@ function Vendors() {
           <TouchableOpacity style={styles.errorCard} activeOpacity={0.8} onPress={refresh}>
             <Icon name="error-outline" size={20} color="#DC2626" />
             <Text style={styles.errorText}>
-              {error?.message || 'Could not load vendors.'} Tap to retry.
+              {error?.message || 'Could not load tickets.'} Tap to retry.
             </Text>
           </TouchableOpacity>
         )}
 
         <FlatList
-          data={vendors}
-          keyExtractor={v => String(v.id || v.businessName)}
+          data={tickets}
+          keyExtractor={t => String(t.id || t.ticketNumber)}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           onEndReached={fetchNextPage}
@@ -143,14 +157,14 @@ function Vendors() {
             loading ? (
               <View style={styles.emptyState}>
                 <ActivityIndicator size="large" color="#A64416" />
-                <Text style={styles.emptySub}>Loading vendors...</Text>
+                <Text style={styles.emptySub}>Loading tickets...</Text>
               </View>
             ) : (
               <View style={styles.emptyState}>
-                <Icon name="engineering" size={48} color="#CBD5E1" />
-                <Text style={styles.emptyTitle}>No Vendors Found</Text>
+                <Icon name="confirmation-number" size={48} color="#CBD5E1" />
+                <Text style={styles.emptyTitle}>No Tickets Found</Text>
                 <Text style={styles.emptySub}>
-                  {search ? 'Try adjusting your search query' : 'No vendors registered in your assigned jurisdiction'}
+                  {search ? 'Try adjusting your search query' : 'No tickets match the selected filters'}
                 </Text>
               </View>
             )
@@ -162,75 +176,53 @@ function Vendors() {
               </View>
             ) : null
           }
-          renderItem={({ item: vendor }) => {
-            const initials = (vendor.businessName || 'V').substring(0, 2).toUpperCase();
-            const badge = statusBadge(vendor.status);
-
+          renderItem={({ item: t }) => {
+            const statusStyle = getStatusStyle(t.status);
+            const priorityStyle = getPriorityStyle(t.priority);
             return (
-              <View style={styles.listItem}>
-                <View style={styles.cardTopRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{initials}</Text>
-                  </View>
-
-                  <View style={styles.listItemBody}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.name} numberOfLines={1}>{vendor.businessName}</Text>
-                    </View>
-                    {!!vendor.ownerName && (
-                      <Text style={styles.sub} numberOfLines={1}>Owner: {vendor.ownerName}</Text>
-                    )}
-                  </View>
-
-                  <View style={[styles.statusPill, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                    <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>
-                      {vendor.statusLabel || titleCase(vendor.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Info & Metadata */}
-                <View style={styles.metaRow}>
-                  {!!vendor.location && (
-                    <View style={styles.metaItem}>
-                      <Icon name="place" size={13} color="#64748B" />
-                      <Text style={styles.metaText} numberOfLines={1}>{vendor.location}</Text>
-                    </View>
-                  )}
-                  {!!vendor.phone && (
-                    <View style={styles.metaItem}>
-                      <Icon name="phone" size={13} color="#64748B" />
-                      <Text style={styles.metaText} numberOfLines={1}>{vendor.phone}</Text>
-                    </View>
-                  )}
-                  {!!vendor.vendorType && (
-                    <View style={styles.metaItem}>
-                      <Icon name="category" size={13} color="#64748B" />
-                      <Text style={styles.metaText} numberOfLines={1}>{titleCase(vendor.vendorType)}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Footer Metrics */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.jobStatsRow}>
-                    <Text style={styles.jobStatText}>
-                      <Text style={styles.jobStatBold}>{vendor.totalJobs || 0}</Text> Total Jobs
-                    </Text>
-                    {vendor.activeJobs > 0 && (
-                      <>
-                        <Text style={styles.jobStatDot}>•</Text>
-                        <Text style={[styles.jobStatText, { color: '#0369A1' }]}>
-                          <Text style={styles.jobStatBold}>{vendor.activeJobs}</Text> Active
+              <View style={styles.ticketCard}>
+                <View style={styles.ticketTop}>
+                  <View style={styles.ticketIdRow}>
+                    <Text style={styles.ticketNumber}>{t.ticketNumber}</Text>
+                    {!!t.priority && (
+                      <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
+                        <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
+                          {t.priority.toUpperCase()}
                         </Text>
-                      </>
+                      </View>
+                    )}
+                    {t.isQuoted && (
+                      <View style={styles.quotedPill}>
+                        <Text style={styles.quotedPillText}>QUOTED</Text>
+                      </View>
                     )}
                   </View>
+                  <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
+                    <Text style={[styles.statusText, { color: statusStyle.text }]}>
+                      {(t.statusLabel || titleCase(t.status)).toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
 
-                  {vendor.rating != null && (
-                    <View style={styles.ratingRow}>
-                      <Icon name="star" size={14} color="#F59E0B" />
-                      <Text style={styles.ratingText}>{Number(vendor.rating).toFixed(1)}</Text>
+                <Text style={styles.ticketTitle}>{t.serviceName}</Text>
+
+                <View style={styles.metaDivider} />
+
+                <View style={styles.metaGrid}>
+                  <View style={styles.metaRow}>
+                    <Icon name="person" size={14} color="#64748B" />
+                    <Text style={styles.metaText} numberOfLines={1}>{t.customerName}</Text>
+                  </View>
+                  {!!t.cityName && (
+                    <View style={styles.metaRow}>
+                      <Icon name="place" size={14} color="#64748B" />
+                      <Text style={styles.metaText} numberOfLines={1}>{t.cityName}</Text>
+                    </View>
+                  )}
+                  {!!t.amountFormatted && (
+                    <View style={styles.metaRow}>
+                      <Icon name="payments" size={14} color="#16A34A" />
+                      <Text style={[styles.metaText, { color: '#16A34A', fontWeight: '700' }]}>{t.amountFormatted}</Text>
                     </View>
                   )}
                 </View>
@@ -240,7 +232,8 @@ function Vendors() {
         />
       </View>
 
-      {/* Status Filter Sheet */}
+      {/* Status Filter Sheet — options + counts come from meta.status_counts
+          for the same scope + filters (minus status itself). */}
       <Modal visible={statusModalVisible} transparent animationType="slide" onRequestClose={() => setStatusModalVisible(false)}>
         <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setStatusModalVisible(false)}>
           <TouchableOpacity style={styles.filterSheet} activeOpacity={1} onPress={() => {}}>
@@ -251,6 +244,13 @@ function Vendors() {
             <ScrollView showsVerticalScrollIndicator={false}>
               {STATUS_FILTERS.map(f => {
                 const active = filterStatus === f.id;
+                // The backend's status_counts omits the currently-applied
+                // status's own key ("minus status itself") since that count
+                // is already meta.total for the filtered list — fall back to
+                // it so the active row doesn't go blank.
+                const count = f.id === 'all'
+                  ? (statusCounts.all ?? total)
+                  : (statusCounts[f.id] ?? (filterStatus === f.id ? total : undefined));
                 return (
                   <TouchableOpacity
                     key={f.id}
@@ -259,7 +259,7 @@ function Vendors() {
                     onPress={() => { setFilterStatus(f.id); setStatusModalVisible(false); }}
                   >
                     <Text style={[styles.filterOptionText, active && styles.filterOptionTextActive]}>
-                      {f.label}
+                      {f.label}{count != null ? ` (${count})` : ''}
                     </Text>
                     {active && <Icon name="check-circle" size={20} color="#A64416" />}
                   </TouchableOpacity>
@@ -293,6 +293,8 @@ const styles = StyleSheet.create({
   },
   headerCountText: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#FFFFFF' },
 
+  body: { flex: 1, backgroundColor: '#FDFBF7', paddingTop: 8 },
+
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4,
@@ -312,11 +314,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9',
   },
   toggleBtnActive: { backgroundColor: '#A64416', borderColor: '#A64416' },
-
-  body: {
-    flex: 1, backgroundColor: '#FDFBF7',
-    paddingTop: 8,
-  },
 
   activeFilterRow: { flexDirection: 'row', paddingHorizontal: 20, paddingTop: 12 },
   activeFilterChip: {
@@ -351,45 +348,30 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 110, gap: 12 },
 
-  listItem: {
+  ticketCard: {
     backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1,
   },
-  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: '#FFEDD5',
-  },
-  avatarText: { fontSize: 16, fontWeight: '800', color: '#C2410C' },
-  listItemBody: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 15, fontWeight: '700', color: '#0F172A', flexShrink: 1 },
-  sub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-
+  ticketTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  ticketIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexWrap: 'wrap' },
+  ticketNumber: { fontSize: 13, fontWeight: '700', color: '#20304C' },
+  priorityPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  priorityText: { fontSize: 9, fontWeight: '700' },
+  quotedPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: '#EEF2FF' },
+  quotedPillText: { fontSize: 9, fontWeight: '700', color: '#4338CA' },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   statusText: { fontSize: 10, fontWeight: '700' },
+  ticketTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 10 },
 
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaDivider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 10 },
+  metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontSize: 12, color: '#64748B' },
-
-  cardFooter: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F8FAFC',
-  },
-  jobStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  jobStatText: { fontSize: 12, color: '#64748B' },
-  jobStatBold: { fontWeight: '700', color: '#0F172A' },
-  jobStatDot: { fontSize: 12, color: '#CBD5E1' },
-
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  ratingText: { fontSize: 12, fontWeight: '700', color: '#B45309' },
 
   emptyState: { paddingVertical: 50, alignItems: 'center', gap: 10 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
   emptySub: { fontSize: 13, color: '#94A3B8', textAlign: 'center', paddingHorizontal: 24 },
 });
 
-export default Vendors;
+export default Tickets;

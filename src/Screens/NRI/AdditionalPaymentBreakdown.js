@@ -35,7 +35,7 @@ function formatGstLabel(rate) {
 function AdditionalPaymentBreakdown({ route, navigation }) {
   const {
     ticketId, ticketNumber, serviceName, reason,
-    baseAmount, alreadyPaidAmount, additionalAmount, additionalAmountInr, additionalGstAmountInr, gstAmount, gstRate,
+    baseAmount, additionalAmount, additionalAmountInr, additionalGstAmountInr, additionalTotalAmountInr, gstAmount, gstRate,
   } = route.params || {};
 
   const user = useSelector(s => s.user.user);
@@ -45,14 +45,19 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
 
   const amountPreGst = Math.max(0, Number(additionalAmount || 0) - Number(gstAmount || 0));
 
-  // additionalAmountInr/additionalGstAmountInr are the live INR equivalents
-  // straight off the ticket's pending_additional_charge (amount_inr/gst_inr)
-  // — both authoritative from the backend, no local rate-based derivation.
+  // additionalAmountInr/additionalGstAmountInr/additionalTotalAmountInr are the
+  // live INR equivalents straight off the ticket's pending_additional_charge
+  // (amount_inr/gst_inr/total_inr) — all authoritative from the backend, no
+  // local rate-based derivation. The payable total is amount_inr + gst_inr;
+  // total_inr already equals that sum, but fall back to summing the other two
+  // in case a cached/older ticket response doesn't carry total_inr yet.
   const isInr = currency === 'INR';
   const inrReady = isInr && additionalAmountInr != null && additionalGstAmountInr != null;
-  const amountPreGstInr = inrReady ? Math.round((additionalAmountInr - additionalGstAmountInr) * 100) / 100 : null;
+  const totalAmountInr = additionalTotalAmountInr != null
+    ? additionalTotalAmountInr
+    : (inrReady ? additionalAmountInr + additionalGstAmountInr : null);
   const payableDisplay = isInr
-    ? (inrReady ? formatAmount(additionalAmountInr, 'INR') : '…')
+    ? (inrReady ? formatAmount(totalAmountInr, 'INR') : '…')
     : formatUsd(additionalAmount);
 
   const [selectedGateway, setSelectedGateway] = useState(null);
@@ -132,13 +137,9 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
             <Text style={styles.summaryValue}>{formatUsd(baseAmount)}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, styles.paidLabel]}>Already Paid</Text>
-            <Text style={[styles.summaryValue, styles.paidLabel]}>−{formatUsd(alreadyPaidAmount)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Additional charge{reason ? ` — ${reason}` : ''}</Text>
             <Text style={styles.summaryValue}>
-              {isInr ? (inrReady ? formatAmount(amountPreGstInr, 'INR') : '…') : formatUsd(amountPreGst)}
+              {isInr ? (inrReady ? formatAmount(additionalAmountInr, 'INR') : '…') : formatUsd(amountPreGst)}
             </Text>
           </View>
           <View style={styles.summaryRow}>

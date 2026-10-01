@@ -8,6 +8,7 @@ import { clearCart, clearServerCart, selectCartItems, selectCartSubtotal, select
 import { usePlans } from '../../Hooks/usePlans';
 import { useCartPriceSync } from '../../Hooks/useCartPriceSync';
 import { useCart } from '../../Hooks/useCart';
+import { useMembership } from '../../Hooks/useMembership';
 import SubmitRequest from './SubmitRequest';
 
 const GST_RATE = 0.18;
@@ -35,14 +36,9 @@ function Cart({ navigation }) {
   const servicesTotal = useSelector(selectCartSubtotal);
   const servicesGst = useSelector(selectCartGstTotal);
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
-  // The definitive "onboarding finished" signal (see selectOnboardingRoute in
-  // onboardingSlice.js) — an authenticated account with no active membership
-  // yet is still mid-registration (e.g. registered, then tapped "Keep
-  // Browsing"/"Add More Services" from the onboarding cart drawer to add
-  // another service). That account must keep seeing this same guest-style
-  // cart, not SubmitRequest (which assumes membership is already active).
+  const { membership: activeMembershipData } = useMembership();
   const membership = useSelector(s => s.user?.user?.membership);
-  const hasMembership = !!membership && membership !== 'None';
+  const hasMembership = (!!activeMembershipData && activeMembershipData?.status === 'active') || (!!membership && membership !== 'None' && membership !== 'none');
   // remove() dispatches the local reducer AND (when authenticated) DELETE
   // /customer/cart/items/{serviceId} — without the server call, a removed
   // item would silently reappear the next time the authenticated cart is

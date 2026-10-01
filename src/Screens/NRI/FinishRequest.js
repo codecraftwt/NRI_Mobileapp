@@ -7,15 +7,21 @@ import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { selectCartItems, clearCart, clearServerCart } from '../../Redux/slices/cartSlice';
 import {
-  selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes,
-  clearPendingTicketFinalize, clearPendingBundleFinish, clearPendingSubscriptionFinalize,
+  selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes, selectPendingQuotedRequests,
+  clearPendingTicketFinalize, clearPendingBundleFinish, clearPendingSubscriptionFinalize, clearPendingQuotedRequest,
 } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import { useStates } from '../../Hooks/useStates';
+import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
+import { usePriorities } from '../../Hooks/usePriorities';
+import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
+import { useMembership } from '../../Hooks/useMembership';
+import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { resolveLocalCopies } from '../../Utils/localFileCopy';
@@ -72,7 +78,8 @@ function FormSelect({ label, required, value, placeholder, options, disabled, on
 // mid-flow — either way it reads its context from the persisted
 // pendingRequests slice (NOT route params), which is what makes it resumable.
 // mode: 'ticket' (cart or single-service checkout) | 'bundle' (registration
-// combined-cart checkout) | 'subscription' (recurring service subscription).
+// combined-cart checkout) | 'subscription' (recurring service subscription)
+// | 'quoted' (quote-only service — nothing paid, POST .../tickets/quoted/{id}).
 function FinishRequest({ route, navigation }) {
   const mode = route?.params?.mode || 'ticket';
   const returnTo = route?.params?.returnTo;
@@ -83,20 +90,25 @@ function FinishRequest({ route, navigation }) {
   // (e.g. an old deep link) when exactly one is pending.
   const paymentId = route?.params?.paymentId;
   const bundleId = route?.params?.bundleId;
+  const serviceId = route?.params?.serviceId;
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   const cartItems = useSelector(selectCartItems);
+  const savedLocation = useSelector(s => s.serviceLocation);
   const ticketFinalizes = useSelector(selectPendingTicketFinalizes);
   const bundleFinishes = useSelector(selectPendingBundleFinishes);
   const subscriptionFinalizes = useSelector(selectPendingSubscriptionFinalizes);
+  const quotedRequests = useSelector(selectPendingQuotedRequests);
   const pendingTicket = (paymentId != null ? ticketFinalizes.find(t => t.paymentId === paymentId) : ticketFinalizes[0]) || null;
   const pendingBundle = (bundleId != null ? bundleFinishes.find(b => b.bundleId === bundleId) : bundleFinishes[0]) || null;
   const pendingSubscription = (paymentId != null ? subscriptionFinalizes.find(s => s.paymentId === paymentId) : subscriptionFinalizes[0]) || null;
+  const pendingQuoted = (serviceId != null ? quotedRequests.find(q => q.serviceId === serviceId) : quotedRequests[0]) || null;
   const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
 
   const {
     finalizeTicket: finalizeTicketAction, finalizeLoading,
+    bookQuotedTicket, bookQuotedLoading,
   } = useTicketBooking();
   const {
     checkoutBundle, checkoutBundleLoading, checkoutBundleFailed, getCheckoutBundle,
@@ -106,11 +118,82 @@ function FinishRequest({ route, navigation }) {
     finalizeSubscription: finalizeSubscriptionAction, finalizeLoading: finalizeSubscriptionLoading,
   } = useServiceSubscription();
 
-  const cityName = mode === 'bundle' ? pendingBundle?.cityName : mode === 'subscription' ? pendingSubscription?.cityName : pendingTicket?.cityName;
-  const { talukaNames, talukas } = useTalukas(null, cityName);
-
-  const [form, setForm] = useState({ fullName: '', relation: '', taluka: '', address: '', notes: '' });
+  const [form, setForm] = useState({
+    fullName: pendingQuoted?.fullName || '',
+    relation: pendingQuoted?.relation || '',
+    taluka: pendingQuoted?.talukaName || '',
+    address: pendingQuoted?.address || '',
+    notes: pendingQuoted?.notes || '',
+    state: pendingQuoted?.stateName || savedLocation?.stateName || '',
+    city: pendingQuoted?.cityName || savedLocation?.cityName || '',
+    pincode: pendingQuoted?.pincode || savedLocation?.pincode || '',
+    priority: '',
+  });
   const setField = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const cityName = mode === 'bundle' ? pendingBundle?.cityName
+    : mode === 'subscription' ? pendingSubscription?.cityName
+    : mode === 'quoted' ? (form.city || pendingQuoted?.cityName)
+    : pendingTicket?.cityName;
+
+  const { stateNames, states } = useStates();
+  const { cityNames, cities } = useCities(form.state);
+  const { talukaNames, talukas } = useTalukas(null, cityName);
+  const { priorities } = usePriorities();
+  const { loading: pincodeLoading, lookup: lookupPincode } = usePostalCodeLookup();
+  const [pincodeLocation, setPincodeLocation] = useState(null);
+
+  const priorityLabelOf = (p) => `${p.name} — ${Number(p.surcharge) > 0 ? `$${Number(p.surcharge).toFixed(2)}` : 'Free'}`;
+  const priorityLabels = priorities.map(priorityLabelOf);
+  const selectedPriority = priorities.find(p => priorityLabelOf(p) === form.priority) || null;
+
+  useEffect(() => {
+    if (!form.priority && priorities.length) {
+      const def = priorities.find(p => p.isDefault) || priorities[0];
+      if (def) setField('priority', priorityLabelOf(def));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [priorities]);
+
+  useEffect(() => {
+    const code = form.pincode ? form.pincode.trim() : '';
+    if (code.length !== 6) {
+      setPincodeLocation(null);
+      return;
+    }
+
+    lookupPincode(code)
+      .unwrap()
+      .then((result) => {
+        const match = result?.results?.[0];
+        if (!match) {
+          setPincodeLocation(null);
+          return;
+        }
+        const stateName = match.stateName || states.find(s => s.id === match.stateId)?.name || '';
+        setPincodeLocation({
+          code,
+          stateName,
+          cityName: match.cityName || '',
+          cityId: match.cityId || null,
+          talukaName: match.talukaName || '',
+        });
+        if (stateName) setField('state', stateName);
+        if (match.cityName) setField('city', match.cityName);
+        if (match.talukaName) setField('taluka', match.talukaName);
+        if (stateName && match.cityName && match.cityId) {
+          dispatch(saveServiceLocation({
+            stateName,
+            cityName: match.cityName,
+            cityId: match.cityId,
+            pincode: code,
+          }));
+        }
+      })
+      .catch(() => setPincodeLocation(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.pincode]);
+
   const [files, setFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const goBackTarget = useCallback(() => {
@@ -121,12 +204,23 @@ function FinishRequest({ route, navigation }) {
     navigation.navigate('Services', { screen: 'ServicesMain' });
   }, [navigation, returnTo]);
 
-  // The payment for this request is already done — going "back" must never
-  // return to the payment screen (there's nothing left to pay, and the cart
-  // it came from may already be mid-checkout). Land on the Services list
-  // instead, same as the header back arrow above. Bundle mode has no back
-  // action at all (see the header render below), so this only applies to
-  // 'ticket'/'subscription'.
+  // Handle clearing a pending quoted request
+  const handleClearQuoted = () => {
+    showAlert('Clear Request', 'Discard this pending request?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          if (pendingQuoted?.serviceId) {
+            dispatch(clearPendingQuotedRequest({ userId, serviceId: pendingQuoted.serviceId }));
+          }
+          goBackTarget();
+        },
+      },
+    ]);
+  };
+
   useFocusEffect(
     useCallback(() => {
       if (mode === 'bundle') return undefined;
@@ -148,12 +242,11 @@ function FinishRequest({ route, navigation }) {
 
   const serviceNames = mode === 'bundle' ? (pendingBundle?.serviceNames || '')
     : mode === 'subscription' ? (pendingSubscription?.serviceNames || '')
+    : mode === 'quoted' ? (pendingQuoted?.serviceName || '')
     : (pendingTicket?.serviceNames || '');
   const serviceList = Array.isArray(serviceNames) ? serviceNames : String(serviceNames || '').split(',').map(s => s.trim()).filter(Boolean);
-  const amount = mode === 'ticket' ? pendingTicket?.amount : mode === 'subscription' ? pendingSubscription?.amount : null;
-  const currency = mode === 'ticket' ? pendingTicket?.currency : mode === 'subscription' ? pendingSubscription?.currency : null;
 
-  const loading = submitting || finalizeLoading || finishBundleLoading || finalizeSubscriptionLoading;
+  const loading = submitting || finalizeLoading || finishBundleLoading || finalizeSubscriptionLoading || bookQuotedLoading;
   const bundleLoading = mode === 'bundle' && checkoutBundleLoading && !checkoutBundle;
 
   const handleChooseFiles = async () => {
@@ -176,10 +269,6 @@ function FinishRequest({ route, navigation }) {
   };
   const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
 
-  // Ticket/subscription mode's finalize call needs an existing
-  // family_member_id (unlike the checkout-bundle finish call, which still
-  // takes raw name/relationship) — reuse a matching saved member if one
-  // exists, else create one on the fly.
   const resolveFamilyMemberId = async () => {
     const name = form.fullName.trim();
     const relationship = form.relation.toLowerCase();
@@ -195,7 +284,14 @@ function FinishRequest({ route, navigation }) {
     const missing = [];
     if (!form.fullName.trim()) missing.push('Full Name');
     if (!form.relation) missing.push('Relation');
-    if (!form.address.trim()) missing.push('Full Address');
+    if (mode === 'quoted') {
+      if (!form.state) missing.push('State');
+      if (!form.city) missing.push('City / District');
+      if (!form.address.trim()) missing.push('Full Address');
+      if (!form.pincode.trim()) missing.push('PIN Code');
+    } else {
+      if (!form.address.trim()) missing.push('Full Address');
+    }
     if (missing.length) {
       showAlert('Missing Details', `Please fill: ${missing.join(', ')}.`);
       return false;
@@ -244,6 +340,29 @@ function FinishRequest({ route, navigation }) {
         showAlert('Subscription Activated', 'Your recurring subscription is now active. Track it under Billing & Payments.', [
           { text: 'OK', onPress: () => navigation.navigate('Requests', { screen: 'RequestsMain' }) },
         ]);
+      } else if (mode === 'quoted') {
+        const stateId = states.find(s => s.name === form.state)?.id || null;
+        const cityId = cities.find(c => c.name === form.city)?.id || null;
+        const familyMemberId = await resolveFamilyMemberId();
+        await bookQuotedTicket({
+          serviceId: pendingQuoted.serviceId,
+          stateId, cityId, talukaId, familyMemberId,
+          address: form.address.trim(),
+          pincode: form.pincode?.trim() || undefined,
+          urgency: selectedPriority?.slug || 'standard',
+          customerNotes: form.notes || undefined,
+          files,
+        }).unwrap();
+        dispatch(clearPendingQuotedRequest({ userId, serviceId: pendingQuoted.serviceId }));
+
+        const remaining = quotedRequests.filter(q => q.serviceId !== pendingQuoted.serviceId);
+        showAlert(
+          'Request Submitted',
+          remaining.length > 0
+            ? `Your request has been submitted. ${remaining.length} more quoted service${remaining.length > 1 ? 's are' : ' is'} waiting under "Finish Request" in your Requests tab.`
+            : 'Your service request has been submitted. Track its progress under Requests.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Requests', { screen: 'RequestsMain' }) }]
+        );
       } else {
         await finishBundle({
           bundleId: pendingBundle.bundleId,
@@ -262,16 +381,37 @@ function FinishRequest({ route, navigation }) {
         });
       }
     } catch (error) {
+      if (error?.requiresMembership || error?.errors?.requires_membership || (error?.status === 403 && String(error?.message).toLowerCase().includes('membership'))) {
+        showAlert(
+          'Active Membership Required',
+          error?.message || 'An active membership is required to book services. Please purchase a membership first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
+          ]
+        );
+        return;
+      }
       showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const nothingPending = mode === 'ticket' ? !pendingTicket : mode === 'subscription' ? !pendingSubscription : !pendingBundle;
+  const nothingPending = mode === 'ticket' ? !pendingTicket
+    : mode === 'subscription' ? !pendingSubscription
+    : mode === 'quoted' ? !pendingQuoted
+    : !pendingBundle;
+
   const headerTitle = mode === 'bundle' ? 'Finish Your Service Requests'
     : mode === 'subscription' ? 'Finish Your Subscription'
+    : mode === 'quoted' ? 'Submit Request'
     : 'Finish Your Service Request';
+
+  const headerSub = mode === 'quoted' ? '1 service selected'
+    : mode === 'bundle' ? 'Payment received — just a few more details'
+    : mode === 'subscription' ? 'Payment received — just a few more details'
+    : 'Payment received — just a few more details';
 
   return (
     <View style={styles.container}>
@@ -285,8 +425,14 @@ function FinishRequest({ route, navigation }) {
           )}
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>{headerTitle}</Text>
-            <Text style={styles.headerSub}>Payment received — just a few more details</Text>
+            <Text style={styles.headerSub}>{headerSub}</Text>
           </View>
+          {mode === 'quoted' && pendingQuoted && (
+            <TouchableOpacity style={styles.clearBtn} onPress={handleClearQuoted}>
+              <Icon name="delete-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.clearBtnText}>Clear</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -304,14 +450,16 @@ function FinishRequest({ route, navigation }) {
         </View>
       ) : (
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.paidBanner}>
-          <Icon name="check-circle" size={18} color="#059669" />
-          <Text style={styles.paidBannerText}>
-            Payment received. Just a few more details and your request is on its way.
-          </Text>
-        </View>
+        {mode !== 'quoted' && (
+          <View style={styles.paidBanner}>
+            <Icon name="check-circle" size={18} color="#059669" />
+            <Text style={styles.paidBannerText}>
+              Payment received. Just a few more details and your request is on its way.
+            </Text>
+          </View>
+        )}
 
-        {serviceList.length > 0 && (
+        {serviceList.length > 0 && mode !== 'quoted' && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>What you're requesting</Text>
             {serviceList.map((name) => (
@@ -329,22 +477,106 @@ function FinishRequest({ route, navigation }) {
           </TouchableOpacity>
         )}
 
+        {/* Who / Where Form matching SubmitRequest screenshot */}
         <View style={styles.card}>
-          <View style={styles.cardHeadRow}><Icon name="place" size={16} color="#20304C" /><Text style={styles.cardTitle}>Who / Where</Text></View>
+          <View style={styles.cardHeadRow}>
+            <Icon name="place" size={16} color="#20304C" />
+            <Text style={styles.cardTitle}>Who / Where</Text>
+          </View>
 
           <Text style={styles.fieldLabel}>Full Name *</Text>
-          <TextInput style={styles.input} placeholder="Family member's name" placeholderTextColor="#94A3B8" value={form.fullName} onChangeText={t => setField('fullName', t)} />
+          <TextInput
+            style={styles.input}
+            placeholder="Family member's name"
+            placeholderTextColor="#94A3B8"
+            value={form.fullName}
+            onChangeText={t => setField('fullName', t)}
+          />
 
-          <FormSelect label="Relation" required value={form.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
-          <FormSelect label="Taluka (optional)" value={form.taluka} placeholder="Not applicable" options={talukaNames} onSelect={v => setField('taluka', v)} />
+          <FormSelect
+            label="Relation"
+            required
+            value={form.relation}
+            placeholder="Select..."
+            options={RELATION_OPTIONS}
+            onSelect={v => setField('relation', v)}
+          />
+
+          {mode === 'quoted' && (
+            <>
+              <FormSelect
+                label="State"
+                required
+                value={form.state}
+                placeholder="Select state"
+                options={stateNames}
+                onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }}
+              />
+
+              <FormSelect
+                label="City / District"
+                required
+                value={form.city}
+                placeholder={form.state ? 'Select city' : 'Select state first'}
+                options={cityNames}
+                disabled={!form.state}
+                onSelect={v => { setField('city', v); setField('taluka', ''); }}
+              />
+            </>
+          )}
+
+          <FormSelect
+            label="Taluka"
+            value={form.taluka}
+            placeholder={form.city ? 'Select taluka' : (mode === 'quoted' ? 'Select city first' : 'Not applicable')}
+            options={talukaNames}
+            disabled={mode === 'quoted' && !form.city}
+            onSelect={v => setField('taluka', v)}
+          />
 
           <Text style={styles.fieldLabel}>Full Address *</Text>
-          <TextInput style={[styles.input, styles.inputMultiline]} placeholder="House/flat no., street, landmark..." placeholderTextColor="#94A3B8" multiline value={form.address} onChangeText={t => setField('address', t)} />
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            placeholder="House/flat no., street, landmark..."
+            placeholderTextColor="#94A3B8"
+            multiline
+            value={form.address}
+            onChangeText={t => setField('address', t)}
+          />
 
-          <Text style={styles.fieldLabel}>Additional Notes</Text>
-          <TextInput style={[styles.input, styles.inputMultiline]} placeholder="Any specific requirements, access instructions, etc." placeholderTextColor="#94A3B8" multiline value={form.notes} onChangeText={t => setField('notes', t)} />
+          {mode === 'quoted' && (
+            <>
+              <Text style={styles.fieldLabel}>PIN Code *</Text>
+              <View style={styles.pincodeRow}>
+                <TextInput
+                  style={[styles.input, styles.pincodeInput]}
+                  placeholder="e.g. 416002"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={form.pincode}
+                  onChangeText={t => setField('pincode', t.replace(/[^0-9]/g, ''))}
+                />
+                {pincodeLoading && <ActivityIndicator size="small" color="#D94625" />}
+              </View>
+              {!!pincodeLocation?.cityName && (
+                <Text style={styles.pincodeHint}>
+                  {pincodeLocation.cityName}{pincodeLocation.stateName ? `, ${pincodeLocation.stateName}` : ''}
+                </Text>
+              )}
 
-          {mode === 'ticket' && (
+              <FormSelect
+                label="Priority"
+                required
+                value={form.priority}
+                placeholder="Standard — Free"
+                options={priorityLabels}
+                onSelect={v => setField('priority', v)}
+              />
+            </>
+          )}
+
+          {(mode === 'ticket' || mode === 'quoted') && (
             <>
               <Text style={styles.fieldLabel}>Photos / Documents <Text style={styles.fieldHint}>(optional, up to {MAX_FILES})</Text></Text>
               <View style={styles.docInputRow}>
@@ -366,6 +598,16 @@ function FinishRequest({ route, navigation }) {
               <Text style={styles.fieldHint}>JPG, PNG or PDF, max 5 MB each.</Text>
             </>
           )}
+
+          <Text style={styles.fieldLabel}>Additional Notes</Text>
+          <TextInput
+            style={[styles.input, styles.inputMultiline]}
+            placeholder="Any specific requirements, access instructions, etc."
+            placeholderTextColor="#94A3B8"
+            multiline
+            value={form.notes}
+            onChangeText={t => setField('notes', t)}
+          />
         </View>
 
         {loading ? (
@@ -373,7 +615,7 @@ function FinishRequest({ route, navigation }) {
         ) : (
           <TouchableOpacity style={styles.submitBtn} activeOpacity={0.9} onPress={handleSubmit}>
             <Text style={styles.submitBtnText}>
-              {mode === 'bundle' ? 'Send Requests' : mode === 'subscription' ? 'Activate Subscription' : 'Send Request'}
+              {mode === 'bundle' ? 'Send Requests' : mode === 'subscription' ? 'Activate Subscription' : 'Submit Request'}
             </Text>
             <Icon name="arrow-forward" size={18} color="#FFFFFF" />
           </TouchableOpacity>
@@ -392,8 +634,10 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerBack: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   headerBackIcon: { marginLeft: 6 },
-  headerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  clearBtnText: { fontSize: 12, color: '#FFFFFF', fontFamily: typography.labelMedium.fontFamily },
 
   scrollContent: { padding: 20, paddingBottom: 40 },
 
@@ -402,7 +646,7 @@ const styles = StyleSheet.create({
 
   card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9' },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  cardTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
 
   requestedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   requestedText: { fontSize: 14, color: '#1E293B' },
@@ -411,6 +655,9 @@ const styles = StyleSheet.create({
   fieldHint: { fontSize: 11.5, color: '#94A3B8', lineHeight: 17, marginBottom: 2 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, marginBottom: 14 },
   inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
+  pincodeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pincodeInput: { flex: 1 },
+  pincodeHint: { fontSize: 12, color: '#10B981', marginTop: -8, marginBottom: 12 },
 
   selectBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48 },
   selectBoxDisabled: { opacity: 0.5 },
@@ -433,13 +680,12 @@ const styles = StyleSheet.create({
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 16, marginTop: 4 },
   submitBtnText: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
 
-  retryBox: { paddingVertical: 16, alignItems: 'center' },
-  retryText: { fontSize: 13, color: '#EF4444', fontWeight: '600' },
-
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
-  primaryBtn: { backgroundColor: '#D94625', borderRadius: 14, paddingHorizontal: 28, paddingVertical: 14, marginTop: 8 },
-  primaryBtnText: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  emptyTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginTop: 16, marginBottom: 20, textAlign: 'center' },
+  primaryBtn: { backgroundColor: '#D94625', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: typography.h4.fontFamily, fontSize: 15 },
+  retryBox: { backgroundColor: '#FEE2E2', borderRadius: 12, padding: 14, marginBottom: 16 },
+  retryText: { color: '#DC2626', fontSize: 13, textAlign: 'center' },
 });
 
 export default FinishRequest;

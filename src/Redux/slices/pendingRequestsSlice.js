@@ -14,7 +14,7 @@ import { onboardingUserKey } from './onboardingSlice';
 // either), and each needs its own entry rather than the newest silently
 // overwriting the last.
 const initialState = {
-  byUser: {}, // { [userId]: { ticketFinalizes: [...], bundleFinishes: [...], subscriptionFinalizes: [...] } }
+  byUser: {}, // { [userId]: { ticketFinalizes: [...], bundleFinishes: [...], subscriptionFinalizes: [...], quotedRequests: [...] } }
 };
 
 // Defensively normalizes the shape, not just presence — this slice's shape
@@ -29,6 +29,7 @@ function entryFor(state, userId) {
   if (!Array.isArray(entry.ticketFinalizes)) entry.ticketFinalizes = [];
   if (!Array.isArray(entry.bundleFinishes)) entry.bundleFinishes = [];
   if (!Array.isArray(entry.subscriptionFinalizes)) entry.subscriptionFinalizes = [];
+  if (!Array.isArray(entry.quotedRequests)) entry.quotedRequests = [];
   return entry;
 }
 
@@ -86,6 +87,28 @@ const pendingRequestsSlice = createSlice({
       const entry = entryFor(state, userId);
       entry.subscriptionFinalizes = entry.subscriptionFinalizes.filter(s => s.paymentId !== paymentId);
     },
+    // A quoted service has nothing paid/pending server-side at all (it's never
+    // charged at booking) — this just remembers "still needs its
+    // POST /customer/tickets/quoted/{service} call" across the registration →
+    // FinishRequest handoff (and survives an app kill in between, same as the
+    // other pending types). payload: { userId, serviceId, serviceName,
+    //            stateId, cityId, stateName, cityName, pincode }
+    setPendingQuotedRequest: (state, action) => {
+      const { userId, ...fields } = action.payload || {};
+      if (userId == null || fields.serviceId == null) return;
+      const entry = entryFor(state, userId);
+      const idx = entry.quotedRequests.findIndex(q => q.serviceId === fields.serviceId);
+      if (idx >= 0) entry.quotedRequests[idx] = fields;
+      else entry.quotedRequests.push(fields);
+    },
+    // payload: { userId, serviceId }
+    clearPendingQuotedRequest: (state, action) => {
+      const { userId, serviceId } = action.payload || {};
+      if (userId == null) return;
+      const entry = entryFor(state, userId);
+      entry.quotedRequests = entry.quotedRequests.filter(q => q.serviceId !== serviceId);
+    },
+
     // Reconciles against the authoritative, cross-device server lists from
     // GET /customer/dashboard (`pending_ticket_finalizations` /
     // `pending_checkout_bundles`) — this is what surfaces an item paid from
@@ -155,6 +178,8 @@ export const {
   clearPendingBundleFinish,
   setPendingSubscriptionFinalize,
   clearPendingSubscriptionFinalize,
+  setPendingQuotedRequest,
+  clearPendingQuotedRequest,
   setPendingFromDashboard,
 } = pendingRequestsSlice.actions;
 
@@ -174,6 +199,12 @@ export function selectPendingSubscriptionFinalizes(state) {
   const userId = onboardingUserKey(state.user.user);
   if (userId == null) return [];
   return state.pendingRequests.byUser[userId]?.subscriptionFinalizes || [];
+}
+
+export function selectPendingQuotedRequests(state) {
+  const userId = onboardingUserKey(state.user.user);
+  if (userId == null) return [];
+  return state.pendingRequests.byUser[userId]?.quotedRequests || [];
 }
 
 export function selectPendingTicketFinalizeByPaymentId(paymentId) {

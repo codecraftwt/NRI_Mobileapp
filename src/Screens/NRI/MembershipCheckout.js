@@ -50,7 +50,11 @@ function MembershipCheckout({ navigation, route }) {
   const [planCouponCode, setPlanCouponCode] = useState('');
   const [addonCouponCode, setAddonCouponCode] = useState('');
   const { currency, setCurrency, gateways } = useCurrencyGateways();
-  const [gateway, setGateway] = useState('stripe');
+  // Starts unset (not a hardcoded 'stripe') — gateways are admin-toggleable
+  // server-side, so assuming Stripe is available before the real list loads
+  // lets a fast tap submit checkout with a gateway that was never actually
+  // offered, 422ing with "Stripe payments are currently unavailable."
+  const [gateway, setGateway] = useState(null);
   const [autoRenew, setAutoRenew] = useState(false);
   const [useWallet, setUseWallet] = useState(false);
   // { url, paymentId } while the hosted-checkout WebView (Stripe/PayPal) is open.
@@ -156,6 +160,10 @@ function MembershipCheckout({ navigation, route }) {
   const handleSubmit = async () => {
     if (!selectedPlanId) {
       showAlert('Select a Plan', 'Please choose a membership plan to continue.', 'error');
+      return;
+    }
+    if (!gateway) {
+      showAlert('No Payment Method', 'Please wait a moment for payment methods to load, then select one.', 'error');
       return;
     }
     setSubmitting(true);
@@ -390,7 +398,7 @@ function MembershipCheckout({ navigation, route }) {
           {(submitting || checkoutLoading || verifyLoading) ? (
             <ActivityIndicator size="large" color={C.accent} style={styles.payLoading} />
           ) : (
-            <TouchableOpacity style={styles.payBtn} onPress={handleSubmit} disabled={!selectedPlanId}>
+            <TouchableOpacity style={styles.payBtn} onPress={handleSubmit} disabled={!selectedPlanId || !gateway}>
               <Icon name="lock" size={16} color="white" />
               <Text style={styles.payBtnText}>Pay {formatUsd(amountPayable)}</Text>
             </TouchableOpacity>

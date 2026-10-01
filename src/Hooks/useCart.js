@@ -63,7 +63,12 @@ export function useCart({ autoFetch = true } = {}) {
     // Signed-in: sync to the backend cart; the returned count updates the badge.
     // billing_mode only matters for a dual-mode service — safe to always send
     // whichever mode the item was added under (see cartApi.addCartItem).
-    if (isAuthenticated && item?.serviceId != null) {
+    // A "quoted" service (pricing.is_quoted) has no fixed price to sync —
+    // POST /customer/cart/items 422s it with errors.use_endpoint pointing at
+    // POST /customer/tickets/quoted/{service} instead. The local add above is
+    // all it needs: SubmitRequest's quoted-only path reads straight off this
+    // local cart and never depends on the server cart for that flow.
+    if (isAuthenticated && item?.serviceId != null && !item?.isQuoted) {
       dispatch(addServerCartItem({ serviceId: item.serviceId, billingMode: item.isRecurring ? 'recurring' : 'one_time' }));
     }
   };

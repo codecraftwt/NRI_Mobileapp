@@ -110,6 +110,7 @@ function TicketDetail({ route, navigation }) {
       additionalAmount: ticket.pendingAdditionalCharge.amount,
       additionalAmountInr: ticket.pendingAdditionalCharge.amountInr,
       additionalGstAmountInr: ticket.pendingAdditionalCharge.gstAmountInr,
+      additionalTotalAmountInr: ticket.pendingAdditionalCharge.totalAmountInr,
       gstAmount: ticket.pricing?.amountDueGst,
       gstRate: ticket.pricing?.gstRate,
     });

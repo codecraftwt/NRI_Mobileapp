@@ -59,7 +59,13 @@ function ServiceInfo({ route, navigation }) {
   const mode = route.params?.mode === 'recurring' ? 'recurring' : 'oneTime';
   const { showToast } = useToast();
   // Cart binds the server APIs when signed in; local-only for guests (onboarding).
-  const { count: cartCount, add: addServiceToCart } = useCart();
+  const { count: cartCount, add: addServiceToCart, isAuthenticated } = useCart();
+  // A quoted request needs an authenticated member account (POST
+  // /customer/tickets/quoted/{service} requires it) — a guest, or an
+  // authenticated account still mid-registration with no active membership
+  // yet, must register/finish checkout first (same split Cart.js uses).
+  const membership = useSelector(s => s.user?.user?.membership);
+  const hasMembership = !!membership && membership !== 'None';
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
@@ -111,6 +117,7 @@ function ServiceInfo({ route, navigation }) {
   // 422 at checkout, so the CTA is blocked (matches the list screen, which hides
   // these entirely).
   const canBook = !!pricing && (pricing.isQuoted || priceValue(pricing, mode) != null);
+  const isQuoted = !!pricing?.isQuoted;
 
   const handleAdd = () => {
     if (hasLocation && !canBook) return;
@@ -150,10 +157,24 @@ function ServiceInfo({ route, navigation }) {
       pincode: savedLocation.pincode,
     });
 
+    // A quoted service has no price to pay now — a vendor/RM proposes one
+    // after review, so there's nothing to "keep browsing" for. A member goes
+    // straight to the request flow (Cart renders SubmitRequest's quoted-only
+    // form). A guest/not-yet-member has no account yet to attach the request
+    // to — send them straight into registration instead of parking on Cart,
+    // which (for this case) is just a dead-end summary screen with nothing to
+    // pay for. The item still rides along locally and is requested once
+    // they've registered.
+    if (isQuoted) {
+      navigation.navigate(isAuthenticated && hasMembership ? 'Cart' : 'Register');
+      return;
+    }
+
     const shortName = svc.name.length > 24 ? `${svc.name.slice(0, 24).trim()}…` : svc.name;
     showToast(inOtherMode ? `${shortName} switched to ${mode === 'recurring' ? 'recurring' : 'one-time'}` : `${shortName} added to cart`, 'success');
   };
 
+  const isMember = isAuthenticated && hasMembership;
   const ctaDisabled = hasLocation && !canBook;
   const ctaLabel = !hasLocation
     ? 'Set your location to add'
@@ -163,8 +184,10 @@ function ServiceInfo({ route, navigation }) {
           ? 'Go to Cart'
           : inOtherMode
             ? `Switch to ${mode === 'recurring' ? 'Recurring' : 'One Time'}`
-            : 'Add to Cart';
-  const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCartSameMode ? 'shopping-cart' : inOtherMode ? 'sync-alt' : 'add-shopping-cart';
+            : isQuoted
+              ? (isMember ? 'Request this Service' : 'Request & Register')
+              : 'Add to Cart';
+  const ctaIcon = !hasLocation ? 'place' : !canBook ? 'block' : inCartSameMode ? 'shopping-cart' : inOtherMode ? 'sync-alt' : isQuoted ? 'request-quote' : 'add-shopping-cart';
 
   const renderTopRow = () => (
     <View style={styles.heroTopRow}>

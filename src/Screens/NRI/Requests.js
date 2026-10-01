@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMyTickets } from '../../Hooks/useMyTickets';
 import { useDashboard } from '../../Hooks/useDashboard';
-import { selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes } from '../../Redux/slices/pendingRequestsSlice';
+import { selectPendingTicketFinalizes, selectPendingBundleFinishes, selectPendingSubscriptionFinalizes, selectPendingQuotedRequests } from '../../Redux/slices/pendingRequestsSlice';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 
@@ -99,6 +99,11 @@ function Requests({ navigation }) {
   const ticketFinalizes = useSelector(selectPendingTicketFinalizes);
   const bundleFinishes = useSelector(selectPendingBundleFinishes);
   const subscriptionFinalizes = useSelector(selectPendingSubscriptionFinalizes);
+  // Quoted services (pricing.is_quoted) have nothing paid/pending server-side
+  // at all — this just remembers "still needs its quoted-booking request
+  // submitted" (e.g. one of several from a registration cart that wasn't
+  // finished in one pass) so it isn't silently lost.
+  const quotedRequests = useSelector(selectPendingQuotedRequests);
   // Refreshing the dashboard re-reconciles the pending lists above (see
   // useDashboard) — this is what surfaces a request paid for from another
   // device/session (e.g. the web app) that this device never saw locally.
@@ -107,11 +112,18 @@ function Requests({ navigation }) {
     ...ticketFinalizes.map(t => ({ type: 'ticket', key: `ticket-${t.paymentId}`, paymentId: t.paymentId, serviceNames: t.serviceNames, amount: t.amount, currency: t.currency })),
     ...bundleFinishes.map(b => ({ type: 'bundle', key: `bundle-${b.bundleId}`, bundleId: b.bundleId, serviceNames: b.serviceNames, amount: null, currency: null })),
     ...subscriptionFinalizes.map(s => ({ type: 'subscription', key: `subscription-${s.paymentId}`, paymentId: s.paymentId, serviceNames: s.serviceNames, amount: s.amount, currency: s.currency })),
+    ...quotedRequests.map(q => ({ type: 'quoted', key: `quoted-${q.serviceId}`, serviceId: q.serviceId, serviceNames: q.serviceName, amount: null, currency: null })),
   ];
   const handleFinishRequest = (item) => {
-    navigation.navigate('FinishRequest', item.type === 'bundle'
-      ? { mode: 'bundle', bundleId: item.bundleId, returnTo: 'Requests' }
-      : { mode: item.type === 'subscription' ? 'subscription' : 'ticket', paymentId: item.paymentId, returnTo: 'Requests' });
+    if (item.type === 'bundle') {
+      navigation.navigate('FinishRequest', { mode: 'bundle', bundleId: item.bundleId, returnTo: 'Requests' });
+      return;
+    }
+    if (item.type === 'quoted') {
+      navigation.navigate('FinishRequest', { mode: 'quoted', serviceId: item.serviceId, returnTo: 'Requests' });
+      return;
+    }
+    navigation.navigate('FinishRequest', { mode: item.type === 'subscription' ? 'subscription' : 'ticket', paymentId: item.paymentId, returnTo: 'Requests' });
   };
 
   // Infinite scroll: pull the next page (appended by the slice) only when there
@@ -163,8 +175,8 @@ function Requests({ navigation }) {
         <View style={styles.tabsContainer}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
             {TABS.map(tab => (
-              <TouchableOpacity 
-                key={tab} 
+              <TouchableOpacity
+                key={tab}
                 style={[styles.tab, activeTab === tab && styles.tabActive]}
                 onPress={() => setActiveTab(tab)}
                 activeOpacity={0.7}
@@ -296,12 +308,12 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
   tabTextActive: { color: '#FFFFFF' },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 12, gap: 16 },
-  
-  ticketCard: { 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 20, 
-    padding: 20, 
-    borderWidth: 1, 
+
+  ticketCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
     borderColor: '#F1F5F9',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 6 },
@@ -315,13 +327,13 @@ const styles = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 12, fontWeight: '600' },
   ticketSub: { fontSize: 13, color: '#64748B', marginBottom: 16 },
-  
+
   progressBarContainer: { flexDirection: 'row', marginBottom: 24, marginHorizontal: 12 },
   progressStep: { flex: 1 },
   progressNodeRow: { flexDirection: 'row', alignItems: 'center' },
-  progressNode: { 
-    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', 
-    backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', zIndex: 2 
+  progressNode: {
+    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', zIndex: 2
   },
   progressNodeActive: { borderColor: '#D94625', backgroundColor: '#D94625' },
   progressLine: { flex: 1, height: 2, backgroundColor: '#E2E8F0', marginLeft: -2, marginRight: -2, zIndex: 1 },
@@ -344,7 +356,7 @@ const styles = StyleSheet.create({
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
   emptyText: { fontSize: 14, color: '#64748B' },
-  
+
   footerLoader: { paddingVertical: 16, alignItems: 'center' },
 });
 

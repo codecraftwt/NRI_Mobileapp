@@ -67,6 +67,7 @@ function Profile({ navigation }) {
       <View style={styles.header}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.decorCircleSm} pointerEvents="none" />
+        <Text style={styles.headerTitle}>My Profile</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -132,17 +133,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
 
   header: {
-    // No title text anymore — just a colored backdrop band behind the
-    // profile card's overlap (see `scroll` below), sized to the status-bar
-    // inset plus enough bottom padding to exceed the card's -40 overlap.
-    paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 40,
+    height: 150, paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT - 16,
     backgroundColor: '#20304C',
     borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden',
   },
+  headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   decorCircleLg: { position: 'absolute', top: -60, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.06)' },
   decorCircleSm: { position: 'absolute', bottom: -30, left: -20, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(253,230,138,0.08)' },
 
-  scroll: { marginTop: -40 },
+  scroll: { marginTop: -44 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
 
   profileCard: {

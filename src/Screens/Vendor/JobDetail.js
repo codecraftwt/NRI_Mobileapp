@@ -110,6 +110,7 @@ function JobDetail({ route, navigation }) {
   // permission is denied or no fix is available, and the report still submits.
   const [reportLocation, setReportLocation] = useState(null);
   const locationRequestRef = useRef(null);
+  const locationPermissionRef = useRef(null);
 
   // Tracking (prefilled from the job once it loads)
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -207,6 +208,21 @@ function JobDetail({ route, navigation }) {
     return result === PermissionsAndroid.RESULTS.GRANTED;
   };
 
+  // Resolves once the (optional) location permission prompt has been shown
+  // and answered — fast (a single system dialog), unlike the GPS fix itself
+  // which can take up to 8s. Split out from captureReportLocation so a
+  // caller that's about to open its OWN system UI (the document picker,
+  // which otherwise races this dialog and can visually swallow it before
+  // the vendor ever sees it) can await just this part first.
+  const ensureLocationPermission = useCallback(() => {
+    if (locationPermissionRef.current) return locationPermissionRef.current;
+    const request = Platform.OS === 'android'
+      ? requestLocationPermission()
+      : new Promise((resolve) => Geolocation.requestAuthorization(() => resolve(true), () => resolve(false)));
+    locationPermissionRef.current = request;
+    return request;
+  }, []);
+
   // Optional GPS geotag for the completion report (POST .../complete accepts
   // lat/lng, both entirely optional) — unlike the Field Executive check-in
   // flow, this is best-effort only and never blocks the submit button: denied
@@ -219,9 +235,7 @@ function JobDetail({ route, navigation }) {
 
     const request = (async () => {
       try {
-        const authorized = Platform.OS === 'android'
-          ? await requestLocationPermission()
-          : await new Promise((resolve) => Geolocation.requestAuthorization(() => resolve(true), () => resolve(false)));
+        const authorized = await ensureLocationPermission();
         if (!authorized) return null;
         return await new Promise((resolve) => {
           Geolocation.getCurrentPosition(
@@ -240,16 +254,17 @@ function JobDetail({ route, navigation }) {
     })();
     locationRequestRef.current = request;
     return request;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportLocation]);
+  }, [reportLocation, ensureLocationPermission]);
 
   const handlePickReportFiles = async () => {
     if (reportFiles.length >= MAX_MEDIA_FILES) {
       showAlert('Limit Reached', `You can attach up to ${MAX_MEDIA_FILES} files.`);
       return;
     }
-    // Fire-and-forget — primes the (optional) location permission prompt
-    // alongside the file picker instead of waiting on it.
+    // Await just the permission prompt (fast) so it can't be raced/covered
+    // by the document-picker's own system UI, then let the actual GPS fix
+    // run in the background — same as before — while the picker is open.
+    await ensureLocationPermission();
     captureReportLocation();
     const accepted = await pickProofFiles(MAX_MEDIA_FILES - reportFiles.length);
     if (accepted?.length) setReportFiles(prev => [...prev, ...accepted]);

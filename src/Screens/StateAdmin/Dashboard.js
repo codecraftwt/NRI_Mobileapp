@@ -320,18 +320,6 @@ function Dashboard({ navigation }) {
                     </View>
                   );
                 })}
-
-                {recentTickets.length > 3 && (
-                  <TouchableOpacity
-                    style={styles.viewMoreTicketsBtn}
-                    onPress={() => navigation.navigate('Tickets')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.viewMoreTicketsText}>
-                      View all {recentTickets.length} tickets →
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </View>
             )}
           </View>
@@ -463,19 +451,6 @@ const styles = StyleSheet.create({
   ticketMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   ticketMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ticketMetaVal: { fontSize: 12, color: '#64748B' },
-
-  viewMoreTicketsBtn: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  viewMoreTicketsText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#A64416',
-  },
 
   emptyWrap: {
     backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 36, alignItems: 'center', gap: 8,

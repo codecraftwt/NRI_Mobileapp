@@ -128,17 +128,23 @@ export async function postMultipart(path, fields = {}, files = []) {
 export function normalizeApiError(error) {
   if (error?.response) {
     const { status, data } = error.response;
+    const requiresMembership = Boolean(
+      data?.errors?.requires_membership ||
+      data?.requires_membership ||
+      (status === 403 && typeof data?.message === 'string' && data.message.toLowerCase().includes('membership'))
+    );
     return {
       status,
       message: data?.message || 'Something went wrong. Please try again.',
       errors: data?.errors || null,
       retryAfter: data?.retry_after ?? null,
+      requiresMembership,
     };
   }
   if (error?.request) {
-    return { status: null, message: 'Network error. Please check your connection and try again.', errors: null, retryAfter: null };
+    return { status: null, message: 'Network error. Please check your connection and try again.', errors: null, retryAfter: null, requiresMembership: false };
   }
-  return { status: null, message: error?.message || 'Something went wrong. Please try again.', errors: null, retryAfter: null };
+  return { status: null, message: error?.message || 'Something went wrong. Please try again.', errors: null, retryAfter: null, requiresMembership: false };
 }
 
 export default apiClient;
