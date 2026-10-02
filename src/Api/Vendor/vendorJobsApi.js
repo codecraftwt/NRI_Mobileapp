@@ -426,6 +426,45 @@ export async function submitVendorJobFeedback(ticket, { rating, note }) {
   }
 }
 
+// A team-chat message — { id, from: "vendor"|"staff", sender, message, read, created_at }.
+function mapTeamChatMessage(raw) {
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    fromVendor: raw.from === 'vendor',
+    sender: raw.sender || (raw.from === 'vendor' ? 'You' : 'NRI Circle Team'),
+    message: raw.message || '',
+    read: !!raw.read,
+    createdAt: raw.created_at || raw.createdAt || null,
+  };
+}
+
+// GET /vendor/jobs/{ticket}/team-chat — private vendor <-> NRI Circle staff
+// thread on this job (the customer never sees it), oldest first. Opening it
+// marks the team's messages as read. 403 if the job isn't this vendor's.
+export async function getVendorJobTeamChat(ticket) {
+  try {
+    const response = await apiClient.get(`/vendor/jobs/${ticket}/team-chat`);
+    const list = response.data?.data || response.data || [];
+    return (Array.isArray(list) ? list : []).map(mapTeamChatMessage).filter(Boolean);
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /vendor/jobs/{ticket}/team-chat — send a message (max 2000 chars) to
+// the NRI Circle team on this job. Returns 201 with the new message; the team
+// is notified. 403 if the job isn't this vendor's.
+export async function sendVendorJobTeamChat(ticket, message) {
+  try {
+    const response = await apiClient.post(`/vendor/jobs/${ticket}/team-chat`, { message });
+    const data = response.data?.data || response.data || {};
+    return mapTeamChatMessage(data) || { fromVendor: true, sender: 'You', message, read: true, createdAt: new Date().toISOString() };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
 // Absolute URL for the auto-generated invoice PDF — passed to the auth-aware
 // downloader (react-native-blob-util) so the Bearer token is attached.
 // GET /vendor/jobs/{ticket}/invoice returns a PDF (422 if not completed).

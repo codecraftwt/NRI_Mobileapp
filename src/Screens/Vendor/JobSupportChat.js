@@ -238,13 +238,12 @@ function JobSupportChat({ route, navigation }) {
       <View style={styles.chatWrap}>
         <View style={styles.card}>
           <View style={styles.threadHeaderRow}>
-            <View style={styles.threadHeaderLeft}>
-              <Text style={styles.threadSubject} numberOfLines={1}>{chat.subject || 'Job support'}</Text>
-              <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-                <Text style={[styles.statusPillText, { color: pill.text }]}>{chat.statusLabel}</Text>
-              </View>
+            <Text style={styles.threadSubject} numberOfLines={1}>
+              Regarding request {chat.ticketNumber}
+            </Text>
+            <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+              <Text style={[styles.statusPillText, { color: pill.text }]}>{chat.statusLabel}</Text>
             </View>
-            <Text style={styles.threadDate}>{formatTime(chat.createdAt)}</Text>
           </View>
 
           <ScrollView
@@ -464,10 +463,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9',
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 3,
   },
-  threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  threadHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  threadSubject: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1 },
-  threadDate: { fontSize: 11, color: '#94A3B8' },
+  threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  threadSubject: { flex: 1, fontSize: 15, fontWeight: '700', fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 

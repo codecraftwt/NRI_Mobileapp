@@ -132,6 +132,7 @@ function JobDetail({ route, navigation }) {
   const [fbRating, setFbRating] = useState(0);
   const [fbNote, setFbNote] = useState('');
 
+
   useEffect(() => {
     if (job?.tracking) {
       setTrackingNumber(job.tracking.number || '');
@@ -655,6 +656,30 @@ function JobDetail({ route, navigation }) {
               </View>
             </View>
           )}
+        </View>
+
+        {/* Documents from Customer — requesting a document posts into (and, if
+            needed, starts) the Support Chat thread, so this routes there. */}
+        <View style={styles.card}>
+          <View style={styles.docsFromCustomerHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.docsFromCustomerIconBg}>
+                <Icon name="upload-file" size={16} color="#2563EB" />
+              </View>
+              <Text style={styles.sectionTitle}>Documents from Customer</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.requestDocumentPill}
+              onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+              activeOpacity={0.8}
+            >
+              <Icon name="add" size={14} color="#2563EB" />
+              <Text style={styles.requestDocumentPillText}>Request Document</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.actionDesc}>
+            Need an ID proof, ownership papers or anything else for this job? Ask the customer here — they're notified and can upload it straight into the job's chat.
+          </Text>
         </View>
 
         {(job.customerDocuments || []).length > 0 && (
@@ -1217,22 +1242,29 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {/* Support Chat */}
+        {/* Chat with NRI Circle team — private, two-way (customer can't see it) */}
         <View style={styles.card}>
-          <View style={styles.sectionHeader}>
-            <Icon name="chat-bubble-outline" size={18} color="#8B5CF6" />
-            <Text style={styles.sectionTitle}>Support Chat</Text>
+          <View style={styles.teamChatHeaderRow}>
+            <View style={styles.sectionHeader}>
+              <Icon name="chat-bubble-outline" size={18} color="#7C3AED" />
+              <Text style={styles.sectionTitle}>Chat with NRI Circle team</Text>
+            </View>
+            <View style={styles.privatePill}>
+              <Icon name="lock" size={11} color="#64748B" />
+              <Text style={styles.privatePillText}>Private</Text>
+            </View>
           </View>
           <Text style={styles.actionDesc}>
-            Discuss this job with the customer or their relationship manager. They start the chat — you can view and reply here.
+            Talk to the team handling this job. The customer can't see these messages.
           </Text>
+
           <TouchableOpacity
             style={styles.supportChatBtn}
-            onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+            onPress={() => navigation.navigate('JobTeamChat', { ticketId })}
             activeOpacity={0.8}
           >
             <Icon name="forum" size={18} color="#6D28D9" />
-            <Text style={styles.supportChatBtnText}>Open Support Chat</Text>
+            <Text style={styles.supportChatBtnText}>Open Team Chat</Text>
             <Icon name="chevron-right" size={18} color="#6D28D9" />
           </TouchableOpacity>
         </View>
@@ -1357,6 +1389,17 @@ function JobDetail({ route, navigation }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Floating quick-access to Support Chat — same JobSupportChat destination
+          as the "Request Document" button above, just reachable without
+          scrolling into the Actions tab. */}
+      <TouchableOpacity
+        style={styles.supportChatFab}
+        onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+        activeOpacity={0.85}
+      >
+        <Icon name="sms" size={26} color="#FFFFFF" />
+      </TouchableOpacity>
 
       <AppAlert {...alertProps} />
       {attachmentPreview}
@@ -1657,6 +1700,33 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#DDD6FE', backgroundColor: '#F5F3FF', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16,
   },
   supportChatBtnText: { flex: 1, fontSize: 14, fontWeight: '700', color: '#6D28D9' },
+
+  // Documents from Customer (shortcut into Support Chat's Request Document flow)
+  docsFromCustomerHeaderRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', rowGap: 8, columnGap: 10 },
+  docsFromCustomerIconBg: {
+    width: 28, height: 28, borderRadius: 8, backgroundColor: '#EFF6FF',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  requestDocumentPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1.5, borderColor: '#2563EB', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
+  },
+  requestDocumentPillText: { fontSize: 12, fontWeight: '700', color: '#2563EB' },
+
+  supportChatFab: {
+    position: 'absolute', right: 20, bottom: 24,
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#D94625', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#D94625', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
+  },
+
+  // Chat with NRI Circle team (private vendor<->staff thread)
+  teamChatHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  privatePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  privatePillText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
 
   docRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
