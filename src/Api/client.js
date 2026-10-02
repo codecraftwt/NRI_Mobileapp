@@ -41,7 +41,7 @@ export const MULTIPART = {
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 60000,
   headers: {
     Accept: 'application/json',
     // Skips ngrok's free-tier HTML interstitial warning page, which would
