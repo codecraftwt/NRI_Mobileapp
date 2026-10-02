@@ -60,10 +60,11 @@ function SelectField({ label, value, placeholder, options, disabled, loading, on
   );
 }
 
-function NewSupportTicket({ navigation }) {
+function NewSupportTicket({ route, navigation }) {
   const { create, createLoading, resetCreate, categories } = useSupportTickets();
   const { showAlert, alertProps } = useAppAlert();
-  const [raiseTo, setRaiseTo] = useState(GENERAL_VALUE);
+  const initialCategory = route?.params?.category || GENERAL_VALUE;
+  const [raiseTo, setRaiseTo] = useState(initialCategory);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [infoOpen, setInfoOpen] = useState(false);

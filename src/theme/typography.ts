@@ -50,6 +50,11 @@ export const typography = {
     fontFamily: fontFamilies.bold,
     fontSize: 24,
   },
+  /** Heading 3 */
+  h3: {
+    fontFamily: fontFamilies.bold,
+    fontSize: 18,
+  },
   /** Heading 4 */
   h4: {
     fontFamily: fontFamilies.bold,

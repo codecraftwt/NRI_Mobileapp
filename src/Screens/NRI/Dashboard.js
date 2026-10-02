@@ -4,9 +4,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useSelector } from 'react-redux';
 import RMWidget from '../../Components/RMWidget';
+import TelecallerWidget from '../../Components/TelecallerWidget';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
 import { useDashboard } from '../../Hooks/useDashboard';
+import { useTelecaller } from '../../Hooks/useTelecaller';
 import { usePlans } from '../../Hooks/usePlans';
 import { lightColors as colors, typography, spacing, radius, STATUS_BAR_HEIGHT } from '../../theme';
 
@@ -18,6 +20,16 @@ const GST_RATE = 0.18;
 
 function Dashboard({ navigation }) {
   const { data, loading, failed, retry } = useDashboard();
+  const {
+    telecaller,
+    pendingCallback,
+    options: telecallerOptions,
+    loading: telecallerLoading,
+    failed: telecallerFailed,
+    retry: retryTelecaller,
+    submitCallback,
+    submitting: submittingCallback,
+  } = useTelecaller();
   const user = useSelector(s => s.user.user);
   const { plans } = usePlans();
   const { showAlert, alertProps } = useAppAlert();
@@ -60,6 +72,7 @@ function Dashboard({ navigation }) {
   // screen is focused so every other screen keeps its normal back behavior.
   useFocusEffect(
     useCallback(() => {
+      retryTelecaller();
       const onBackPress = () => {
         showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
           { text: 'Cancel', style: 'cancel' },
@@ -69,7 +82,7 @@ function Dashboard({ navigation }) {
       };
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [showAlert])
+    }, [showAlert, retryTelecaller])
   );
 
   const getStatusColor = (status) => {
@@ -195,9 +208,25 @@ function Dashboard({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* RM Card inside the header */}
+        {/* Telecaller & RM Card inside the header */}
         <View style={styles.rmCardWrapper}>
-          <RMWidget rm={data?.rm} />
+          <TelecallerWidget
+            telecaller={telecaller}
+            pendingCallback={pendingCallback}
+            options={telecallerOptions}
+            loading={telecallerLoading}
+            failed={telecallerFailed}
+            onRetry={retryTelecaller}
+            onSubmitCallback={submitCallback}
+            submitting={submittingCallback}
+            user={user}
+            navigation={navigation}
+          />
+          {data?.rm && (
+            <View style={{ marginTop: 10 }}>
+              <RMWidget rm={data?.rm} />
+            </View>
+          )}
         </View>
       </View>
 
