@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   blueHeader: {
     paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
     backgroundColor: '#20304C',
     zIndex: 10,
     elevation: 0,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
     textTransform: 'capitalize',
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
   },
 
   rmCardWrapper: {
-    marginTop: 16,
+    marginTop: 12,
   },
 
   scrollContainer: {

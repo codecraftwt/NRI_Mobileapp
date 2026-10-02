@@ -102,13 +102,13 @@ export default function TelecallerWidget({
 
   const handleCall = (phoneNumber) => {
     if (!phoneNumber) return;
-    Linking.openURL(`tel:${phoneNumber}`).catch(() => {});
+    Linking.openURL(`tel:${phoneNumber}`).catch(() => { });
   };
 
   const handleWhatsApp = (waNumber) => {
     if (!waNumber) return;
     const cleanNumber = waNumber.replace(/[^0-9]/g, '');
-    Linking.openURL(`https://wa.me/${cleanNumber}`).catch(() => {});
+    Linking.openURL(`https://wa.me/${cleanNumber}`).catch(() => { });
   };
 
   const handleSubmit = async () => {
@@ -158,28 +158,27 @@ export default function TelecallerWidget({
   if (!telecaller) {
     return (
       <View style={styles.card}>
-        <View style={styles.leftSection}>
-          <View style={[styles.avatar, { backgroundColor: '#3B82F6' }]}>
-            <Icon name="support-agent" size={18} color="#FFFFFF" />
+        <View style={styles.fallbackRow}>
+          <View style={styles.leftSection}>
+            <View style={[styles.avatar, { backgroundColor: '#3B82F6' }]}>
+              <Icon name="support-agent" size={16} color="#FFFFFF" />
+            </View>
+            <View style={styles.info}>
+              <Text style={styles.title}>CUSTOMER SUPPORT</Text>
+              <Text style={styles.name} numberOfLines={1}>NRI Circle Support</Text>
+            </View>
           </View>
-          <View style={styles.info}>
-            <Text style={styles.title}>CUSTOMER SUPPORT</Text>
-            <Text style={styles.name}>NRI Circle Support</Text>
-            <Text style={styles.supportSubText} numberOfLines={1}>
-              No dedicated telecaller in your area
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.supportActionBtn}
+            onPress={() => {
+              if (navigation) navigation.navigate('GeneralSupport');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.supportActionBtnText}>Support</Text>
+            <Icon name="chevron-right" size={14} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.supportActionBtn}
-          onPress={() => {
-            if (navigation) navigation.navigate('GeneralSupport');
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.supportActionBtnText}>Contact Support</Text>
-          <Icon name="chevron-right" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
     );
   }
@@ -193,27 +192,28 @@ export default function TelecallerWidget({
       <View style={styles.card}>
         <View style={styles.topRow}>
           <View style={styles.leftSection}>
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{getInitials(telecaller.name)}</Text>
-              </View>
-            )}
+            <View style={styles.avatarContainer}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{getInitials(telecaller.name)}</Text>
+                </View>
+              )}
+              <View style={styles.onlineBadge} />
+            </View>
+
             <View style={styles.info}>
               <View style={styles.labelRow}>
                 <Text style={styles.title}>YOUR CARE COORDINATOR</Text>
-                <View style={styles.verifiedBadge}>
-                  <Icon name="check-circle" size={12} color="#10B981" />
-                </View>
+                <Icon name="verified" size={11} color="#10B981" />
               </View>
               <Text style={styles.name} numberOfLines={1}>
                 {telecaller.name}
               </Text>
               {!!telecaller.availableHours && (
                 <View style={styles.hoursRow}>
-                  <View style={styles.onlineDot} />
-                  <Icon name="schedule" size={11} color="#94A3B8" style={{ marginRight: 3 }} />
+                  <Icon name="schedule" size={10} color="#94A3B8" style={{ marginRight: 3 }} />
                   <Text style={styles.hoursText} numberOfLines={1}>
                     {telecaller.availableHours}
                   </Text>
@@ -222,7 +222,7 @@ export default function TelecallerWidget({
             </View>
           </View>
 
-          {/* Quick Direct Actions (Call / WhatsApp / Chat) */}
+          {/* Quick Direct Actions */}
           <View style={styles.quickContactIcons}>
             {!!telecaller.phone && (
               <TouchableOpacity
@@ -230,8 +230,9 @@ export default function TelecallerWidget({
                 onPress={() => handleCall(telecaller.phone)}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 activeOpacity={0.7}
+                accessibilityLabel="Call Coordinator"
               >
-                <Icon name="phone" size={14} color="#38BDF8" />
+                <Icon name="phone" size={13} color="#38BDF8" />
               </TouchableOpacity>
             )}
             {!!telecaller.whatsappNumber && (
@@ -240,8 +241,20 @@ export default function TelecallerWidget({
                 onPress={() => handleWhatsApp(telecaller.whatsappNumber)}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 activeOpacity={0.7}
+                accessibilityLabel="WhatsApp Coordinator"
               >
                 <Icon name="chat" size={13} color="#4ADE80" />
+              </TouchableOpacity>
+            )}
+            {!isCallbackPending && (
+              <TouchableOpacity
+                style={[styles.contactCircleBtn, styles.callbackCircleBtn]}
+                onPress={openModal}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                activeOpacity={0.7}
+                accessibilityLabel="Request Callback"
+              >
+                <Icon name="phone-callback" size={13} color="#60A5FA" />
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -253,46 +266,22 @@ export default function TelecallerWidget({
               }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               activeOpacity={0.7}
+              accessibilityLabel="Support Chat"
             >
               <Icon name="headset-mic" size={13} color="#A78BFA" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Action Button: Call Me Back */}
-        <View style={styles.cardActionRow}>
-          <TouchableOpacity
-            style={[
-              styles.callMeBackBtn,
-              isCallbackPending && styles.callMeBackBtnDisabled,
-            ]}
-            onPress={openModal}
-            disabled={isCallbackPending}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name={isCallbackPending ? 'schedule' : 'phone-callback'}
-              size={14}
-              color={isCallbackPending ? '#94A3B8' : '#FFFFFF'}
-            />
-            <Text
-              style={[
-                styles.callMeBackBtnText,
-                isCallbackPending && styles.callMeBackBtnTextDisabled,
-              ]}
-            >
-              {isCallbackPending ? 'Callback In Progress' : 'Call me back'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Pending Callback Banner */}
+        {/* Pending Callback Status Strip (Compact, single line) */}
         {isCallbackPending && (
           <View style={styles.pendingCallbackBanner}>
-            <Icon name="phone-in-talk" size={13} color="#60A5FA" />
-            <Text style={styles.pendingBannerTitle} numberOfLines={1}>
-              Callback requested {formatRelativeTime(pendingCallback.requestedAt)}
-            </Text>
+            <View style={styles.pendingLeft}>
+              <Icon name="phone-in-talk" size={12} color="#FBBF24" />
+              <Text style={styles.pendingBannerTitle} numberOfLines={1}>
+                Callback requested {formatRelativeTime(pendingCallback.requestedAt)}
+              </Text>
+            </View>
             <View style={styles.pendingStatusPill}>
               <Text style={styles.pendingStatusText}>
                 {pendingCallback.status || 'Pending'}
@@ -526,12 +515,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  fallbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   topRow: {
     flexDirection: 'row',
@@ -542,8 +536,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 10,
+    gap: 9,
     marginRight: 8,
+  },
+  avatarContainer: {
+    position: 'relative',
   },
   avatar: {
     width: 34,
@@ -560,9 +557,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B',
   },
   avatarText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: typography.h2?.fontFamily,
     color: '#FFFFFF',
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#20304C',
   },
   info: {
     flex: 1,
@@ -571,137 +579,103 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   title: {
     fontSize: 8,
     fontFamily: typography.labelMedium?.fontFamily,
-    color: '#94A3B8',
+    color: 'rgba(255, 255, 255, 0.65)',
     letterSpacing: 0.5,
-  },
-  verifiedBadge: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    textTransform: 'uppercase',
   },
   name: {
-    fontSize: 14,
-    fontFamily: typography.h2?.fontFamily,
+    fontSize: 13.5,
+    fontFamily: typography.h3?.fontFamily || typography.h2?.fontFamily,
     color: '#FFFFFF',
+    marginTop: -1,
   },
   hoursRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  onlineDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#10B981',
-    marginRight: 4,
+    marginTop: 0.5,
   },
   hoursText: {
     fontSize: 10,
-    color: '#CBD5E1',
+    color: '#94A3B8',
     flexShrink: 1,
-  },
-  supportSubText: {
-    fontSize: 11,
-    color: '#CBD5E1',
-    marginTop: 2,
   },
   quickContactIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   contactCircleBtn: {
-    width: 27,
-    height: 27,
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.3)',
   },
   waCircleBtn: {
-    backgroundColor: 'rgba(74, 222, 128, 0.18)',
+    backgroundColor: 'rgba(74, 222, 128, 0.15)',
     borderColor: 'rgba(74, 222, 128, 0.3)',
   },
+  callbackCircleBtn: {
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+  },
   chatCircleBtn: {
-    backgroundColor: 'rgba(167, 139, 250, 0.18)',
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
     borderColor: 'rgba(167, 139, 250, 0.3)',
-  },
-  cardActionRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  callMeBackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#2563EB',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  callMeBackBtnDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  callMeBackBtnText: {
-    fontSize: 11,
-    fontFamily: typography.labelMedium?.fontFamily,
-    color: '#FFFFFF',
-  },
-  callMeBackBtnTextDisabled: {
-    color: '#94A3B8',
   },
   supportActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: '#2563EB',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 12,
   },
   supportActionBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: typography.labelMedium?.fontFamily,
     color: '#FFFFFF',
   },
   pendingCallbackBanner: {
     marginTop: 7,
-    backgroundColor: 'rgba(37, 99, 235, 0.25)',
-    borderRadius: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(96, 165, 250, 0.4)',
+  },
+  pendingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
   },
   pendingBannerTitle: {
-    fontSize: 11,
-    fontFamily: typography.labelMedium?.fontFamily,
+    fontSize: 10.5,
     color: '#93C5FD',
     flex: 1,
   },
   pendingStatusPill: {
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingVertical: 1.5,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderColor: 'rgba(245, 158, 11, 0.35)',
   },
   pendingStatusText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontFamily: typography.labelMedium?.fontFamily,
     color: '#FCD34D',
     textTransform: 'capitalize',
@@ -711,10 +685,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 10,
+    paddingVertical: 6,
   },
   loadingText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#94A3B8',
   },
 
