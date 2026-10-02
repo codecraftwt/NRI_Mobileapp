@@ -12,6 +12,7 @@ import Analysis from '../../Screens/StateAdmin/Analysis';
 import DistrictBreakdown from '../../Screens/StateAdmin/DistrictBreakdown';
 import RecentTickets from '../../Screens/StateAdmin/RecentTickets';
 import Tickets from '../../Screens/StateAdmin/Tickets';
+import TicketDetail from '../../Screens/StateAdmin/TicketDetail';
 import Vendors from '../../Screens/StateAdmin/Vendors';
 import Users from '../../Screens/StateAdmin/Users';
 import Profile from '../../Screens/StateAdmin/Profile';
@@ -42,7 +43,6 @@ function DashboardStack() {
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferences} />
       <Stack.Screen name="DistrictBreakdown" component={DistrictBreakdown} />
       <Stack.Screen name="RecentTickets" component={RecentTickets} />
-      <Stack.Screen name="Vendors" component={Vendors} />
       <Stack.Screen name="Users" component={Users} />
     </Stack.Navigator>
   );
@@ -68,6 +68,7 @@ function TicketsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="TicketsMain" component={Tickets} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }

@@ -31,7 +31,6 @@ const STAT_ITEMS = [
   // State-scope only.
   { id: 'totalRevenue', label: 'Total Revenue', icon: 'payments', color: '#16A34A', bg: '#F0FDF4', format: 'currency' },
   { id: 'customerCount', label: 'Customers', icon: 'people', color: '#3B82F6', bg: '#EFF6FF' },
-  { id: 'escalatedTickets', label: 'Escalated', icon: 'report-problem', color: '#DC2626', bg: '#FEF2F2' },
   { id: 'pendingVendors', label: 'Pending Vendors', icon: 'hourglass-top', color: '#F59E0B', bg: '#FFFBEB' },
   // Coverage-scope (district/taluka-admin) only.
   { id: 'overdueTickets', label: 'Overdue', icon: 'error-outline', color: '#DC2626', bg: '#FEF2F2' },
@@ -40,7 +39,6 @@ const STAT_ITEMS = [
   // Shared — present in both scopes, under different keys.
   { id: 'vendorCount', label: 'Vendors', icon: 'engineering', color: '#8B5CF6', bg: '#F5F3FF' },
   { id: 'totalTickets', label: 'Total Tickets', icon: 'confirmation-number', color: '#EA580C', bg: '#FFF7ED' },
-  { id: 'activeTickets', label: 'Active Tickets', icon: 'pending-actions', color: '#0EA5E9', bg: '#F0F9FF' },
 ];
 
 function formatStat(value, format) {
@@ -192,10 +190,15 @@ function Dashboard({ navigation }) {
           <View style={styles.statsGrid}>
             {(loading && !stats ? STAT_ITEMS : STAT_ITEMS.filter(stat => stats?.[stat.id] !== undefined)).map(stat => {
               const handleStatPress = () => {
-                if (['vendorCount', 'availableVendors', 'pendingVendors'].includes(stat.id)) navigation.navigate('Vendors');
-                else if (['activeTickets', 'totalTickets', 'overdueTickets', 'unassignedTickets', 'escalatedTickets'].includes(stat.id)) navigation.navigate('Tickets');
-                else if (stat.id === 'customerCount') navigation.navigate('Customers');
-                else if (stat.id === 'totalRevenue') navigation.navigate('Analysis');
+                if (['vendorCount', 'availableVendors', 'pendingVendors'].includes(stat.id)) {
+                  navigation.navigate('Vendors');
+                } else if (['totalTickets', 'overdueTickets', 'unassignedTickets', 'activeTickets', 'escalatedTickets'].includes(stat.id)) {
+                  navigation.navigate('Tickets');
+                } else if (stat.id === 'customerCount') {
+                  navigation.navigate('Customers');
+                } else if (stat.id === 'totalRevenue') {
+                  navigation.navigate('Analysis');
+                }
               };
               return (
                 <TouchableOpacity

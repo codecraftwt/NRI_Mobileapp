@@ -40,14 +40,7 @@ function getStatusStyle(status) {
   return { bg: '#F8FAFC', text: '#475569', border: '#E2E8F0' };
 }
 
-function getPriorityStyle(priority) {
-  const p = String(priority || '').toLowerCase();
-  if (p === 'urgent' || p === 'high') return { bg: '#FEE2E2', text: '#EF4444' };
-  if (p === 'medium') return { bg: '#FEF3C7', text: '#D97706' };
-  return { bg: '#F1F5F9', text: '#64748B' };
-}
-
-function Tickets() {
+function Tickets({ navigation }) {
   const {
     tickets,
     meta,
@@ -178,27 +171,15 @@ function Tickets() {
           }
           renderItem={({ item: t }) => {
             const statusStyle = getStatusStyle(t.status);
-            const priorityStyle = getPriorityStyle(t.priority);
-            const locationStr = [t.cityName, t.stateName].filter(Boolean).join(', ');
 
             return (
-              <View style={styles.ticketCard}>
+              <TouchableOpacity
+                style={styles.ticketCard}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('TicketDetail', { ticket: t })}
+              >
                 <View style={styles.ticketTop}>
-                  <View style={styles.ticketIdRow}>
-                    <Text style={styles.ticketNumber}>#{t.ticketNumber}</Text>
-                    {!!t.priority && (
-                      <View style={[styles.priorityPill, { backgroundColor: priorityStyle.bg }]}>
-                        <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
-                          {t.priority.toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                    {t.isQuoted && (
-                      <View style={styles.quotedPill}>
-                        <Text style={styles.quotedPillText}>ON QUOTE</Text>
-                      </View>
-                    )}
-                  </View>
+                  <Text style={styles.ticketNumber}>#{t.ticketNumber}</Text>
                   <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
                     <Text style={[styles.statusText, { color: statusStyle.text }]}>
                       {(t.statusLabel || titleCase(t.status)).toUpperCase()}
@@ -208,39 +189,13 @@ function Tickets() {
 
                 <Text style={styles.ticketTitle}>{t.serviceName}</Text>
 
-                {!!t.categoryName && (
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>{t.categoryName.toUpperCase()}</Text>
-                  </View>
-                )}
-
                 <View style={styles.metaDivider} />
 
-                <View style={styles.metaGrid}>
-                  <View style={styles.metaRow}>
-                    <Icon name="person" size={14} color="#64748B" />
-                    <Text style={styles.metaText} numberOfLines={1}>{t.customerName}</Text>
-                  </View>
-                  {!!locationStr && (
-                    <View style={styles.metaRow}>
-                      <Icon name="place" size={14} color="#64748B" />
-                      <Text style={styles.metaText} numberOfLines={1}>{locationStr}</Text>
-                    </View>
-                  )}
-                  <View style={styles.metaRow}>
-                    <Icon name="storefront" size={14} color={t.vendorName ? '#059669' : '#94A3B8'} />
-                    <Text style={[styles.metaText, t.vendorName && { color: '#059669', fontWeight: '600' }]} numberOfLines={1}>
-                      {t.vendorName || 'Unassigned'}
-                    </Text>
-                  </View>
-                  {!!t.amountFormatted && (
-                    <View style={styles.metaRow}>
-                      <Icon name="payments" size={14} color="#16A34A" />
-                      <Text style={[styles.metaText, { color: '#16A34A', fontWeight: '700' }]}>{t.amountFormatted}</Text>
-                    </View>
-                  )}
+                <View style={styles.metaRow}>
+                  <Icon name="person" size={14} color="#64748B" />
+                  <Text style={styles.metaText} numberOfLines={1}>{t.customerName}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           }}
         />
@@ -368,32 +323,12 @@ const styles = StyleSheet.create({
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1,
   },
   ticketTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  ticketIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexWrap: 'wrap' },
   ticketNumber: { fontSize: 13, fontWeight: '700', color: '#20304C' },
-  priorityPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  priorityText: { fontSize: 9, fontWeight: '700' },
-  quotedPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: '#EEF2FF' },
-  quotedPillText: { fontSize: 9, fontWeight: '700', color: '#4338CA' },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   statusText: { fontSize: 10, fontWeight: '700' },
   ticketTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
-  categoryBadge: {
-    backgroundColor: '#EEF2FB',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  categoryBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#20304C',
-    letterSpacing: 0.5,
-  },
 
   metaDivider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 10 },
-  metaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontSize: 12, color: '#64748B' },
 

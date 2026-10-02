@@ -9,6 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Dashboard from '../../Screens/Admin/Dashboard';
 import Customers from '../../Screens/Admin/Customers';
 import Vendors from '../../Screens/Admin/Vendors';
+import VendorDetail from '../../Screens/Admin/VendorDetail';
 import StateOperations from '../../Screens/Admin/StateOperations';
 import Profile from '../../Screens/Admin/Profile';
 import NotificationPreferences from '../../Screens/Admin/NotificationPreferences';
@@ -38,6 +39,7 @@ function DashboardStack() {
       <Stack.Screen name="DashboardMain" component={Dashboard} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="StateOperations" component={StateOperations} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
     </Stack.Navigator>
   );
 }
@@ -54,6 +56,7 @@ function VendorsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VendorsMain" component={Vendors} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
     </Stack.Navigator>
   );
 }

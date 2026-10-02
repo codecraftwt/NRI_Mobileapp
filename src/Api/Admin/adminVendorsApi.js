@@ -19,13 +19,17 @@ export function mapVendor(raw = {}) {
     businessName: raw.business_name || raw.name || '',
     ownerName: raw.owner_name || raw.contact_name || null,
     email: raw.email || raw.contact_email || '',
-    phone: raw.phone || raw.contact_phone || '',
+    phone: raw.phone || raw.contact_phone || null,
     vendorType: raw.vendor_type || null,
+    vendorTypeLabel: raw.vendor_type_label || (raw.vendor_type ? String(raw.vendor_type).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Individual'),
     status: raw.status || null,
+    statusLabel: raw.status_label || (raw.status ? String(raw.status).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Active'),
     location: [geoName(raw.city), geoName(raw.state)].filter(Boolean).join(', ') || null,
     pincode: raw.pincode || null,
     rating: raw.rating_score != null ? Number(raw.rating_score) : null,
+    ratingScore: raw.rating_score != null ? Number(raw.rating_score) : 0,
     totalJobs: num(raw.total_jobs ?? raw.jobs_count),
+    statesCovered: Array.isArray(raw.states_covered) ? raw.states_covered : [],
     createdAt: raw.created_at || null,
   };
 }

@@ -17,7 +17,7 @@ import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership, saveUserProfile } from '../../../Redux/slices/userSlice';
 import { setPendingCustomPlanRequest, setOnboardingStep, setOnboardingPaymentSubStep, setCartReqForm, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
-import { clearCart, selectCartItems, mergeGuestCart } from '../../../Redux/slices/cartSlice';
+import { clearCart, selectCartItems, mergeGuestCart, fetchServerCart } from '../../../Redux/slices/cartSlice';
 import { useCart } from '../../../Hooks/useCart';
 import { setPendingBundleFinish, clearPendingBundleFinish, setPendingQuotedRequest } from '../../../Redux/slices/pendingRequestsSlice';
 import { addCartItem } from '../../../Api/cartApi';
@@ -295,8 +295,12 @@ function OnboardingPayment({ route, navigation }) {
   const serverCartCount = useSelector(s => s.cart.serverCount);
   const guestMergeStatus = useSelector(s => s.cart.guestMergeStatus);
   useEffect(() => {
-    if (!isAuthenticated || !fromCart || serverCartCount > 0 || guestMergeStatus !== 'idle') return;
-    dispatch(mergeGuestCart());
+    if (!isAuthenticated) return;
+    if (fromCart && serverCartCount === 0 && guestMergeStatus === 'idle') {
+      dispatch(mergeGuestCart());
+    } else {
+      dispatch(fetchServerCart());
+    }
   }, [isAuthenticated, fromCart, serverCartCount, guestMergeStatus, dispatch]);
 
   // A recurring cart service can't ride this membership checkout session (a
@@ -1314,33 +1318,34 @@ function OnboardingPayment({ route, navigation }) {
                 </Text>
               )}
 
-              {/* Available offers come from POST /customer/membership/coupons
-                  (fetched on demand below), not from the plan's own
-                  `coupons` field — GET /plans essentially never populates
-                  that, so this section is always shown (same as
-                  MembershipCheckout.js's unconditional coupon section). */}
-              <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
-              <View style={styles.couponRow}>
-                <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
-                <TouchableOpacity
-                  style={styles.applyBtn}
-                  onPress={activeCouponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
-                  disabled={activeCouponLoading}
-                >
-                  {activeCouponLoading ? (
-                    <ActivityIndicator size="small" color={C.primary} />
-                  ) : (
-                    <Text style={styles.applyBtnText}>
-                      {activeCouponResult ? 'Remove' : 'Apply'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
-                <Icon name="local-offer" size={14} color={C.accent} />
-                <Text style={styles.viewCouponsLink}>View available offers</Text>
-                <Icon name="expand-more" size={16} color={C.accent} />
-              </TouchableOpacity>
+              {/* Coupons are only applicable when there are services in the cart
+                  (service + registration flow). Hidden for registration only (empty cart). */}
+              {fromCart && (
+                <>
+                  <Text style={styles.couponLabel}>HAVE A COUPON?</Text>
+                  <View style={styles.couponRow}>
+                    <TextInput style={styles.couponInput} placeholder="E.G. WELCOME10" placeholderTextColor="#94A3B8" autoCapitalize="characters" value={planCouponCode} onChangeText={handleCouponTextChange} />
+                    <TouchableOpacity
+                      style={styles.applyBtn}
+                      onPress={activeCouponResult ? handleRemovePlanCoupon : handleApplyPlanCoupon}
+                      disabled={activeCouponLoading}
+                    >
+                      {activeCouponLoading ? (
+                        <ActivityIndicator size="small" color={C.primary} />
+                      ) : (
+                        <Text style={styles.applyBtnText}>
+                          {activeCouponResult ? 'Remove' : 'Apply'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.viewCouponsRow} onPress={handleViewCoupons}>
+                    <Icon name="local-offer" size={14} color={C.accent} />
+                    <Text style={styles.viewCouponsLink}>View available offers</Text>
+                    <Icon name="expand-more" size={16} color={C.accent} />
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             <View style={styles.card}>

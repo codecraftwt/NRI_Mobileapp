@@ -14,7 +14,7 @@ function statusBadge(status) {
   return { bg: '#F8FAFC', color: '#64748B' };
 }
 
-function Vendors() {
+function Vendors({ navigation }) {
   const [search, setSearch] = useState('');
   const { vendors, loading, failed, error, meta, fetchNextPage, refresh } = useAdminVendors(search);
 
@@ -93,7 +93,11 @@ function Vendors() {
           const badge = statusBadge(vendor.status);
 
           return (
-            <View style={styles.listItem}>
+            <TouchableOpacity
+              style={styles.listItem}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('VendorDetail', { vendor })}
+            >
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
@@ -117,7 +121,7 @@ function Vendors() {
                   {!!vendor.vendorType && (
                     <View style={styles.metaItem}>
                       <Icon name="category" size={13} color="#94A3B8" />
-                      <Text style={styles.metaText} numberOfLines={1}>{titleCase(vendor.vendorType)}</Text>
+                      <Text style={styles.metaText} numberOfLines={1}>{vendor.vendorTypeLabel || titleCase(vendor.vendorType)}</Text>
                     </View>
                   )}
                 </View>
@@ -126,17 +130,20 @@ function Vendors() {
               <View style={styles.listItemRight}>
                 {!!vendor.status && (
                   <View style={[styles.statusPill, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>{titleCase(vendor.status)}</Text>
+                    <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>
+                      {vendor.statusLabel || titleCase(vendor.status)}
+                    </Text>
                   </View>
                 )}
                 {vendor.rating != null && (
                   <View style={styles.ratingRow}>
                     <Icon name="star" size={13} color="#F59E0B" />
-                    <Text style={styles.ratingText}>{vendor.rating.toFixed(1)}</Text>
+                    <Text style={styles.ratingText}>{Number(vendor.rating).toFixed(1)}</Text>
                   </View>
                 )}
+                <Icon name="chevron-right" size={18} color="#CBD5E1" />
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
