@@ -69,3 +69,5 @@ export { getTelecallerDashboard, mapTelecallerDashboardData } from './Telecaller
 export * from './Telecaller/telecallerRequestsApi';
 export * from './Telecaller/telecallerCustomersApi';
 export * from './Telecaller/telecallerVendorsApi';
+export * from './Telecaller/telecallerCallsApi';
+export * from './Telecaller/telecallerSupportApi';

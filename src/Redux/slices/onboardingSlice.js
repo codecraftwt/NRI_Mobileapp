@@ -177,6 +177,7 @@ export function selectAuthenticatedRoute(state) {
   if (/(state|district|taluka)[-_ ]?admin/i.test(role) || roles.some(r => /(state|district|taluka)[-_ ]?admin/i.test(r))) return 'StateAdminHome';
   if (/vendor/i.test(role) || roles.some(r => /vendor/i.test(r))) return 'VendorHome';
   if (/relationship|manager|\brm\b/i.test(role) || roles.some(r => /relationship|manager|\brm\b/i.test(r))) return 'RMHome';
+  if (/telecaller/i.test(role) || roles.some(r => /telecaller/i.test(r))) return 'TelecallerHome';
   if (/admin/i.test(role) || roles.some(r => /admin/i.test(r))) return 'AdminHome';
   return selectOnboardingRoute(state);
 }

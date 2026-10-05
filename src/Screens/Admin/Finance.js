@@ -78,6 +78,7 @@ function Finance({ navigation }) {
       ) : error && !data ? (
         <View style={styles.centered}>
           <Icon name="error-outline" size={48} color="#EF4444" />
+
           <Text style={styles.errorTitle}>Could not load finance data</Text>
           <Text style={styles.errorSub}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => fetchFinance(false)}>

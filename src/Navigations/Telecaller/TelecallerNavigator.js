@@ -15,12 +15,14 @@ import Profile from '../../Screens/Telecaller/Profile';
 import CallCentre from '../../Screens/Telecaller/CallCentre';
 import CallHistory from '../../Screens/Telecaller/CallHistory';
 import GeneralSupport from '../../Screens/Telecaller/GeneralSupport';
+import SupportTicketDetail from '../../Screens/Telecaller/SupportTicketDetail';
 import CustomPlan from '../../Screens/Telecaller/CustomPlan';
 import MyCustomers from '../../Screens/Telecaller/MyCustomers';
 import TicketDetail from '../../Screens/Telecaller/TicketDetail';
 import NewServiceRequest from '../../Screens/Telecaller/NewServiceRequest';
 import VendorDetail from '../../Screens/Telecaller/VendorDetail';
 import CustomerDetail from '../../Screens/Telecaller/CustomerDetail';
+import LogCall from '../../Screens/Telecaller/LogCall';
 import Notifications from '../../Screens/NRI/Notifications';
 import ProfilePersonal from '../../Screens/NRI/ProfilePersonal';
 import ProfilePassword from '../../Screens/NRI/ProfilePassword';
@@ -44,7 +46,9 @@ function DashboardStack() {
       <Stack.Screen name="DashboardMain" component={Dashboard} />
       <Stack.Screen name="CallCentre" component={CallCentre} />
       <Stack.Screen name="CallHistory" component={CallHistory} />
+      <Stack.Screen name="LogCall" component={LogCall} />
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
       <Stack.Screen name="CustomPlan" component={CustomPlan} />
       <Stack.Screen name="MyCustomers" component={MyCustomers} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
@@ -64,6 +68,11 @@ function ServiceRequestsStack() {
       <Stack.Screen name="NewServiceRequest" component={NewServiceRequest} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CallCentre" component={CallCentre} />
+      <Stack.Screen name="CallHistory" component={CallHistory} />
+      <Stack.Screen name="LogCall" component={LogCall} />
+      <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -75,6 +84,11 @@ function VendorsStack() {
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CallCentre" component={CallCentre} />
+      <Stack.Screen name="CallHistory" component={CallHistory} />
+      <Stack.Screen name="LogCall" component={LogCall} />
+      <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -85,6 +99,11 @@ function CustomersStack() {
       <Stack.Screen name="CustomersMain" component={Customers} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="CallCentre" component={CallCentre} />
+      <Stack.Screen name="CallHistory" component={CallHistory} />
+      <Stack.Screen name="LogCall" component={LogCall} />
+      <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
+      <Stack.Screen name="SupportTicketDetail" component={SupportTicketDetail} />
     </Stack.Navigator>
   );
 }

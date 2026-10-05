@@ -20,9 +20,6 @@ const QUICK_ACTIONS = [
   { id: 'call_centre', name: 'Call Centre', icon: 'headset-mic', color: '#3B82F6', route: 'CallCentre' },
   { id: 'call_history', name: 'Call History', icon: 'access-time', color: '#F97316', route: 'CallHistory' },
   { id: 'general_support', name: 'Chat Support', icon: 'chat-bubble-outline', color: '#10B981', route: 'GeneralSupport' },
-  { id: 'custom_plan', name: 'Custom Plan', icon: 'auto-awesome', color: '#8B5CF6', route: 'CustomPlan' },
-  { id: 'my_customers', name: 'My Customers', icon: 'person-outline', color: '#0EA5E9', route: 'MyCustomers' },
-  { id: 'requests', name: 'Requests', icon: 'confirmation-number', color: '#EA580C', route: 'ServiceRequests' },
 ];
 
 function relativeTime(iso) {
@@ -177,132 +174,7 @@ function Dashboard({ navigation }) {
               </View>
             )}
 
-            {/* Main Chat & Attention Stat Cards */}
-            <View style={styles.statGrid}>
-              {/* Awaiting My Reply (Needs Attention) */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('GeneralSupport')}
-              >
-                <View style={styles.statCardHeader}>
-                  <View style={[styles.statIconBg, { backgroundColor: '#FEF3C7' }]}>
-                    <Icon name="chat-bubble" size={18} color="#D97706" />
-                  </View>
-                  {chatsAwaitingReply > 0 && (
-                    <View style={styles.attentionPill}>
-                      <Text style={styles.attentionPillText}>Action</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.statValue, { color: '#B45309' }]}>{chatsAwaitingReply}</Text>
-                <Text style={styles.statLabel}>Awaiting Reply</Text>
-                <Text style={styles.statSubLabel}>Customer wrote last</Text>
-              </TouchableOpacity>
 
-              {/* Unread Chats */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('GeneralSupport')}
-              >
-                <View style={styles.statCardHeader}>
-                  <View style={[styles.statIconBg, { backgroundColor: '#DBEAFE' }]}>
-                    <Icon name="mark-chat-unread" size={18} color="#2563EB" />
-                  </View>
-                </View>
-                <Text style={[styles.statValue, { color: '#1D4ED8' }]}>{unreadChats}</Text>
-                <Text style={styles.statLabel}>Unread Chats</Text>
-                <Text style={styles.statSubLabel}>New messages</Text>
-              </TouchableOpacity>
-
-              {/* Awaiting Customer */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('GeneralSupport')}
-              >
-                <View style={styles.statCardHeader}>
-                  <View style={[styles.statIconBg, { backgroundColor: '#D1FAE5' }]}>
-                    <Icon name="done-all" size={18} color="#059669" />
-                  </View>
-                </View>
-                <Text style={[styles.statValue, { color: '#047857' }]}>{chatsAwaitingCustomer}</Text>
-                <Text style={styles.statLabel}>Awaiting Customer</Text>
-                <Text style={styles.statSubLabel}>You replied last</Text>
-              </TouchableOpacity>
-
-              {/* Requests / Tickets */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate('ServiceRequests')}
-              >
-                <View style={styles.statCardHeader}>
-                  <View style={[styles.statIconBg, { backgroundColor: '#FFEDD5' }]}>
-                    <Icon name="confirmation-number" size={18} color="#EA580C" />
-                  </View>
-                </View>
-                <Text style={[styles.statValue, { color: '#C2410C' }]}>{stats?.totalRequests ?? stats?.openRequests ?? 0}</Text>
-                <Text style={styles.statLabel}>Service Requests</Text>
-                <Text style={styles.statSubLabel}>Assigned & open</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Today's Call Centre Stats */}
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionTitleRow}>
-                  <Icon name="phone-in-talk" size={20} color="#2563EB" />
-                  <Text style={styles.sectionTitle}>Today's Calls</Text>
-                </View>
-                <TouchableOpacity onPress={() => navigation.navigate('CallCentre')} activeOpacity={0.7}>
-                  <Text style={styles.viewAllText}>Call Centre →</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.callsCard}>
-                <View style={styles.callStatCol}>
-                  <Text style={[styles.callStatNumber, { color: '#1E293B' }]}>{totalCalls}</Text>
-                  <Text style={styles.callStatLabel}>Total Calls</Text>
-                </View>
-                <View style={styles.callDivider} />
-                <View style={styles.callStatCol}>
-                  <Text style={[styles.callStatNumber, { color: '#16A34A' }]}>{connectedCalls}</Text>
-                  <Text style={styles.callStatLabel}>Connected</Text>
-                </View>
-                <View style={styles.callDivider} />
-                <View style={styles.callStatCol}>
-                  <Text style={[styles.callStatNumber, { color: '#F59E0B' }]}>{pendingCalls}</Text>
-                  <Text style={styles.callStatLabel}>Pending</Text>
-                </View>
-                <View style={styles.callDivider} />
-                <View style={styles.callStatCol}>
-                  <Text style={[styles.callStatNumber, { color: '#DC2626' }]}>{missedCalls}</Text>
-                  <Text style={styles.callStatLabel}>Missed</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <View style={styles.quickActionsCard}>
-                {QUICK_ACTIONS.map(action => (
-                  <TouchableOpacity
-                    key={action.id}
-                    style={styles.quickActionItem}
-                    onPress={() => navigation.navigate(action.route)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
-                      <Icon name={action.icon} size={24} color={action.color} />
-                    </View>
-                    <Text style={styles.qaLabel} numberOfLines={1}>{action.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
 
             {/* Awaiting Reply / Needs Attention Chats */}
             <View style={styles.sectionContainer}>
@@ -328,7 +200,7 @@ function Dashboard({ navigation }) {
                     <TouchableOpacity
                       key={chat.id}
                       style={styles.chatCard}
-                      onPress={() => navigation.navigate('GeneralSupport', { chatId: chat.id })}
+                      onPress={() => navigation.navigate('SupportTicketDetail', { ticketId: chat.id, ticketNumber: chat.ticketNumber })}
                       activeOpacity={0.7}
                     >
                       <View style={styles.chatAvatar}>
@@ -398,6 +270,26 @@ function Dashboard({ navigation }) {
                   })}
                 </View>
               )}
+            </View>
+
+            {/* Quick Actions */}
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+              <View style={styles.quickActionsCard}>
+                {QUICK_ACTIONS.map(action => (
+                  <TouchableOpacity
+                    key={action.id}
+                    style={styles.quickActionItem}
+                    onPress={() => navigation.navigate(action.route)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
+                      <Icon name={action.icon} size={24} color={action.color} />
+                    </View>
+                    <Text style={styles.qaLabel} numberOfLines={1}>{action.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </ScrollView>
         )}
@@ -569,59 +461,59 @@ const styles = StyleSheet.create({
 
   statGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 20,
   },
   statCard: {
-    width: '48%',
-    borderRadius: 18,
-    padding: 14,
+    flex: 1,
+    borderRadius: 14,
+    padding: 10,
     borderWidth: 1,
     elevation: 1,
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   statCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   statIconBg: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     justifyContent: 'center',
     alignItems: 'center',
   },
   attentionPill: {
     backgroundColor: '#D97706',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   attentionPillText: {
     color: '#FFFFFF',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 18,
     fontFamily: typography.h2.fontFamily,
     marginBottom: 2,
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     color: '#1E293B',
   },
   statSubLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
 
   sectionContainer: {
