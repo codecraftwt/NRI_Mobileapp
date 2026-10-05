@@ -95,6 +95,9 @@ import AdminNavigator from './Admin/AdminNavigator';
 // Import State Admin Screens
 import StateAdminNavigator from './StateAdmin/StateAdminNavigator';
 
+// Import Telecaller Screens
+import TelecallerNavigator from './Telecaller/TelecallerNavigator';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -473,6 +476,9 @@ export default function AppNavigator() {
 
       {/* State Admin Flow — reached from Login screen for state-admin role */}
       <Stack.Screen name="StateAdminHome" component={StateAdminNavigator} />
+
+      {/* Telecaller Flow — reached from the same Login screen based on account role */}
+      <Stack.Screen name="TelecallerHome" component={TelecallerNavigator} />
     </Stack.Navigator>
   );
 }

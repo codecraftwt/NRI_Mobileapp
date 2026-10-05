@@ -86,6 +86,14 @@ function Login({ navigation }) {
           navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
           return;
         }
+        if (/telecaller/.test(role) || roles.some(r => /telecaller/.test(r))) {
+          if (result?.user?.emailVerified === false) {
+            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'TelecallerHome' } }] });
+            return;
+          }
+          navigation.reset({ index: 0, routes: [{ name: 'TelecallerHome' }] });
+          return;
+        }
         if (/admin/.test(role) || roles.some(r => /admin/.test(r))) {
           if (result?.user?.emailVerified === false) {
             navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'AdminHome' } }] });

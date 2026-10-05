@@ -112,6 +112,7 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     || roles.find(r => /admin/i.test(r))
     || roles.find(r => /vendor/i.test(r))
     || roles.find(r => /relationship|manager|\brm\b/i.test(r))
+    || roles.find(r => /telecaller/i.test(r))
     || apiUser.role
     || roles[0]
     || 'Customer';
