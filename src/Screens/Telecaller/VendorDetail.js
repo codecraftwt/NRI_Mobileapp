@@ -33,17 +33,19 @@ function VendorDetail({ route, navigation }) {
   const { vendorId, vendor: initialVendor } = route.params || {};
 
   const [vendor, setVendor] = useState(initialVendor || null);
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  const [showAllCalls, setShowAllCalls] = useState(false);
   const [loading, setLoading] = useState(!initialVendor);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
 
   const fetchDetail = useCallback(async (isRefresh = false) => {
-    if (!vendorId && !initialVendor?.id) return;
     const id = vendorId || initialVendor?.id;
+    if (!id) return;
 
     try {
-      if (!isRefresh && !vendor) setLoading(true);
+      if (!isRefresh) setLoading(true);
       setError(null);
       setErrorStatus(null);
 
@@ -60,7 +62,7 @@ function VendorDetail({ route, navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [vendorId, initialVendor, vendor]);
+  }, [vendorId, initialVendor?.id]);
 
   useEffect(() => {
     fetchDetail();
@@ -85,7 +87,7 @@ function VendorDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Header */}
       <View style={styles.blueHeader}>
@@ -183,22 +185,6 @@ function VendorDetail({ route, navigation }) {
               </View>
             </View>
 
-            {/* Quick Contact Action Buttons */}
-            <View style={styles.contactActionsRow}>
-              {vendor.phone ? (
-                <TouchableOpacity style={styles.actionBtnCall} onPress={handleCall} activeOpacity={0.8}>
-                  <Icon name="phone" size={16} color="#FFFFFF" />
-                  <Text style={styles.actionBtnCallText}>Call {vendor.phone}</Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {vendor.email ? (
-                <TouchableOpacity style={styles.actionBtnEmail} onPress={handleEmail} activeOpacity={0.8}>
-                  <Icon name="email" size={16} color="#20304C" />
-                  <Text style={styles.actionBtnEmailText}>Email</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
           </View>
 
           {/* Quick Metrics */}
@@ -221,61 +207,6 @@ function VendorDetail({ route, navigation }) {
             </View>
           </View>
 
-          {/* Categories & Services */}
-          {vendor.categories && vendor.categories.length > 0 && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Services & Categories</Text>
-              <View style={styles.tagsWrap}>
-                {vendor.categories.map((cat, idx) => (
-                  <View key={String(cat.id || idx)} style={styles.catPill}>
-                    <Icon name="check" size={12} color="#059669" />
-                    <Text style={styles.catPillText}>{cat.name}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Coverage Areas */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Coverage & Location</Text>
-
-            {vendor.statesCovered && vendor.statesCovered.length > 0 && (
-              <View style={{ marginBottom: 10 }}>
-                <Text style={styles.subTitle}>States Covered</Text>
-                <View style={styles.tagsWrap}>
-                  {vendor.statesCovered.map((st, idx) => (
-                    <View key={String(st || idx)} style={styles.geoPill}>
-                      <Text style={styles.geoPillText}>{st}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {vendor.citiesCovered && vendor.citiesCovered.length > 0 && (
-              <View style={{ marginBottom: 6 }}>
-                <Text style={styles.subTitle}>Cities Covered</Text>
-                <View style={styles.tagsWrap}>
-                  {vendor.citiesCovered.map((ct, idx) => (
-                    <View key={String(ct || idx)} style={styles.geoPill}>
-                      <Text style={styles.geoPillText}>{ct}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {vendor.address ? (
-              <View style={styles.addressRow}>
-                <Icon name="place" size={15} color="#64748B" />
-                <Text style={styles.addressText}>
-                  {vendor.address}{vendor.pincode ? ` - ${vendor.pincode}` : ''}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
           {/* Current / Assigned Jobs */}
           {vendor.currentJobs && vendor.currentJobs.length > 0 && (
             <View style={styles.card}>
@@ -287,7 +218,7 @@ function VendorDetail({ route, navigation }) {
               </View>
 
               <View style={{ gap: 10 }}>
-                {vendor.currentJobs.map(job => {
+                {(showAllJobs ? vendor.currentJobs : vendor.currentJobs.slice(0, 3)).map(job => {
                   const jobStatus = getJobStatusStyle(job.status);
                   return (
                     <TouchableOpacity
@@ -326,34 +257,108 @@ function VendorDetail({ route, navigation }) {
                   );
                 })}
               </View>
+
+              {vendor.currentJobs.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewAllToggleBtn}
+                  onPress={() => setShowAllJobs(prev => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewAllToggleText}>
+                    {showAllJobs ? 'Show less' : `View all (${vendor.currentJobs.length})`}
+                  </Text>
+                  <Icon
+                    name={showAllJobs ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                    size={18}
+                    color="#20304C"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
           {/* Recent Calls */}
           {vendor.recentCalls && vendor.recentCalls.length > 0 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Recent Call Logs</Text>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>Recent Call Logs</Text>
+                <View style={styles.countBadge}>
+                  <Text style={styles.countBadgeText}>{vendor.recentCalls.length}</Text>
+                </View>
+              </View>
+
               <View style={{ gap: 8 }}>
-                {vendor.recentCalls.map(call => (
+                {(showAllCalls ? vendor.recentCalls : vendor.recentCalls.slice(0, 3)).map(call => (
                   <View key={String(call.id)} style={styles.callLogItem}>
                     <View style={styles.callIconWrap}>
                       <Icon
-                        name={call.direction === 'incoming' ? 'call-received' : 'call-made'}
+                        name={call.direction === 'inbound' || call.direction === 'incoming' ? 'call-received' : 'call-made'}
                         size={16}
-                        color={call.direction === 'incoming' ? '#059669' : '#2563EB'}
+                        color={call.direction === 'inbound' || call.direction === 'incoming' ? '#059669' : '#2563EB'}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.callHeaderRow}>
                         <Text style={styles.callTitleText}>{call.title}</Text>
-                        {call.duration && <Text style={styles.callDurationText}>{call.duration}</Text>}
+                        {call.outcome ? (
+                          <View style={styles.callOutcomeBadge}>
+                            <Text style={styles.callOutcomeText}>{call.outcome}</Text>
+                          </View>
+                        ) : call.duration ? (
+                          <Text style={styles.callDurationText}>{call.duration}</Text>
+                        ) : null}
                       </View>
+
+                      {/* Ticket Number & Logged By row */}
+                      {(call.ticketNumber || call.byName) && (
+                        <View style={styles.callMetaRow}>
+                          {call.ticketNumber ? (
+                            <TouchableOpacity
+                              style={styles.callTicketChip}
+                              activeOpacity={call.ticketId ? 0.7 : 1}
+                              onPress={() => {
+                                if (call.ticketId) {
+                                  navigation.navigate('TicketDetail', { ticketId: call.ticketId, ticket: call.ticketNumber });
+                                }
+                              }}
+                            >
+                              <Icon name="confirmation-number" size={12} color="#2563EB" />
+                              <Text style={styles.callTicketText}>{call.ticketNumber}</Text>
+                            </TouchableOpacity>
+                          ) : null}
+
+                          {call.byName ? (
+                            <View style={styles.callByChip}>
+                              <Icon name="person-outline" size={12} color="#64748B" />
+                              <Text style={styles.callByText}>{call.byName}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      )}
+
                       {call.note && <Text style={styles.callNoteText}>{call.note}</Text>}
                       {call.createdAt && <Text style={styles.callDateText}>{formatDate(call.createdAt)}</Text>}
                     </View>
                   </View>
                 ))}
               </View>
+
+              {vendor.recentCalls.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewAllToggleBtn}
+                  onPress={() => setShowAllCalls(prev => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewAllToggleText}>
+                    {showAllCalls ? 'Show less' : `View all (${vendor.recentCalls.length})`}
+                  </Text>
+                  <Icon
+                    name={showAllCalls ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                    size={18}
+                    color="#20304C"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </ScrollView>
@@ -369,9 +374,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTop: {
@@ -704,6 +709,24 @@ const styles = StyleSheet.create({
   },
 
   // Jobs
+  viewAllToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 4,
+  },
+  viewAllToggleText: {
+    fontSize: 12.5,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#20304C',
+    fontWeight: '600',
+  },
   jobItem: {
     backgroundColor: '#F8FAFC',
     borderRadius: 10,
@@ -796,6 +819,57 @@ const styles = StyleSheet.create({
   callDurationText: {
     fontSize: 11,
     color: '#64748B',
+  },
+  callOutcomeBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  callOutcomeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  callMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  callTicketChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  callTicketText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  callByChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  callByText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
   },
   callNoteText: {
     fontSize: 11,

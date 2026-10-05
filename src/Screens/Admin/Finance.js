@@ -51,7 +51,7 @@ function Finance({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -196,9 +196,8 @@ function Finance({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {

@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
@@ -62,7 +63,6 @@ function NewServiceRequest({ navigation }) {
   const [vendors, setVendors] = useState([]);
 
   // Modal selector state
-  // 'customer' | 'service' | 'urgency' | 'vendor' | 'state' | 'city' | 'taluka' | 'preferredDate' | 'vendorDeadline' | null
   const [pickerType, setPickerType] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -283,7 +283,7 @@ function NewServiceRequest({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Header */}
       <View style={styles.blueHeader}>
@@ -314,7 +314,6 @@ function NewServiceRequest({ navigation }) {
 
             {/* Row 1: Customer & Service */}
             <View style={styles.rowTwoCols}>
-              {/* Customer */}
               <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Customer <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
@@ -329,7 +328,6 @@ function NewServiceRequest({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Service */}
               <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Service <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
@@ -345,10 +343,9 @@ function NewServiceRequest({ navigation }) {
               </View>
             </View>
 
-            {/* Row 2: Urgency, Preferred Date, Vendor Completion Deadline */}
-            <View style={styles.rowThreeCols}>
-              {/* Urgency */}
-              <View style={styles.colThird}>
+            {/* Row 2: Urgency & Preferred Date */}
+            <View style={styles.rowTwoCols}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Urgency <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
                   style={styles.dropdownInput}
@@ -358,12 +355,11 @@ function NewServiceRequest({ navigation }) {
                   <Text style={styles.dropdownValText} numberOfLines={1}>
                     {URGENCY_OPTIONS.find(u => u.id === urgency)?.label || 'Standard'}
                   </Text>
-                  <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
+                  <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
 
-              {/* Preferred Date */}
-              <View style={styles.colThird}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Preferred Date <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
                   style={styles.dropdownInput}
@@ -371,29 +367,29 @@ function NewServiceRequest({ navigation }) {
                   activeOpacity={0.7}
                 >
                   <Text style={preferredDate ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
-                    {preferredDate || 'dd-mm-yyyy --:--'}
-                  </Text>
-                  <Icon name="calendar-today" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Vendor Completion Deadline */}
-              <View style={styles.colThird}>
-                <Text style={styles.inputLabel}>Vendor Completion Deadline</Text>
-                <TouchableOpacity
-                  style={styles.dropdownInput}
-                  onPress={() => openPicker('vendorDeadline')}
-                  activeOpacity={0.7}
-                >
-                  <Text style={vendorDeadline ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
-                    {vendorDeadline || 'dd-mm-yyyy --:--'}
+                    {preferredDate || 'dd-mm-yyyy'}
                   </Text>
                   <Icon name="calendar-today" size={16} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Row 3: Assign Vendor */}
+            {/* Row 3: Vendor Completion Deadline */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Vendor Completion Deadline</Text>
+              <TouchableOpacity
+                style={styles.dropdownInput}
+                onPress={() => openPicker('vendorDeadline')}
+                activeOpacity={0.7}
+              >
+                <Text style={vendorDeadline ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
+                  {vendorDeadline || 'dd-mm-yyyy'}
+                </Text>
+                <Icon name="calendar-today" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Row 4: Assign Vendor */}
             <View style={styles.fullWidthField}>
               <Text style={styles.inputLabel}>Assign Vendor <Text style={styles.optionalLabel}>(optional)</Text></Text>
               <TouchableOpacity
@@ -416,10 +412,9 @@ function NewServiceRequest({ navigation }) {
           <View style={styles.formCard}>
             <Text style={styles.cardTitle}>Service Location</Text>
 
-            {/* Row: State, City, Taluka */}
-            <View style={styles.rowThreeCols}>
-              {/* State */}
-              <View style={styles.colThird}>
+            {/* Row: State & City */}
+            <View style={styles.rowTwoCols}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>State</Text>
                 <TouchableOpacity
                   style={styles.dropdownInput}
@@ -429,12 +424,11 @@ function NewServiceRequest({ navigation }) {
                   <Text style={selectedState ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
                     {selectedState ? selectedState.name : 'Select state...'}
                   </Text>
-                  <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
+                  <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
 
-              {/* City */}
-              <View style={styles.colThird}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>City</Text>
                 <TouchableOpacity
                   style={[styles.dropdownInput, !selectedState && styles.dropdownDisabled]}
@@ -445,25 +439,25 @@ function NewServiceRequest({ navigation }) {
                   <Text style={selectedCity ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
                     {selectedCity ? selectedCity.name : 'Select city...'}
                   </Text>
-                  <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
+                  <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Taluka */}
-              <View style={styles.colThird}>
-                <Text style={styles.inputLabel}>Taluka</Text>
-                <TouchableOpacity
-                  style={[styles.dropdownInput, !selectedCity && styles.dropdownDisabled]}
-                  onPress={() => selectedCity && openPicker('taluka')}
-                  disabled={!selectedCity}
-                  activeOpacity={0.7}
-                >
-                  <Text style={selectedTaluka ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
-                    {selectedTaluka ? selectedTaluka.name : 'Select taluka...'}
-                  </Text>
-                  <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
+            {/* Row: Taluka */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Taluka</Text>
+              <TouchableOpacity
+                style={[styles.dropdownInput, !selectedCity && styles.dropdownDisabled]}
+                onPress={() => selectedCity && openPicker('taluka')}
+                disabled={!selectedCity}
+                activeOpacity={0.7}
+              >
+                <Text style={selectedTaluka ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
+                  {selectedTaluka ? selectedTaluka.name : 'Select taluka...'}
+                </Text>
+                <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
 
             {/* Address Text Area */}
@@ -493,9 +487,9 @@ function NewServiceRequest({ navigation }) {
               )}
             </View>
 
-            {/* Row: Customer Price, Vendor Cost, Express Surcharge */}
-            <View style={styles.rowThreeCols}>
-              <View style={styles.colThird}>
+            {/* Row: Customer Price & Vendor Cost */}
+            <View style={styles.rowTwoCols}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Customer Price (₹) <Text style={styles.requiredStar}>*</Text></Text>
                 <TextInput
                   style={styles.textInput}
@@ -507,7 +501,7 @@ function NewServiceRequest({ navigation }) {
                 />
               </View>
 
-              <View style={styles.colThird}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Vendor Cost (₹) <Text style={styles.requiredStar}>*</Text></Text>
                 <TextInput
                   style={styles.textInput}
@@ -518,18 +512,19 @@ function NewServiceRequest({ navigation }) {
                   onChangeText={setVendorCost}
                 />
               </View>
+            </View>
 
-              <View style={styles.colThird}>
-                <Text style={styles.inputLabel}>Express Surcharge (₹)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="0"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="numeric"
-                  value={expressSurcharge}
-                  onChangeText={setExpressSurcharge}
-                />
-              </View>
+            {/* Row: Express Surcharge */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Express Surcharge (₹)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="0"
+                placeholderTextColor="#94A3B8"
+                keyboardType="numeric"
+                value={expressSurcharge}
+                onChangeText={setExpressSurcharge}
+              />
             </View>
           </View>
 
@@ -537,34 +532,32 @@ function NewServiceRequest({ navigation }) {
           <View style={styles.formCard}>
             <Text style={styles.cardTitle}>Notes</Text>
 
-            <View style={styles.rowTwoCols}>
-              {/* Customer Notes */}
-              <View style={styles.colHalf}>
-                <Text style={styles.inputLabel}>Customer Notes</Text>
-                <TextInput
-                  style={styles.textAreaInput}
-                  placeholder="Customer notes..."
-                  placeholderTextColor="#94A3B8"
-                  value={customerNotes}
-                  onChangeText={setCustomerNotes}
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+            {/* Customer Notes */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Customer Notes</Text>
+              <TextInput
+                style={styles.textAreaInput}
+                placeholder="Customer notes..."
+                placeholderTextColor="#94A3B8"
+                value={customerNotes}
+                onChangeText={setCustomerNotes}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
 
-              {/* Internal Notes */}
-              <View style={styles.colHalf}>
-                <Text style={styles.inputLabel}>Internal Notes</Text>
-                <TextInput
-                  style={styles.textAreaInput}
-                  placeholder="Internal staff notes..."
-                  placeholderTextColor="#94A3B8"
-                  value={internalNotes}
-                  onChangeText={setInternalNotes}
-                  multiline
-                  numberOfLines={4}
-                />
-              </View>
+            {/* Internal Notes */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Internal Notes</Text>
+              <TextInput
+                style={styles.textAreaInput}
+                placeholder="Internal staff notes..."
+                placeholderTextColor="#94A3B8"
+                value={internalNotes}
+                onChangeText={setInternalNotes}
+                multiline
+                numberOfLines={3}
+              />
             </View>
           </View>
 
@@ -741,13 +734,13 @@ function NewServiceRequest({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FDFBF7',
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTop: {
@@ -767,8 +760,8 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontFamily: typography.h3.fontFamily,
     color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
@@ -782,9 +775,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 60,
-    gap: 16,
+    gap: 14,
   },
 
   centerLoading: {
@@ -795,6 +788,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13,
+    fontFamily: typography.body.fontFamily,
     color: '#64748B',
     marginTop: 10,
   },
@@ -802,28 +796,27 @@ const styles = StyleSheet.create({
   // Card Structure
   formCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 3,
+    shadowRadius: 8,
     elevation: 1,
-    gap: 14,
+    gap: 12,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontFamily: typography.h4.fontFamily,
     color: '#1E293B',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cardHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
   },
   quoteLoadingRow: {
     flexDirection: 'row',
@@ -832,23 +825,16 @@ const styles = StyleSheet.create({
   },
   quoteLoadingText: {
     fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#EA580C',
-    fontWeight: '600',
   },
 
   // Layout Columns
   rowTwoCols: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  colHalf: {
-    flex: 1,
-  },
-  rowThreeCols: {
-    flexDirection: 'row',
     gap: 10,
   },
-  colThird: {
+  colHalf: {
     flex: 1,
   },
   fullWidthField: {
@@ -857,24 +843,25 @@ const styles = StyleSheet.create({
 
   // Labels & Inputs
   inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 6,
+    fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#475569',
+    marginBottom: 5,
   },
   requiredStar: {
     color: '#DC2626',
   },
   optionalLabel: {
-    fontSize: 11,
+    fontSize: 10,
+    fontFamily: typography.small.fontFamily,
     color: '#94A3B8',
-    fontWeight: 'normal',
   },
   helperText: {
-    fontSize: 11,
+    fontSize: 10.5,
+    fontFamily: typography.small.fontFamily,
     color: '#64748B',
-    marginTop: 6,
-    lineHeight: 15,
+    marginTop: 5,
+    lineHeight: 14,
   },
 
   dropdownInput: {
@@ -884,22 +871,24 @@ const styles = StyleSheet.create({
     height: 42,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
     paddingHorizontal: 12,
   },
   dropdownDisabled: {
-    backgroundColor: '#F9FAFB',
-    borderColor: '#E5E7EB',
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
   },
   dropdownValText: {
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#1E293B',
     flex: 1,
     marginRight: 4,
   },
   dropdownPlaceholder: {
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
     flex: 1,
     marginRight: 4,
@@ -909,21 +898,23 @@ const styles = StyleSheet.create({
     height: 42,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
     paddingHorizontal: 12,
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#1E293B',
   },
   textAreaInput: {
-    height: 72,
+    height: 68,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#1E293B',
     textAlignVertical: 'top',
   },
@@ -936,58 +927,59 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   createBtn: {
-    backgroundColor: '#EA580C',
+    flex: 1,
+    backgroundColor: '#A64416',
     paddingVertical: 12,
-    paddingHorizontal: 22,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#EA580C',
+    shadowColor: '#A64416',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
   createBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
   cancelBtn: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 11,
+    paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#3B82F6',
+    borderColor: '#CBD5E1',
   },
   cancelBtnText: {
-    color: '#2563EB',
+    color: '#64748B',
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 
   // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 18,
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 420,
+    maxHeight: '80%',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -998,8 +990,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F1F5F9',
   },
   modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontFamily: typography.h4.fontFamily,
     color: '#1E293B',
   },
   modalSearchBox: {
@@ -1016,7 +1008,8 @@ const styles = StyleSheet.create({
   },
   modalSearchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#1E293B',
     paddingVertical: 0,
   },
@@ -1024,17 +1017,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: '#F8FAFC',
   },
   modalItemTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#1E293B',
   },
   modalItemSub: {
     fontSize: 11,
+    fontFamily: typography.small.fontFamily,
     color: '#64748B',
     marginTop: 2,
   },
@@ -1043,7 +1037,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalEmptyText: {
-    fontSize: 13,
+    fontSize: 12.5,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
   },
   quickDateChip: {
@@ -1055,21 +1050,21 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
   },
   quickDateChipText: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#1E40AF',
-    fontWeight: '600',
   },
   modalSaveBtn: {
     backgroundColor: '#20304C',
     borderRadius: 10,
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: 'center',
     marginTop: 10,
   },
   modalSaveBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 });
 

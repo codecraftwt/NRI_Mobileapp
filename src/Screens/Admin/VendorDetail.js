@@ -39,7 +39,7 @@ function VendorDetail({ route, navigation }) {
   if (!vendor) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+        <StatusBar backgroundColor="#20304C" barStyle="light-content" />
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
@@ -69,7 +69,7 @@ function VendorDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
 
       {/* Top Header */}
       <View style={styles.header}>
@@ -273,9 +273,8 @@ function VendorDetail({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {

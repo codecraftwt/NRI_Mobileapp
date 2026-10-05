@@ -44,7 +44,7 @@ function NotificationPreferences({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: 58, paddingBottom: 20, backgroundColor: '#20304C',
+    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#20304C',
   },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },

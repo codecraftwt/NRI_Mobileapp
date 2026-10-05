@@ -59,7 +59,7 @@ function CustomerDetail({ route, navigation }) {
     if (!id) return;
 
     try {
-      if (!isRefresh && !customer) setLoading(true);
+      if (!isRefresh) setLoading(true);
       setError(null);
       setErrorStatus(null);
 
@@ -76,7 +76,7 @@ function CustomerDetail({ route, navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [customerId, initialCustomer, customer]);
+  }, [customerId, initialCustomer?.id]);
 
   useEffect(() => {
     fetchDetail();
@@ -108,7 +108,7 @@ function CustomerDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Header */}
       <View style={styles.blueHeader}>
@@ -437,9 +437,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTop: {

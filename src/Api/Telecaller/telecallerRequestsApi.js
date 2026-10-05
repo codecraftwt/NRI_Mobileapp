@@ -99,7 +99,12 @@ export function mapTelecallerServiceRequest(raw = {}) {
       rating: vendor.rating != null ? Number(vendor.rating) : null,
       assignedAt: raw.vendor_assigned_at || vendor.assigned_at || null,
     } : null,
-    telecaller: raw.assigned_telecaller || (raw.telecaller_name ? { name: raw.telecaller_name } : null),
+    telecaller: (raw.assigned_telecaller || raw.telecaller) ? {
+      id: (raw.assigned_telecaller || raw.telecaller)?.id || null,
+      name: (raw.assigned_telecaller || raw.telecaller)?.name || (typeof (raw.assigned_telecaller || raw.telecaller) === 'string' ? (raw.assigned_telecaller || raw.telecaller) : null),
+      email: (raw.assigned_telecaller || raw.telecaller)?.email || null,
+      phone: (raw.assigned_telecaller || raw.telecaller)?.phone || null,
+    } : (raw.telecaller_name ? { name: raw.telecaller_name } : null),
     location: {
       address: raw.address || location.address || null,
       cityName: location.city?.name || raw.city_name || (typeof raw.city === 'string' ? raw.city : raw.city?.name) || null,

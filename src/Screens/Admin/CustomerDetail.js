@@ -46,7 +46,7 @@ function CustomerDetail({ route, navigation }) {
   if (!customer) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+        <StatusBar backgroundColor="#20304C" barStyle="light-content" />
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
@@ -66,7 +66,7 @@ function CustomerDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -256,9 +256,8 @@ function CustomerDetail({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {

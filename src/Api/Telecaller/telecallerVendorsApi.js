@@ -67,12 +67,18 @@ export function mapTelecallerVendorDetail(raw = {}) {
     recentCalls: Array.isArray(raw.recent_calls || raw.calls)
       ? (raw.recent_calls || raw.calls).map(c => ({
           id: c.id,
-          title: c.title || c.subject || 'Vendor call',
+          title: c.purpose_label || c.title || c.subject || (c.purpose ? String(c.purpose).replace(/[_-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) : 'Vendor Call'),
           direction: c.direction || 'outgoing',
-          status: c.status || 'completed',
+          status: c.outcome_label || c.outcome || c.status || 'completed',
+          outcome: c.outcome_label || c.outcome || null,
           duration: c.duration ? `${c.duration}s` : null,
           createdAt: c.created_at || c.date || null,
-          note: c.note || c.summary || null,
+          note: c.notes || c.note || c.summary || null,
+          ticketNumber: c.ticket?.ticket_number || c.ticket_number || (c.ticket_id ? `#${c.ticket_id}` : null),
+          ticketId: c.ticket?.id || c.ticket_id || null,
+          byName: c.by?.name || c.user_name || c.author || null,
+          byId: c.by?.id || null,
+          partyName: c.party_name || null,
         }))
       : [],
     notes: Array.isArray(raw.notes)

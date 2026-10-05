@@ -176,7 +176,7 @@ function CustomPlan({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Header */}
       <View style={styles.header}>
@@ -286,9 +286,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   header: {
-    paddingTop: STATUS_BAR_HEIGHT + 8,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerRow: {

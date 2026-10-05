@@ -9,18 +9,17 @@ import {
   Animated,
   RefreshControl,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT } from '../../theme';
+import { lightColors as colors, typography, STATUS_BAR_HEIGHT } from '../../theme';
 import { useNotifications } from '../../Hooks/useNotifications';
 import { useTelecallerDashboard } from '../../Hooks/Telecaller/useTelecallerDashboard';
 
-const QUICK_ACTIONS = [
-  { id: 'call_centre', name: 'Call Centre', icon: 'headset-mic', color: '#3B82F6', route: 'CallCentre' },
-  { id: 'call_history', name: 'Call History', icon: 'access-time', color: '#F97316', route: 'CallHistory' },
-  { id: 'general_support', name: 'Chat Support', icon: 'chat-bubble-outline', color: '#10B981', route: 'GeneralSupport' },
+const exploreActions = [
+  { id: 'call_centre', name: 'Call Centre', icon: 'headset-mic', screen: 'CallCentre', color: '#3B82F6' },
+  { id: 'call_history', name: 'Call History', icon: 'access-time', screen: 'CallHistory', color: '#F97316' },
+  { id: 'support', name: 'Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#10B981' },
 ];
 
 function relativeTime(iso) {
@@ -40,15 +39,39 @@ function relativeTime(iso) {
 
 function getRequestStatusStyle(status) {
   const s = String(status || '').toLowerCase();
-  if (s.includes('resolv') || s.includes('complet')) return { bg: '#ECFDF5', text: '#059669' };
-  if (s.includes('progress') || s.includes('active') || s.includes('assign')) return { bg: '#EFF6FF', text: '#2563EB' };
-  if (s.includes('pend') || s.includes('hold')) return { bg: '#FFFBEB', text: '#D97706' };
-  if (s.includes('cancel') || s.includes('breach') || s.includes('reject')) return { bg: '#FEF2F2', text: '#DC2626' };
-  return { bg: '#F8FAFC', text: '#475569' };
+  if (s.includes('resolv') || s.includes('complet')) return { bg: '#D1FAE5', text: '#059669' };
+  if (s.includes('progress') || s.includes('active') || s.includes('assign')) return { bg: '#EFF6FF', text: '#3B82F6' };
+  if (s.includes('pend') || s.includes('hold')) return { bg: '#FEF3C7', text: '#D97706' };
+  if (s.includes('cancel') || s.includes('breach') || s.includes('reject') || s.includes('overdue')) return { bg: '#FEE2E2', text: '#DC2626' };
+  return { bg: '#F1F5F9', text: '#64748B' };
 }
 
 function formatStatus(status) {
   return String(status || 'Open').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function getServiceIconColor(serviceName) {
+  const name = serviceName?.toLowerCase() || '';
+  if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#D1FAE5';
+  if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#FFEDD5';
+  if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#E0F2FE';
+  return '#F1F5F9';
+}
+
+function getServiceIconColorText(serviceName) {
+  const name = serviceName?.toLowerCase() || '';
+  if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return '#059669';
+  if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return '#F97316';
+  if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return '#3B82F6';
+  return '#64748B';
+}
+
+function getServiceIconName(serviceName) {
+  const name = serviceName?.toLowerCase() || '';
+  if (name.includes('parent') || name.includes('wellness') || name.includes('visit') || name.includes('care')) return 'favorite-border';
+  if (name.includes('property') || name.includes('inspection') || name.includes('tenant') || name.includes('home')) return 'domain';
+  if (name.includes('govt') || name.includes('extract') || name.includes('legal')) return 'account-balance';
+  return 'assignment';
 }
 
 function Dashboard({ navigation }) {
@@ -96,17 +119,11 @@ function Dashboard({ navigation }) {
       ])
     ).start();
   }, [waveAnim]);
+
   const waveInterpolate = waveAnim.interpolate({
     inputRange: [-1, 0, 1],
     outputRange: ['-15deg', '0deg', '15deg'],
   });
-
-  const chatsAwaitingReply = stats?.chatsAwaitingReply ?? 0;
-  const chatsAwaitingCustomer = stats?.chatsAwaitingCustomer ?? 0;
-  const totalCalls = calls?.total ?? 0;
-  const connectedCalls = calls?.connected ?? 0;
-  const pendingCalls = calls?.pending ?? 0;
-  const missedCalls = calls?.missed ?? 0;
 
   const areaLabel = area?.unrestricted
     ? 'All Areas (Unrestricted)'
@@ -116,186 +133,188 @@ function Dashboard({ navigation }) {
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
 
-      {/* Top Dark Header (Fixed) */}
+      {/* Top Blue Header (Fixed) */}
       <View style={styles.blueHeader}>
-        <View style={styles.decorCircleLg} pointerEvents="none" />
-        <View style={styles.decorDot} pointerEvents="none" />
-
         <View style={styles.headerTop}>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.greeting}>Hello,</Text>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName} numberOfLines={1}>{telecallerName}</Text>
-              <Animated.Text style={[styles.wave, { transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
+          <View style={styles.greetingContainer}>
+            <View style={styles.helloRow}>
+              <Text style={styles.helloText}>Hello</Text>
+              <Animated.Text style={[styles.helloText, { marginLeft: 4, transform: [{ rotate: waveInterpolate }] }]}>👋</Animated.Text>
             </View>
-
-            {/* Scope / Area Pill */}
-            <View style={styles.areaPill}>
-              <Icon name={area?.unrestricted ? 'public' : 'location-on'} size={14} color="#FDE68A" />
-              <Text style={styles.areaPillText} numberOfLines={1}>{areaLabel}</Text>
+            <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
+              {telecallerName}
+            </Text>
+            <View style={styles.areaRow}>
+              <Icon name={area?.unrestricted ? 'public' : 'location-on'} size={12} color="#FDE68A" />
+              <Text style={styles.areaText} numberOfLines={1}>{areaLabel}</Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.bellBtn}
             onPress={() => navigation.navigate('Notifications')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Icon name="notifications-none" size={24} color="#FFFFFF" />
-            {unreadCount > 0 && (
+            <Icon name="notifications-none" size={22} color="#FFFFFF" />
+            {unreadCount > 0 ? (
               <View style={styles.bellBadge}>
                 <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
               </View>
-            )}
+            ) : null}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Cream Body */}
+      {/* Fixed Cream Body */}
       <View style={styles.creamBody}>
-        {loading && !stats ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#A64416" />
-            <Text style={styles.loadingText}>Loading dashboard...</Text>
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.scrollArea}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#A64416']} />}
-          >
-            {failed && (
-              <View style={styles.errorBanner}>
-                <Icon name="error-outline" size={20} color="#DC2626" />
-                <Text style={styles.errorBannerText}>{error?.message || 'Could not load latest data'}</Text>
-                <TouchableOpacity onPress={refresh} style={styles.retryBtn}>
-                  <Text style={styles.retryBtnText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E3A8A']} />}
+        >
+          {loading && !stats && (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#1E3A8A" />
+              <Text style={styles.loadingText}>Fetching your dashboard...</Text>
+            </View>
+          )}
 
+          {failed && !stats && (
+            <TouchableOpacity style={styles.retryBox} onPress={refresh}>
+              <Icon name="refresh" size={18} color={colors.error || '#DC2626'} />
+              <Text style={styles.retryText}>{error?.message || 'Failed to load. Tap to retry.'}</Text>
+            </TouchableOpacity>
+          )}
 
-
-            {/* Awaiting Reply / Needs Attention Chats */}
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionTitleRow}>
-                  <Icon name="announcement" size={18} color="#D97706" />
-                  <Text style={styles.sectionTitle}>Chats Awaiting Reply</Text>
-                </View>
-              </View>
-
-              {awaitingChats.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <Icon name="check-circle" size={32} color="#10B981" />
-                  <Text style={styles.emptyTitle}>All caught up!</Text>
-                  <Text style={styles.emptySubtitle}>No customer chats are waiting for your reply right now.</Text>
-                </View>
-              ) : (
-                <View style={styles.cardList}>
-                  {awaitingChats.slice(0, 4).map((chat) => (
-                    <TouchableOpacity
-                      key={chat.id}
-                      style={styles.chatCard}
-                      onPress={() => navigation.navigate('SupportTicketDetail', { ticketId: chat.id, ticketNumber: chat.ticketNumber })}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.chatAvatar}>
-                        <Icon name="person" size={20} color="#6366F1" />
-                      </View>
-                      <View style={styles.chatInfo}>
-                        <View style={styles.chatHeaderRow}>
-                          <Text style={styles.chatCustomerName} numberOfLines={1}>{chat.customerName}</Text>
-                          <Text style={styles.chatTime}>{relativeTime(chat.lastMessageAt)}</Text>
-                        </View>
-                        <Text style={styles.chatSnippet} numberOfLines={1}>{chat.lastMessage}</Text>
-                      </View>
-                      {chat.unread && (
-                        <View style={styles.chatUnreadDot} />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+          {/* Chats Awaiting Reply Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Chats Awaiting Reply</Text>
             </View>
 
-            {/* Linked Service Requests */}
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionTitleRow}>
-                  <Icon name="receipt-long" size={18} color="#EA580C" />
-                  <Text style={styles.sectionTitle}>Linked Requests</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.viewAllPill}
-                  onPress={() => navigation.navigate('ServiceRequests')}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.viewAllPillText}>View all</Text>
-                  <Icon name="arrow-forward" size={13} color="#A64416" />
-                </TouchableOpacity>
-              </View>
-
-              {linkedRequests.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <Icon name="inbox" size={32} color="#94A3B8" />
-                  <Text style={styles.emptyTitle}>No linked requests</Text>
-                  <Text style={styles.emptySubtitle}>Requests assigned to your queue will appear here.</Text>
-                </View>
-              ) : (
-                <View style={styles.cardList}>
-                  {linkedRequests.slice(0, 4).map((req) => {
-                    const statusStyle = getRequestStatusStyle(req.status);
-                    return (
-                      <TouchableOpacity
-                        key={req.id}
-                        style={styles.requestCard}
-                        onPress={() => navigation.navigate('TicketDetail', { ticketId: req.id, ticket: req.ticketNumber })}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.requestIconBg}>
-                          <Icon name="assignment" size={20} color="#EA580C" />
-                        </View>
-                        <View style={styles.requestInfo}>
-                          <Text style={styles.requestService} numberOfLines={1}>{req.serviceName}</Text>
-                          <Text style={styles.requestMeta} numberOfLines={1}>
-                            {req.ticketNumber} • {req.customerName}
-                          </Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                          <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                            {formatStatus(req.status)}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            {/* Quick Actions */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Quick Actions</Text>
-              <View style={styles.quickActionsCard}>
-                {QUICK_ACTIONS.map(action => (
+            {awaitingChats.length > 0 ? (
+              <View style={styles.cardBlock}>
+                {awaitingChats.slice(0, 4).map((chat) => (
                   <TouchableOpacity
-                    key={action.id}
-                    style={styles.quickActionItem}
-                    onPress={() => navigation.navigate(action.route)}
-                    activeOpacity={0.7}
+                    key={chat.id}
+                    style={styles.ticketItem}
+                    onPress={() => navigation.navigate('SupportTicketDetail', { ticketId: chat.id, ticketNumber: chat.ticketNumber })}
+                    activeOpacity={0.6}
                   >
-                    <View style={[styles.qaIconBg, { backgroundColor: action.color + '15' }]}>
-                      <Icon name={action.icon} size={24} color={action.color} />
+                    <View style={styles.ticketIconBgWrapper}>
+                      <View style={[styles.ticketIconBg, { backgroundColor: '#EEF2FF' }]}>
+                        <Icon name="chat-bubble-outline" size={18} color="#4F46E5" />
+                      </View>
                     </View>
-                    <Text style={styles.qaLabel} numberOfLines={1}>{action.name}</Text>
+                    <View style={styles.ticketDetails}>
+                      <Text style={styles.ticketName} numberOfLines={1}>{chat.customerName || 'Customer'}</Text>
+                      <Text style={styles.ticketSub} numberOfLines={1}>{chat.lastMessage || 'No recent message'}</Text>
+                      <View style={styles.ticketTimeRow}>
+                        <Icon name="schedule" size={12} color="#94A3B8" />
+                        <Text style={styles.ticketTimeText} numberOfLines={1}>{relativeTime(chat.lastMessageAt) || 'Recently'}</Text>
+                      </View>
+                    </View>
+                    {chat.unread && (
+                      <View style={styles.chatUnreadDot} />
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: '#10B98115' }]}>
+                  <Icon name="check-circle" size={24} color="#10B981" />
+                </View>
+                <Text style={styles.emptyTitle}>All caught up!</Text>
+                <Text style={styles.emptySub}>No customer chats are waiting for your reply right now.</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Linked Requests Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Linked Requests</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('ServiceRequests')}>
+                <Text style={styles.viewAllText}>View all →</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
-        )}
+
+            {linkedRequests.length > 0 ? (
+              <View style={styles.cardBlock}>
+                {linkedRequests.slice(0, 4).map((req) => {
+                  const statusStyle = getRequestStatusStyle(req.status);
+                  return (
+                    <TouchableOpacity
+                      key={req.id}
+                      style={styles.ticketItem}
+                      onPress={() => navigation.navigate('TicketDetail', { ticketId: req.id, ticket: req.ticketNumber })}
+                      activeOpacity={0.6}
+                    >
+                      <View style={styles.ticketIconBgWrapper}>
+                        <View style={[styles.ticketIconBg, { backgroundColor: getServiceIconColor(req.serviceName) }]}>
+                          <Icon name={getServiceIconName(req.serviceName)} size={18} color={getServiceIconColorText(req.serviceName)} />
+                        </View>
+                      </View>
+                      <View style={styles.ticketDetails}>
+                        <Text style={styles.ticketName} numberOfLines={1}>{req.serviceName || 'Service Request'}</Text>
+                        <Text style={styles.ticketSub} numberOfLines={1}>
+                          {req.ticketNumber ? `${req.ticketNumber} • ` : ''}{req.customerName || 'Customer'}
+                        </Text>
+                        {req.createdAt && (
+                          <View style={styles.ticketTimeRow}>
+                            <Icon name="schedule" size={12} color="#94A3B8" />
+                            <Text style={styles.ticketTimeText} numberOfLines={1}>{relativeTime(req.createdAt)}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.ticketStatusWrap}>
+                        <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
+                          <Text style={[styles.statusPillText, { color: statusStyle.text }]}>
+                            {formatStatus(req.status)}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <View style={[styles.emptyIconCircle, { backgroundColor: '#F9731615' }]}>
+                  <Icon name="receipt" size={24} color="#F97316" />
+                </View>
+                <Text style={styles.emptyTitle}>No linked requests</Text>
+                <Text style={styles.emptySub}>Requests assigned to your queue will appear here.</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Explore Grid */}
+          <View style={[styles.sectionContainer, { marginBottom: 0 }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Explore</Text>
+            </View>
+            <View style={styles.actionGrid}>
+              {exploreActions.map((action) => (
+                <TouchableOpacity
+                  key={action.id}
+                  style={styles.actionSquare}
+                  onPress={() => navigation.navigate(action.screen)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconBg, { backgroundColor: action.color + '10' }]}>
+                    <Icon name={action.icon} size={22} color={action.color} />
+                  </View>
+                  <Text style={styles.actionLabel} numberOfLines={1}>{action.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+        </ScrollView>
       </View>
     </View>
   );
@@ -308,101 +327,76 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 44,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: STATUS_BAR_HEIGHT,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  decorCircleLg: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  decorDot: {
-    position: 'absolute',
-    bottom: 20,
-    right: 90,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    zIndex: 10,
+    elevation: 0,
   },
   headerTop: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
   },
-  headerTextWrap: {
+  greetingContainer: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 48,
   },
-  greeting: {
-    fontSize: 14,
-    color: '#94A3B8',
-    fontFamily: typography.body.fontFamily,
-  },
-  nameRow: {
+  helloRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
-    marginBottom: 8,
+    marginBottom: 2,
+  },
+  helloText: {
+    fontSize: 14,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   userName: {
-    fontSize: 24,
+    fontSize: 17,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
+    textTransform: 'capitalize',
     flexShrink: 1,
   },
-  wave: {
-    fontSize: 22,
-    marginLeft: 6,
-  },
-  areaPill: {
+  areaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 5,
+    marginTop: 3,
+    gap: 4,
   },
-  areaPillText: {
-    fontSize: 12,
+  areaText: {
+    fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#FDE68A',
-    fontWeight: '600',
   },
   bellBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
   },
   bellBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1.5,
-    borderColor: '#20304C',
+    paddingHorizontal: 3,
   },
   bellBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -410,348 +404,204 @@ const styles = StyleSheet.create({
   creamBody: {
     flex: 1,
     backgroundColor: '#FDFBF7',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    overflow: 'hidden',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 30,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 12,
-  },
-  scrollArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 100,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
 
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  errorBannerText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#DC2626',
-  },
-  retryBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: '#DC2626',
-    borderRadius: 6,
-  },
-  retryBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  statGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-    elevation: 1,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  statCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  statIconBg: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attentionPill: {
-    backgroundColor: '#D97706',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  attentionPillText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '700',
-  },
-  statValue: {
-    fontSize: 18,
-    fontFamily: typography.h2.fontFamily,
-    marginBottom: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  statSubLabel: {
-    fontSize: 9,
-    color: '#64748B',
-    marginTop: 1,
+  scrollContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 30,
   },
 
   sectionContainer: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  sectionHeaderRow: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: typography.h2.fontFamily,
-    color: '#1A1A1A',
-  },
-  viewAllPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#A6441612',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#A6441625',
-  },
-  viewAllPillText: {
-    fontSize: 12,
-    fontFamily: typography.labelMedium.fontFamily,
-    color: '#A64416',
+    color: '#1E293B',
     fontWeight: '700',
   },
-
-  callsCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    elevation: 2,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-  },
-  callStatCol: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  callStatNumber: {
-    fontSize: 20,
-    fontFamily: typography.h2.fontFamily,
-  },
-  callStatLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  callDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: '#E2E8F0',
+  viewAllText: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#D94625',
+    fontWeight: '600',
   },
 
-  quickActionsCard: {
+  cardBlock: {
+    gap: 10,
+  },
+  ticketItem: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 16,
-    marginTop: 8,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    elevation: 2,
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 12,
-  },
-  quickActionItem: {
+    shadowRadius: 8,
+    elevation: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    width: '33.33%',
-    gap: 6,
   },
-  qaIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  ticketIconBgWrapper: {
+    marginRight: 12,
+  },
+  ticketIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  qaLabel: {
+  ticketDetails: {
+    flex: 1,
+    paddingRight: 8,
+    justifyContent: 'center',
+  },
+  ticketName: {
+    fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#0F172A',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  ticketSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  ticketTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  ticketTimeText: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+  },
+  ticketStatusWrap: {
+    justifyContent: 'center',
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontFamily: typography.labelMedium.fontFamily,
+    fontWeight: '600',
+  },
+  chatUnreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#3B82F6',
+    marginLeft: 6,
+  },
+
+  actionGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  actionSquare: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  actionIconBg: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
     fontSize: 11,
     fontFamily: typography.labelMedium.fontFamily,
     color: '#334155',
+    fontWeight: '600',
     textAlign: 'center',
+  },
+
+  loadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 30,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  retryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 30,
+  },
+  retryText: {
+    fontSize: 12,
+    color: colors.error || '#DC2626',
   },
 
   emptyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 24,
+    borderRadius: 14,
+    padding: 18,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  emptyIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   emptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 13,
+    fontFamily: typography.h2.fontFamily,
     color: '#1E293B',
-    marginTop: 8,
+    fontWeight: '700',
+    marginBottom: 2,
   },
-  emptySubtitle: {
-    fontSize: 12,
+  emptySub: {
+    fontSize: 11,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 4,
-  },
-
-  cardList: {
-    gap: 10,
-  },
-  chatCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    elevation: 1,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-  },
-  chatAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  chatInfo: {
-    flex: 1,
-  },
-  chatHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  chatCustomerName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-    flex: 1,
-    marginRight: 8,
-  },
-  chatTime: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-  chatSnippet: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  chatUnreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3B82F6',
-    marginLeft: 8,
-  },
-
-  requestCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    elevation: 1,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-  },
-  requestIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFF7ED',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  requestInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  requestService: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  requestMeta: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
 });
 

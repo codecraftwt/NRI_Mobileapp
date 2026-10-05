@@ -116,7 +116,7 @@ function NotificationPreferences({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Navy Header */}
       <View style={styles.header}>
@@ -232,8 +232,8 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#20304C',
-    paddingTop: STATUS_BAR_HEIGHT + 12,
-    paddingBottom: 22,
+    paddingTop: STATUS_BAR_HEIGHT,
+    paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,

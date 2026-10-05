@@ -12,6 +12,9 @@ import {
   Linking,
   Modal,
   Alert,
+  Pressable,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
@@ -191,7 +194,7 @@ function TicketDetail({ route, navigation }) {
   if (loading && !data) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+        <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
         <View style={styles.blueHeader}>
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -219,7 +222,7 @@ function TicketDetail({ route, navigation }) {
   if (error || !data) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+        <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
         <View style={styles.blueHeader}>
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -253,7 +256,7 @@ function TicketDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
 
       {/* Header Bar */}
       <View style={styles.blueHeader}>
@@ -436,9 +439,30 @@ function TicketDetail({ route, navigation }) {
 
             <View style={{ marginTop: 12 }}>
               <Text style={styles.detailLabel}>TELECALLER</Text>
-              <Text style={styles.detailValueBold}>
-                {data.telecaller?.name || 'Telecaller'}
-              </Text>
+              {data.telecaller?.name ? (
+                <View style={styles.vendorBox}>
+                  <View style={styles.vendorHeaderRow}>
+                    <Text style={styles.vendorName}>{data.telecaller.name}</Text>
+                  </View>
+                  {data.telecaller.phone ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`tel:${data.telecaller.phone}`)}
+                      style={styles.phoneClickRow}
+                    >
+                      <Icon name="phone" size={13} color="#2563EB" />
+                      <Text style={styles.detailLink}>{data.telecaller.phone}</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {data.telecaller.email ? (
+                    <Text style={styles.detailValueSub}>{data.telecaller.email}</Text>
+                  ) : null}
+                </View>
+              ) : (
+                <View style={styles.unassignedBox}>
+                  <Icon name="error-outline" size={18} color="#D97706" />
+                  <Text style={styles.unassignedText}>No telecaller assigned yet.</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -776,9 +800,14 @@ function TicketDetail({ route, navigation }) {
       </ScrollView>
 
       {/* History Modal */}
-      <Modal visible={historyModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+      <Modal
+        visible={historyModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHistoryModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setHistoryModalVisible(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Status History</Text>
               <TouchableOpacity onPress={() => setHistoryModalVisible(false)}>
@@ -798,52 +827,62 @@ function TicketDetail({ route, navigation }) {
                 </View>
               ))}
             </ScrollView>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Quote Proposal Modal */}
-      <Modal visible={quoteModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Propose Quoted Price</Text>
-              <TouchableOpacity onPress={() => setQuoteModalVisible(false)}>
-                <Icon name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-            <View style={{ padding: 16, gap: 12 }}>
-              <Text style={styles.quoteModalPrompt}>Enter proposed price for this custom service:</Text>
-              <TextInput
-                style={styles.quoteInput}
-                placeholder="Amount in INR (₹)"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-                value={quoteAmount}
-                onChangeText={setQuoteAmount}
-              />
-              <TextInput
-                style={[styles.quoteInput, { height: 70, textAlignVertical: 'top' }]}
-                placeholder="Reason / breakdown..."
-                placeholderTextColor="#94A3B8"
-                multiline
-                value={quoteReason}
-                onChangeText={setQuoteReason}
-              />
-              <TouchableOpacity
-                style={styles.quoteSubmitBtn}
-                onPress={handleProposeQuote}
-                disabled={submittingQuote}
-              >
-                {submittingQuote ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.quoteSubmitBtnText}>Submit Proposal</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+      <Modal
+        visible={quoteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQuoteModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardAvoidingWrap}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setQuoteModalVisible(false)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Propose Quoted Price</Text>
+                <TouchableOpacity onPress={() => setQuoteModalVisible(false)}>
+                  <Icon name="close" size={24} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: 16, gap: 12 }}>
+                <Text style={styles.quoteModalPrompt}>Enter proposed price for this custom service:</Text>
+                <TextInput
+                  style={styles.quoteInput}
+                  placeholder="Amount in INR (₹)"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={quoteAmount}
+                  onChangeText={setQuoteAmount}
+                />
+                <TextInput
+                  style={[styles.quoteInput, { height: 70, textAlignVertical: 'top' }]}
+                  placeholder="Reason / breakdown..."
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  value={quoteReason}
+                  onChangeText={setQuoteReason}
+                />
+                <TouchableOpacity
+                  style={styles.quoteSubmitBtn}
+                  onPress={handleProposeQuote}
+                  disabled={submittingQuote}
+                >
+                  {submittingQuote ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.quoteSubmitBtnText}>Submit Proposal</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -905,7 +944,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 8,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 16,
     paddingBottom: 14,
     backgroundColor: '#20304C',
@@ -926,8 +965,8 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: typography.bold,
+    fontSize: 17,
+    fontFamily: typography.h3.fontFamily,
     color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
@@ -1006,13 +1045,14 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: 9,
+    fontFamily: typography.tiny.fontFamily,
     color: '#94A3B8',
     marginTop: 4,
     textAlign: 'center',
   },
   stepLabelActive: {
     color: '#059669',
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
   historyLinkBtn: {
     flexDirection: 'row',
@@ -1027,7 +1067,7 @@ const styles = StyleSheet.create({
   historyLinkText: {
     fontSize: 11,
     color: '#3B82F6',
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 
   card: {
@@ -1045,7 +1085,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: typography.h4.fontFamily,
     color: '#1E293B',
   },
   cardHeaderWithAction: {
@@ -1063,7 +1103,7 @@ const styles = StyleSheet.create({
   proposeBtnText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 
   detailsGrid: {
@@ -1077,22 +1117,24 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#94A3B8',
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   detailValueBold: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   detailValue: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#334155',
   },
   detailValueSub: {
     fontSize: 11,
+    fontFamily: typography.small.fontFamily,
     color: '#64748B',
     marginTop: 1,
   },
@@ -1104,8 +1146,8 @@ const styles = StyleSheet.create({
   },
   detailLink: {
     fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#2563EB',
-    fontWeight: '600',
   },
 
   assignmentBlock: {
@@ -1126,7 +1168,7 @@ const styles = StyleSheet.create({
   },
   vendorName: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   companyTag: {
@@ -1138,7 +1180,7 @@ const styles = StyleSheet.create({
   companyTagText: {
     color: '#2563EB',
     fontSize: 9,
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
   },
   ratingRow: {
     flexDirection: 'row',
@@ -1148,11 +1190,12 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#64748B',
-    fontWeight: '600',
   },
   assignedTimeText: {
     fontSize: 10,
+    fontFamily: typography.small.fontFamily,
     color: '#94A3B8',
     marginTop: 4,
   },
@@ -1167,8 +1210,8 @@ const styles = StyleSheet.create({
   },
   unassignedText: {
     fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#D97706',
-    fontWeight: '600',
   },
 
   pricingMetricsRow: {
@@ -1195,14 +1238,14 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#64748B',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   metricValue: {
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: typography.h3.fontFamily,
     color: '#0F172A',
   },
 
@@ -1220,12 +1263,13 @@ const styles = StyleSheet.create({
   },
   pricingItemLabel: {
     fontSize: 13,
+    fontFamily: typography.body.fontFamily,
     color: '#475569',
   },
   pricingItemValue: {
     fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
-    fontWeight: '600',
   },
   pricingTotalRowItem: {
     paddingVertical: 10,
@@ -1238,12 +1282,12 @@ const styles = StyleSheet.create({
   },
   pricingTotalItemLabel: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: typography.h4.fontFamily,
     color: '#0F172A',
   },
   pricingTotalItemValue: {
     fontSize: 15,
-    fontWeight: '800',
+    fontFamily: typography.h3.fontFamily,
     color: '#0F172A',
   },
   pricingPendingRowItem: {
@@ -1252,13 +1296,13 @@ const styles = StyleSheet.create({
   },
   pricingPendingLabel: {
     fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#EA580C',
-    fontWeight: '600',
   },
   pricingPendingValue: {
     fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#EA580C',
-    fontWeight: '700',
   },
 
   additionalPaymentsSection: {
@@ -1270,7 +1314,7 @@ const styles = StyleSheet.create({
   },
   additionalPaymentsTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   additionalPaymentItem: {
@@ -1294,12 +1338,12 @@ const styles = StyleSheet.create({
   pendingBadgeText: {
     color: '#EA580C',
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
   additionalPaymentText: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#334155',
-    fontWeight: '600',
     flex: 1,
   },
 
@@ -1317,11 +1361,12 @@ const styles = StyleSheet.create({
   },
   reportVendorName: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   reportDateText: {
     fontSize: 11,
+    fontFamily: typography.small.fontFamily,
     color: '#64748B',
     marginTop: 2,
   },
@@ -1338,7 +1383,7 @@ const styles = StyleSheet.create({
   },
   sentBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#059669',
   },
   reviewedBadge: {
@@ -1354,7 +1399,7 @@ const styles = StyleSheet.create({
   },
   reviewedBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#2563EB',
   },
 
@@ -1367,13 +1412,14 @@ const styles = StyleSheet.create({
   },
   reportTextLabel: {
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#94A3B8',
     letterSpacing: 0.5,
     marginBottom: 4,
   },
   reportTextBody: {
     fontSize: 13,
+    fontFamily: typography.body.fontFamily,
     color: '#334155',
     lineHeight: 18,
   },
@@ -1383,7 +1429,7 @@ const styles = StyleSheet.create({
   },
   reportMediaLabel: {
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#94A3B8',
     letterSpacing: 0.5,
     marginBottom: 6,
@@ -1417,11 +1463,12 @@ const styles = StyleSheet.create({
   },
   mediaFileName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   mediaActionText: {
     fontSize: 10,
+    fontFamily: typography.small.fontFamily,
     color: '#2563EB',
     marginTop: 2,
   },
@@ -1434,11 +1481,13 @@ const styles = StyleSheet.create({
   },
   emptyReportText: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
   },
 
   staffOnlyNotice: {
     fontSize: 11,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
     marginBottom: 8,
   },
@@ -1454,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   privateTagText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#6366F1',
   },
   emptyChatBox: {
@@ -1466,6 +1515,7 @@ const styles = StyleSheet.create({
   },
   emptyChatText: {
     fontSize: 11,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
     textAlign: 'center',
   },
@@ -1490,16 +1540,18 @@ const styles = StyleSheet.create({
   },
   chatSenderName: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#64748B',
     marginBottom: 2,
   },
   chatMessageText: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#0F172A',
   },
   chatTimeText: {
     fontSize: 9,
+    fontFamily: typography.tiny.fontFamily,
     color: '#94A3B8',
     marginTop: 3,
     alignSelf: 'flex-end',
@@ -1519,6 +1571,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#0F172A',
   },
   sendChatBtn: {
@@ -1560,7 +1613,7 @@ const styles = StyleSheet.create({
   },
   callLogTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
     flex: 1,
   },
@@ -1574,27 +1627,30 @@ const styles = StyleSheet.create({
   },
   callOutcomeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#059669',
   },
   callLogPurpose: {
     fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0284C7',
-    fontWeight: '600',
     marginTop: 2,
   },
   callLogNote: {
     fontSize: 11,
+    fontFamily: typography.body.fontFamily,
     color: '#475569',
     marginTop: 2,
   },
   callLogMeta: {
     fontSize: 10,
+    fontFamily: typography.small.fontFamily,
     color: '#94A3B8',
     marginTop: 2,
   },
   emptyTextSub: {
     fontSize: 11,
+    fontFamily: typography.body.fontFamily,
     color: '#94A3B8',
   },
 
@@ -1609,10 +1665,12 @@ const styles = StyleSheet.create({
   },
   noteText: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#334155',
   },
   noteMeta: {
     fontSize: 10,
+    fontFamily: typography.small.fontFamily,
     color: '#94A3B8',
     marginTop: 2,
   },
@@ -1629,6 +1687,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#0F172A',
   },
   addNoteBtn: {
@@ -1641,20 +1700,31 @@ const styles = StyleSheet.create({
   addNoteBtnText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 
+  keyboardAvoidingWrap: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   modalSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1666,7 +1736,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: typography.h4.fontFamily,
     color: '#0F172A',
   },
   historyModalItem: {
@@ -1683,26 +1753,30 @@ const styles = StyleSheet.create({
   },
   historyModalStatus: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#0F172A',
   },
   historyModalBy: {
     fontSize: 11,
+    fontFamily: typography.small.fontFamily,
     color: '#64748B',
   },
   historyModalComment: {
     fontSize: 12,
+    fontFamily: typography.body.fontFamily,
     color: '#334155',
     marginTop: 2,
   },
   historyModalDate: {
     fontSize: 10,
+    fontFamily: typography.tiny.fontFamily,
     color: '#94A3B8',
     marginTop: 2,
   },
 
   quoteModalPrompt: {
     fontSize: 13,
+    fontFamily: typography.body.fontFamily,
     color: '#475569',
   },
   quoteInput: {
@@ -1712,6 +1786,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     padding: 10,
     fontSize: 13,
+    fontFamily: typography.body.fontFamily,
     color: '#0F172A',
   },
   quoteSubmitBtn: {
@@ -1724,7 +1799,7 @@ const styles = StyleSheet.create({
   quoteSubmitBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: typography.labelMedium.fontFamily,
   },
 });
 
