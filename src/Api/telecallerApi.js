@@ -66,3 +66,6 @@ export async function requestTelecallerCallback(payload) {
 }
 
 export { getTelecallerDashboard, mapTelecallerDashboardData } from './Telecaller/telecallerDashboardApi';
+export * from './Telecaller/telecallerRequestsApi';
+export * from './Telecaller/telecallerCustomersApi';
+export * from './Telecaller/telecallerVendorsApi';

@@ -17,6 +17,9 @@ import CallHistory from '../../Screens/Telecaller/CallHistory';
 import GeneralSupport from '../../Screens/Telecaller/GeneralSupport';
 import CustomPlan from '../../Screens/Telecaller/CustomPlan';
 import MyCustomers from '../../Screens/Telecaller/MyCustomers';
+import TicketDetail from '../../Screens/Telecaller/TicketDetail';
+import NewServiceRequest from '../../Screens/Telecaller/NewServiceRequest';
+import VendorDetail from '../../Screens/Telecaller/VendorDetail';
 import Notifications from '../../Screens/NRI/Notifications';
 import ProfilePersonal from '../../Screens/NRI/ProfilePersonal';
 import ProfilePassword from '../../Screens/NRI/ProfilePassword';
@@ -43,6 +46,9 @@ function DashboardStack() {
       <Stack.Screen name="GeneralSupport" component={GeneralSupport} />
       <Stack.Screen name="CustomPlan" component={CustomPlan} />
       <Stack.Screen name="MyCustomers" component={MyCustomers} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="NewServiceRequest" component={NewServiceRequest} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   );
@@ -52,6 +58,9 @@ function ServiceRequestsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ServiceRequestsMain" component={ServiceRequests} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="NewServiceRequest" component={NewServiceRequest} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
     </Stack.Navigator>
   );
 }
@@ -60,6 +69,8 @@ function VendorsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VendorsMain" component={Vendors} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }

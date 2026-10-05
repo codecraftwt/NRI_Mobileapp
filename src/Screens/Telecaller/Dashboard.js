@@ -376,7 +376,7 @@ function Dashboard({ navigation }) {
                       <TouchableOpacity
                         key={req.id}
                         style={styles.requestCard}
-                        onPress={() => navigation.navigate('ServiceRequests')}
+                        onPress={() => navigation.navigate('TicketDetail', { ticketId: req.id, ticket: req.ticketNumber })}
                         activeOpacity={0.7}
                       >
                         <View style={styles.requestIconBg}>
