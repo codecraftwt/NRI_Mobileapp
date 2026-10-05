@@ -20,6 +20,7 @@ import MyCustomers from '../../Screens/Telecaller/MyCustomers';
 import TicketDetail from '../../Screens/Telecaller/TicketDetail';
 import NewServiceRequest from '../../Screens/Telecaller/NewServiceRequest';
 import VendorDetail from '../../Screens/Telecaller/VendorDetail';
+import CustomerDetail from '../../Screens/Telecaller/CustomerDetail';
 import Notifications from '../../Screens/NRI/Notifications';
 import ProfilePersonal from '../../Screens/NRI/ProfilePersonal';
 import ProfilePassword from '../../Screens/NRI/ProfilePassword';
@@ -49,6 +50,7 @@ function DashboardStack() {
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="NewServiceRequest" component={NewServiceRequest} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="Notifications" component={Notifications} />
     </Stack.Navigator>
   );
@@ -61,6 +63,7 @@ function ServiceRequestsStack() {
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
       <Stack.Screen name="NewServiceRequest" component={NewServiceRequest} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
     </Stack.Navigator>
   );
 }
@@ -71,6 +74,7 @@ function VendorsStack() {
       <Stack.Screen name="VendorsMain" component={Vendors} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
     </Stack.Navigator>
   );
 }
@@ -79,6 +83,8 @@ function CustomersStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="CustomersMain" component={Customers} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }
