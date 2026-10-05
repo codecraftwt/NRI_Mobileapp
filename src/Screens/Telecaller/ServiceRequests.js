@@ -265,7 +265,7 @@ function ServiceRequests({ navigation }) {
             activeOpacity={0.8}
             onPress={() => navigation.navigate('NewServiceRequest')}
           >
-            <Icon name="add" size={18} color="#FFFFFF" />
+            <Icon name="add" size={15} color="#FFFFFF" />
             <Text style={styles.newRequestBtnText}>New Request</Text>
           </TouchableOpacity>
         </View>
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#20304C',
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
   },
@@ -567,10 +567,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#A64416',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    gap: 4,
+    paddingVertical: 5.5,
+    paddingHorizontal: 11,
+    borderRadius: 16,
+    gap: 3,
     elevation: 2,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
   },
   newRequestBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 11.5,
     fontWeight: '700',
   },
 
