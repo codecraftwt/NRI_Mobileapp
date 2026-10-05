@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#20304C',

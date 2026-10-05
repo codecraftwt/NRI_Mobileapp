@@ -13,7 +13,6 @@ function initialsFor(name) {
 const MENU = [
   { id: 'personal', label: 'Personal Information', icon: 'person-outline', color: '#3B82F6', route: 'ProfilePersonal' },
   { id: 'password', label: 'Change Password', icon: 'lock-outline', color: '#0EA5E9', route: 'ProfilePassword' },
-  { id: 'notifications', label: 'Notification Preferences', icon: 'notifications-none', color: '#8B5CF6', route: 'NotificationPreferences' },
 ];
 
 function Profile({ navigation }) {
@@ -106,7 +105,7 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
+    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 64,
     backgroundColor: '#20304C',
     borderBottomLeftRadius: 28,

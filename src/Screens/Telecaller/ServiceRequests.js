@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#20304C',
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
   },
