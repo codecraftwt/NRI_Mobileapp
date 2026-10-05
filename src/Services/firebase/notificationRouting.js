@@ -246,6 +246,7 @@ export async function handleNotificationNavigation(data, nav) {
   const roles = (store.getState()?.user?.user?.roles || []).map(r => String(r).toLowerCase());
   // State/District/Taluka-Admin all share the StateAdminHome shell.
   const isStateAdmin = /(state|district|taluka)-?admin/.test(role) || roles.some(r => /(state|district|taluka)-?admin/.test(r));
+  const isTelecaller = /telecaller/.test(role) || roles.some(r => /telecaller/.test(r));
   const isVendor = /vendor/.test(role) || roles.some(r => /vendor/.test(r));
   const isRm = /relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r));
 
@@ -253,6 +254,30 @@ export async function handleNotificationNavigation(data, nav) {
   if (isStateAdmin) {
     closeInAppNotifications(nav);
     return navigate('StateAdminHome');
+  }
+
+  // ---- Telecaller ----
+  if (isTelecaller) {
+    if (nav) {
+      // In-app notification tap: stay on notifications list without navigating
+      return;
+    }
+    if (id && /support[-_ ]?ticket/.test(hay)) {
+      return navigate('SupportTicketDetail', { ticketId: id, ticketNumber: extractTicketNumber(data) });
+    }
+    if (id && /request|ticket|service[-_ ]?request/.test(hay)) {
+      return navigate('TicketDetail', { ticketId: id });
+    }
+    if (id && /customer/.test(hay)) {
+      return navigate('CustomerDetail', { customerId: id });
+    }
+    if (id && /vendor/.test(hay)) {
+      return navigate('VendorDetail', { vendorId: id });
+    }
+    if (/call/.test(hay)) {
+      return navigate('CallCentre');
+    }
+    return navigate('TelecallerHome');
   }
 
   // ---- Relationship Manager ----

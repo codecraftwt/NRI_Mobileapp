@@ -29,6 +29,7 @@ export function notifBaseForRole(role) {
   const r = String(role || '').toLowerCase();
   if (/super-admin/.test(r)) return '/super-admin';
   if (/state-admin|district-admin|taluka-admin|\badmin\b/.test(r)) return '/admin';
+  if (/telecaller/.test(r)) return '/telecaller';
   if (/relationship|manager|\brm\b/.test(r)) return '/rm';
   if (/vendor/.test(r)) return '/vendor';
   return '/customer';

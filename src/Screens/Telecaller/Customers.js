@@ -13,6 +13,7 @@ import {
   Modal,
   Pressable,
   Linking,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
@@ -162,6 +163,7 @@ function Customers({ navigation }) {
   const renderCustomerCard = ({ item }) => {
     const initials = (item.name || 'C').substring(0, 2).toUpperCase();
     const badge = getMembershipBadge(item.membershipStatus, item.hasActiveMembership);
+    const location = [item.city, item.nriCountry || item.country].filter(Boolean).join(', ');
 
     return (
       <TouchableOpacity
@@ -169,35 +171,19 @@ function Customers({ navigation }) {
         activeOpacity={0.7}
         onPress={() => navigation.navigate('CustomerDetail', { customerId: item.id, customer: item })}
       >
-        {/* Card Header: Avatar, Name, Badges */}
+        {/* Card Header: Avatar, Name/Email, Status Badge */}
         <View style={styles.cardHeader}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
 
           <View style={styles.headerInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.customerName} numberOfLines={1}>{item.name}</Text>
-              {item.isMine && (
-                <View style={styles.mineBadge}>
-                  <Icon name="verified-user" size={10} color="#2563EB" />
-                  <Text style={styles.mineBadgeText}>Mine</Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.customerName} numberOfLines={1}>
+              {item.name || item.email || 'Customer'}
+            </Text>
 
-            {item.email ? (
-              <View style={styles.metaRow}>
-                <Icon name="email" size={12} color="#64748B" />
-                <Text style={styles.metaText} numberOfLines={1}>{item.email}</Text>
-              </View>
-            ) : null}
-
-            {item.phone ? (
-              <View style={styles.metaRow}>
-                <Icon name="phone" size={12} color="#64748B" />
-                <Text style={styles.metaText}>{item.phone}</Text>
-              </View>
+            {item.name && item.email && item.name !== item.email ? (
+              <Text style={styles.emailSubtext} numberOfLines={1}>{item.email}</Text>
             ) : null}
           </View>
 
@@ -207,56 +193,30 @@ function Customers({ navigation }) {
           </View>
         </View>
 
-        {/* Location & NRI Pill */}
-        <View style={styles.locationRow}>
-          <Icon name="location-on" size={13} color="#64748B" />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {[item.city, item.state, item.nriCountry || item.country].filter(Boolean).join(', ') || 'India'}
-          </Text>
-          {item.isNri && (
-            <View style={styles.nriBadge}>
-              <Text style={styles.nriBadgeText}>NRI</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statChip}>
-            <Icon name="confirmation-number" size={12} color="#2563EB" />
-            <Text style={styles.statChipText}>{item.requestsCount} Requests</Text>
-          </View>
-
-          <View style={styles.statChip}>
-            <Icon name="apartment" size={12} color="#059669" />
-            <Text style={styles.statChipText}>{item.propertiesCount} Properties</Text>
-          </View>
-
-          <View style={styles.statChip}>
-            <Icon name="group" size={12} color="#D97706" />
-            <Text style={styles.statChipText}>{item.familyCount} Family</Text>
-          </View>
-        </View>
-
-        {/* Card Footer: Call & View Detail Action */}
+        {/* Footer: Location on left, Call action on right */}
         <View style={styles.cardFooter}>
+          <View style={styles.metaLeft}>
+            {location ? (
+              <View style={styles.locationWrap}>
+                <Icon name="location-on" size={13} color="#64748B" />
+                <Text style={styles.locationText} numberOfLines={1}>{location}</Text>
+              </View>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
+          </View>
+
           {item.phone ? (
             <TouchableOpacity
               style={styles.callButton}
               onPress={() => handleCall(item.phone)}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Icon name="phone" size={13} color="#059669" />
-              <Text style={styles.callButtonText}>Call</Text>
+              <Icon name="phone" size={12} color="#059669" />
+              <Text style={styles.callButtonText}>{item.phone}</Text>
             </TouchableOpacity>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
-
-          <View style={styles.viewDetailsRow}>
-            <Text style={styles.viewDetailsText}>View Profile</Text>
-            <Icon name="arrow-forward" size={14} color="#A64416" />
-          </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -482,9 +442,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 16,
     backgroundColor: '#20304C',
   },
   headerTop: {
@@ -625,9 +585,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 90,
-    gap: 12,
+    gap: 8,
   },
 
   centerLoading: {
@@ -688,33 +648,33 @@ const styles = StyleSheet.create({
   // Customer Card
   customerCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 11,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     elevation: 1,
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
-    gap: 10,
+    shadowRadius: 4,
+    gap: 8,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+    alignItems: 'center',
+    gap: 10,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#20304C',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
   headerInfo: {
@@ -723,92 +683,29 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     flexWrap: 'wrap',
   },
   customerName: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#0F172A',
   },
-  mineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 6,
-    gap: 3,
-  },
-  mineBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  metaText: {
-    fontSize: 12,
+  emailSubtext: {
+    fontSize: 11,
     color: '#64748B',
+    marginTop: 1,
   },
 
   membershipBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
     borderWidth: 1,
   },
   membershipBadgeText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
-  },
-
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  locationText: {
-    fontSize: 11,
-    color: '#64748B',
-    flex: 1,
-  },
-  nriBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-  },
-  nriBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  statChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
   },
 
   cardFooter: {
@@ -818,16 +715,30 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#F8FAFC',
-    marginTop: 2,
   },
+  metaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  locationWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  locationText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+
   callButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    gap: 4,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
@@ -835,16 +746,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#059669',
-  },
-  viewDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#A64416',
   },
 
   // Modal

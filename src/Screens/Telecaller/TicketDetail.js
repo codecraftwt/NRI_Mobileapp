@@ -20,12 +20,13 @@ import {
   addTelecallerRequestNote,
   sendTelecallerVendorChatMessage,
   proposeTelecallerQuotedPrice,
-  submitTelecallerCustomerFeedback,
 } from '../../Api/Telecaller/telecallerRequestsApi';
 
 function formatInr(val) {
   const num = Number(val || 0);
-  return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const isNeg = num < 0;
+  const absFormatted = Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return isNeg ? `₹-${absFormatted}` : `₹${absFormatted}`;
 }
 
 function formatDateTime(iso) {
@@ -39,6 +40,13 @@ function formatDateTime(iso) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function getStatusStyle(status) {
@@ -68,7 +76,15 @@ function getTimelineProgressIndex(status) {
 }
 
 function TicketDetail({ route, navigation }) {
-  const ticketId = route.params?.ticketId || route.params?.id || route.params?.ticket;
+  const rawTicketParam = route?.params?.ticket;
+  const ticketId =
+    route?.params?.ticketId ||
+    route?.params?.id ||
+    (typeof rawTicketParam === 'object' && rawTicketParam !== null ? rawTicketParam.id : rawTicketParam);
+  const ticketNumberParam =
+    route?.params?.ticketNumber ||
+    (typeof rawTicketParam === 'string' ? rawTicketParam : rawTicketParam?.ticketNumber || rawTicketParam?.ticket_number);
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,21 +105,17 @@ function TicketDetail({ route, navigation }) {
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
-  // Feedback rating state
-  const [feedbackRating, setFeedbackRating] = useState(5);
-  const [feedbackNote, setFeedbackNote] = useState('');
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
-
   const fetchDetail = useCallback(async (isRefresh = false) => {
+    if (!ticketId) {
+      setError('Invalid request ID');
+      setLoading(false);
+      return;
+    }
     try {
       if (!isRefresh) setLoading(true);
       setError(null);
       const res = await getTelecallerServiceRequestDetail(ticketId);
       setData(res);
-      if (res.feedback) {
-        setFeedbackRating(res.feedback.rating || 5);
-        setFeedbackNote(res.feedback.note || '');
-      }
     } catch (err) {
       setError(err?.message || 'Failed to load request details');
     } finally {
@@ -175,46 +187,63 @@ function TicketDetail({ route, navigation }) {
     }
   };
 
-  // Submit feedback
-  const handleSubmitFeedback = async () => {
-    try {
-      setSubmittingFeedback(true);
-      await submitTelecallerCustomerFeedback(ticketId, {
-        rating: feedbackRating,
-        note: feedbackNote.trim(),
-      });
-      Alert.alert('Success', 'Customer feedback recorded.');
-      fetchDetail(true);
-    } catch (err) {
-      Alert.alert('Error', err?.message || 'Failed to submit feedback');
-    } finally {
-      setSubmittingFeedback(false);
-    }
-  };
 
-  if (loading && !refreshing) {
+  if (loading && !data) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.container}>
         <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
-        <ActivityIndicator size="large" color="#A64416" />
-        <Text style={styles.loadingText}>Loading request details...</Text>
+        <View style={styles.blueHeader}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {ticketNumberParam || (ticketId ? `#${ticketId}` : 'Service Request')}
+            </Text>
+            <View style={styles.headerRightPlaceholder} />
+          </View>
+        </View>
+        <View style={styles.creamBodyLoading}>
+          <ActivityIndicator size="large" color="#A64416" />
+          <Text style={styles.loadingText}>Loading request details...</Text>
+        </View>
       </View>
     );
   }
 
   if (error || !data) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={styles.container}>
         <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
-        <Icon name="error-outline" size={48} color="#DC2626" />
-        <Text style={styles.errorTitle}>Could not load request</Text>
-        <Text style={styles.errorSubtitle}>{error || 'Request not found'}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => fetchDetail()}>
-          <Text style={styles.retryBtnText}>Retry</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.backBtnAlt} onPress={() => navigation.goBack()}>
-          <Text style={styles.backBtnAltText}>Go Back</Text>
-        </TouchableOpacity>
+        <View style={styles.blueHeader}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {ticketNumberParam || (ticketId ? `#${ticketId}` : 'Service Request')}
+            </Text>
+            <View style={styles.headerRightPlaceholder} />
+          </View>
+        </View>
+        <View style={styles.creamBodyLoading}>
+          <Icon name="error-outline" size={48} color="#DC2626" />
+          <Text style={styles.errorTitle}>Could not load request</Text>
+          <Text style={styles.errorSubtitle}>{error || 'Request not found'}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchDetail()}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -228,29 +257,19 @@ function TicketDetail({ route, navigation }) {
 
       {/* Header Bar */}
       <View style={styles.blueHeader}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerTextWrap}>
-            <View style={styles.ticketTitleRow}>
-              <Text style={styles.ticketIdText}>{data.ticketNumber}</Text>
-              <View style={[styles.headerStatusPill, { backgroundColor: statusStyle.bg }]}>
-                <Text style={[styles.headerStatusText, { color: statusStyle.text }]}>{data.statusLabel}</Text>
-              </View>
-              <View style={styles.headerUrgencyPill}>
-                <Text style={styles.headerUrgencyText}>{data.urgencyLabel}</Text>
-              </View>
-            </View>
-            <Text style={styles.headerServiceName} numberOfLines={2}>
-              {data.serviceName}
-            </Text>
-            <Text style={styles.headerDateText}>
-              Created {formatDateTime(data.createdAt)}
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <Icon name="arrow-back" size={18} color="#FFFFFF" />
-            <Text style={styles.backBtnText}>Back</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
+          >
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {data.ticketNumber}
+          </Text>
+          <View style={styles.headerRightPlaceholder} />
         </View>
       </View>
 
@@ -311,6 +330,14 @@ function TicketDetail({ route, navigation }) {
           </View>
 
           <View style={styles.detailsGrid}>
+            <View style={styles.detailColFull}>
+              <Text style={styles.detailLabel}>SERVICE</Text>
+              <Text style={styles.detailValueBold}>{data.serviceName}</Text>
+              {data.createdAt ? (
+                <Text style={styles.detailValueSub}>Created {formatDateTime(data.createdAt)}</Text>
+              ) : null}
+            </View>
+
             <View style={styles.detailCol}>
               <Text style={styles.detailLabel}>CUSTOMER</Text>
               <Text style={styles.detailValueBold}>{data.customer.name}</Text>
@@ -434,95 +461,162 @@ function TicketDetail({ route, navigation }) {
             )}
           </View>
 
-          <View style={styles.pricingTable}>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>Customer Price</Text>
-              <Text style={styles.pricingVal}>{formatInr(data.pricing.customerPrice)}</Text>
+          {/* Top Metric Cards: Vendor Cost & Margin */}
+          <View style={styles.pricingMetricsRow}>
+            <View style={styles.pricingMetricBox}>
+              <Text style={styles.metricLabel}>VENDOR COST</Text>
+              <Text style={styles.metricValue}>{formatInr(data.pricing.vendorCost)}</Text>
             </View>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>Vendor Cost</Text>
-              <Text style={styles.pricingVal}>{formatInr(data.pricing.vendorCost)}</Text>
-            </View>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>Express Surcharge</Text>
-              <Text style={styles.pricingVal}>{formatInr(data.pricing.expressSurcharge)}</Text>
-            </View>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>Margin</Text>
-              <Text style={[styles.pricingVal, { color: '#059669', fontWeight: '700' }]}>
-                {formatInr(data.pricing.margin)} (before GST)
+
+            <View style={[styles.pricingMetricBox, data.pricing.margin < 0 ? styles.metricBoxDanger : styles.metricBoxSuccess]}>
+              <Text style={styles.metricLabel}>MARGIN (BEFORE GST)</Text>
+              <Text
+                style={[
+                  styles.metricValue,
+                  { color: data.pricing.margin < 0 ? '#DC2626' : '#059669' },
+                ]}
+              >
+                {formatInr(data.pricing.margin)}
               </Text>
             </View>
-            <View style={styles.pricingRow}>
-              <Text style={styles.pricingLabel}>GST ({data.pricing.gstPercent}%)</Text>
-              <Text style={styles.pricingVal}>{formatInr(data.pricing.gst)}</Text>
-            </View>
-            <View style={[styles.pricingRow, styles.pricingTotalRow]}>
-              <Text style={styles.pricingTotalLabel}>Total</Text>
-              <Text style={styles.pricingTotalVal}>{formatInr(data.pricing.totalAmount)}</Text>
-            </View>
           </View>
+
+          {/* Breakdown Table */}
+          <View style={styles.pricingList}>
+            <View style={styles.pricingRowItem}>
+              <Text style={styles.pricingItemLabel}>Customer Price</Text>
+              <Text style={styles.pricingItemValue}>{formatInr(data.pricing.customerPrice)}</Text>
+            </View>
+
+            <View style={styles.pricingRowItem}>
+              <Text style={styles.pricingItemLabel}>Express Surcharge</Text>
+              <Text style={styles.pricingItemValue}>{formatInr(data.pricing.expressSurcharge)}</Text>
+            </View>
+
+            <View style={[styles.pricingRowItem, styles.pricingTotalRowItem]}>
+              <Text style={styles.pricingTotalItemLabel}>Total</Text>
+              <Text style={styles.pricingTotalItemValue}>{formatInr(data.pricing.totalAmount)}</Text>
+            </View>
+
+            {data.pricing.pendingAdditionalCharge ? (
+              <View style={[styles.pricingRowItem, styles.pricingPendingRowItem]}>
+                <Text style={styles.pricingPendingLabel}>Additional Charge (pending)</Text>
+                <Text style={styles.pricingPendingValue}>
+                  {formatInr(data.pricing.pendingAdditionalCharge.amount)}
+                  {data.pricing.pendingAdditionalCharge.displayAmount != null
+                    ? ` ($${data.pricing.pendingAdditionalCharge.displayAmount})`
+                    : ''}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Additional Payment Requests Section */}
+          {data.additionalPaymentRequests && data.additionalPaymentRequests.length > 0 && (
+            <View style={styles.additionalPaymentsSection}>
+              <Text style={styles.additionalPaymentsTitle}>Additional Payment Requests</Text>
+              {data.additionalPaymentRequests.map((req, idx) => (
+                <View key={req.id || idx} style={styles.additionalPaymentItem}>
+                  <View style={styles.pendingBadge}>
+                    <Text style={styles.pendingBadgeText}>
+                      {req.status ? req.status.charAt(0).toUpperCase() + req.status.slice(1) : 'Pending'}
+                    </Text>
+                  </View>
+                  <Text style={styles.additionalPaymentText}>
+                    {formatInr(req.amount)}
+                    {req.displayAmount != null ? ` ($${req.displayAmount})` : ''}
+                    {req.reason ? ` — ${req.reason}` : ''}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* 4. Customer Feedback (Staff Only) */}
+        {/* 4. Vendor Report Card */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
-            <Icon name="rate-review" size={18} color="#EA580C" />
-            <Text style={styles.cardTitle}>Customer Feedback (Staff Only)</Text>
+            <Icon name="assignment-turned-in" size={18} color="#059669" />
+            <Text style={styles.cardTitle}>Vendor Report</Text>
           </View>
-          <Text style={styles.staffOnlyNotice}>Internal only — never visible to this customer.</Text>
 
-          {data.feedback ? (
-            <View style={styles.feedbackDisplayBox}>
-              <View style={styles.feedbackStarRow}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <Icon
-                    key={star}
-                    name={star <= data.feedback.rating ? 'star' : 'star-border'}
-                    size={20}
-                    color="#F59E0B"
-                  />
-                ))}
-                <Text style={styles.feedbackRatingNumber}>{data.feedback.rating}/5</Text>
+          {data.report ? (
+            <View style={styles.reportContent}>
+              {/* Report Header: Vendor & Timestamps */}
+              <View style={styles.reportHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reportVendorName}>
+                    {data.report.vendor?.businessName || data.vendor?.name || 'Assigned Vendor'}
+                  </Text>
+                  {data.report.submittedAt && (
+                    <Text style={styles.reportDateText}>
+                      Submitted {formatDateTime(data.report.submittedAt)}
+                    </Text>
+                  )}
+                </View>
+
+                {data.report.sentToCustomerAt ? (
+                  <View style={styles.sentBadge}>
+                    <Icon name="check-circle" size={12} color="#059669" />
+                    <Text style={styles.sentBadgeText}>Sent to Customer</Text>
+                  </View>
+                ) : data.report.reviewedAt ? (
+                  <View style={styles.reviewedBadge}>
+                    <Icon name="done-all" size={12} color="#2563EB" />
+                    <Text style={styles.reviewedBadgeText}>Reviewed</Text>
+                  </View>
+                ) : null}
               </View>
-              {data.feedback.note && (
-                <Text style={styles.feedbackNoteText}>"{data.feedback.note}"</Text>
+
+              {/* Report Text */}
+              {data.report.reportText ? (
+                <View style={styles.reportTextBox}>
+                  <Text style={styles.reportTextLabel}>REPORT NOTES</Text>
+                  <Text style={styles.reportTextBody}>{data.report.reportText}</Text>
+                </View>
+              ) : null}
+
+              {/* Media & Attachments */}
+              {data.report.media && data.report.media.length > 0 && (
+                <View style={styles.reportMediaSection}>
+                  <Text style={styles.reportMediaLabel}>ATTACHED MEDIA & DOCUMENTS</Text>
+                  <View style={styles.mediaList}>
+                    {data.report.media.map((url, idx) => {
+                      const isPdf = typeof url === 'string' && url.toLowerCase().includes('.pdf');
+                      const fileName = typeof url === 'string'
+                        ? url.split('/').pop() || `Document ${idx + 1}`
+                        : `Attachment ${idx + 1}`;
+
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          style={styles.mediaItemCard}
+                          onPress={() => Linking.openURL(url)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.mediaIconBg, isPdf && styles.pdfIconBg]}>
+                            <Icon
+                              name={isPdf ? 'picture-as-pdf' : 'insert-drive-file'}
+                              size={20}
+                              color={isPdf ? '#DC2626' : '#2563EB'}
+                            />
+                          </View>
+                          <View style={styles.mediaInfo}>
+                            <Text style={styles.mediaFileName} numberOfLines={1}>{fileName}</Text>
+                            <Text style={styles.mediaActionText}>Tap to view file</Text>
+                          </View>
+                          <Icon name="open-in-new" size={16} color="#94A3B8" />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
               )}
             </View>
           ) : (
-            <View style={styles.feedbackForm}>
-              <Text style={styles.feedbackPrompt}>Rate customer experience:</Text>
-              <View style={styles.feedbackStarInputRow}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
-                    <Icon
-                      name={star <= feedbackRating ? 'star' : 'star-border'}
-                      size={28}
-                      color="#F59E0B"
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TextInput
-                style={styles.inputArea}
-                placeholder="Add internal feedback note..."
-                placeholderTextColor="#94A3B8"
-                multiline
-                numberOfLines={2}
-                value={feedbackNote}
-                onChangeText={setFeedbackNote}
-              />
-              <TouchableOpacity
-                style={styles.submitFeedbackBtn}
-                onPress={handleSubmitFeedback}
-                disabled={submittingFeedback}
-              >
-                {submittingFeedback ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitFeedbackBtnText}>Save Feedback</Text>
-                )}
-              </TouchableOpacity>
+            <View style={styles.emptyReportBox}>
+              <Icon name="assignment-late" size={24} color="#94A3B8" />
+              <Text style={styles.emptyReportText}>No vendor report submitted yet.</Text>
             </View>
           )}
         </View>
@@ -540,7 +634,7 @@ function TicketDetail({ route, navigation }) {
             </View>
           </View>
           <Text style={styles.staffOnlyNotice}>
-            Private chat with {data.vendor?.name || 'Vendor'} — the customer cannot see it.
+            Private chat with {data.vendor?.name || data.report?.vendor?.businessName || 'Vendor'} — the customer cannot see it.
           </Text>
 
           {data.vendorChat.length === 0 ? (
@@ -551,7 +645,7 @@ function TicketDetail({ route, navigation }) {
           ) : (
             <View style={styles.chatThread}>
               {data.vendorChat.map(msg => {
-                const isStaff = msg.senderRole === 'staff';
+                const isStaff = msg.senderRole === 'staff' || msg.senderSide === 'staff';
                 return (
                   <View
                     key={msg.id}
@@ -568,7 +662,7 @@ function TicketDetail({ route, navigation }) {
             </View>
           )}
 
-          {data.vendor && (
+          {(data.vendor || data.report?.vendor || data.vendorChat.length > 0) && (
             <View style={styles.chatInputRow}>
               <TextInput
                 style={styles.chatInput}
@@ -603,20 +697,35 @@ function TicketDetail({ route, navigation }) {
             <Text style={styles.emptyTextSub}>No calls logged for this request yet.</Text>
           ) : (
             <View style={styles.callLogsList}>
-              {data.callLogs.map(call => (
-                <View key={call.id} style={styles.callLogItem}>
-                  <View style={styles.callLogIconBg}>
-                    <Icon name="call" size={16} color="#0EA5E9" />
+              {data.callLogs.map(call => {
+                const partyName = call.partyName || call.title || 'Vendor';
+                const callerName = call.byName || call.by?.name;
+
+                return (
+                  <View key={call.id} style={styles.callLogItem}>
+                    <View style={styles.callLogIconBg}>
+                      <Icon name="call" size={16} color="#0EA5E9" />
+                    </View>
+                    <View style={styles.callLogInfo}>
+                      <View style={styles.callLogHeaderRow}>
+                        <Text style={styles.callLogTitle}>{partyName}</Text>
+                        {call.outcomeLabel ? (
+                          <View style={styles.callOutcomeBadge}>
+                            <Text style={styles.callOutcomeText}>{call.outcomeLabel}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {call.purposeLabel && call.purposeLabel !== partyName ? (
+                        <Text style={styles.callLogPurpose}>{call.purposeLabel}</Text>
+                      ) : null}
+                      {call.note && <Text style={styles.callLogNote}>{call.note}</Text>}
+                      <Text style={styles.callLogMeta}>
+                        {callerName ? `by ${callerName} • ` : ''}{formatDateTime(call.createdAt)} {call.duration ? `(${call.duration})` : ''}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.callLogInfo}>
-                    <Text style={styles.callLogTitle}>{call.title}</Text>
-                    {call.note && <Text style={styles.callLogNote}>{call.note}</Text>}
-                    <Text style={styles.callLogMeta}>
-                      {call.targetName} • {formatDateTime(call.createdAt)} {call.duration ? `(${call.duration})` : ''}
-                    </Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </View>
@@ -745,35 +854,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  centerContainer: {
+  creamBodyLoading: {
     flex: 1,
-    backgroundColor: '#20304C',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 30,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    backgroundColor: '#F8FAFC',
   },
   loadingText: {
-    color: '#CBD5E1',
-    marginTop: 12,
+    color: '#64748B',
+    marginTop: 14,
     fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   errorTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#EF4444',
-    marginTop: 12,
+    color: '#0F172A',
+    marginTop: 14,
   },
   errorSubtitle: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: '#64748B',
     textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 16,
+    marginTop: 6,
+    marginBottom: 20,
+    lineHeight: 18,
   },
   retryBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    backgroundColor: '#A64416',
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: '#20304C',
     borderRadius: 8,
     marginBottom: 10,
   },
@@ -794,73 +907,40 @@ const styles = StyleSheet.create({
   blueHeader: {
     paddingTop: STATUS_BAR_HEIGHT + 8,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerTextWrap: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  ticketTitleRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  ticketIdText: {
-    fontSize: 18,
-    fontFamily: typography.h2.fontFamily,
-    color: '#FFFFFF',
-  },
-  headerStatusPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  headerStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  headerUrgencyPill: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  headerUrgencyText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  headerServiceName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#E2E8F0',
-    marginTop: 2,
-  },
-  headerDateText: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 2,
   },
   backBtn: {
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    gap: 4,
+    justifyContent: 'center',
   },
-  backBtnText: {
+  backIcon: {
+    marginLeft: 5,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: typography.bold,
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRightPlaceholder: {
+    width: 36,
+  },
+  detailColFull: {
+    width: '100%',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 4,
   },
 
   scrollArea: {
@@ -1091,100 +1171,276 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  pricingTable: {
-    gap: 6,
+  pricingMetricsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
   },
-  pricingRow: {
+  pricingMetricBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  metricBoxDanger: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  metricBoxSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  metricLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+
+  pricingList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+  },
+  pricingRowItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 2,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  pricingLabel: {
-    fontSize: 12,
-    color: '#64748B',
+  pricingItemLabel: {
+    fontSize: 13,
+    color: '#475569',
   },
-  pricingVal: {
-    fontSize: 12,
+  pricingItemValue: {
+    fontSize: 13,
     color: '#0F172A',
     fontWeight: '600',
   },
-  pricingTotalRow: {
-    marginTop: 6,
-    paddingTop: 8,
+  pricingTotalRowItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
+    marginTop: 2,
+    marginBottom: 2,
   },
-  pricingTotalLabel: {
+  pricingTotalItemLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  pricingTotalItemValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  pricingPendingRowItem: {
+    borderBottomWidth: 0,
+    paddingTop: 8,
+  },
+  pricingPendingLabel: {
+    fontSize: 13,
+    color: '#EA580C',
+    fontWeight: '600',
+  },
+  pricingPendingValue: {
+    fontSize: 13,
+    color: '#EA580C',
+    fontWeight: '700',
+  },
+
+  additionalPaymentsSection: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    gap: 8,
+  },
+  additionalPaymentsTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  additionalPaymentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  pendingBadge: {
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  pendingBadgeText: {
+    color: '#EA580C',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  additionalPaymentText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
+    flex: 1,
+  },
+
+  reportContent: {
+    gap: 10,
+    marginTop: 4,
+  },
+  reportHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  reportVendorName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
   },
-  pricingTotalVal: {
-    fontSize: 15,
-    fontWeight: '800',
+  reportDateText: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  sentBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  reviewedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  reportTextBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reportTextLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  reportTextBody: {
+    fontSize: 13,
+    color: '#334155',
+    lineHeight: 18,
+  },
+
+  reportMediaSection: {
+    marginTop: 4,
+  },
+  reportMediaLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  mediaList: {
+    gap: 6,
+  },
+  mediaItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  mediaIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pdfIconBg: {
+    backgroundColor: '#FEF2F2',
+  },
+  mediaInfo: {
+    flex: 1,
+  },
+  mediaFileName: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#0F172A',
+  },
+  mediaActionText: {
+    fontSize: 10,
+    color: '#2563EB',
+    marginTop: 2,
+  },
+
+  emptyReportBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 6,
+  },
+  emptyReportText: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
 
   staffOnlyNotice: {
     fontSize: 11,
     color: '#94A3B8',
     marginBottom: 8,
-  },
-  feedbackDisplayBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-  },
-  feedbackStarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  feedbackRatingNumber: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginLeft: 6,
-  },
-  feedbackNoteText: {
-    fontSize: 12,
-    color: '#475569',
-    fontStyle: 'italic',
-    marginTop: 6,
-  },
-  feedbackForm: {
-    gap: 8,
-  },
-  feedbackPrompt: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  feedbackStarInputRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  inputArea: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 8,
-    fontSize: 12,
-    color: '#0F172A',
-    textAlignVertical: 'top',
-  },
-  submitFeedbackBtn: {
-    backgroundColor: '#EA580C',
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  submitFeedbackBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
   },
 
   privateTag: {
@@ -1296,10 +1552,36 @@ const styles = StyleSheet.create({
   callLogInfo: {
     flex: 1,
   },
+  callLogHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
+  },
   callLogTitle: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+    flex: 1,
+  },
+  callOutcomeBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  callOutcomeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  callLogPurpose: {
+    fontSize: 11,
+    color: '#0284C7',
+    fontWeight: '600',
+    marginTop: 2,
   },
   callLogNote: {
     fontSize: 11,

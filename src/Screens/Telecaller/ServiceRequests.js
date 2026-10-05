@@ -12,6 +12,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
@@ -204,7 +205,6 @@ function ServiceRequests({ navigation }) {
 
   const renderItem = ({ item }) => {
     const statusStyle = getStatusStyle(item.status);
-    const priorityMeta = getPriorityBadge(item.urgency);
 
     return (
       <TouchableOpacity
@@ -212,7 +212,7 @@ function ServiceRequests({ navigation }) {
         activeOpacity={0.7}
         onPress={() => navigation.navigate('TicketDetail', { ticketId: item.id, ticket: item.ticketNumber })}
       >
-        {/* Top Header: Ticket Number, Badges */}
+        {/* Top Header: Ticket Number, Unread Badge, Status Pill */}
         <View style={styles.cardHeader}>
           <View style={styles.ticketNumWrap}>
             <Text style={styles.ticketNumText}>{item.ticketNumber}</Text>
@@ -224,69 +224,27 @@ function ServiceRequests({ navigation }) {
             )}
           </View>
 
-          <View style={styles.badgeRow}>
-            <View style={[styles.priorityPill, { backgroundColor: priorityMeta.bg }]}>
-              <Text style={[styles.priorityPillText, { color: priorityMeta.text }]}>{priorityMeta.label}</Text>
-            </View>
-            <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
-              <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{item.statusLabel}</Text>
-            </View>
+          <View style={[styles.statusPill, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
+            <Text style={[styles.statusPillText, { color: statusStyle.text }]}>{item.statusLabel}</Text>
           </View>
         </View>
 
         {/* Service Name */}
-        <Text style={styles.serviceTitle} numberOfLines={2}>{item.serviceName}</Text>
+        <Text style={styles.serviceTitle} numberOfLines={1}>{item.serviceName}</Text>
 
-        {/* Customer & Location */}
-        <View style={styles.metaRow}>
-          <Icon name="person-outline" size={14} color="#64748B" />
-          <Text style={styles.metaText} numberOfLines={1}>{item.customer.name}</Text>
-          {item.customer.phone && (
-            <>
-              <Text style={styles.dotSeparator}>•</Text>
-              <Text style={styles.metaText}>{item.customer.phone}</Text>
-            </>
-          )}
-        </View>
-
-        {item.location.cityName && (
-          <View style={styles.metaRow}>
-            <Icon name="location-on" size={14} color="#64748B" />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {item.location.cityName}{item.location.stateName ? `, ${item.location.stateName}` : ''}
-            </Text>
-          </View>
-        )}
-
-        {/* Footer: Vendor info & Price / Date */}
+        {/* Footer: Customer Name & Created Date */}
         <View style={styles.cardFooter}>
-          <View style={styles.vendorInfoWrap}>
-            <Icon
-              name={item.vendor ? 'engineering' : 'assignment-late'}
-              size={14}
-              color={item.vendor ? '#059669' : '#D97706'}
-            />
-            <Text
-              style={[
-                styles.vendorNameText,
-                { color: item.vendor ? '#334155' : '#D97706' },
-              ]}
-              numberOfLines={1}
-            >
-              {item.vendor ? item.vendor.name : 'Needs Vendor'}
-            </Text>
+          <View style={styles.metaRow}>
+            <Icon name="person-outline" size={13} color="#64748B" />
+            <Text style={styles.metaText} numberOfLines={1}>{item.customer?.name || 'Customer'}</Text>
           </View>
 
-          <View style={styles.priceDateWrap}>
-            {item.pricing.customerPrice > 0 && (
-              <Text style={styles.priceText}>
-                ₹{item.pricing.customerPrice.toLocaleString('en-IN')}
-              </Text>
-            )}
-            {item.createdAt && (
+          {item.createdAt && (
+            <View style={styles.dateRow}>
+              <Icon name="event" size={13} color="#94A3B8" />
               <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
-            )}
-          </View>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -590,9 +548,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 16,
     backgroundColor: '#20304C',
   },
   headerTop: {
@@ -782,9 +740,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 90,
-    gap: 12,
+    gap: 8,
   },
 
   centerLoading: {
@@ -844,15 +802,15 @@ const styles = StyleSheet.create({
 
   requestCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 12,
+    padding: 11,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     elevation: 1,
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -935,34 +893,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
+    borderTopColor: '#F1F5F9',
   },
-  vendorInfoWrap: {
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    flex: 1,
-    marginRight: 8,
-  },
-  vendorNameText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  priceDateWrap: {
-    alignItems: 'flex-end',
-  },
-  priceText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
+    gap: 4,
   },
   dateText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94A3B8',
-    marginTop: 1,
+    fontWeight: '500',
   },
 
   modalOverlay: {

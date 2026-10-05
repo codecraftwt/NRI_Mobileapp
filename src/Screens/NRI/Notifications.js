@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
@@ -38,6 +39,9 @@ function Notifications({ navigation }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
 
+  const userRole = useSelector(state => state.user?.user?.role || '');
+  const isTelecaller = /telecaller/i.test(userRole);
+
   const currentPage = meta?.currentPage || 1;
   const lastPage = meta?.lastPage || 1;
 
@@ -71,6 +75,10 @@ function Notifications({ navigation }) {
 
   const onPressItem = (n) => {
     if (!n.read) markRead(n.id);
+    if (isTelecaller) {
+      // For Telecaller: only display/mark notifications read without rendering or navigating to any other screen
+      return;
+    }
     // Route from the mapped fields (url/event/title/message live at the top of
     // the RM item, not inside data), plus any extra keys in data.
     // Pass this screen's navigation so the target is pushed onto the current

@@ -165,8 +165,8 @@ function CallCentre({ navigation }) {
       {/* Blue Header */}
       <View style={styles.blueHeader}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Icon name="arrow-back" size={22} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} activeOpacity={0.7}>
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Call Centre</Text>
           <TouchableOpacity
@@ -433,11 +433,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   backBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
+    marginLeft: 6,
   },
   headerTitle: {
-    fontSize: 20,
-    fontFamily: typography.h2.fontFamily,
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',

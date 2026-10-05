@@ -19,8 +19,57 @@ export function mapTelecallerServiceRequest(raw = {}) {
   const prioritySlug = typeof priorityObj === 'object' && priorityObj ? (priorityObj.slug || priorityObj.name) : String(priorityObj || 'standard');
   const priorityLabel = typeof priorityObj === 'object' && priorityObj ? (priorityObj.name || priorityObj.slug) : titleCase(prioritySlug);
 
-  const customerPrice = num(raw.customer_price ?? raw.amount ?? raw.total_amount);
-  const vendorCost = num(raw.vendor_cost ?? raw.cost);
+  const rawPricing = raw.pricing || {};
+  const customerPrice = num(rawPricing.customer_price ?? raw.customer_price ?? raw.amount ?? raw.total_amount);
+  const vendorCost = num(rawPricing.vendor_cost ?? raw.vendor_cost ?? raw.cost);
+  const expressSurcharge = num(rawPricing.express_surcharge ?? raw.express_surcharge ?? raw.surcharge);
+  const gstAmount = num(rawPricing.gst_amount ?? raw.gst_amount ?? raw.gst ?? raw.tax);
+  const gstRate = num(rawPricing.gst_rate ?? raw.gst_rate ?? raw.gst_percent ?? 18);
+  const totalAmount = num(rawPricing.total ?? raw.total ?? raw.total_amount ?? (customerPrice + gstAmount));
+  const margin = num(rawPricing.margin ?? (customerPrice - vendorCost));
+  const amountDueNow = num(rawPricing.amount_due_now ?? raw.amount_due_now);
+  const pendingCharge = rawPricing.pending_additional_charge || raw.pending_additional_charge || null;
+  const requiresPriceConfirmation = Boolean(rawPricing.requires_price_confirmation ?? raw.requires_price_confirmation);
+  const canProposePrice = Boolean(rawPricing.can_propose_price ?? raw.can_propose_price);
+
+  const additionalPaymentRequests = Array.isArray(raw.additional_payment_requests || raw.additional_charges || raw.payment_requests)
+    ? (raw.additional_payment_requests || raw.additional_charges || raw.payment_requests).map(p => ({
+        id: p.id || String(Math.random()),
+        amount: num(p.amount),
+        displayAmount: p.display_amount,
+        displayCurrency: p.display_currency || 'USD',
+        status: p.status || 'pending',
+        reason: p.reason || p.description || p.note || 'Extra price',
+        createdAt: p.created_at || null,
+      }))
+    : (pendingCharge ? [{
+        id: 'pending-charge',
+        amount: num(pendingCharge.amount),
+        displayAmount: pendingCharge.display_amount,
+        displayCurrency: pendingCharge.display_currency || 'USD',
+        status: 'pending',
+        reason: pendingCharge.reason || pendingCharge.description || pendingCharge.note || 'Extra price',
+        createdAt: null,
+      }] : []);
+
+  const rawVendorChat = raw.vendor_chat || {};
+  const vendorChatMessages = Array.isArray(rawVendorChat)
+    ? rawVendorChat
+    : (Array.isArray(rawVendorChat.messages) ? rawVendorChat.messages : []);
+  const vendorChatVendor = rawVendorChat.vendor || raw.assigned_vendor || raw.vendor || {};
+
+  const vendorChat = vendorChatMessages.map(m => {
+    const senderSide = (m.sender_side || m.sender_role || (m.is_vendor ? 'vendor' : 'staff')).toLowerCase();
+    return {
+      id: m.id || String(Math.random()),
+      senderSide,
+      senderRole: senderSide,
+      senderName: m.user?.name || m.sender_name || (senderSide === 'vendor' ? (vendorChatVendor.business_name || vendorChatVendor.name || 'Vendor') : 'Staff'),
+      message: m.message || m.text || '',
+      readAt: m.read_at || null,
+      createdAt: m.created_at || m.sent_at || null,
+    };
+  });
 
   return {
     id: raw.id,
@@ -63,16 +112,25 @@ export function mapTelecallerServiceRequest(raw = {}) {
     pricing: {
       customerPrice,
       vendorCost,
-      expressSurcharge: num(raw.express_surcharge ?? raw.surcharge),
-      gst: num(raw.gst_amount ?? raw.gst ?? raw.tax),
-      gstPercent: num(raw.gst_percent ?? 18),
-      margin: num(raw.margin ?? (customerPrice - vendorCost)),
-      totalAmount: num(raw.total_amount ?? raw.total ?? (customerPrice + num(raw.gst_amount))),
+      expressSurcharge,
+      gst: gstAmount,
+      gstPercent: gstRate,
+      margin,
+      totalAmount,
+      amountDueNow,
+      pendingAdditionalCharge: pendingCharge ? {
+        amount: num(pendingCharge.amount),
+        displayAmount: pendingCharge.display_amount,
+        displayCurrency: pendingCharge.display_currency || 'USD',
+        reason: pendingCharge.reason || pendingCharge.description || pendingCharge.note || 'Extra price',
+      } : null,
+      requiresPriceConfirmation,
       currency: raw.currency || 'INR',
     },
+    additionalPaymentRequests,
     chatId: raw.chat_id || raw.support_chat_id || null,
     chatUnread: Boolean(raw.chat_unread ?? raw.unread_chat),
-    canProposePrice: Boolean(raw.can_propose_price),
+    canProposePrice,
     canGiveFeedback: Boolean(raw.can_give_feedback),
     statusHistory: Array.isArray(raw.status_history || raw.timeline || raw.history)
       ? (raw.status_history || raw.timeline || raw.history).map(h => ({
@@ -84,27 +142,24 @@ export function mapTelecallerServiceRequest(raw = {}) {
           isCompleted: Boolean(h.completed ?? true),
         }))
       : [],
-    vendorChat: Array.isArray(raw.vendor_chat)
-      ? raw.vendor_chat.map(m => ({
-          id: m.id || String(Math.random()),
-          senderName: m.sender_name || m.user?.name || (m.sender_role === 'vendor' ? 'Vendor' : 'Staff'),
-          senderRole: m.sender_role || (m.is_vendor ? 'vendor' : 'staff'),
-          message: m.message || m.text || '',
-          createdAt: m.created_at || m.sent_at || null,
-        }))
-      : [],
-    supportChat: raw.support_chat || null,
+    vendorChat,
     callLogs: Array.isArray(raw.call_logs || raw.calls)
       ? (raw.call_logs || raw.calls).map(c => ({
           id: c.id,
-          title: c.title || c.subject || `${c.target_type || 'Vendor'} call`,
-          targetType: c.target_type || (c.is_vendor ? 'vendor' : 'customer'),
-          targetName: c.target_name || c.contact_name || '',
-          direction: c.direction || 'outgoing',
-          status: c.status || 'completed',
+          title: c.party_name || c.title || c.subject || `${c.party_type_label || c.target_type || 'Vendor'} call`,
+          partyType: c.party_type || c.target_type || (c.is_vendor ? 'vendor' : 'customer'),
+          partyTypeLabel: c.party_type_label || (c.party_type ? titleCase(c.party_type) : null),
+          partyName: c.party_name || c.target_name || c.contact_name || '',
+          by: c.by ? { id: c.by.id, name: c.by.name } : (c.caller ? { name: c.caller.name } : null),
+          byName: c.by?.name || c.caller?.name || c.user_name || '',
+          purpose: c.purpose || '',
+          purposeLabel: c.purpose_label || (c.purpose ? titleCase(c.purpose) : ''),
+          outcome: c.outcome || c.status || '',
+          outcomeLabel: c.outcome_label || (c.outcome ? titleCase(c.outcome) : ''),
+          direction: c.direction || 'outbound',
           duration: c.duration ? `${c.duration}s` : null,
           createdAt: c.created_at || c.date || null,
-          note: c.note || c.summary || null,
+          note: c.notes || c.note || c.summary || null,
         }))
       : [],
     internalNotes: Array.isArray(raw.internal_notes || raw.notes)
@@ -116,6 +171,18 @@ export function mapTelecallerServiceRequest(raw = {}) {
         }))
       : [],
     feedback: raw.feedback || raw.customer_feedback || null,
+    report: raw.report ? {
+      id: raw.report.id,
+      reportText: raw.report.report_text || raw.report.text || '',
+      vendor: raw.report.vendor ? {
+        id: raw.report.vendor.id,
+        businessName: raw.report.vendor.business_name || raw.report.vendor.name || '',
+      } : null,
+      media: Array.isArray(raw.report.media) ? raw.report.media : [],
+      submittedAt: raw.report.submitted_at || null,
+      reviewedAt: raw.report.reviewed_at || null,
+      sentToCustomerAt: raw.report.sent_to_customer_at || null,
+    } : null,
     raw,
   };
 }

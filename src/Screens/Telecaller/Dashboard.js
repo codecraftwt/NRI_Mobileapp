@@ -9,6 +9,7 @@ import {
   Animated,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -183,9 +184,6 @@ function Dashboard({ navigation }) {
                   <Icon name="announcement" size={18} color="#D97706" />
                   <Text style={styles.sectionTitle}>Chats Awaiting Reply</Text>
                 </View>
-                <TouchableOpacity onPress={() => navigation.navigate('GeneralSupport')} activeOpacity={0.7}>
-                  <Text style={styles.viewAllText}>View all →</Text>
-                </TouchableOpacity>
               </View>
 
               {awaitingChats.length === 0 ? (
@@ -229,8 +227,13 @@ function Dashboard({ navigation }) {
                   <Icon name="receipt-long" size={18} color="#EA580C" />
                   <Text style={styles.sectionTitle}>Linked Requests</Text>
                 </View>
-                <TouchableOpacity onPress={() => navigation.navigate('ServiceRequests')} activeOpacity={0.7}>
-                  <Text style={styles.viewAllText}>View all →</Text>
+                <TouchableOpacity
+                  style={styles.viewAllPill}
+                  onPress={() => navigation.navigate('ServiceRequests')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewAllPillText}>View all</Text>
+                  <Icon name="arrow-forward" size={13} color="#A64416" />
                 </TouchableOpacity>
               </View>
 
@@ -305,9 +308,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 8,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 6 : 44,
     paddingHorizontal: 20,
-    paddingBottom: 22,
+    paddingBottom: 16,
     backgroundColor: '#20304C',
     position: 'relative',
     overflow: 'hidden',
@@ -535,9 +538,22 @@ const styles = StyleSheet.create({
     fontFamily: typography.h2.fontFamily,
     color: '#1A1A1A',
   },
-  viewAllText: {
-    ...typography.labelMedium,
+  viewAllPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#A6441612',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#A6441625',
+  },
+  viewAllPillText: {
+    fontSize: 12,
+    fontFamily: typography.labelMedium.fontFamily,
     color: '#A64416',
+    fontWeight: '700',
   },
 
   callsCard: {

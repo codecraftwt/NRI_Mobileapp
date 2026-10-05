@@ -24,6 +24,7 @@ import VendorDetail from '../../Screens/Telecaller/VendorDetail';
 import CustomerDetail from '../../Screens/Telecaller/CustomerDetail';
 import LogCall from '../../Screens/Telecaller/LogCall';
 import Notifications from '../../Screens/NRI/Notifications';
+import NotificationPreferences from '../../Screens/Telecaller/NotificationPreferences';
 import ProfilePersonal from '../../Screens/NRI/ProfilePersonal';
 import ProfilePassword from '../../Screens/NRI/ProfilePassword';
 
@@ -56,6 +57,7 @@ function DashboardStack() {
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
       <Stack.Screen name="Notifications" component={Notifications} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferences} />
     </Stack.Navigator>
   );
 }
@@ -114,6 +116,7 @@ function ProfileStack() {
       <Stack.Screen name="ProfileMain" component={Profile} />
       <Stack.Screen name="ProfilePersonal" component={ProfilePersonal} />
       <Stack.Screen name="ProfilePassword" component={ProfilePassword} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferences} />
     </Stack.Navigator>
   );
 }
@@ -258,25 +261,37 @@ function TelecallerTabNavigator() {
       <Tab.Screen
         name="ServiceRequests"
         component={ServiceRequestsStack}
-        options={{
-          tabBarIconName: 'confirmation-number',
-          tabBarLabel: 'Requests',
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'ServiceRequestsMain';
+          return {
+            tabBarIconName: 'confirmation-number',
+            tabBarLabel: 'Requests',
+            tabBarStyle: focusedRouteName === 'ServiceRequestsMain' ? {} : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen
         name="Vendors"
         component={VendorsStack}
-        options={{
-          tabBarIconName: 'storefront',
-          tabBarLabel: 'Vendors',
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'VendorsMain';
+          return {
+            tabBarIconName: 'storefront',
+            tabBarLabel: 'Vendors',
+            tabBarStyle: focusedRouteName === 'VendorsMain' ? {} : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen
         name="Customers"
         component={CustomersStack}
-        options={{
-          tabBarIconName: 'groups',
-          tabBarLabel: 'Customers',
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'CustomersMain';
+          return {
+            tabBarIconName: 'groups',
+            tabBarLabel: 'Customers',
+            tabBarStyle: focusedRouteName === 'CustomersMain' ? {} : { display: 'none' },
+          };
         }}
       />
       <Tab.Screen

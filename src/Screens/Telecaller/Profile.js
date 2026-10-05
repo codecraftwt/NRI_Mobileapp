@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { logoutUser } from '../../Redux/slices/userSlice';
@@ -13,6 +13,7 @@ function initialsFor(name) {
 const MENU = [
   { id: 'personal', label: 'Personal Information', icon: 'person-outline', color: '#3B82F6', route: 'ProfilePersonal' },
   { id: 'password', label: 'Change Password', icon: 'lock-outline', color: '#0EA5E9', route: 'ProfilePassword' },
+  { id: 'notifications', label: 'Notification Preferences', icon: 'notifications-none', color: '#8B5CF6', route: 'NotificationPreferences' },
 ];
 
 function Profile({ navigation }) {
@@ -104,11 +105,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
 
   header: {
-    height: 150, paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT - 16,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
+    paddingBottom: 64,
     backgroundColor: '#20304C',
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
   decorCircleLg: { position: 'absolute', top: -60, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.06)' },
   decorCircleSm: { position: 'absolute', bottom: -30, left: -20, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(253,230,138,0.08)' },
 

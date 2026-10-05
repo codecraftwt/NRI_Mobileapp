@@ -133,11 +133,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
 
   header: {
-    height: 150, paddingHorizontal: 24, paddingTop: STATUS_BAR_HEIGHT - 16,
+    paddingHorizontal: 20,
+    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingBottom: 64,
     backgroundColor: '#20304C',
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  headerTitle: { fontSize: 22, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
+  headerTitle: {
+    fontSize: 24,
+    fontFamily: typography.h2.fontFamily,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
   decorCircleLg: { position: 'absolute', top: -60, right: -40, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.06)' },
   decorCircleSm: { position: 'absolute', bottom: -30, left: -20, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(253,230,138,0.08)' },
 

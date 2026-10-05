@@ -13,6 +13,7 @@ import {
   Modal,
   Pressable,
   Linking,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
@@ -176,17 +177,14 @@ function Vendors({ navigation }) {
         activeOpacity={0.7}
         onPress={() => navigation.navigate('VendorDetail', { vendorId: item.id, vendor: item })}
       >
-        {/* Top Row: Avatar, Business Name, Availability Pill */}
+        {/* Top Row: Avatar, Business Name, Owner Name, Availability Pill */}
         <View style={styles.cardHeader}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
 
           <View style={styles.headerInfo}>
-            <View style={styles.titleRow}>
-              <Text style={styles.businessName} numberOfLines={1}>{item.businessName}</Text>
-            </View>
-
+            <Text style={styles.businessName} numberOfLines={1}>{item.businessName}</Text>
             {item.ownerName ? (
               <View style={styles.ownerRow}>
                 <Icon name="person" size={13} color="#64748B" />
@@ -204,80 +202,40 @@ function Vendors({ navigation }) {
           </View>
         </View>
 
-        {/* Rating & Stats Row */}
-        <View style={styles.statsRow}>
-          {item.rating > 0 ? (
-            <View style={styles.ratingBadge}>
-              <Icon name="star" size={13} color="#F59E0B" />
-              <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
-              {item.ratingCount > 0 && (
-                <Text style={styles.ratingCountText}>({item.ratingCount})</Text>
-              )}
-            </View>
-          ) : (
-            <View style={styles.noRatingBadge}>
-              <Text style={styles.noRatingText}>New Vendor</Text>
-            </View>
-          )}
-
-          <View style={styles.statChip}>
-            <Icon name="check-circle" size={13} color="#059669" />
-            <Text style={styles.statChipText}>{item.totalJobs} jobs completed</Text>
-          </View>
-
-          {item.activeJobsCount > 0 && (
-            <View style={styles.activeJobChip}>
-              <Icon name="schedule" size={13} color="#2563EB" />
-              <Text style={styles.activeJobChipText}>{item.activeJobsCount} active</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Categories / Services Tag Row */}
-        {item.categories && item.categories.length > 0 && (
-          <View style={styles.categoriesWrap}>
-            {item.categories.slice(0, 3).map((cat, idx) => (
-              <View key={String(cat.id || idx)} style={styles.categoryTag}>
-                <Text style={styles.categoryTagText} numberOfLines={1}>{cat.name}</Text>
+        {/* Footer: Rating, Total Jobs Completed & Quick Call */}
+        <View style={styles.cardFooter}>
+          <View style={styles.statsRow}>
+            {item.rating > 0 ? (
+              <View style={styles.ratingBadge}>
+                <Icon name="star" size={12} color="#F59E0B" />
+                <Text style={styles.ratingText}>{item.rating.toFixed(1)}</Text>
+                {item.ratingCount > 0 && (
+                  <Text style={styles.ratingCountText}>({item.ratingCount})</Text>
+                )}
               </View>
-            ))}
-            {item.categories.length > 3 && (
-              <View style={styles.moreCategoriesTag}>
-                <Text style={styles.moreCategoriesText}>+{item.categories.length - 3} more</Text>
+            ) : (
+              <View style={styles.noRatingBadge}>
+                <Text style={styles.noRatingText}>New Vendor</Text>
               </View>
             )}
-          </View>
-        )}
 
-        {/* Location / Coverage Row */}
-        {(item.location || (item.citiesCovered && item.citiesCovered.length > 0)) && (
-          <View style={styles.locationRow}>
-            <Icon name="location-on" size={14} color="#64748B" />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {item.location || item.citiesCovered.slice(0, 3).join(', ')}
-            </Text>
+            <View style={styles.statChip}>
+              <Icon name="check-circle" size={12} color="#059669" />
+              <Text style={styles.statChipText}>{item.totalJobs || 0} jobs completed</Text>
+            </View>
           </View>
-        )}
 
-        {/* Footer: Phone Call & View Detail Action */}
-        <View style={styles.cardFooter}>
           {item.phone ? (
             <TouchableOpacity
               style={styles.callButton}
               onPress={() => handleCallVendor(item.phone)}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Icon name="phone" size={14} color="#059669" />
+              <Icon name="phone" size={13} color="#059669" />
               <Text style={styles.callButtonText}>{item.phone}</Text>
             </TouchableOpacity>
-          ) : (
-            <View style={{ flex: 1 }} />
-          )}
-
-          <View style={styles.viewDetailsRow}>
-            <Text style={styles.viewDetailsText}>View Profile</Text>
-            <Icon name="arrow-forward" size={14} color="#A64416" />
-          </View>
+          ) : null}
         </View>
       </TouchableOpacity>
     );
@@ -542,9 +500,9 @@ const styles = StyleSheet.create({
   },
 
   blueHeader: {
-    paddingTop: STATUS_BAR_HEIGHT + 12,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 46,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 16,
     backgroundColor: '#20304C',
   },
   headerTop: {
@@ -685,9 +643,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    padding: 12,
     paddingBottom: 90,
-    gap: 12,
+    gap: 8,
   },
 
   centerLoading: {
@@ -748,56 +706,51 @@ const styles = StyleSheet.create({
   // Vendor Card
   vendorCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 12,
+    padding: 11,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     elevation: 1,
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
-    gap: 10,
+    shadowRadius: 4,
+    gap: 8,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#20304C',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
   },
   headerInfo: {
     flex: 1,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
   businessName: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#0F172A',
   },
   ownerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    gap: 3,
+    marginTop: 1,
   },
   ownerText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
   },
 
@@ -946,7 +899,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F8FAFC',
     marginTop: 2,
@@ -955,10 +908,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ECFDF5',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
     borderRadius: 8,
-    gap: 5,
+    gap: 4,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
@@ -966,16 +919,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#059669',
-  },
-  viewDetailsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  viewDetailsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#A64416',
   },
 
   // Modal

@@ -117,13 +117,14 @@ function CustomerDetail({ route, navigation }) {
             onPress={() => navigation.goBack()}
             style={styles.backBtn}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
-            <Icon name="arrow-back" size={22} color="#FFFFFF" />
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {customer?.name || 'Customer Details'}
           </Text>
-          <View style={{ width: 24 }} />
+          <View style={styles.headerRightPlaceholder} />
         </View>
       </View>
 
@@ -212,30 +213,6 @@ function CustomerDetail({ route, navigation }) {
                   )}
                 </View>
               </View>
-            </View>
-
-            {/* Quick Actions (Call, Email, WhatsApp) */}
-            <View style={styles.actionsRow}>
-              {customer.phone ? (
-                <TouchableOpacity style={styles.actionCallBtn} onPress={handleCall} activeOpacity={0.8}>
-                  <Icon name="phone" size={16} color="#FFFFFF" />
-                  <Text style={styles.actionCallBtnText}>Call</Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {customer.phone ? (
-                <TouchableOpacity style={styles.actionWhatsAppBtn} onPress={handleWhatsApp} activeOpacity={0.8}>
-                  <Icon name="chat" size={16} color="#059669" />
-                  <Text style={styles.actionWhatsAppBtnText}>WhatsApp</Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {customer.email ? (
-                <TouchableOpacity style={styles.actionEmailBtn} onPress={handleEmail} activeOpacity={0.8}>
-                  <Icon name="email" size={16} color="#20304C" />
-                  <Text style={styles.actionEmailBtnText}>Email</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           </View>
 
@@ -471,15 +448,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backBtn: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
+    marginLeft: 6,
   },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: typography.h2.fontFamily,
+    fontSize: 17,
+    fontWeight: '700',
     color: '#FFFFFF',
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 8,
+  },
+  headerRightPlaceholder: {
+    width: 36,
   },
 
   scrollArea: {
@@ -632,59 +620,6 @@ const styles = StyleSheet.create({
   planNameText: {
     fontSize: 11,
     color: '#475569',
-    fontWeight: '600',
-  },
-
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
-  },
-  actionCallBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#059669',
-    paddingVertical: 9,
-    borderRadius: 10,
-    gap: 5,
-  },
-  actionCallBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actionWhatsAppBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingVertical: 9,
-    borderRadius: 10,
-    gap: 5,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  actionWhatsAppBtnText: {
-    color: '#059669',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actionEmailBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    gap: 5,
-  },
-  actionEmailBtnText: {
-    color: '#20304C',
-    fontSize: 13,
     fontWeight: '600',
   },
 
