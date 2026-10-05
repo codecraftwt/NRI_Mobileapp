@@ -64,3 +64,5 @@ export async function requestTelecallerCallback(payload) {
     throw normalizeApiError(error);
   }
 }
+
+export { getTelecallerDashboard, mapTelecallerDashboardData } from './Telecaller/telecallerDashboardApi';
