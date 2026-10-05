@@ -9,12 +9,16 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Dashboard from '../../Screens/StateAdmin/Dashboard';
 import AdminRoles from '../../Screens/StateAdmin/AdminRoles';
 import Analysis from '../../Screens/StateAdmin/Analysis';
+import Revenue from '../../Screens/StateAdmin/Revenue';
 import DistrictBreakdown from '../../Screens/StateAdmin/DistrictBreakdown';
 import RecentTickets from '../../Screens/StateAdmin/RecentTickets';
 import Tickets from '../../Screens/StateAdmin/Tickets';
 import TicketDetail from '../../Screens/StateAdmin/TicketDetail';
 import Vendors from '../../Screens/StateAdmin/Vendors';
+import VendorDetail from '../../Screens/StateAdmin/VendorDetail';
+import PendingVendors from '../../Screens/StateAdmin/PendingVendors';
 import Users from '../../Screens/StateAdmin/Users';
+import CustomerDetail from '../../Screens/StateAdmin/CustomerDetail';
 import Profile from '../../Screens/StateAdmin/Profile';
 import Notifications from '../../Screens/NRI/Notifications';
 import NotificationPreferences from '../../Screens/StateAdmin/NotificationPreferences';
@@ -39,11 +43,15 @@ function DashboardStack() {
       <Stack.Screen name="DashboardMain" component={Dashboard} />
       <Stack.Screen name="AdminRoles" component={AdminRoles} />
       <Stack.Screen name="Analysis" component={Analysis} />
+      <Stack.Screen name="Revenue" component={Revenue} />
+      <Stack.Screen name="PendingVendors" component={PendingVendors} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferences} />
       <Stack.Screen name="DistrictBreakdown" component={DistrictBreakdown} />
       <Stack.Screen name="RecentTickets" component={RecentTickets} />
       <Stack.Screen name="Users" component={Users} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
     </Stack.Navigator>
   );
 }
@@ -52,6 +60,8 @@ function VendorsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VendorsMain" component={Vendors} />
+      <Stack.Screen name="VendorDetail" component={VendorDetail} />
+      <Stack.Screen name="PendingVendors" component={PendingVendors} />
     </Stack.Navigator>
   );
 }
@@ -60,6 +70,7 @@ function UsersStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="UsersMain" component={Users} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
     </Stack.Navigator>
   );
 }
@@ -125,7 +136,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
         }),
       ]).start();
     }
-  }, [state.index, layouts, isLayoutReady]);
+  }, [state.index, layouts, isLayoutReady, pillWidth, translateX]);
 
   if (tabBarStyle && tabBarStyle.display === 'none') {
     return null;

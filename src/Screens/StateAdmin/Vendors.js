@@ -34,7 +34,7 @@ const STATUS_FILTERS = [
   { id: 'under_review', label: 'Under Review' },
 ];
 
-function Vendors() {
+function Vendors({ navigation }) {
   const {
     vendors,
     meta,
@@ -167,7 +167,11 @@ function Vendors() {
             const badge = statusBadge(vendor.status);
 
             return (
-              <View style={styles.listItem}>
+              <TouchableOpacity
+                style={styles.listItem}
+                activeOpacity={0.7}
+                onPress={() => navigation?.navigate('VendorDetail', { vendor })}
+              >
                 <View style={styles.cardTopRow}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{initials}</Text>
@@ -182,10 +186,13 @@ function Vendors() {
                     )}
                   </View>
 
-                  <View style={[styles.statusPill, { backgroundColor: badge.bg, borderColor: badge.border }]}>
-                    <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>
-                      {vendor.statusLabel || titleCase(vendor.status)}
-                    </Text>
+                  <View style={styles.topRightCol}>
+                    <View style={[styles.statusPill, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                      <Text style={[styles.statusText, { color: badge.color }]} numberOfLines={1}>
+                        {vendor.statusLabel || titleCase(vendor.status)}
+                      </Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color="#94A3B8" style={{ marginTop: 4, alignSelf: 'flex-end' }} />
                   </View>
                 </View>
 
@@ -234,7 +241,7 @@ function Vendors() {
                     </View>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           }}
         />
@@ -349,43 +356,44 @@ const styles = StyleSheet.create({
   },
   errorText: { flex: 1, fontSize: 13, color: '#DC2626', lineHeight: 18 },
 
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 110, gap: 12 },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 110, gap: 10 },
 
   listItem: {
-    backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
+    backgroundColor: '#FFFFFF', borderRadius: 15, padding: 13,
     borderWidth: 1, borderColor: '#F1F5F9',
-    shadowColor: '#64748B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1,
+    shadowColor: '#64748B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
   },
-  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
+  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   avatar: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: '#FFEDD5',
   },
-  avatarText: { fontSize: 16, fontWeight: '800', color: '#C2410C' },
+  avatarText: { fontSize: 14, fontWeight: '800', color: '#C2410C' },
   listItemBody: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 15, fontWeight: '700', color: '#0F172A', flexShrink: 1 },
-  sub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  name: { fontSize: 14.5, fontWeight: '700', color: '#0F172A', flexShrink: 1 },
+  sub: { fontSize: 11.5, color: '#64748B', marginTop: 1 },
 
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
-  statusText: { fontSize: 10, fontWeight: '700' },
+  topRightCol: { alignItems: 'flex-end' },
+  statusPill: { paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 8, borderWidth: 1 },
+  statusText: { fontSize: 9.5, fontWeight: '700' },
 
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, color: '#64748B' },
+  metaText: { fontSize: 11.5, color: '#64748B' },
 
   cardFooter: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F8FAFC',
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F8FAFC',
   },
   jobStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  jobStatText: { fontSize: 12, color: '#64748B' },
+  jobStatText: { fontSize: 11.5, color: '#64748B' },
   jobStatBold: { fontWeight: '700', color: '#0F172A' },
-  jobStatDot: { fontSize: 12, color: '#CBD5E1' },
+  jobStatDot: { fontSize: 11, color: '#CBD5E1' },
 
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  ratingText: { fontSize: 12, fontWeight: '700', color: '#B45309' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 6 },
+  ratingText: { fontSize: 11.5, fontWeight: '700', color: '#B45309' },
 
   emptyState: { paddingVertical: 50, alignItems: 'center', gap: 10 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },

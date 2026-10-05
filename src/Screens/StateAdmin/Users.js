@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,26 +11,21 @@ import {
   StatusBar,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, lightColors as baseColors } from '../../theme';
+import { typography } from '../../theme';
 import { useStateAdminUsers } from '../../Hooks/StateAdmin/useStateAdminUsers';
+import { getStateAdminCustomers } from '../../Api/StateAdmin/stateAdminCustomersApi';
 
-const C = {
-  ...baseColors,
-  primary: '#20304C',
-  accent: '#A64416',
-  surface: '#F8FAFC',
-  cardBg: '#FFFFFF',
-  border: '#E2E8F0',
-  text: '#0F172A',
-  subText: '#64748B',
-  blue: '#2563EB',
-  emerald: '#059669',
-  purple: '#7C3AED',
-  amber: '#D97706',
-  red: '#EF4444',
-};
+const CUSTOMER_STATUS_FILTERS = [
+  { id: 'all', label: 'All Status' },
+  { id: 'active', label: 'Active' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'none', label: 'No Membership' },
+  { id: 'expired', label: 'Expired' },
+  { id: 'cancelled', label: 'Cancelled' },
+  { id: 'never', label: 'Never' },
+];
 
-const STATUS_FILTERS = [
+const STAFF_STATUS_FILTERS = [
   { id: 'all', label: 'All Status' },
   { id: 'active', label: 'Active' },
   { id: 'inactive', label: 'Inactive' },
@@ -62,90 +57,98 @@ function getRoleBadgeStyle(role = '') {
   return { bg: '#F1F5F9', text: '#475569', border: '#E2E8F0', label: role || 'Staff' };
 }
 
-function UserCard({ user }) {
-  const badge = getRoleBadgeStyle(user.role);
-  const initials = (user.name || 'U')
+function getCustomerMembershipBadge(status, hasActive) {
+  if (hasActive || status === 'active') {
+    return { label: 'Active', bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' };
+  }
+  if (status === 'pending') {
+    return { label: 'Pending', bg: '#FFFBEB', text: '#B45309', border: '#FDE68A' };
+  }
+  if (status === 'expired') {
+    return { label: 'Expired', bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' };
+  }
+  if (status === 'cancelled') {
+    return { label: 'Cancelled', bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' };
+  }
+  return { label: 'No Membership', bg: '#F8FAFC', text: '#64748B', border: '#E2E8F0' };
+}
+
+function UserCard({ user, onPress, isCustomerView }) {
+  const initials = (user.name || (isCustomerView ? 'C' : 'U'))
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
     .map(w => w[0].toUpperCase())
     .join('');
 
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+  const isCustomer = isCustomerView || (user.role || '').toLowerCase().includes('customer');
+  const membershipBadge = isCustomer
+    ? getCustomerMembershipBadge(user.membershipStatus, user.hasActiveMembership)
+    : null;
+  const roleBadge = getRoleBadgeStyle(user.role);
+  const badge = isCustomer ? membershipBadge : roleBadge;
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <View style={styles.nameRow}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {user.name}
-            </Text>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: user.isActive ? '#10B981' : '#94A3B8' },
-              ]}
-            />
-          </View>
+  const cardContent = (
+    <View style={styles.cardInner}>
+      <View style={styles.avatarCircle}>
+        <Text style={styles.avatarText}>{initials}</Text>
+      </View>
 
-          <Text style={styles.userEmail} numberOfLines={1}>
-            {user.email || 'No email provided'}
+      <View style={styles.cardHeaderInfo}>
+        <View style={styles.nameRow}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {user.name}
           </Text>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: (isCustomer ? (user.hasActiveMembership || user.membershipStatus === 'active') : user.isActive) ? '#10B981' : '#94A3B8' },
+            ]}
+          />
         </View>
 
+        <View style={styles.metaLine}>
+          {user.phone ? (
+            <Text style={styles.metaSubText} numberOfLines={1}>
+              {user.phone}
+            </Text>
+          ) : user.email ? (
+            <Text style={styles.metaSubText} numberOfLines={1}>
+              {user.email}
+            </Text>
+          ) : null}
+        </View>
+
+        {!!(user.location || user.cityName || user.stateName) && (
+          <View style={styles.locationLine}>
+            <Icon name="location-on" size={11} color="#94A3B8" />
+            <Text style={styles.locationSubText} numberOfLines={1}>
+              {user.location || [user.cityName, user.stateName].filter(Boolean).join(', ')}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.cardRight}>
         <View style={[styles.roleBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
           <Text style={[styles.roleBadgeText, { color: badge.text }]}>
             {badge.label}
           </Text>
         </View>
-      </View>
-
-      <View style={styles.divider} />
-
-      <View style={styles.cardBody}>
-        {!!user.phone && (
-          <View style={styles.metaRow}>
-            <Icon name="phone" size={14} color="#64748B" />
-            <Text style={styles.metaText}>{user.phone}</Text>
-          </View>
-        )}
-
-        {(user.stateName || user.cityName) && (
-          <View style={styles.metaRow}>
-            <Icon name="location-on" size={14} color="#64748B" />
-            <Text style={styles.metaText}>
-              {[user.cityName, user.stateName].filter(Boolean).join(', ')}
-            </Text>
-          </View>
-        )}
-
-        {user.districtIds?.length > 0 && (
-          <View style={styles.metaRow}>
-            <Icon name="map" size={14} color="#64748B" />
-            <Text style={styles.metaText}>
-              {user.districtIds.length} Assigned Districts
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.cardFooter}>
-        <View style={styles.statusPill}>
-          <Text
-            style={[
-              styles.statusPillText,
-              { color: user.isActive ? '#059669' : '#64748B' },
-            ]}
-          >
-            {user.isActive ? 'Active Account' : 'Inactive'}
-          </Text>
-        </View>
+        <Icon name="chevron-right" size={18} color="#CBD5E1" />
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+        {cardContent}
+      </TouchableOpacity>
+    );
+  }
+
+  return <View style={styles.card}>{cardContent}</View>;
 }
 
 const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -153,76 +156,122 @@ const titleCase = (s) => String(s || '').replace(/[_-]+/g, ' ').replace(/\b\w/g,
 // Role screens that show the title only — no "Manage X accounts..." subtitle.
 const NO_SUBTITLE_ROLES = ['district-admin', 'taluka-admin', 'telecaller', 'rm', 'relationship-manager'];
 
-// Defaults to the Customers tab (role=customer, "Customers" header) when
-// opened with no params. Dashboard's Admin Management role chips navigate
-// here with { role, roleLabel } instead, filtering to that role and showing
-// its label in the header.
 function Users({ navigation, route }) {
+  const activeRole = route?.params?.role || 'customer';
+  const activeRoleLabel = route?.params?.roleLabel || null;
+  const isCustomerRole = activeRole === 'customer';
+
   const {
-    users,
-    meta,
-    loading,
-    loadingMore,
+    users: staffUsers = [],
+    meta: staffMeta = { currentPage: 1, lastPage: 1, total: 0 },
+    loading: staffLoading = false,
+    loadingMore: staffLoadingMore = false,
     loadUsers,
     loadMore,
   } = useStateAdminUsers();
 
+  const [customerList, setCustomerList] = useState([]);
+  const [customerMeta, setCustomerMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [customerLoadingMore, setCustomerLoadingMore] = useState(false);
+
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [activeRole, setActiveRole] = useState(route?.params?.role || 'customer');
-  const [activeRoleLabel, setActiveRoleLabel] = useState(route?.params?.roleLabel || null);
 
-  // Re-navigating to an already-mounted Users screen (tapping a different
-  // Dashboard role chip) updates params without remounting — keep in sync.
+  const filterOptions = isCustomerRole ? CUSTOMER_STATUS_FILTERS : STAFF_STATUS_FILTERS;
+
+  // Debounce search input to avoid triggering queries on each keystroke
   useEffect(() => {
-    const nextRole = route?.params?.role || 'customer';
-    if (nextRole !== activeRole) {
-      setActiveRole(nextRole);
-      setActiveRoleLabel(route?.params?.roleLabel || null);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Fetch customers from GET /api/v1/admin/customers
+  const fetchCustomers = useCallback(async (page = 1, isLoadMore = false) => {
+    if (isLoadMore) {
+      setCustomerLoadingMore(true);
+    } else {
+      setCustomerLoading(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route?.params?.role, route?.params?.roleLabel]);
 
-  const headerTitle = activeRole === 'customer' ? 'Customers' : (activeRoleLabel || titleCase(activeRole));
-  const hideHeaderSub = NO_SUBTITLE_ROLES.includes(String(activeRole).toLowerCase());
-
-  const fetchList = useCallback(
-    (page = 1) => {
-      loadUsers({
-        search: search.trim() || undefined,
-        role: activeRole,
-        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    try {
+      const res = await getStateAdminCustomers({
+        search: debouncedSearch.trim() || undefined,
+        membership_status: selectedStatus !== 'all' ? selectedStatus : undefined,
         page,
       });
-    },
-    [loadUsers, search, activeRole, selectedStatus]
-  );
+
+      if (page === 1) {
+        setCustomerList(res.customers || []);
+      } else {
+        setCustomerList(prev => [...prev, ...(res.customers || [])]);
+      }
+      setCustomerMeta(res.meta || { currentPage: page, lastPage: page, total: res.customers?.length || 0 });
+    } catch {
+      if (page === 1) setCustomerList([]);
+    } finally {
+      setCustomerLoading(false);
+      setCustomerLoadingMore(false);
+    }
+  }, [debouncedSearch, selectedStatus]);
+
+  // Fetch staff users from GET /api/v1/admin/users
+  const fetchStaff = useCallback((page = 1) => {
+    loadUsers({
+      search: debouncedSearch.trim() || undefined,
+      role: activeRole,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      page,
+    });
+  }, [loadUsers, debouncedSearch, activeRole, selectedStatus]);
 
   useEffect(() => {
-    fetchList(1);
-  }, [fetchList]);
+    if (isCustomerRole) {
+      fetchCustomers(1, false);
+    }
+  }, [isCustomerRole, fetchCustomers]);
+
+  useEffect(() => {
+    if (!isCustomerRole) {
+      fetchStaff(1);
+    }
+  }, [isCustomerRole, fetchStaff]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchList(1);
+    if (isCustomerRole) {
+      await fetchCustomers(1, false);
+    } else {
+      await fetchStaff(1);
+    }
     setRefreshing(false);
   };
 
   const handleLoadMore = () => {
-    loadMore({
-      search: search.trim() || undefined,
-      role: activeRole,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    });
+    if (isCustomerRole) {
+      if (customerLoading || customerLoadingMore || customerMeta.currentPage >= customerMeta.lastPage) return;
+      fetchCustomers(customerMeta.currentPage + 1, true);
+    } else {
+      if (staffLoading || staffLoadingMore || staffMeta.currentPage >= staffMeta.lastPage) return;
+      loadMore({
+        search: debouncedSearch.trim() || undefined,
+        role: activeRole,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      });
+    }
   };
 
-  const stats = useMemo(() => {
-    const total = meta?.total || users.length;
-    const activeCount = users.filter(u => u.isActive).length;
-    const customerCount = users.filter(u => u.role === 'customer').length;
-    return { total, activeCount, customerCount };
-  }, [users, meta]);
+  const dataList = isCustomerRole ? customerList : staffUsers;
+  const totalCount = isCustomerRole ? (customerMeta.total || customerList.length) : (staffMeta?.total || staffUsers.length);
+  const isLoading = isCustomerRole ? customerLoading : staffLoading;
+  const isLoadingMore = isCustomerRole ? customerLoadingMore : staffLoadingMore;
+
+  const headerTitle = isCustomerRole ? 'Customers' : (activeRoleLabel || titleCase(activeRole));
+  const hideHeaderSub = NO_SUBTITLE_ROLES.includes(String(activeRole).toLowerCase());
 
   return (
     <View style={styles.container}>
@@ -231,7 +280,7 @@ function Users({ navigation, route }) {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          {activeRole !== 'customer' && (
+          {!isCustomerRole && (
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
               <Icon name="chevron-left" size={26} color="#FFFFFF" />
             </TouchableOpacity>
@@ -240,17 +289,17 @@ function Users({ navigation, route }) {
             <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
             {!hideHeaderSub && (
               <Text style={styles.headerSub}>
-                {activeRole === 'customer'
+                {isCustomerRole
                   ? 'Manage customer accounts and access'
                   : `Manage ${headerTitle} accounts and access`}
               </Text>
             )}
           </View>
           <View style={styles.headerActions}>
-            {stats.total > 0 && (
+            {totalCount > 0 && (
               <View style={styles.headerCount}>
                 <Icon name="people" size={15} color="#FDE68A" />
-                <Text style={styles.headerCountText}>{stats.total}</Text>
+                <Text style={styles.headerCountText}>{totalCount}</Text>
               </View>
             )}
           </View>
@@ -263,11 +312,11 @@ function Users({ navigation, route }) {
           <Icon name="search" size={20} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name, email, or phone..."
+            placeholder={isCustomerRole ? 'Search customer by name, email or phone...' : 'Search by name, email, or phone...'}
             placeholderTextColor="#94A3B8"
             value={search}
             onChangeText={setSearch}
-            onSubmitEditing={() => fetchList(1)}
+            onSubmitEditing={() => (isCustomerRole ? fetchCustomers(1) : fetchStaff(1))}
             returnKeyType="search"
           />
           {!!search && (
@@ -280,7 +329,7 @@ function Users({ navigation, route }) {
         {/* Status Filter Chips */}
         <FlatList
           horizontal
-          data={STATUS_FILTERS}
+          data={filterOptions}
           keyExtractor={item => item.id}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterList}
@@ -301,17 +350,24 @@ function Users({ navigation, route }) {
         />
       </View>
 
-      {/* Users List */}
-      {loading && users.length === 0 ? (
+      {/* List */}
+      {isLoading && dataList.length === 0 ? (
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color="#A64416" />
-          <Text style={styles.loadingText}>Loading accounts...</Text>
+          <Text style={styles.loadingText}>
+            {isCustomerRole ? 'Loading customers...' : 'Loading accounts...'}
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={users}
+          data={dataList}
           keyExtractor={item => String(item.id)}
-          renderItem={({ item }) => <UserCard user={item} />}
+          renderItem={({ item }) => {
+            const handlePress = isCustomerRole
+              ? () => navigation.navigate('CustomerDetail', { customerId: item.id, customer: item })
+              : undefined;
+            return <UserCard user={item} onPress={handlePress} isCustomerView={isCustomerRole} />;
+          }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -324,8 +380,8 @@ function Users({ navigation, route }) {
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
           ListFooterComponent={
-            loadingMore ? (
-              <View style={{ paddingVertical: 20 }}>
+            isLoadingMore ? (
+              <View style={styles.loadingMoreWrap}>
                 <ActivityIndicator size="small" color="#A64416" />
               </View>
             ) : null
@@ -333,11 +389,13 @@ function Users({ navigation, route }) {
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Icon name="group-off" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No Accounts Found</Text>
+              <Text style={styles.emptyTitle}>
+                {isCustomerRole ? 'No Customers Found' : 'No Accounts Found'}
+              </Text>
               <Text style={styles.emptySub}>
                 {search
-                  ? `No accounts matching "${search}"`
-                  : `No ${activeRole === 'customer' ? 'customer' : headerTitle} accounts match the selected filters.`}
+                  ? `No matching records found for "${search}"`
+                  : `No ${isCustomerRole ? 'customer' : headerTitle} records match the selected filter.`}
               </Text>
             </View>
           }
@@ -408,68 +466,56 @@ const styles = StyleSheet.create({
   filterChipText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
   filterChipTextActive: { color: '#FFFFFF' },
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 30 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 30, paddingTop: 4 },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center' },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#DBEAFE',
   },
-  avatarText: { fontSize: 15, fontWeight: '800', color: '#2563EB' },
+  avatarText: { fontSize: 13, fontWeight: '800', color: '#2563EB' },
+  cardHeaderInfo: { flex: 1, marginLeft: 10, marginRight: 8 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  userName: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
-  statusDot: { width: 7, height: 7, borderRadius: 3.5 },
-  userEmail: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  userName: { fontSize: 14, fontWeight: '700', color: '#0F172A', maxWidth: '85%' },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'nowrap' },
+  metaSubText: { fontSize: 11.5, color: '#64748B', fontWeight: '500' },
+  locationLine: { flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 2 },
+  locationSubText: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },
+  cardRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 4 },
   roleBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
   },
-  roleBadgeText: { fontSize: 11, fontWeight: '700' },
-
-  divider: { height: 1, backgroundColor: '#F8FAFC', marginVertical: 12 },
-  cardBody: { gap: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaText: { fontSize: 12, color: '#475569', fontWeight: '500' },
-
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
-  },
-  statusPill: {
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusPillText: { fontSize: 11, fontWeight: '600' },
+  roleBadgeText: { fontSize: 10.5, fontWeight: '700' },
 
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   loadingText: { fontSize: 13, color: '#64748B', marginTop: 12 },
+  loadingMoreWrap: { paddingVertical: 20 },
 
   emptyWrap: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 20 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginTop: 12 },

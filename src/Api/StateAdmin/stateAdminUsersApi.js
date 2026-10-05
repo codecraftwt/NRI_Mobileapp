@@ -1,9 +1,5 @@
 import apiClient, { normalizeApiError } from '../client';
 
-function num(v) {
-  return v == null ? 0 : Number(v);
-}
-
 // Map user item from GET /api/v1/admin/users and GET /api/v1/admin/users/{user}.
 // District Admin detail records carry their jurisdiction as
 // `assigned_districts`: [{ id, name, state: { id, name } }] — districts can
@@ -19,8 +15,17 @@ export function mapStateAdminUser(raw = {}) {
 
   const assignedDistricts = Array.isArray(raw.assigned_districts) ? raw.assigned_districts : [];
 
+  const customerId =
+    raw.customer_id ??
+    raw.customer?.id ??
+    raw.customer_profile?.id ??
+    raw.customer_details?.id ??
+    raw.customerId ??
+    raw.id;
+
   return {
     id: raw.id,
+    customerId,
     name: raw.name || 'User',
     email: raw.email || '',
     phone: raw.phone || raw.contact_phone || '',

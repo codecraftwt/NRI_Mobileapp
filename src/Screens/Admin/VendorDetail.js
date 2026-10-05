@@ -26,6 +26,16 @@ function VendorDetail({ route, navigation }) {
   const { vendor } = route.params || {};
   const [stateSearch, setStateSearch] = useState('');
 
+  const statesList = useMemo(() => {
+    return Array.isArray(vendor?.statesCovered) ? vendor.statesCovered : [];
+  }, [vendor]);
+
+  const filteredStates = useMemo(() => {
+    if (!stateSearch.trim()) return statesList;
+    const q = stateSearch.toLowerCase();
+    return statesList.filter((s) => String(s).toLowerCase().includes(q));
+  }, [statesList, stateSearch]);
+
   if (!vendor) {
     return (
       <View style={styles.container}>
@@ -34,7 +44,7 @@ function VendorDetail({ route, navigation }) {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Vendor Details</Text>
+          <Text style={styles.headerTitle}>Details</Text>
         </View>
         <View style={styles.emptyState}>
           <Icon name="error-outline" size={48} color="#CBD5E1" />
@@ -46,13 +56,6 @@ function VendorDetail({ route, navigation }) {
 
   const badge = statusBadge(vendor.status);
   const initials = (vendor.businessName || 'V').substring(0, 2).toUpperCase();
-  const statesList = vendor.statesCovered || [];
-
-  const filteredStates = useMemo(() => {
-    if (!stateSearch.trim()) return statesList;
-    const q = stateSearch.toLowerCase();
-    return statesList.filter((s) => String(s).toLowerCase().includes(q));
-  }, [statesList, stateSearch]);
 
   const handleCall = () => {
     if (!vendor.phone) return;
@@ -79,7 +82,7 @@ function VendorDetail({ route, navigation }) {
             <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {vendor.businessName}
+            Details
           </Text>
         </View>
       </View>

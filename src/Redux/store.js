@@ -49,6 +49,7 @@ import pendingRequestsReducer from './slices/pendingRequestsSlice';
 import adminDashboardReducer from './slices/adminDashboardSlice';
 import adminCustomersReducer from './slices/adminCustomersSlice';
 import adminVendorsReducer from './slices/adminVendorsSlice';
+import adminTicketsReducer from './slices/adminTicketsSlice';
 import stateAdminDashboardReducer from './slices/stateAdminDashboardSlice';
 import stateAdminVendorsReducer from './slices/stateAdminVendorsSlice';
 import stateAdminUsersReducer from './slices/stateAdminUsersSlice';
@@ -164,6 +165,7 @@ const appReducer = combineReducers({
   adminDashboard: adminDashboardReducer,
   adminCustomers: adminCustomersReducer,
   adminVendors: adminVendorsReducer,
+  adminTickets: adminTicketsReducer,
   stateAdminDashboard: stateAdminDashboardReducer,
   stateAdminVendors: stateAdminVendorsReducer,
   stateAdminUsers: stateAdminUsersReducer,

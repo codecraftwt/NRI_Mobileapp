@@ -22,6 +22,7 @@ export function mapStateAdminVendor(raw = {}) {
     email: raw.email || raw.contact_email || '',
     phone: raw.phone || raw.contact_phone || '',
     vendorType: raw.vendor_type || raw.type || null,
+    vendorTypeLabel: raw.vendor_type_label || null,
     status: (raw.status || 'active').toLowerCase(),
     statusLabel: raw.status_label || null,
     location,
@@ -29,12 +30,24 @@ export function mapStateAdminVendor(raw = {}) {
     state: state || null,
     district: geoName(raw.district) || city || null,
     pincode: raw.pincode || null,
+    address: raw.address || null,
+    statesCovered: Array.isArray(raw.states_covered) ? raw.states_covered : [],
     rating: raw.rating_score != null ? Number(raw.rating_score) : (raw.rating != null ? Number(raw.rating) : null),
     totalJobs: num(raw.total_jobs ?? raw.jobs_count ?? raw.completed_jobs),
     activeJobs: num(raw.active_jobs ?? raw.in_progress_jobs),
     servicesCount: num(raw.services_count ?? (Array.isArray(raw.services) ? raw.services.length : 0)),
     categories: Array.isArray(raw.categories) ? raw.categories.map(c => c.name || c) : [],
-    createdAt: raw.created_at || null,
+    services: Array.isArray(raw.services) ? raw.services.map(s => s.name || s) : [],
+    rates: Array.isArray(raw.rates) ? raw.rates : [],
+    panNumber: raw.pan_number || null,
+    gstNumber: raw.gst_number || null,
+    aadhaarNumber: raw.aadhaar_number || null,
+    bankName: raw.bank_name || null,
+    bankAccountName: raw.bank_account_name || null,
+    bankAccountNumber: raw.bank_account_number || null,
+    bankIfsc: raw.bank_ifsc || null,
+    upiId: raw.upi_id || null,
+    createdAt: raw.created_at || raw.registered_at || null,
     raw,
   };
 }
@@ -166,6 +179,74 @@ export async function getVendorRegionScope() {
         : (Array.isArray(payload.cityIds) ? payload.cityIds : null),
       raw: payload,
     };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Map a pending vendor item from GET /api/v1/admin/vendors/pending
+export function mapStateAdminPendingVendor(raw = {}) {
+  const city = geoName(raw.city || raw.district);
+  const state = geoName(raw.state);
+  const location = [city, state].filter(Boolean).join(', ') || raw.address || null;
+
+  return {
+    id: raw.id,
+    businessName: raw.business_name || raw.name || 'Vendor',
+    ownerName: raw.owner_name || raw.contact_name || null,
+    email: raw.email || raw.contact_email || '',
+    phone: raw.phone || raw.contact_phone || '',
+    vendorType: raw.vendor_type || raw.type || null,
+    status: (raw.status || 'pending').toLowerCase(),
+    statusLabel: raw.status_label || 'Pending Approval',
+    canApprove: Boolean(raw.can_approve),
+    location,
+    city: city || null,
+    state: state || null,
+    district: geoName(raw.district) || city || null,
+    pincode: raw.pincode || null,
+    rating: raw.rating_score != null ? Number(raw.rating_score) : null,
+    servicesCount: num(raw.services_count ?? (Array.isArray(raw.services) ? raw.services.length : 0)),
+    categories: Array.isArray(raw.categories) ? raw.categories.map(c => c.name || c) : [],
+    services: Array.isArray(raw.services) ? raw.services.map(s => s.name || s) : [],
+    createdAt: raw.created_at || raw.registered_at || null,
+    submittedAt: raw.submitted_at || raw.created_at || null,
+    raw,
+  };
+}
+
+// GET /api/v1/admin/vendors/pending
+// vendors waiting for approval in this admin's area (the dashboard pending_vendors count)
+// Oldest first, so the longest-waiting are at the top. can_approve indicates if this admin may approve.
+export async function getStateAdminPendingVendors({
+  search,
+  per_page = 20,
+  page = 1,
+} = {}) {
+  try {
+    const params = {};
+    if (search && search.trim()) params.search = search.trim();
+    if (per_page) params.per_page = per_page;
+    if (page) params.page = page;
+
+    const response = await apiClient.get('/admin/vendors/pending', { params });
+    const payload = response.data?.data || response.data?.vendors || response.data || [];
+    const list = Array.isArray(payload) ? payload : (Array.isArray(payload.data) ? payload.data : []);
+
+    return {
+      vendors: list.map(mapStateAdminPendingVendor),
+      meta: mapMeta(response, list.length),
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /api/v1/admin/vendors/{vendor}/approve
+export async function approveStateAdminVendor(vendorId) {
+  try {
+    const response = await apiClient.post(`/admin/vendors/${vendorId}/approve`);
+    return response.data || { success: true, message: 'Vendor approved successfully.' };
   } catch (error) {
     throw normalizeApiError(error);
   }

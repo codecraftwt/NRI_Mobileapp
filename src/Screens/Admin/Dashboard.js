@@ -10,7 +10,7 @@ const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
 
 const HEADER_STATS = [
   { id: 'totalRegistrations', label: 'Registrations', icon: 'how-to-reg', color: '#3B82F6', bg: '#EFF6FF' },
-  { id: 'activeTickets', label: 'Active Tickets', icon: 'confirmation-number', color: '#EA580C', bg: '#FFF7ED' },
+  { id: 'activeTickets', label: 'Active Requests', icon: 'confirmation-number', color: '#EA580C', bg: '#FFF7ED' },
   { id: 'totalRevenue', label: 'Money Received', icon: 'payments', color: '#16A34A', bg: '#F0FDF4', format: 'currency' },
 ];
 
@@ -83,7 +83,8 @@ function Dashboard({ navigation }) {
             {HEADER_STATS.map(stat => {
               const handleStatPress = () => {
                 if (stat.id === 'totalRegistrations') navigation.navigate('Customers');
-                else if (stat.id === 'totalRevenue' || stat.id === 'activeTickets') navigation.navigate('StateOperations');
+                else if (stat.id === 'activeTickets') navigation.navigate('Tickets');
+                else if (stat.id === 'totalRevenue') navigation.navigate('Finance');
               };
               return (
                 <TouchableOpacity
@@ -104,9 +105,6 @@ function Dashboard({ navigation }) {
 
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>State Operations & Revenue</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('StateOperations')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
@@ -230,7 +228,6 @@ const styles = StyleSheet.create({
 
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#0F172A' },
-  viewAllText: { fontSize: 13, fontWeight: '700', color: '#A64416' },
 
   stateOperationsCard: {
     flexDirection: 'row',

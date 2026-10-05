@@ -17,8 +17,6 @@ import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDash
 import { useNotifications } from '../../Hooks/useNotifications';
 import { getUserAssignableRoles } from '../../Api/StateAdmin/stateAdminUsersApi';
 
-const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
-
 // Not every card applies to every role — confirmed live, state-admin's
 // GET /admin/dashboard (scope: "state") and district/taluka-admin's
 // (scope: "coverage") return entirely different `stats` shapes:
@@ -34,7 +32,7 @@ const STAT_ITEMS = [
   { id: 'pendingVendors', label: 'Pending Vendors', icon: 'hourglass-top', color: '#F59E0B', bg: '#FFFBEB' },
   // Coverage-scope (district/taluka-admin) only.
   { id: 'overdueTickets', label: 'Overdue', icon: 'error-outline', color: '#DC2626', bg: '#FEF2F2' },
-  { id: 'unassignedTickets', label: 'Unassigned', icon: 'assignment-late', color: '#D97706', bg: '#FFFBEB' },
+  { id: 'unassignedTickets', label: 'Pending Assignment', icon: 'assignment-late', color: '#D97706', bg: '#FFFBEB' },
   { id: 'availableVendors', label: 'Available Vendors', icon: 'how-to-reg', color: '#0891B2', bg: '#ECFEFF' },
   // Shared — present in both scopes, under different keys.
   { id: 'vendorCount', label: 'Vendors', icon: 'engineering', color: '#8B5CF6', bg: '#F5F3FF' },
@@ -190,14 +188,16 @@ function Dashboard({ navigation }) {
           <View style={styles.statsGrid}>
             {(loading && !stats ? STAT_ITEMS : STAT_ITEMS.filter(stat => stats?.[stat.id] !== undefined)).map(stat => {
               const handleStatPress = () => {
-                if (['vendorCount', 'availableVendors', 'pendingVendors'].includes(stat.id)) {
+                if (stat.id === 'pendingVendors') {
+                  navigation.navigate('PendingVendors');
+                } else if (['vendorCount', 'availableVendors'].includes(stat.id)) {
                   navigation.navigate('Vendors');
                 } else if (['totalTickets', 'overdueTickets', 'unassignedTickets', 'activeTickets', 'escalatedTickets'].includes(stat.id)) {
                   navigation.navigate('Tickets');
                 } else if (stat.id === 'customerCount') {
                   navigation.navigate('Customers');
                 } else if (stat.id === 'totalRevenue') {
-                  navigation.navigate('Analysis');
+                  navigation.navigate('Revenue');
                 }
               };
               return (

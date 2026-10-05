@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, StatusBar, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useAdminCustomers } from '../../Hooks/Admin/useAdminCustomers';
@@ -19,10 +19,10 @@ function membershipBadge(status) {
   }
 }
 
-function Customers() {
+function Customers({ navigation }) {
   const [search, setSearch] = useState('');
   const [membershipStatus, setMembershipStatus] = useState('');
-  const [nriCountry, setNriCountry] = useState('');
+  const [nriCountry] = useState('');
   const { customers, loading, failed, error, meta, fetchNextPage, refresh } = useAdminCustomers(search, membershipStatus, nriCountry);
 
   const total = meta?.total || 0;
@@ -32,7 +32,7 @@ function Customers() {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
+          <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>Customers</Text>
             <Text style={styles.headerSub}>Org-wide customer list</Text>
           </View>
@@ -100,6 +100,14 @@ function Customers() {
         showsVerticalScrollIndicator={false}
         onEndReached={fetchNextPage}
         onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading && customers.length > 0}
+            onRefresh={refresh}
+            colors={['#20304C']}
+            tintColor="#20304C"
+          />
+        }
         ListEmptyComponent={
           loading ? (
             <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
@@ -112,7 +120,7 @@ function Customers() {
         }
         ListFooterComponent={
           loading && customers.length > 0 ? (
-            <View style={{ paddingVertical: 16 }}><ActivityIndicator size="small" color="#20304C" /></View>
+            <View style={styles.listFooter}><ActivityIndicator size="small" color="#20304C" /></View>
           ) : null
         }
         renderItem={({ item: cust }) => {
@@ -120,7 +128,11 @@ function Customers() {
           const badge = membershipBadge(cust.membershipStatus);
 
           return (
-            <View style={styles.listItem}>
+            <TouchableOpacity
+              style={styles.listItem}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('CustomerDetail', { customer: cust })}
+            >
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
@@ -128,20 +140,14 @@ function Customers() {
               <View style={styles.listItemBody}>
                 <Text style={styles.name} numberOfLines={1}>{cust.name}</Text>
                 {!!cust.email && <Text style={styles.sub} numberOfLines={1}>{cust.email}</Text>}
-                <View style={styles.metaRow}>
-                  {!!cust.location && (
-                    <View style={styles.metaItem}>
-                      <Icon name="location-on" size={13} color="#94A3B8" />
-                      <Text style={styles.metaText} numberOfLines={1}>{cust.location}</Text>
-                    </View>
-                  )}
-                  {!!cust.phone && !cust.location && (
+                {!!cust.phone && (
+                  <View style={styles.metaRow}>
                     <View style={styles.metaItem}>
                       <Icon name="phone" size={13} color="#94A3B8" />
                       <Text style={styles.metaText} numberOfLines={1}>{cust.phone}</Text>
                     </View>
-                  )}
-                </View>
+                  </View>
+                )}
               </View>
 
               <View style={styles.listItemRight}>
@@ -149,8 +155,9 @@ function Customers() {
                   <Text style={[styles.membershipText, { color: badge.color }]} numberOfLines={1}>{badge.label}</Text>
                 </View>
                 {!!cust.plan && <Text style={styles.planText} numberOfLines={1}>{cust.plan}</Text>}
+                <Icon name="chevron-right" size={18} color="#94A3B8" style={styles.chevronIcon} />
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
@@ -163,7 +170,8 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  headerLeft: { flex: 1 },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
   headerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
@@ -219,6 +227,8 @@ const styles = StyleSheet.create({
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  listFooter: { paddingVertical: 16 },
+  chevronIcon: { marginTop: 2 },
 });
 
 export default Customers;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, StatusBar, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useAdminVendors } from '../../Hooks/Admin/useAdminVendors';
@@ -25,7 +25,7 @@ function Vendors({ navigation }) {
       <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
+          <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>Vendors</Text>
             <Text style={styles.headerSub}>Org-wide vendor list</Text>
           </View>
@@ -73,6 +73,14 @@ function Vendors({ navigation }) {
         showsVerticalScrollIndicator={false}
         onEndReached={fetchNextPage}
         onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading && vendors.length > 0}
+            onRefresh={refresh}
+            colors={['#20304C']}
+            tintColor="#20304C"
+          />
+        }
         ListEmptyComponent={
           loading ? (
             <View style={styles.emptyState}><ActivityIndicator size="large" color="#20304C" /></View>
@@ -85,7 +93,7 @@ function Vendors({ navigation }) {
         }
         ListFooterComponent={
           loading && vendors.length > 0 ? (
-            <View style={{ paddingVertical: 16 }}><ActivityIndicator size="small" color="#20304C" /></View>
+            <View style={styles.listFooter}><ActivityIndicator size="small" color="#20304C" /></View>
           ) : null
         }
         renderItem={({ item: vendor }) => {
@@ -156,7 +164,8 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16, backgroundColor: '#20304C',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  headerLeft: { flex: 1 },
   headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
   headerCount: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
@@ -204,6 +213,7 @@ const styles = StyleSheet.create({
 
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  listFooter: { paddingVertical: 16 },
 });
 
 export default Vendors;

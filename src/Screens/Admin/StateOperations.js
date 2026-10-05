@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StatusBar,
   ActivityIndicator,
-  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -26,7 +25,6 @@ export function heatColor(ratio) {
 }
 
 function StateOperations({ navigation }) {
-  const [search, setSearch] = useState('');
   const { stateBreakdown, loading, failed, error, refresh } = useAdminDashboard();
 
   // Sorted highest revenue first — the point of a heat-list.
@@ -34,12 +32,6 @@ function StateOperations({ navigation }) {
     () => [...(stateBreakdown || [])].sort((a, b) => b.revenue - a.revenue),
     [stateBreakdown]
   );
-
-  const filteredStates = useMemo(() => {
-    if (!search.trim()) return sorted;
-    const q = search.toLowerCase();
-    return sorted.filter((s) => String(s.name || '').toLowerCase().includes(q));
-  }, [sorted, search]);
 
   const maxRevenue = sorted.length ? Math.max(...sorted.map(s => s.revenue), 1) : 1;
   const totalRevenue = useMemo(() => sorted.reduce((sum, s) => sum + (Number(s.revenue) || 0), 0), [sorted]);
@@ -57,35 +49,12 @@ function StateOperations({ navigation }) {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
+            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>
             State Operations & Revenue
           </Text>
-          {sorted.length > 0 && (
-            <View style={styles.headerCountBadge}>
-              <Text style={styles.headerCountText}>{sorted.length}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchWrap}>
-        <View style={styles.searchBar}>
-          <Icon name="search" size={20} color="#94A3B8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search state by name..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-          {!!search && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Icon name="close" size={18} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
+          <View style={styles.backBtnPlaceholder} />
         </View>
       </View>
 
@@ -119,7 +88,7 @@ function StateOperations({ navigation }) {
       )}
 
       <FlatList
-        data={filteredStates}
+        data={sorted}
         keyExtractor={(item, idx) => `${item.name}-${idx}`}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -131,38 +100,48 @@ function StateOperations({ navigation }) {
           ) : (
             <View style={styles.emptyState}>
               <Icon name="map" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>
-                {search ? 'No Matching States' : 'No State Data'}
-              </Text>
+              <Text style={styles.emptyTitle}>No State Data</Text>
             </View>
           )
         }
         renderItem={({ item, index }) => {
-          const ratio = maxRevenue > 0 ? item.revenue / maxRevenue : 0;
-          const color = heatColor(ratio);
+          const ratio = maxRevenue > 0 ? (item.revenue || 0) / maxRevenue : 0;
+          const barColor = heatColor(ratio);
+          const rank = index + 1;
 
           return (
-            <View style={styles.card}>
-              <View style={styles.cardTopRow}>
-                <View style={[styles.rankBadge, { backgroundColor: color + '22' }]}>
-                  <Text style={[styles.rankText, { color }]}>{index + 1}</Text>
+            <View style={styles.stateCard}>
+              <View style={styles.stateTopRow}>
+                <View style={styles.stateNameWrap}>
+                  <View style={[styles.rankBadge, rank <= 3 && styles.rankBadgeTop]}>
+                    <Text style={[styles.rankText, rank <= 3 && styles.rankTextTop]}>{rank}</Text>
+                  </View>
+                  <Text style={styles.stateName} numberOfLines={1}>{item.name}</Text>
                 </View>
-                <Text style={styles.stateName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.revenueText}>{formatInr(item.revenue)}</Text>
+                <Text style={styles.stateRevenue}>{formatInr(item.revenue)}</Text>
               </View>
 
-              <View style={styles.heatTrack}>
-                <View style={[styles.heatFill, { width: `${Math.max(ratio * 100, item.revenue > 0 ? 4 : 0)}%`, backgroundColor: color }]} />
+              {/* Revenue heat bar */}
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${Math.max(ratio * 100, item.revenue > 0 ? 4 : 0)}%`,
+                      backgroundColor: barColor,
+                    },
+                  ]}
+                />
               </View>
 
               <View style={styles.metaRow}>
                 <View style={styles.metaItem}>
-                  <Icon name="confirmation-number" size={13} color="#94A3B8" />
-                  <Text style={styles.metaText}>{item.ticketsCount || 0} tickets</Text>
+                  <Icon name="confirmation-number" size={13} color="#64748B" />
+                  <Text style={styles.metaText}>{item.ticketsCount} tickets</Text>
                 </View>
                 <View style={styles.metaItem}>
-                  <Icon name="groups" size={13} color="#94A3B8" />
-                  <Text style={styles.metaText}>{item.customersCount || 0} customers</Text>
+                  <Icon name="people" size={13} color="#64748B" />
+                  <Text style={styles.metaText}>{item.customersCount} customers</Text>
                 </View>
               </View>
             </View>
@@ -184,7 +163,7 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   backBtn: {
     width: 38,
@@ -194,53 +173,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backBtnPlaceholder: {
+    width: 38,
+    height: 38,
+  },
+  backIcon: {
+    marginLeft: 4,
+  },
   headerTitle: {
     flex: 1,
-    fontSize: 19,
+    fontSize: 17.5,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
     letterSpacing: -0.3,
     includeFontPadding: false,
+    textAlign: 'center',
     textAlignVertical: 'center',
-  },
-  headerCountBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  headerCountText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FDE68A',
-  },
-
-  searchWrap: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 6,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 46,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13.5,
-    color: '#0F172A',
-    padding: 0,
   },
 
   summaryStatsRow: {
@@ -249,10 +197,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginTop: 6,
-    marginBottom: 4,
+    marginTop: 16,
+    marginBottom: 8,
     borderRadius: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#F1F5F9',
@@ -280,7 +228,7 @@ const styles = StyleSheet.create({
   summaryDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
   },
 
   errorCard: {
@@ -291,7 +239,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     marginHorizontal: 20,
-    marginTop: 10,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#FECACA',
   },
@@ -299,78 +247,93 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12.5,
     color: '#DC2626',
-    lineHeight: 17,
   },
 
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 40,
-    gap: 10,
+    gap: 12,
   },
-  card: {
+
+  stateCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: '#F1F5F9',
     shadowColor: '#475569',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    gap: 10,
   },
-  cardTopRow: {
+  stateTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stateNameWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
+    paddingRight: 8,
   },
   rankBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  rankBadgeTop: {
+    backgroundColor: '#FFF7ED',
+  },
   rankText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  rankTextTop: {
+    color: '#EA580C',
   },
   stateName: {
-    flex: 1,
-    fontSize: 14.5,
+    fontSize: 15,
     fontFamily: typography.h4.fontFamily,
     color: '#0F172A',
-  },
-  revenueText: {
-    fontSize: 14,
-    fontFamily: typography.h4.fontFamily,
-    color: '#16A34A',
     fontWeight: '700',
+    flex: 1,
+  },
+  stateRevenue: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#16A34A',
   },
 
-  heatTrack: {
-    height: 7,
-    borderRadius: 3.5,
+  barTrack: {
+    height: 5,
     backgroundColor: '#F1F5F9',
-    marginTop: 10,
+    borderRadius: 3,
     overflow: 'hidden',
   },
-  heatFill: {
+  barFill: {
     height: '100%',
-    borderRadius: 3.5,
+    borderRadius: 3,
   },
 
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-    marginTop: 10,
+    paddingTop: 2,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   metaText: {
     fontSize: 11.5,
@@ -385,7 +348,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#0F172A',
   },
 });
 

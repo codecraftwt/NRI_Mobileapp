@@ -8,9 +8,13 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 
 import Dashboard from '../../Screens/Admin/Dashboard';
 import Customers from '../../Screens/Admin/Customers';
+import CustomerDetail from '../../Screens/Admin/CustomerDetail';
 import Vendors from '../../Screens/Admin/Vendors';
 import VendorDetail from '../../Screens/Admin/VendorDetail';
+import Tickets from '../../Screens/Admin/Tickets';
+import TicketDetail from '../../Screens/Admin/TicketDetail';
 import StateOperations from '../../Screens/Admin/StateOperations';
+import Finance from '../../Screens/Admin/Finance';
 import Profile from '../../Screens/Admin/Profile';
 import NotificationPreferences from '../../Screens/Admin/NotificationPreferences';
 import Notifications from '../../Screens/NRI/Notifications';
@@ -30,6 +34,7 @@ const TAB_ROOT_SCREENS = {
   Dashboard: 'DashboardMain',
   Customers: 'CustomersMain',
   Vendors: 'VendorsMain',
+  Tickets: 'TicketsMain',
   Profile: 'ProfileMain',
 };
 
@@ -39,7 +44,10 @@ function DashboardStack() {
       <Stack.Screen name="DashboardMain" component={Dashboard} />
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="StateOperations" component={StateOperations} />
+      <Stack.Screen name="Finance" component={Finance} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -48,6 +56,7 @@ function CustomersStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="CustomersMain" component={Customers} />
+      <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
     </Stack.Navigator>
   );
 }
@@ -57,6 +66,15 @@ function VendorsStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="VendorsMain" component={Vendors} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
+    </Stack.Navigator>
+  );
+}
+
+function TicketsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="TicketsMain" component={Tickets} />
+      <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
 }
@@ -114,7 +132,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
         })
       ]).start();
     }
-  }, [state.index, layouts, isLayoutReady]);
+  }, [state.index, layouts, isLayoutReady, pillWidth, translateX]);
 
   if (tabBarStyle && tabBarStyle.display === 'none') {
     return null;
@@ -124,23 +142,21 @@ function CustomTabBar({ state, descriptors, navigation }) {
     <View style={[styles.floatingTabBar, { paddingBottom: bottomInset }]}>
       {isLayoutReady && (
         <Animated.View
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 12,
-            bottom: bottomInset,
-            backgroundColor: '#A64416',
-            borderRadius: 30,
-            width: pillWidth,
-            transform: [{ translateX }],
-          }}
+          style={[
+            styles.tabPill,
+            {
+              bottom: bottomInset,
+              width: pillWidth,
+              transform: [{ translateX }],
+            },
+          ]}
         />
       )}
       {state.routes.map((route, index) => {
-        const { options } = descriptors[route.key];
+        const itemOptions = descriptors[route.key]?.options || {};
         const isFocused = state.index === index;
-        const iconName = options.tabBarIconName || 'circle';
-        const label = options.tabBarLabel || route.name;
+        const iconName = itemOptions.tabBarIconName || 'circle';
+        const label = itemOptions.tabBarLabel || route.name;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -172,8 +188,8 @@ function CustomTabBar({ state, descriptors, navigation }) {
             key={route.key}
             onLayout={(e) => handleLayout(e, index)}
             accessibilityState={isFocused ? { selected: true } : {}}
-            accessibilityLabel={options.tabBarAccessibilityLabel}
-            testID={options.tabBarTestID}
+            accessibilityLabel={itemOptions.tabBarAccessibilityLabel}
+            testID={itemOptions.tabBarTestID}
             onPress={onPress}
             onLongPress={onLongPress}
             activeOpacity={0.8}
@@ -181,7 +197,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
           >
             <Icon
               name={iconName}
-              size={24}
+              size={22}
               color={isFocused ? '#FFFFFF' : '#94A3B8'}
             />
             {isFocused && (
@@ -196,10 +212,12 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
+const renderCustomTabBar = (props) => <CustomTabBar {...props} />;
+
 function AdminTabNavigator() {
   return (
     <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
+      tabBar={renderCustomTabBar}
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen
@@ -235,6 +253,18 @@ function AdminTabNavigator() {
             tabBarIconName: 'engineering',
             tabBarLabel: 'Vendors',
             tabBarStyle: focusedRouteName === 'VendorsMain' ? {} : { display: 'none' },
+          };
+        }}
+      />
+      <Tab.Screen
+        name="Tickets"
+        component={TicketsStack}
+        options={({ route }) => {
+          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'TicketsMain';
+          return {
+            tabBarIconName: 'confirmation-number',
+            tabBarLabel: 'Tickets',
+            tabBarStyle: focusedRouteName === 'TicketsMain' ? {} : { display: 'none' },
           };
         }}
       />
@@ -283,6 +313,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
     marginLeft: 8,
+  },
+  tabPill: {
+    position: 'absolute',
+    left: 0,
+    top: 12,
+    backgroundColor: '#A64416',
+    borderRadius: 30,
   },
 });
 

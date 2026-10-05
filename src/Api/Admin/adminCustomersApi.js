@@ -10,6 +10,13 @@ function mapPlan(raw) {
 export function mapCustomer(raw = {}) {
   const plan = mapPlan(raw);
   const hasActiveMembership = !!raw.has_active_membership;
+  const rawStatus = String(raw.membership_status || '').toLowerCase();
+  let membershipStatus = 'none';
+  if (hasActiveMembership || rawStatus === 'active') membershipStatus = 'active';
+  else if (rawStatus === 'pending' || plan) membershipStatus = 'pending';
+  else if (rawStatus === 'expired') membershipStatus = 'expired';
+  else if (rawStatus === 'never') membershipStatus = 'none';
+
   return {
     id: raw.id,
     name: raw.name || '',
@@ -21,10 +28,10 @@ export function mapCustomer(raw = {}) {
     plan,
     hasActiveMembership,
     membershipExpiresAt: raw.membership_expires_at || null,
-    // Mirrors the dashboard's registration breakdown (see getAdminDashboard):
-    // active = payment completed, pending = plan chosen but payment pending,
-    // none = no membership yet.
-    membershipStatus: hasActiveMembership ? 'active' : (plan ? 'pending' : 'none'),
+    membershipStatus,
+    rawMembershipStatus: raw.membership_status || null,
+    familyMembersCount: raw.family_members_count ?? 0,
+    propertiesCount: raw.properties_count ?? 0,
     createdAt: raw.created_at || null,
   };
 }
