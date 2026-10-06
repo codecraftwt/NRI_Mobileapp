@@ -119,7 +119,10 @@ function mapDocumentRequest(raw) {
     label: raw.label,
     note: raw.note || null,
     status: raw.status,
+    statusLabel: raw.status_label || (String(raw.status).toLowerCase() === 'fulfilled' ? 'Fulfilled' : 'Pending'),
     files: (raw.files || []).map(mapDocumentRequestFile).filter(Boolean),
+    fulfilledAt: raw.fulfilled_at || null,
+    reopenedAt: raw.reopened_at || null,
     isLatest: !!raw.is_latest,
   };
 }

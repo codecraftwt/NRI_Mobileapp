@@ -13,7 +13,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useToast } from '../../context/ToastContext';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useVendorJobDetail } from '../../Hooks/Vendor/useVendorJobDetail';
-import { getVendorJobInvoiceUrl } from '../../Api/Vendor/vendorJobsApi';
+import { getVendorJobInvoiceUrl, getVendorJobSupportChat } from '../../Api/Vendor/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 // Completion proof: up to 8 files, 25 MB each (per the /complete endpoint).
@@ -73,9 +73,29 @@ function JobDetail({ route, navigation }) {
   const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [supportChatReplies, setSupportChatReplies] = useState([]);
+
+  const fetchSupportChat = useCallback(async () => {
+    if (ticketId == null) return;
+    try {
+      const res = await getVendorJobSupportChat(ticketId);
+      setSupportChatReplies(res?.replies || []);
+    } catch (e) {
+      // Chat may not exist yet or request failed; silent fallback
+    }
+  }, [ticketId]);
+
+  useEffect(() => {
+    fetchSupportChat();
+  }, [fetchSupportChat]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    try { await retry(); } finally { setRefreshing(false); }
+    try {
+      await Promise.all([retry(), fetchSupportChat()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Re-fetch whenever this screen regains focus (e.g. coming back from the
@@ -85,10 +105,32 @@ function JobDetail({ route, navigation }) {
   // vendor, until the vendor happens to pull-to-refresh manually.
   useFocusEffect(
     useCallback(() => {
-      if (ticketId != null) retry();
+      if (ticketId != null) {
+        retry();
+        fetchSupportChat();
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ticketId])
+    }, [ticketId, fetchSupportChat])
   );
+
+  // Extract latest state of each document request from support chat
+  const documentRequests = React.useMemo(() => {
+    const map = new Map();
+    for (const reply of supportChatReplies) {
+      const dr = reply?.documentRequest;
+      if (dr && dr.id != null) {
+        const existing = map.get(dr.id);
+        if (!existing || dr.isLatest || (dr.files && dr.files.length > 0)) {
+          map.set(dr.id, {
+            ...dr,
+            replyCreatedAt: reply.createdAt,
+            files: (dr.files && dr.files.length > 0) ? dr.files : (existing?.files || []),
+          });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [supportChatReplies]);
 
   // Two-section layout: "Overview" (read-only info) vs "Actions" (everything actionable).
   const [activeTab, setActiveTab] = useState('overview');
@@ -659,7 +701,7 @@ function JobDetail({ route, navigation }) {
         </View>
 
         {/* Documents from Customer — requesting a document posts into (and, if
-            needed, starts) the Support Chat thread, so this routes there. */}
+            needed, starts) the Support Chat thread, and fulfilled documents appear here. */}
         <View style={styles.card}>
           <View style={styles.docsFromCustomerHeaderRow}>
             <View style={styles.sectionHeader}>
@@ -677,9 +719,97 @@ function JobDetail({ route, navigation }) {
               <Text style={styles.requestDocumentPillText}>Request Document</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.actionDesc}>
-            Need an ID proof, ownership papers or anything else for this job? Ask the customer here — they're notified and can upload it straight into the job's chat.
-          </Text>
+
+          {documentRequests.length === 0 ? (
+            <Text style={styles.actionDesc}>
+              Need an ID proof, ownership papers or anything else for this job? Ask the customer here — they're notified and can upload it straight into the job's chat.
+            </Text>
+          ) : (
+            <View style={styles.docRequestsContainer}>
+              {documentRequests.map((dr, index) => {
+                const isFulfilled = String(dr.status || '').toLowerCase() === 'fulfilled';
+                return (
+                  <View
+                    key={dr.id ?? index}
+                    style={[
+                      styles.docRequestItem,
+                      isFulfilled ? styles.docRequestItemFulfilled : styles.docRequestItemPending,
+                    ]}
+                  >
+                    <View style={styles.docRequestHeaderRow}>
+                      <View style={styles.docRequestTitleWrap}>
+                        <Icon
+                          name={isFulfilled ? 'check-circle' : 'hourglass-top'}
+                          size={18}
+                          color={isFulfilled ? '#059669' : '#D97706'}
+                        />
+                        <Text style={styles.docRequestTitle}>{dr.label || 'Document'}</Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.docRequestStatusBadge,
+                          isFulfilled ? styles.docStatusBadgeFulfilled : styles.docStatusBadgePending,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.docRequestStatusText,
+                            isFulfilled ? styles.docStatusTextFulfilled : styles.docStatusTextPending,
+                          ]}
+                        >
+                          {dr.statusLabel || (isFulfilled ? 'Fulfilled' : 'Pending Upload')}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {!!dr.note && (
+                      <Text style={styles.docRequestNote}>Note: {dr.note}</Text>
+                    )}
+
+                    {isFulfilled && dr.files && dr.files.length > 0 ? (
+                      <View style={styles.docFilesContainer}>
+                        {dr.files.map((file, fIdx) => {
+                          const fileUrl = typeof file === 'string' ? file : file?.url;
+                          const fileName = `File ${fIdx + 1}`;
+                          const isPdf = /\.pdf(\?|$)/i.test(fileUrl || '');
+                          const isImg = /\.(png|jpe?g|webp|gif|bmp)(\?|$)/i.test(fileUrl || '');
+
+                          return (
+                            <TouchableOpacity
+                              key={fileUrl || fIdx}
+                              style={styles.docFileCard}
+                              onPress={() => openAttachment(fileUrl, fileName)}
+                              activeOpacity={0.7}
+                              disabled={!fileUrl}
+                            >
+                              <View style={styles.docFileIconWrap}>
+                                <Icon
+                                  name={isPdf ? 'picture-as-pdf' : isImg ? 'photo' : 'insert-drive-file'}
+                                  size={20}
+                                  color="#2563EB"
+                                />
+                              </View>
+                              <View style={styles.docFileInfo}>
+                                <Text style={styles.docFileName} numberOfLines={1}>
+                                  {fileName}
+                                </Text>
+                                <Text style={styles.docFileActionText}>Tap to preview / view</Text>
+                              </View>
+                              <Icon name="visibility" size={18} color="#64748B" />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ) : isFulfilled ? (
+                      <Text style={styles.docPendingText}>Customer has fulfilled this request.</Text>
+                    ) : (
+                      <Text style={styles.docPendingText}>Waiting for customer to upload the document.</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {(job.customerDocuments || []).length > 0 && (
@@ -1712,6 +1842,49 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#2563EB', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
   },
   requestDocumentPillText: { fontSize: 12, fontWeight: '700', color: '#2563EB' },
+
+  docRequestsContainer: { marginTop: 12, gap: 10 },
+  docRequestItem: {
+    borderRadius: 12, borderWidth: 1, padding: 12, gap: 8,
+  },
+  docRequestItemFulfilled: {
+    backgroundColor: '#F0FDF4', borderColor: '#BBF7D0',
+  },
+  docRequestItemPending: {
+    backgroundColor: '#FFFBEB', borderColor: '#FEF3C7',
+  },
+  docRequestHeaderRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+  },
+  docRequestTitleWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  docRequestTitle: {
+    fontSize: 14, fontWeight: '700', color: '#0F172A', flex: 1,
+  },
+  docRequestStatusBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  docStatusBadgeFulfilled: { backgroundColor: '#DCFCE7' },
+  docStatusBadgePending: { backgroundColor: '#FEF3C7' },
+  docRequestStatusText: { fontSize: 11, fontWeight: '700' },
+  docStatusTextFulfilled: { color: '#15803D' },
+  docStatusTextPending: { color: '#B45309' },
+  docRequestNote: { fontSize: 12, color: '#64748B', fontStyle: 'italic' },
+  docFilesContainer: { marginTop: 4, gap: 8 },
+  docFileCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#FFFFFF', borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: '#E2E8F0',
+  },
+  docFileIconWrap: {
+    width: 34, height: 34, borderRadius: 8, backgroundColor: '#EFF6FF',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  docFileInfo: { flex: 1 },
+  docFileName: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
+  docFileActionText: { fontSize: 11, color: '#64748B', marginTop: 1 },
+  docPendingText: { fontSize: 12, color: '#92400E', fontStyle: 'italic' },
 
   supportChatFab: {
     position: 'absolute', right: 20, bottom: 24,
