@@ -244,12 +244,12 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', fontWeight: '700' },
 
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryLabel: { fontSize: 14, color: '#475569' },
-  summaryValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  summaryLabel: { flex: 1, fontSize: 14, color: '#475569', lineHeight: 20 },
+  summaryValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', textAlign: 'right', flexShrink: 0 },
   divider: { height: 1, borderBottomWidth: 1, borderColor: '#E2E8F0', borderStyle: 'dashed' },
-  payableLabel: { fontSize: 16, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
-  payableValue: { fontSize: 18, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
+  payableLabel: { flex: 1, fontSize: 16, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
+  payableValue: { fontSize: 18, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700', textAlign: 'right', flexShrink: 0 },
 
   methodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FBFBFE' },
   methodRowActive: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },

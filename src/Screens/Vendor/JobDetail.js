@@ -1374,15 +1374,14 @@ function JobDetail({ route, navigation }) {
 
         {/* Chat with NRI Circle team — private, two-way (customer can't see it) */}
         <View style={styles.card}>
-          <View style={styles.teamChatHeaderRow}>
-            <View style={styles.sectionHeader}>
-              <Icon name="chat-bubble-outline" size={18} color="#7C3AED" />
-              <Text style={styles.sectionTitle}>Chat with NRI Circle team</Text>
-            </View>
-            <View style={styles.privatePill}>
-              <Icon name="lock" size={11} color="#64748B" />
-              <Text style={styles.privatePillText}>Private</Text>
-            </View>
+          <View style={styles.sectionHeader}>
+            <Icon name="chat-bubble-outline" size={18} color="#7C3AED" />
+            <Text style={styles.sectionTitle}>Chat with NRI Circle team</Text>
+          </View>
+
+          <View style={styles.privatePill}>
+            <Icon name="lock" size={11} color="#64748B" />
+            <Text style={styles.privatePillText}>Private</Text>
           </View>
           <Text style={styles.actionDesc}>
             Talk to the team handling this job. The customer can't see these messages.
@@ -1595,7 +1594,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: {
     ...typography.sectionTitle, fontFamily: typography.h2.fontFamily,
-    color: '#0F172A', marginBottom: 0,
+    color: '#0F172A', marginBottom: 0, flexShrink: 1,
   },
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -1894,9 +1893,8 @@ const styles = StyleSheet.create({
   },
 
   // Chat with NRI Circle team (private vendor<->staff thread)
-  teamChatHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   privatePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
     backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
   },
   privatePillText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
