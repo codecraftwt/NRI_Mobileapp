@@ -13,14 +13,15 @@ import { createDefaultChannel, displayNotification } from './src/Services/fireba
 //    }
 
 // Must be registered at module scope (outside React) so background/quit-state
-// FCM messages are handled before the app component mounts. A killed-app
-// background message can run this file fresh in a headless JS instance that
-// never mounts App.js (so its own createDefaultChannel() call in useEffect
-// never runs) — create the channel here too before displaying so the
-// notification always has a channel to attach to.
+// FCM messages are handled before the app component mounts.
+// Only data-only messages (without a `notification` payload) need a manual
+// local notification display; standard notification messages are already
+// displayed automatically by the OS/APNs/FCM SDK in the background.
 registerBackgroundHandler(async (remoteMessage) => {
-  await createDefaultChannel();
-  await displayNotification(remoteMessage);
+  if (!remoteMessage?.notification && remoteMessage?.data) {
+    await createDefaultChannel();
+    await displayNotification(remoteMessage);
+  }
 });
 
 AppRegistry.registerComponent(appName, () => App);

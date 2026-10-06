@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 
 /**
@@ -41,6 +42,15 @@ export async function createDefaultChannel() {
 export async function displayNotification(remoteMessage) {
   try {
     const { notification, data } = remoteMessage || {};
+
+    // On iOS, messages with a `notification` payload are already presented
+    // natively by APNs / UNUserNotificationCenter / setForegroundNotificationPresentationOptions.
+    // Displaying via Notifee creates a duplicate second notification banner on iOS.
+    if (Platform.OS === 'ios' && notification) {
+      console.log('[Notifee] Skipping duplicate display on iOS for native notification:', notification.title);
+      return;
+    }
+
     const title = notification?.title || data?.title || 'Notification';
     const body = notification?.body || data?.body || '';
 
