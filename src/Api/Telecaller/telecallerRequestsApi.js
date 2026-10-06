@@ -137,13 +137,13 @@ export function mapTelecallerServiceRequest(raw = {}) {
     chatUnread: Boolean(raw.chat_unread ?? raw.unread_chat),
     canProposePrice,
     canGiveFeedback: Boolean(raw.can_give_feedback),
-    statusHistory: Array.isArray(raw.status_history || raw.timeline || raw.history)
-      ? (raw.status_history || raw.timeline || raw.history).map(h => ({
+    statusHistory: Array.isArray(raw.status_logs || raw.status_history || raw.timeline || raw.history)
+      ? (raw.status_logs || raw.status_history || raw.timeline || raw.history).map(h => ({
           status: h.status || '',
-          label: h.label || titleCase(h.status),
+          label: h.label || (h.note ? h.note : (h.status ? titleCase(h.status) : '')),
           changedAt: h.created_at || h.changed_at || h.date,
-          changedBy: h.changed_by || h.user_name || h.author || '',
-          comment: h.comment || h.note || null,
+          changedBy: h.by?.name || h.changed_by || h.user_name || h.author || '',
+          comment: h.note || h.comment || null,
           isCompleted: Boolean(h.completed ?? true),
         }))
       : [],

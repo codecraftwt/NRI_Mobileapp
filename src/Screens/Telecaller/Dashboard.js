@@ -191,7 +191,14 @@ function Dashboard({ navigation }) {
           {/* Chats Awaiting Reply Section */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Chats Awaiting Reply</Text>
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.sectionTitle}>Chats Awaiting Reply</Text>
+                {awaitingChats.length > 0 && (
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{awaitingChats.length}</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             {awaitingChats.length > 0 ? (
@@ -219,6 +226,7 @@ function Dashboard({ navigation }) {
                     {chat.unread && (
                       <View style={styles.chatUnreadDot} />
                     )}
+                    <Icon name="chevron-right" size={20} color="#CBD5E1" />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -236,9 +244,21 @@ function Dashboard({ navigation }) {
           {/* Linked Requests Section */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Linked Requests</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('ServiceRequests')}>
-                <Text style={styles.viewAllText}>View all →</Text>
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.sectionTitle}>Linked Requests</Text>
+                {linkedRequests.length > 0 && (
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{linkedRequests.length}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.viewAllBtn}
+                onPress={() => navigation.navigate('ServiceRequests')}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Text style={styles.viewAllText}>View all</Text>
+                <Icon name="chevron-right" size={14} color="#D94625" />
               </TouchableOpacity>
             </View>
 
@@ -260,18 +280,13 @@ function Dashboard({ navigation }) {
                       </View>
                       <View style={styles.ticketDetails}>
                         <Text style={styles.ticketName} numberOfLines={1}>{req.serviceName || 'Service Request'}</Text>
-                        <Text style={styles.ticketSub} numberOfLines={1}>
-                          {req.ticketNumber ? `${req.ticketNumber} • ` : ''}{req.customerName || 'Customer'}
-                        </Text>
-                        {req.createdAt && (
-                          <View style={styles.ticketTimeRow}>
-                            <Icon name="schedule" size={12} color="#94A3B8" />
-                            <Text style={styles.ticketTimeText} numberOfLines={1}>{relativeTime(req.createdAt)}</Text>
-                          </View>
+                        {req.ticketNumber && (
+                          <Text style={styles.ticketSub} numberOfLines={1}>{req.ticketNumber}</Text>
                         )}
                       </View>
                       <View style={styles.ticketStatusWrap}>
                         <View style={[styles.statusPill, { backgroundColor: statusStyle.bg }]}>
+                          <View style={[styles.statusDot, { backgroundColor: statusStyle.text }]} />
                           <Text style={[styles.statusPillText, { color: statusStyle.text }]}>
                             {formatStatus(req.status)}
                           </Text>
@@ -406,6 +421,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDFBF7',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
 
   scrollContainer: {
@@ -423,17 +443,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   sectionTitle: {
     fontSize: 15,
     fontFamily: typography.h2.fontFamily,
     color: '#1E293B',
     fontWeight: '700',
   },
+  countBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#64748B',
+    fontWeight: '700',
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#FDEAE3',
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
   viewAllText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontFamily: typography.labelMedium.fontFamily,
     color: '#D94625',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   cardBlock: {
@@ -441,10 +490,10 @@ const styles = StyleSheet.create({
   },
   ticketItem: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -452,6 +501,7 @@ const styles = StyleSheet.create({
     elevation: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
   ticketIconBgWrapper: {
     marginRight: 12,
@@ -493,14 +543,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
+  },
+  statusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   statusPillText: {
     fontSize: 10,
     fontFamily: typography.labelMedium.fontFamily,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
   chatUnreadDot: {
     width: 7,
@@ -528,7 +587,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 1,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
   },
   actionIconBg: {
     width: 42,
@@ -571,12 +630,13 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 18,
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,

@@ -10,15 +10,11 @@ import {
   RefreshControl,
   StatusBar,
   Linking,
-  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
-import {
-  getTelecallerCallQueues,
-  getTelecallerCallOptions,
-} from '../../Api/Telecaller/telecallerCallsApi';
+import { getTelecallerCallQueues } from '../../Api/Telecaller/telecallerCallsApi';
 
 function getQueueIcon(key) {
   const k = String(key || '').toLowerCase();
@@ -46,7 +42,6 @@ function getBadgeColor(key, count) {
 function CallCentre({ navigation }) {
   // Main Data
   const [queues, setQueues] = useState([]);
-  const [stats, setStats] = useState({ totalCalls: 0, connectedCalls: 0, talkTimeMinutes: 0, callbacksDue: 0 });
   const [totalItems, setTotalItems] = useState(0);
   const [selectedQueueKey, setSelectedQueueKey] = useState(null);
 
@@ -60,20 +55,18 @@ function CallCentre({ navigation }) {
       if (!isRefresh) setLoading(true);
       setError(null);
 
-      const [queuesRes, optionsRes] = await Promise.all([
-        getTelecallerCallQueues(),
-        getTelecallerCallOptions().catch(() => ({ outcomes: [], purposes: [], partyTypes: [], directions: [] })),
-      ]);
+      const queuesRes = await getTelecallerCallQueues();
 
       setQueues(queuesRes.queues || []);
-      setStats(queuesRes.stats || { totalCalls: 0, connectedCalls: 0, talkTimeMinutes: 0, callbacksDue: 0 });
       setTotalItems(queuesRes.totalItems || 0);
-      setCallOptions(optionsRes);
 
-      if (!selectedQueueKey && queuesRes.queues && queuesRes.queues.length > 0) {
-        // Pick first queue with items, or first queue
-        const firstWithItems = queuesRes.queues.find(q => q.count > 0);
-        setSelectedQueueKey(firstWithItems ? firstWithItems.key : queuesRes.queues[0].key);
+      if (queuesRes.queues && queuesRes.queues.length > 0) {
+        setSelectedQueueKey(prev => {
+          if (prev) return prev;
+          // Pick first queue with items, or first queue
+          const firstWithItems = queuesRes.queues.find(q => q.count > 0);
+          return firstWithItems ? firstWithItems.key : queuesRes.queues[0].key;
+        });
       }
     } catch (err) {
       setError(err?.message || 'Failed to load call queues');
@@ -81,7 +74,7 @@ function CallCentre({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedQueueKey]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -118,46 +111,6 @@ function CallCentre({ navigation }) {
     }
   };
 
-  const handleSubmitCallLog = async () => {
-    if (!phone && !partyName) {
-      Alert.alert('Validation Error', 'Please provide a party name or phone number.');
-      return;
-    }
-    if (outcome === 'callback_requested' && !followUpAt) {
-      Alert.alert('Validation Error', 'Please provide a follow-up date and time for callback.');
-      return;
-    }
-
-    try {
-      setSubmittingCall(true);
-      await logTelecallerCall({
-        party_type: partyType,
-        party_name: partyName,
-        phone: phone,
-        direction: direction,
-        purpose: purpose,
-        outcome: outcome,
-        duration_minutes: Number(durationMinutes || 0),
-        notes: callNotes,
-        follow_up_at: followUpAt.trim() || null,
-        follow_up_note: followUpNote.trim() || '',
-        customer_id: customerId,
-        vendor_id: vendorId,
-        ticket_id: ticketId,
-        queue_key: queueKey,
-        follow_up_of: followUpOf,
-      });
-
-      setLogModalVisible(false);
-      Alert.alert('Call Logged', 'Call has been successfully logged and saved to history.');
-      fetchData(true);
-    } catch (err) {
-      Alert.alert('Logging Failed', err?.message || 'Could not log call.');
-    } finally {
-      setSubmittingCall(false);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#20304C" barStyle="light-content" translucent />
@@ -176,23 +129,6 @@ function CallCentre({ navigation }) {
           >
             <Icon name="history" size={18} color="#FFFFFF" />
             <Text style={styles.historyTopBtnText}>History</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.headerBanner}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.waitingTitle}>{totalItems} people waiting for a call</Text>
-            <Text style={styles.waitingSub}>
-              Work through the queues below — every call is recorded in history.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logCallHeaderBtn}
-            onPress={() => handleOpenLogModal()}
-            activeOpacity={0.85}
-          >
-            <Icon name="add" size={16} color="#FFFFFF" />
-            <Text style={styles.logCallHeaderBtnText}>Log Call</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -218,41 +154,22 @@ function CallCentre({ navigation }) {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#EA580C']} />}
         >
-          {/* 4 Stats Cards */}
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <View style={[styles.statIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                <Icon name="call" size={18} color="#2563EB" />
-              </View>
-              <Text style={styles.statNum}>{stats.totalCalls}</Text>
-              <Text style={styles.statLabel}>Calls Today</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <View style={[styles.statIconWrap, { backgroundColor: '#ECFDF5' }]}>
-                <Icon name="phone-in-talk" size={18} color="#059669" />
-              </View>
-              <Text style={[styles.statNum, { color: '#059669' }]}>{stats.connectedCalls}</Text>
-              <Text style={styles.statLabel}>Connected</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <View style={[styles.statIconWrap, { backgroundColor: '#F5F3FF' }]}>
-                <Icon name="timer" size={18} color="#7C3AED" />
-              </View>
-              <Text style={styles.statNum}>{stats.talkTimeMinutes} min</Text>
-              <Text style={styles.statLabel}>Talk Time</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <View style={[styles.statIconWrap, { backgroundColor: '#FFF7ED' }]}>
-                <Icon name="alarm" size={18} color="#EA580C" />
-              </View>
-              <Text style={[styles.statNum, { color: stats.callbacksDue > 0 ? '#EA580C' : '#0F172A' }]}>
-                {stats.callbacksDue}
+          {/* Waiting Calls Banner */}
+          <View style={styles.bannerCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle}>{totalItems} people waiting for a call</Text>
+              <Text style={styles.bannerSub}>
+                Work through the queues below — every call is recorded in history.
               </Text>
-              <Text style={styles.statLabel}>Callbacks Due</Text>
             </View>
+            <TouchableOpacity
+              style={styles.bannerLogBtn}
+              onPress={() => handleOpenLogModal()}
+              activeOpacity={0.85}
+            >
+              <Icon name="add" size={16} color="#FFFFFF" />
+              <Text style={styles.bannerLogBtnText}>Log Call</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Queue Selection Pills (Horizontal Scroll) */}
@@ -466,26 +383,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  headerBanner: {
+  bannerCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
     gap: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    elevation: 1,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
   },
-  waitingTitle: {
+  bannerTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#1E293B',
   },
-  waitingSub: {
+  bannerSub: {
     fontSize: 11,
-    color: '#CBD5E1',
+    color: '#64748B',
     marginTop: 2,
   },
-  logCallHeaderBtn: {
+  bannerLogBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EA580C',
@@ -494,7 +418,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 4,
   },
-  logCallHeaderBtnText: {
+  bannerLogBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
@@ -549,45 +473,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-  },
-
-  // 4 Stats Cards Grid
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    elevation: 1,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-  },
-  statIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  statNum: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 2,
   },
 
   // Queues Pills

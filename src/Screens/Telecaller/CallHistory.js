@@ -354,9 +354,6 @@ function CallHistory({ route, navigation }) {
             )}
           </TouchableOpacity>
         </View>
-        <Text style={styles.headerSubtitle}>
-          {totalCalls} logged calls in your history
-        </Text>
       </View>
 
       {/* Active Filter Pills */}

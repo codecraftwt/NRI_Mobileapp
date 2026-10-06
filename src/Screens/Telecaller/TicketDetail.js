@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
+import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import {
   getTelecallerServiceRequestDetail,
   addTelecallerRequestNote,
@@ -69,13 +70,43 @@ const TIMELINE_STEPS = [
   { key: 'report_sent', label: 'Report sent' },
 ];
 
-function getTimelineProgressIndex(status) {
-  const s = String(status || '').toLowerCase();
-  if (s.includes('report') || s.includes('closed')) return 4;
-  if (s.includes('complet') || s.includes('resolv')) return 3;
-  if (s.includes('progress') || s.includes('active')) return 2;
-  if (s.includes('assign')) return 1;
-  return 0;
+function getTimelineProgressIndex(status, statusHistory = []) {
+  const mapStatusToStep = (st) => {
+    const s = String(st || '').toLowerCase();
+    if (!s) return 0;
+    if (s.includes('report_sent') || s.includes('closed') || s.includes('delivered') || s.includes('archived')) {
+      return 4;
+    }
+    if (
+      s.includes('complet') ||
+      s.includes('resolv') ||
+      s.includes('review') ||
+      s.includes('submitted') ||
+      s.includes('done')
+    ) {
+      return 3;
+    }
+    if (s.includes('progress') || s.includes('active') || s.includes('started') || s.includes('ongoing')) {
+      return 2;
+    }
+    if (s.includes('assign')) {
+      return 1;
+    }
+    return 0;
+  };
+
+  let maxStep = mapStatusToStep(status);
+
+  if (Array.isArray(statusHistory)) {
+    statusHistory.forEach(h => {
+      const step = mapStatusToStep(h.status);
+      if (step > maxStep) {
+        maxStep = step;
+      }
+    });
+  }
+
+  return maxStep;
 }
 
 function TicketDetail({ route, navigation }) {
@@ -92,6 +123,8 @@ function TicketDetail({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('details');
+  const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
 
   // Modal states
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -252,7 +285,7 @@ function TicketDetail({ route, navigation }) {
   }
 
   const statusStyle = getStatusStyle(data.status);
-  const currentStepIdx = getTimelineProgressIndex(data.status);
+  const currentStepIdx = getTimelineProgressIndex(data.status, data.statusHistory);
 
   return (
     <View style={styles.container}>
@@ -276,13 +309,8 @@ function TicketDetail({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scrollArea}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#A64416']} />}
-      >
-        {/* Status Stepper Tracker */}
+      {/* Status Stepper Tracker - fixed, not part of scrolling tabs */}
+      <View style={styles.stepperWrap}>
         <View style={styles.stepperCard}>
           <View style={styles.stepperRow}>
             {TIMELINE_STEPS.map((step, idx) => {
@@ -324,7 +352,35 @@ function TicketDetail({ route, navigation }) {
             </TouchableOpacity>
           )}
         </View>
+      </View>
 
+      {/* Tab Bar */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'details' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('details')}
+          activeOpacity={0.7}
+        >
+          <Icon name="receipt" size={16} color={activeTab === 'details' ? '#20304C' : '#94A3B8'} />
+          <Text style={[styles.tabBtnText, activeTab === 'details' && styles.tabBtnTextActive]}>Details</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'activity' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('activity')}
+          activeOpacity={0.7}
+        >
+          <Icon name="forum" size={16} color={activeTab === 'activity' ? '#20304C' : '#94A3B8'} />
+          <Text style={[styles.tabBtnText, activeTab === 'activity' && styles.tabBtnTextActive]}>Activity</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'details' ? (
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#A64416']} />}
+      >
         {/* 1. Request Details Card */}
         <View style={styles.card}>
           <View style={styles.cardTitleRow}>
@@ -604,32 +660,18 @@ function TicketDetail({ route, navigation }) {
               {data.report.media && data.report.media.length > 0 && (
                 <View style={styles.reportMediaSection}>
                   <Text style={styles.reportMediaLabel}>ATTACHED MEDIA & DOCUMENTS</Text>
-                  <View style={styles.mediaList}>
+                  <View style={styles.reportMediaRow}>
                     {data.report.media.map((url, idx) => {
-                      const isPdf = typeof url === 'string' && url.toLowerCase().includes('.pdf');
-                      const fileName = typeof url === 'string'
-                        ? url.split('/').pop() || `Document ${idx + 1}`
-                        : `Attachment ${idx + 1}`;
-
+                      const isPdf = typeof url === 'string' && /\.pdf(\?|$)/i.test(url);
                       return (
                         <TouchableOpacity
                           key={idx}
-                          style={styles.mediaItemCard}
-                          onPress={() => Linking.openURL(url)}
+                          style={styles.pdfThumb}
+                          onPress={() => openAttachment(url)}
                           activeOpacity={0.7}
                         >
-                          <View style={[styles.mediaIconBg, isPdf && styles.pdfIconBg]}>
-                            <Icon
-                              name={isPdf ? 'picture-as-pdf' : 'insert-drive-file'}
-                              size={20}
-                              color={isPdf ? '#DC2626' : '#2563EB'}
-                            />
-                          </View>
-                          <View style={styles.mediaInfo}>
-                            <Text style={styles.mediaFileName} numberOfLines={1}>{fileName}</Text>
-                            <Text style={styles.mediaActionText}>Tap to view file</Text>
-                          </View>
-                          <Icon name="open-in-new" size={16} color="#94A3B8" />
+                          <Icon name={isPdf ? 'picture-as-pdf' : 'image'} size={26} color="#64748B" />
+                          <Text style={styles.pdfThumbText}>{isPdf ? 'PDF' : 'IMG'}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -644,7 +686,14 @@ function TicketDetail({ route, navigation }) {
             </View>
           )}
         </View>
-
+      </ScrollView>
+      ) : (
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#A64416']} />}
+      >
         {/* 5. Vendor Chat */}
         <View style={styles.card}>
           <View style={styles.cardHeaderWithAction}>
@@ -798,6 +847,7 @@ function TicketDetail({ route, navigation }) {
           </View>
         </View>
       </ScrollView>
+      )}
 
       {/* History Modal */}
       <Modal
@@ -884,6 +934,8 @@ function TicketDetail({ route, navigation }) {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+
+      {attachmentPreview}
     </View>
   );
 }
@@ -989,6 +1041,45 @@ const styles = StyleSheet.create({
     padding: 14,
     paddingBottom: 80,
     gap: 12,
+  },
+
+  stepperWrap: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: '#F8FAFC',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    paddingTop: 2,
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  tabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  tabBtnActive: {
+    backgroundColor: '#EFF4FB',
+    borderColor: '#20304C',
+  },
+  tabBtnText: {
+    fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#94A3B8',
+  },
+  tabBtnTextActive: {
+    color: '#20304C',
   },
 
   stepperCard: {
@@ -1434,43 +1525,26 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 6,
   },
-  mediaList: {
-    gap: 6,
-  },
-  mediaItemCard: {
+  reportMediaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  mediaIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+  pdfThumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 2,
   },
-  pdfIconBg: {
-    backgroundColor: '#FEF2F2',
-  },
-  mediaInfo: {
-    flex: 1,
-  },
-  mediaFileName: {
-    fontSize: 12,
+  pdfThumbText: {
+    fontSize: 11,
     fontFamily: typography.labelMedium.fontFamily,
-    color: '#0F172A',
-  },
-  mediaActionText: {
-    fontSize: 10,
-    fontFamily: typography.small.fontFamily,
-    color: '#2563EB',
-    marginTop: 2,
+    color: '#64748B',
   },
 
   emptyReportBox: {
