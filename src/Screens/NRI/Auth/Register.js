@@ -33,7 +33,6 @@ function Register({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
@@ -91,7 +90,6 @@ function Register({ navigation }) {
       email: email.trim(),
       password,
       passwordConfirmation: confirmPassword,
-      referralCode: referralCode.trim() || undefined,
       affiliateCode: undefined,
     }))
       .unwrap()
@@ -233,22 +231,6 @@ function Register({ navigation }) {
             </TouchableOpacity>
           </View>
           {!!errorFor('password_confirmation') && <Text style={styles.errorText}>{errorFor('password_confirmation')}</Text>}
-
-          <Text style={styles.inputLabel}>Referral Code <Text style={{fontWeight: 'normal', color: '#94A3B8'}}>(optional)</Text></Text>
-          <View style={[styles.inputWrap, errorFor('referral_code') && styles.inputWrapError]}>
-            <View style={[styles.iconFloat, { backgroundColor: C.primaryLight + '15' }]}>
-              <Icon name="card-giftcard" size={20} color={C.primary} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Have a friend's code?"
-              placeholderTextColor={C.textPlaceholder}
-              autoCapitalize="characters"
-              value={referralCode}
-              onChangeText={(v) => { setReferralCode(v); clearError('referral_code'); }}
-            />
-          </View>
-          {!!errorFor('referral_code') && <Text style={styles.errorText}>{errorFor('referral_code')}</Text>}
 
           <View style={styles.ctaWrapper}>
             <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, submitting && styles.ctaBtnDisabled]} onPress={handleCreateAccount} disabled={submitting}>

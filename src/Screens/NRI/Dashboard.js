@@ -153,7 +153,6 @@ function Dashboard({ navigation }) {
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
     { id: 'support', name: 'General Support', icon: 'support-agent', screen: 'GeneralSupport', color: '#D94625' },
-    { id: 'props', name: 'My Properties', icon: 'business', screen: 'Properties', color: '#3B82F6' },
   ];
 
   const getServiceIconColor = (serviceName) => {
