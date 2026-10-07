@@ -472,7 +472,7 @@ function JobDetail({ route, navigation }) {
     try {
       await flagCostIssue({ reason: flagReason.trim(), amount: flagAmount }).unwrap();
       setFlagModalVisible(false);
-      showToast('Cost issue flagged — your RM will review it', 'success');
+      showToast('Cost issue flagged', 'success');
     } catch (e) {
       showAlert('Could Not Submit', e?.message || 'Something went wrong. Please try again.');
     } finally {
@@ -1221,7 +1221,7 @@ function JobDetail({ route, navigation }) {
               <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
             </View>
             <Text style={styles.actionDesc}>
-              If the actual cost of this job is higher than what was quoted, flag it here — your RM will review it and request the difference from the customer.
+              If the actual cost of this job is higher than what was quoted, flag it here
             </Text>
 
             {vendorDisputes.length > 0 && (

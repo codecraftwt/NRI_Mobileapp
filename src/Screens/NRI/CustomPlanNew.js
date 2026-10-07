@@ -267,14 +267,14 @@ function CustomPlanNew({ navigation }) {
       const result = (quote && quote.fingerprint === fieldsFingerprint)
         ? quote
         : await create({
-            subject: subject.trim(),
-            message: message.trim(),
-            serviceId: customTaskServiceId,
-            stateId,
-            cityId,
-            gateway: paymentMethod,
-            currency,
-          }).unwrap();
+          subject: subject.trim(),
+          message: message.trim(),
+          serviceId: customTaskServiceId,
+          stateId,
+          cityId,
+          gateway: paymentMethod,
+          currency,
+        }).unwrap();
 
       if (result.ticket) {
         resetCreate();
@@ -476,7 +476,7 @@ function CustomPlanNew({ navigation }) {
 
       <Modal visible={infoOpen} transparent animationType="fade" onRequestClose={() => setInfoOpen(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setInfoOpen(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => {}}>
+          <TouchableOpacity activeOpacity={1} style={styles.infoModalCard} onPress={() => { }}>
             <View style={styles.infoIconCircle}>
               <Icon name="info-outline" size={26} color="#D94625" />
             </View>
