@@ -6,23 +6,24 @@ import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { useBilling } from '../../Hooks/useBilling';
+import { useCustomPlanDetail } from '../../Hooks/useCustomPlanDetail';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
 import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { formatAmount } from '../../Utils/currency';
+import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-
-// Amounts here follow the booking flow's USD convention (same as Billing).
-function formatUsd(value) {
-  return `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 // Invoice-settlement screen shown after a customer accepts a Custom Plan
 // proposal, before the chosen gateway's checkout opens. Base price comes from
-// the accepted proposal; GST is added at 18% (matching the web invoice).
+// the accepted proposal (proposed_price for USD, proposed_price_inr for
+// INR — the backend quotes both up front, no live conversion needed); GST
+// is added at 18% (matching the web invoice) in whichever currency is picked.
 function CustomPlanPayment({ route, navigation }) {
-  const { jobId, ticketNumber, basePrice, replyId, supportTicketId, kind } = route.params || {};
-  const { pay: payBill, verifyPayment } = useBilling();
+  const { ticketNumber, ticketSubject, proposalMessage, basePrice, basePriceInr, replyId, supportTicketId, kind } = route.params || {};
+  const { verifyPayment } = useBilling();
+  const { payPlan, rejectPlan } = useCustomPlanDetail(supportTicketId);
   const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(s => s.user.user);
   // Gateway list is backend-driven (already NRI + admin-toggle gated) — this
@@ -45,16 +46,48 @@ function CustomPlanPayment({ route, navigation }) {
   // from another tab isn't in this stack for merge to find, and a fresh
   // instance needs the id (and kind, so it fetches from the right API) to load.
   const goBackPaid = () => {
-    if (supportTicketId != null) {
-      navigation.navigate('SupportTicketChat', { ticketId: supportTicketId, paidReplyId: replyId, kind });
-    } else if (replyId != null) {
-      navigation.navigate({ name: 'SupportTicketChat', params: { paidReplyId: replyId, kind }, merge: true });
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else if (supportTicketId != null) {
+      navigation.replace('SupportTicketChat', { ticketId: supportTicketId, paidReplyId: replyId, kind });
     } else {
       navigation.goBack();
     }
   };
 
-  const base = Number(basePrice) || 0;
+  const handleBackToChat = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else if (supportTicketId != null) {
+      navigation.replace('SupportTicketChat', { ticketId: supportTicketId, kind });
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const handleDecline = () => {
+    showAlert(
+      'Decline Proposal',
+      'Are you sure you want to decline this proposal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await rejectPlan(replyId).unwrap();
+              handleBackToChat();
+            } catch (error) {
+              showAlert('Could Not Decline', error?.message || 'Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const base = Number((currency === 'INR' ? basePriceInr : basePrice)) || 0;
   const gstRate = 0.18;
   const gstAmount = Math.round(base * gstRate * 100) / 100;
   const amountPayable = Math.round((base + gstAmount) * 100) / 100;
@@ -64,13 +97,9 @@ function CustomPlanPayment({ route, navigation }) {
   const [checkoutSession, setCheckoutSession] = useState(null);
 
   const handlePay = async () => {
-    if (!jobId) {
-      showAlert('Not Ready', 'This plan is not payable yet. Please try again in a moment.');
-      return;
-    }
     setPaying(true);
     try {
-      const result = await payBill('ticket', jobId, paymentMethod, false, currency).unwrap();
+      const result = await payPlan(replyId, { gateway: paymentMethod, currency }).unwrap();
       if (result.checkoutUrl) {
         // Stripe / PayPal — hosted checkout page.
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
@@ -116,96 +145,99 @@ function CustomPlanPayment({ route, navigation }) {
     <View style={styles.container}>
       <Header navigation={navigation} title="Complete Payment" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.infoBanner}>
-          <Icon name="info" size={18} color="#4F46E5" style={{ marginTop: 1 }} />
-          <Text style={styles.infoText}>
-            Your service request {ticketNumber ? <Text style={styles.infoBold}>{ticketNumber}</Text> : 'has'} has been logged. Please complete the invoice settlement below to proceed with task assignment.
-          </Text>
-        </View>
-
         <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="receipt-long" size={18} color="#4F46E5" />
-            <Text style={styles.cardTitle}>Charges Summary</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Base: Custom Plan</Text>
-            <Text style={styles.summaryValue}>{formatUsd(base)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>GST (18%)</Text>
-            <Text style={styles.summaryValue}>{formatUsd(gstAmount)}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.payableLabel}>Amount Payable</Text>
-            <Text style={styles.payableValue}>{formatUsd(amountPayable)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Icon name="credit-card" size={18} color="#4F46E5" />
-            <Text style={styles.cardTitle}>Choose Payment Method</Text>
-          </View>
-
-          <CurrencyToggle value={currency} onChange={setCurrency} />
-
-          {gateways.map(g => {
-            const active = paymentMethod === g.value;
-            return (
-              <TouchableOpacity
-                key={g.value}
-                style={[styles.methodRow, active && styles.methodRowActive]}
-                activeOpacity={0.8}
-                onPress={() => setPaymentMethod(g.value)}
-              >
-                <View style={styles.methodIconBox}>
-                  <Icon name={gatewayIcon(g.value)} size={18} color="#4F46E5" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.methodTitle}>{g.label}</Text>
-                  {!!GATEWAY_META[g.value]?.desc && <Text style={styles.methodSub}>{GATEWAY_META[g.value].desc}</Text>}
-                </View>
-                <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
-                  {active && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-
-          <View style={styles.actionsRow}>
-            <TouchableOpacity style={[styles.payBtn, (paying || paid || !paymentMethod) && styles.payBtnDisabled]} onPress={handlePay} disabled={paying || paid || !paymentMethod} activeOpacity={0.85}>
-              {paying ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
-                <>
-                  <Icon name="lock" size={15} color="#FFFFFF" />
-                  <Text style={styles.payBtnText}>Pay {formatUsd(amountPayable)}</Text>
-                </>
+          {(ticketNumber || ticketSubject || proposalMessage) && (
+            <View style={styles.proposalBox}>
+              <View style={styles.proposalHeader}>
+                <Icon name="description" size={16} color="#15803D" />
+                <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
+              </View>
+              {!!(ticketNumber || ticketSubject) && (
+                <Text style={styles.proposalMeta}>
+                  {[ticketNumber, ticketSubject].filter(Boolean).join(' · ')}
+                </Text>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.payLaterBtn} onPress={() => navigation.goBack()} disabled={paying} activeOpacity={0.85}>
-              <Text style={styles.payLaterBtnText}>Pay Later</Text>
-            </TouchableOpacity>
+              {!!proposalMessage && <Text style={styles.proposalMessage}>{proposalMessage}</Text>}
+              <View style={styles.divider} />
+            </View>
+          )}
+
+          <View style={styles.fieldSection}>
+            <Text style={styles.sectionLabel}>Currency</Text>
+            <CurrencyToggle value={currency} onChange={setCurrency} />
           </View>
 
-          <View style={styles.secureRow}>
-            <View style={styles.secureItem}>
-              <Icon name="verified-user" size={14} color="#059669" />
-              <Text style={styles.secureText}>Secure SSL</Text>
+          <View style={styles.fieldSection}>
+            <Text style={styles.sectionLabel}>Payment Method</Text>
+            {gateways.map(g => {
+              const active = paymentMethod === g.value;
+              return (
+                <TouchableOpacity
+                  key={g.value}
+                  style={[styles.methodRow, active && styles.methodRowActive]}
+                  activeOpacity={0.8}
+                  onPress={() => setPaymentMethod(g.value)}
+                >
+                  <View style={[styles.methodIconBox, active && styles.methodIconBoxActive]}>
+                    <Icon name={gatewayIcon(g.value)} size={20} color={active ? '#20304C' : '#64748B'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.methodTitle}>{g.label}</Text>
+                    {!!GATEWAY_META[g.value]?.desc && <Text style={styles.methodSub}>{GATEWAY_META[g.value].desc}</Text>}
+                  </View>
+                  <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
+                    {active && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.summarySection}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Services</Text>
+              <Text style={styles.summaryValue}>1</Text>
             </View>
-            <View style={styles.secureItem}>
-              <Icon name="check-circle" size={14} color="#059669" />
-              <Text style={styles.secureText}>Verified Gateways</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Services total</Text>
+              <Text style={styles.summaryValue}>{formatAmount(base, currency)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Services GST (18%)</Text>
+              <Text style={styles.summaryValue}>{formatAmount(gstAmount, currency)}</Text>
             </View>
           </View>
 
-          <Text style={styles.footNote}>
-            You can also settle this invoice later from your Billing page. The request will remain on hold until payment verification is completed.
-          </Text>
+          <View style={styles.youPayBox}>
+            <Text style={styles.youPayLabel}>You'll pay</Text>
+            <Text style={styles.youPayValue}>{formatAmount(amountPayable, currency)}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.submitBtn, (paying || paid || !paymentMethod) && styles.submitBtnDisabled]}
+            onPress={handlePay}
+            disabled={paying || paid || !paymentMethod}
+            activeOpacity={0.85}
+          >
+            {paying ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.submitBtnText}>Pay & start my service</Text>
+                <Icon name="arrow-forward" size={18} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.backLink} onPress={handleBackToChat} disabled={paying} activeOpacity={0.7}>
+            <Text style={styles.backLinkText}>Back to chat</Text>
+          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity style={styles.declineLink} onPress={handleDecline} disabled={paying} activeOpacity={0.7}>
+          <Icon name="cancel" size={15} color="#EF4444" />
+          <Text style={styles.declineLinkText}>I've changed my mind — decline this proposal</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <StripeCheckoutModal
@@ -221,57 +253,115 @@ function CustomPlanPayment({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F6FB' },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 60, gap: 16 },
-
-  infoBanner: { flexDirection: 'row', gap: 10, backgroundColor: '#EEF2FF', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12 },
-  infoText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
-  infoBold: { fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 60, gap: 14 },
 
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 18,
-    gap: 14,
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
     borderWidth: 1,
-    borderColor: '#EEF0F5',
+    borderColor: '#F1F5F9',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#0F172A', fontWeight: '700' },
 
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  summaryLabel: { flex: 1, fontSize: 14, color: '#475569', lineHeight: 20 },
-  summaryValue: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', textAlign: 'right', flexShrink: 0 },
-  divider: { height: 1, borderBottomWidth: 1, borderColor: '#E2E8F0', borderStyle: 'dashed' },
-  payableLabel: { flex: 1, fontSize: 16, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
-  payableValue: { fontSize: 18, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700', textAlign: 'right', flexShrink: 0 },
+  proposalBox: { gap: 6 },
+  proposalHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  proposalTitle: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#15803D', fontWeight: '700' },
+  proposalMeta: { fontSize: 11.5, color: '#64748B' },
+  proposalMessage: { fontSize: 13.5, color: '#0F172A', lineHeight: 19 },
+  divider: { height: 1, backgroundColor: '#F1F5F9', marginTop: 6 },
 
-  methodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FBFBFE' },
-  methodRowActive: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
-  methodIconBox: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+  fieldSection: { gap: 8 },
+  sectionLabel: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700' },
+
+  methodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  methodRowActive: {
+    borderColor: '#20304C',
+    borderWidth: 1.5,
+    backgroundColor: '#F8FAFC',
+  },
+  methodIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  methodIconBoxActive: {
+    backgroundColor: '#EEF2F6',
+  },
   methodTitle: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
-  methodSub: { fontSize: 12, color: '#64748B', marginTop: 2, lineHeight: 16 },
-  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#CBD5E1', alignItems: 'center', justifyContent: 'center' },
-  radioOuterActive: { borderColor: '#2563EB' },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563EB' },
+  methodSub: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterActive: { borderColor: '#20304C' },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#20304C' },
 
-  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  payBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#4F46E5', borderRadius: 12, paddingHorizontal: 22, paddingVertical: 14, minWidth: 140 },
-  payBtnDisabled: { opacity: 0.6 },
-  payBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
-  payLaterBtn: { borderWidth: 1.5, borderColor: '#C7D2FE', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 14 },
-  payLaterBtnText: { color: '#4F46E5', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  summarySection: { gap: 8, paddingTop: 4 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryLabel: { fontSize: 14, color: '#64748B' },
+  summaryValue: { fontSize: 14.5, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
-  secureRow: { flexDirection: 'row', gap: 18 },
-  secureItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  secureText: { fontSize: 12, color: '#059669', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  youPayBox: {
+    backgroundColor: '#EEF2F6',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  youPayLabel: { fontSize: 16, fontFamily: typography.h4.fontFamily, color: '#0F172A', fontWeight: '700' },
+  youPayValue: { fontSize: 20, fontFamily: typography.h4.fontFamily, color: '#0F172A', fontWeight: '700' },
 
-  footNote: { fontSize: 12, color: '#94A3B8', lineHeight: 17 },
+  submitBtn: {
+    backgroundColor: '#D94625',
+    borderRadius: 16,
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 6,
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+
+  backLink: { alignItems: 'center', paddingVertical: 4 },
+  backLinkText: { fontSize: 13.5, color: '#64748B', fontFamily: typography.labelMedium.fontFamily },
+
+  declineLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6 },
+  declineLinkText: { fontSize: 13, color: '#EF4444', fontFamily: typography.labelMedium.fontFamily, fontWeight: '600', textDecorationLine: 'underline' },
 });
 
 export default CustomPlanPayment;

@@ -85,13 +85,14 @@ function SupportTicketChat({ route, navigation }) {
   const supportBundle = useSupportTicketDetail((isCustomPlan || isJob) ? null : ticketId);
   const customPlanBundle = useCustomPlanDetail(isCustomPlan ? ticketId : null);
   const jobBundle = useTicketSupportChat(isJob ? ticketId : null);
-  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan } = isJob ? jobBundle : (isCustomPlan ? customPlanBundle : supportBundle);
+  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan, rejectPlan } = isJob ? jobBundle : (isCustomPlan ? customPlanBundle : supportBundle);
   const { overview: billing, retry: refreshBilling } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
   const [replyText, setReplyText] = useState('');
   const [showCreatedBanner, setShowCreatedBanner] = useState(!!createdTicketNumber);
-  // Which proposal reply is mid-accept, so only its button spins.
+  // Which proposal reply is mid-accept/mid-decline, so only its button spins.
   const [acceptingId, setAcceptingId] = useState(null);
+  const [decliningId, setDecliningId] = useState(null);
   // Proposal replies paid this session — the payment screen reports back the
   // reply id on success so we hide "Pay Now" immediately, without depending on
   // the refetched converted_ticket carrying a paid flag.
@@ -166,25 +167,48 @@ function SupportTicketChat({ route, navigation }) {
     }
   };
 
-  const handleAcceptPlan = (msg) => {
-    const priceLabel = formatPrice(msg.proposedPrice);
+  // Accept & Pay is one action — accept the proposal, then go straight to the
+  // payment screen. No confirm/success modals in between.
+  const handleAcceptPlan = async (msg) => {
+    setAcceptingId(msg.id);
+    try {
+      await acceptPlan(msg.id).unwrap();
+      await retry();
+      navigation.navigate('CustomPlanPayment', {
+        ticketNumber: ticket.ticketNumber,
+        ticketSubject: ticket.subject,
+        proposalMessage: msg.message,
+        basePrice: msg.proposedPrice,
+        basePriceInr: msg.proposedPriceInr,
+        replyId: msg.id,
+        supportTicketId: ticketId,
+        kind,
+      });
+    } catch (error) {
+      showAlert('Could Not Accept Plan', error?.message || 'Please try again.');
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
+  const handleDeclinePlan = (msg) => {
     showAlert(
-      'Request This Plan',
-      `Accept this custom plan${priceLabel ? ` for ${priceLabel}` : ''}? This will convert it into a payable job.`,
+      'Decline Proposal',
+      'Decline this custom plan proposal? Our team will be notified and can send a revised offer.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Request',
+          text: 'Decline',
+          style: 'destructive',
           onPress: async () => {
-            setAcceptingId(msg.id);
+            setDecliningId(msg.id);
             try {
-              await acceptPlan(msg.id).unwrap();
+              await rejectPlan(msg.id).unwrap();
               await retry();
-              showAlert('Plan Accepted', 'Your custom plan has been created. You can now proceed to payment from your requests.');
             } catch (error) {
-              showAlert('Could Not Accept Plan', error?.message || 'Please try again.');
+              showAlert('Could Not Decline Plan', error?.message || 'Please try again.');
             } finally {
-              setAcceptingId(null);
+              setDecliningId(null);
             }
           },
         },
@@ -193,21 +217,25 @@ function SupportTicketChat({ route, navigation }) {
   };
 
   // Pay Now opens the invoice-settlement screen (charges summary + Stripe),
-  // which then launches the Stripe checkout. Only available once the plan is
-  // accepted, i.e. it has a payable converted job.
+  // which then launches the Stripe checkout. The job (payable ticket) isn't
+  // created until this payment clears — accept-plan only records acceptance —
+  // so there's no separate "converted ticket" id to address; payment is made
+  // directly against this (ticket, reply) pair via POST .../pay-plan.
   const handlePayNow = (msg) => {
-    const job = msg.convertedTicket;
-    const jobId = resolveJobId(job);
-    if (!jobId) {
-      showAlert('Not Ready', 'Please accept this plan first, then pay.');
-      return;
-    }
-    const ticketNumber = job && typeof job === 'object' ? (job.ticket_number || job.ticketNumber || null) : null;
     // Pass this ticket's id (and kind, so it routes back to the right detail
     // hook) so the payment screen can navigate back to the correct chat
     // thread (CustomPlanPayment lives in the Dashboard stack, so a plain
     // merge:true can't find a chat opened from another tab).
-    navigation.navigate('CustomPlanPayment', { jobId, ticketNumber, basePrice: msg.proposedPrice, replyId: msg.id, supportTicketId: ticketId, kind });
+    navigation.navigate('CustomPlanPayment', {
+      ticketNumber: ticket.ticketNumber,
+      ticketSubject: ticket.subject,
+      proposalMessage: msg.message,
+      basePrice: msg.proposedPrice,
+      basePriceInr: msg.proposedPriceInr,
+      replyId: msg.id,
+      supportTicketId: ticketId,
+      kind,
+    });
   };
 
   // Opens the Google Meet URL — the OS handles routing it to the Meet app if
@@ -428,10 +456,13 @@ function SupportTicketChat({ route, navigation }) {
               }
 
               // A reply that carries a proposed price is a Custom Plan proposal —
-              // render it as a dedicated card with a "Request This Plan" action.
+              // render it as a dedicated card with Accept & Pay / Decline actions.
               if (msg.proposedPrice != null) {
                 const priceLabel = formatPrice(msg.proposedPrice);
-                const accepted = !!msg.convertedTicket;
+                const accepted = !!msg.convertedTicket || msg.proposalStatus === 'accepted' || msg.awaitingPayment;
+                // The job (payable ticket) only exists once payment clears, so
+                // convertedTicket/paidTicketIds only ever light up post-payment;
+                // paidReplyIds is the real-time signal right after checkout.
                 const jobId = resolveJobId(msg.convertedTicket);
                 const paid = isJobPaid(msg.convertedTicket)
                   || paidReplyIds.has(msg.id)
@@ -471,17 +502,44 @@ function SupportTicketChat({ route, navigation }) {
                             </TouchableOpacity>
                           )}
                         </>
-                      ) : msg.canAcceptPlan ? (
-                        <TouchableOpacity
-                          style={[styles.requestBtn, acceptingId === msg.id && styles.requestBtnDisabled]}
-                          onPress={() => handleAcceptPlan(msg)}
-                          disabled={acceptingId === msg.id}
-                          activeOpacity={0.85}
-                        >
-                          {acceptingId === msg.id
-                            ? <ActivityIndicator size="small" color="#FFFFFF" />
-                            : <Text style={styles.requestBtnText}>Request This Plan</Text>}
-                        </TouchableOpacity>
+                      ) : (msg.canAcceptPlan || msg.canRejectPlan) ? (
+                        <>
+                          {msg.canAcceptPlan && (
+                            <TouchableOpacity
+                              style={[styles.acceptBtn, (acceptingId === msg.id || decliningId === msg.id) && styles.requestBtnDisabled]}
+                              onPress={() => handleAcceptPlan(msg)}
+                              disabled={acceptingId === msg.id || decliningId === msg.id}
+                              activeOpacity={0.85}
+                            >
+                              {acceptingId === msg.id ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                                <>
+                                  <Icon name="check" size={15} color="#FFFFFF" />
+                                  <Text style={styles.acceptBtnText}>Accept & pay</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                          {msg.canRejectPlan && (
+                            <TouchableOpacity
+                              style={[styles.declineBtn, (acceptingId === msg.id || decliningId === msg.id) && styles.requestBtnDisabled]}
+                              onPress={() => handleDeclinePlan(msg)}
+                              disabled={acceptingId === msg.id || decliningId === msg.id}
+                              activeOpacity={0.85}
+                            >
+                              {decliningId === msg.id ? <ActivityIndicator size="small" color="#DC2626" /> : (
+                                <>
+                                  <Icon name="close" size={15} color="#DC2626" />
+                                  <Text style={styles.declineBtnText}>Decline</Text>
+                                </>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                        </>
+                      ) : (msg.proposalStatus === 'declined' || msg.proposalStatus === 'rejected') ? (
+                        <View style={styles.proposalDeclinedPill}>
+                          <Icon name="cancel" size={16} color="#DC2626" />
+                          <Text style={styles.proposalDeclinedText}>Declined</Text>
+                        </View>
                       ) : null}
                     </View>
                   </View>
@@ -666,14 +724,18 @@ const styles = StyleSheet.create({
   proposalPriceLabel: { fontSize: 11, color: '#64748B' },
   proposalPriceValue: { fontSize: 15, fontFamily: typography.h4.fontFamily, color: '#15803D', fontWeight: '700' },
   proposalActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 3 },
-  requestBtn: { backgroundColor: '#15803D', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8, minWidth: 130, alignItems: 'center', justifyContent: 'center' },
   requestBtnDisabled: { opacity: 0.6 },
-  requestBtnText: { color: '#FFFFFF', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  acceptBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#15803D', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8 },
+  acceptBtnText: { color: '#FFFFFF', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  declineBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 8 },
+  declineBtnText: { color: '#DC2626', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   payNowBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1.5, borderColor: '#15803D', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 },
   payNowBtnText: { color: '#15803D', fontSize: 13, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   proposalPaidPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   proposalAcceptedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#D1FAE5', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   proposalAcceptedText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  proposalDeclinedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FEE2E2', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  proposalDeclinedText: { color: '#DC2626', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },

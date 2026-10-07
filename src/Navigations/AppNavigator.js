@@ -178,6 +178,7 @@ function MainServicesStack() {
       <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
+      <Stack.Screen name="CustomPlanPayment" component={CustomPlanPayment} />
     </Stack.Navigator>
   );
 }
@@ -193,6 +194,7 @@ function RequestsStack() {
       <Stack.Screen name="FinishRequest" component={FinishRequest} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
+      <Stack.Screen name="CustomPlanPayment" component={CustomPlanPayment} />
     </Stack.Navigator>
   );
 }

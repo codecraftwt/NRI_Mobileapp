@@ -123,3 +123,43 @@ export async function acceptCustomPlanProposal(ticketId, replyId) {
     throw normalizeApiError(error);
   }
 }
+
+// Step 2 of accept-then-pay: charges an already-accepted proposal. The job
+// (payable ticket) doesn't exist until this payment clears — there's no
+// "converted ticket" id to pay against before this call, so this addresses
+// the proposal directly by (ticketId, replyId). Same checkout_url/order
+// shape as every other gateway checkout — verify via the generic
+// POST /customer/payments/{payment}/verify (paymentsApi.verifyPayment).
+export async function payCustomPlanProposal(ticketId, replyId, { gateway, currency } = {}) {
+  try {
+    const response = await apiClient.post(`/customer/custom-plans/${ticketId}/replies/${replyId}/pay-plan`, {
+      gateway,
+      currency: currency || undefined,
+    });
+    const data = response.data?.data || {};
+    return {
+      paymentId: data.payment_id,
+      amount: data.amount,
+      currency: data.currency,
+      gst: data.gst,
+      checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
+      message: response.data?.message,
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// Closes the proposal (allowed until it's been paid for) — staff get notified
+// and can send a revised one. `reason` is optional (max 1000 chars).
+export async function rejectCustomPlanProposal(ticketId, replyId, reason) {
+  try {
+    const response = await apiClient.post(`/customer/custom-plans/${ticketId}/replies/${replyId}/reject-plan`, {
+      reason: reason || undefined,
+    });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}

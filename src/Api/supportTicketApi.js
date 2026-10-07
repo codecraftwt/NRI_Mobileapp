@@ -142,7 +142,17 @@ export function mapSupportReply(raw) {
     // Custom Plan proposal fields: a support/admin reply can propose a price the
     // customer then accepts ("Request This Plan"), converting it to a payable job.
     proposedPrice: raw.proposed_price ?? null,
+    proposedPriceInr: raw.proposed_price_inr ?? null,
     canAcceptPlan: !!raw.can_accept_plan,
+    canRejectPlan: !!raw.can_reject_plan,
+    declineReason: raw.decline_reason || null,
+    // The backend doesn't create a separate payable "job" on accept — it
+    // flips proposal_status to 'accepted' and awaiting_payment to true on
+    // this same ticket. convertedTicket stays here for forward-compat in
+    // case the backend ever does return one, but proposalStatus/
+    // awaitingPayment are the real signals the screen now uses.
+    proposalStatus: raw.proposal_status || null,
+    awaitingPayment: !!raw.awaiting_payment,
     convertedTicket: raw.converted_ticket ?? null,
     // Google Meet link for a scheduled call — only ever set by staff on Custom
     // Plan tickets (never on general support tickets), and only on the one

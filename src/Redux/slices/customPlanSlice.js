@@ -63,6 +63,22 @@ export const acceptCustomPlanProposal = createAsyncThunk('customPlan/acceptPlan'
   }
 });
 
+export const payCustomPlanProposal = createAsyncThunk('customPlan/payPlan', async ({ ticketId, replyId, gateway, currency }, { rejectWithValue }) => {
+  try {
+    return await customPlanApi.payCustomPlanProposal(ticketId, replyId, { gateway, currency });
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
+export const rejectCustomPlanProposal = createAsyncThunk('customPlan/rejectPlan', async ({ ticketId, replyId, reason }, { rejectWithValue }) => {
+  try {
+    return await customPlanApi.rejectCustomPlanProposal(ticketId, replyId, reason);
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   tickets: [],
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
@@ -85,6 +101,12 @@ const initialState = {
 
   acceptPlanStatus: 'idle',
   acceptPlanError: null,
+
+  payPlanStatus: 'idle',
+  payPlanError: null,
+
+  rejectPlanStatus: 'idle',
+  rejectPlanError: null,
 };
 
 const customPlanSlice = createSlice({
@@ -175,6 +197,28 @@ const customPlanSlice = createSlice({
       .addCase(acceptCustomPlanProposal.rejected, (state, action) => {
         state.acceptPlanStatus = 'failed';
         state.acceptPlanError = action.payload;
+      })
+      .addCase(payCustomPlanProposal.pending, (state) => {
+        state.payPlanStatus = 'loading';
+        state.payPlanError = null;
+      })
+      .addCase(payCustomPlanProposal.fulfilled, (state) => {
+        state.payPlanStatus = 'succeeded';
+      })
+      .addCase(payCustomPlanProposal.rejected, (state, action) => {
+        state.payPlanStatus = 'failed';
+        state.payPlanError = action.payload;
+      })
+      .addCase(rejectCustomPlanProposal.pending, (state) => {
+        state.rejectPlanStatus = 'loading';
+        state.rejectPlanError = null;
+      })
+      .addCase(rejectCustomPlanProposal.fulfilled, (state) => {
+        state.rejectPlanStatus = 'succeeded';
+      })
+      .addCase(rejectCustomPlanProposal.rejected, (state, action) => {
+        state.rejectPlanStatus = 'failed';
+        state.rejectPlanError = action.payload;
       });
   },
 });

@@ -1533,11 +1533,11 @@ const styles = StyleSheet.create({
   couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 4 },
 
   gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, marginBottom: 10 },
-  gatewayRowActive: { borderColor: '#20304C', backgroundColor: '#EEF2FB' },
+  gatewayRowActive: { borderColor: '#D94625', backgroundColor: '#FDF0ED' },
   gatewayName: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#1E293B' },
   gatewayDesc: { fontSize: 11.5, color: '#94A3B8', marginTop: 2 },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1' },
-  radioActive: { borderColor: '#20304C', backgroundColor: '#20304C' },
+  radioActive: { borderColor: '#D94625', backgroundColor: '#D94625' },
 
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   sumLabel: { fontSize: 14, color: '#64748B' },

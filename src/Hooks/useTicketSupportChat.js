@@ -73,8 +73,9 @@ export function useTicketSupportChat(ticketId) {
     replyLoading: replyStatus === 'loading',
     escalate: () => withUnwrap(doEscalate()),
     escalateLoading: escalateStatus === 'loading',
-    // Custom Plan proposals never appear on a job chat — this is only here so
-    // the shared screen can destructure a consistent shape.
+    // Custom Plan proposals never appear on a job chat — these are only here
+    // so the shared screen can destructure a consistent shape.
     acceptPlan: () => withUnwrap(Promise.resolve(null)),
+    rejectPlan: () => withUnwrap(Promise.resolve(null)),
   };
 }

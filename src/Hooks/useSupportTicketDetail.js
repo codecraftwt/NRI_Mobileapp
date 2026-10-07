@@ -41,5 +41,9 @@ export function useSupportTicketDetail(ticketId) {
     acceptPlanLoading: acceptPlanStatus === 'loading',
     acceptPlanError,
     acceptPlan: (replyId) => dispatch(acceptCustomPlan({ ticketId, replyId })),
+    // Custom Plan proposals only ever appear on Custom Plan tickets, never
+    // generic Support Tickets — this is only here so the shared screen can
+    // destructure a consistent shape.
+    rejectPlan: () => { const p = Promise.resolve(null); p.unwrap = () => p; return p; },
   };
 }

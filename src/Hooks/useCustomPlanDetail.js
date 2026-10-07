@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCustomPlanDetail, replyCustomPlan, escalateCustomPlan, acceptCustomPlanProposal } from '../Redux/slices/customPlanSlice';
+import { fetchCustomPlanDetail, replyCustomPlan, escalateCustomPlan, acceptCustomPlanProposal, payCustomPlanProposal, rejectCustomPlanProposal } from '../Redux/slices/customPlanSlice';
 
 export function useCustomPlanDetail(ticketId) {
   const dispatch = useDispatch();
@@ -14,6 +14,10 @@ export function useCustomPlanDetail(ticketId) {
   const escalateError = useSelector(state => state.customPlan.escalateError);
   const acceptPlanStatus = useSelector(state => state.customPlan.acceptPlanStatus);
   const acceptPlanError = useSelector(state => state.customPlan.acceptPlanError);
+  const payPlanStatus = useSelector(state => state.customPlan.payPlanStatus);
+  const payPlanError = useSelector(state => state.customPlan.payPlanError);
+  const rejectPlanStatus = useSelector(state => state.customPlan.rejectPlanStatus);
+  const rejectPlanError = useSelector(state => state.customPlan.rejectPlanError);
 
   useEffect(() => {
     if (ticketId) dispatch(fetchCustomPlanDetail(ticketId));
@@ -41,5 +45,13 @@ export function useCustomPlanDetail(ticketId) {
     acceptPlanLoading: acceptPlanStatus === 'loading',
     acceptPlanError,
     acceptPlan: (replyId) => dispatch(acceptCustomPlanProposal({ ticketId, replyId })),
+
+    payPlanLoading: payPlanStatus === 'loading',
+    payPlanError,
+    payPlan: (replyId, { gateway, currency } = {}) => dispatch(payCustomPlanProposal({ ticketId, replyId, gateway, currency })),
+
+    rejectPlanLoading: rejectPlanStatus === 'loading',
+    rejectPlanError,
+    rejectPlan: (replyId, reason) => dispatch(rejectCustomPlanProposal({ ticketId, replyId, reason })),
   };
 }
