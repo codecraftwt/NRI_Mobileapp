@@ -1,12 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
-import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import { typography } from '../../theme';
 import { useNotifications } from '../../Hooks/useNotifications';
-import { handleNotificationNavigation } from '../../Services/firebase/notificationRouting';
 
 // Icon + colour by notification type/event keyword.
 function getVisual(n) {
@@ -38,9 +36,6 @@ function Notifications({ navigation }) {
   const { items, unreadCount, meta, loading, failed, error, fetch, markRead, markAllRead } = useNotifications();
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
-
-  const userRole = useSelector(state => state.user?.user?.role || '');
-  const isTelecaller = /telecaller/i.test(userRole);
 
   const currentPage = meta?.currentPage || 1;
   const lastPage = meta?.lastPage || 1;
@@ -74,24 +69,8 @@ function Notifications({ navigation }) {
   const visibleItems = items.filter(n => !n.read);
 
   const onPressItem = (n) => {
+    // Read-only for all modules: mark notification as read without navigating
     if (!n.read) markRead(n.id);
-    if (isTelecaller) {
-      // For Telecaller: only display/mark notifications read without rendering or navigating to any other screen
-      return;
-    }
-    // Route from the mapped fields (url/event/title/message live at the top of
-    // the RM item, not inside data), plus any extra keys in data.
-    // Pass this screen's navigation so the target is pushed onto the current
-    // stack — Back then returns here to Notifications (customer routes only;
-    // RM/vendor branches ignore it and deep-link via their tabs as before).
-    handleNotificationNavigation({
-      url: n.url,
-      event: n.event,
-      type: n.type,
-      title: n.title,
-      message: n.message,
-      ...n.data,
-    }, navigation);
   };
 
   return (
