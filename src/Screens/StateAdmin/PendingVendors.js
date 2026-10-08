@@ -11,6 +11,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import {
@@ -137,6 +138,7 @@ function PendingVendorCard({ vendor, onApprove, approving, onPress }) {
 }
 
 function PendingVendors({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [vendors, setVendors] = useState([]);
   const [meta, setMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
   const [loading, setLoading] = useState(true);
@@ -228,10 +230,10 @@ function PendingVendors({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -247,11 +249,13 @@ function PendingVendors({ navigation }) {
             </Text>
           </View>
 
-          {totalCount > 0 && (
+          {totalCount > 0 ? (
             <View style={styles.headerCount}>
               <Icon name="hourglass-top" size={14} color="#FDE68A" />
               <Text style={styles.headerCountText}>{totalCount}</Text>
             </View>
+          ) : (
+            <View style={styles.backBtnPlaceholder} />
           )}
         </View>
       </View>
@@ -338,7 +342,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#20304C',
     paddingHorizontal: 20,
-    paddingTop: 60,
     paddingBottom: 16,
   },
   headerRow: {
@@ -354,15 +357,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backBtnPlaceholder: {
+    width: 40,
+    height: 40,
+  },
   headerTextWrap: {
     flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginTop: 2,
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
   headerSub: {
     fontSize: 12.5,

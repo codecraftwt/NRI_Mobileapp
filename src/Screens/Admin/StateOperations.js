@@ -8,6 +8,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { useAdminDashboard } from '../../Hooks/Admin/useAdminDashboard';
@@ -25,6 +26,7 @@ export function heatColor(ratio) {
 }
 
 function StateOperations({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { stateBreakdown, loading, failed, error, refresh } = useAdminDashboard();
 
   // Sorted highest revenue first — the point of a heat-list.
@@ -39,10 +41,10 @@ function StateOperations({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -156,7 +158,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {

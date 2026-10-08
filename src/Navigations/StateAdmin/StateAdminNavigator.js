@@ -19,6 +19,7 @@ import VendorDetail from '../../Screens/StateAdmin/VendorDetail';
 import PendingVendors from '../../Screens/StateAdmin/PendingVendors';
 import Users from '../../Screens/StateAdmin/Users';
 import CustomerDetail from '../../Screens/StateAdmin/CustomerDetail';
+import CustomerPayments from '../../Screens/StateAdmin/CustomerPayments';
 import Profile from '../../Screens/StateAdmin/Profile';
 import Notifications from '../../Screens/NRI/Notifications';
 import NotificationPreferences from '../../Screens/StateAdmin/NotificationPreferences';
@@ -52,6 +53,7 @@ function DashboardStack() {
       <Stack.Screen name="RecentTickets" component={RecentTickets} />
       <Stack.Screen name="Users" component={Users} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CustomerPayments" component={CustomerPayments} />
     </Stack.Navigator>
   );
 }
@@ -71,6 +73,7 @@ function UsersStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="UsersMain" component={Users} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CustomerPayments" component={CustomerPayments} />
     </Stack.Navigator>
   );
 }

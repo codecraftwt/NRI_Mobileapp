@@ -15,6 +15,8 @@ import Tickets from '../../Screens/Admin/Tickets';
 import TicketDetail from '../../Screens/Admin/TicketDetail';
 import StateOperations from '../../Screens/Admin/StateOperations';
 import Finance from '../../Screens/Admin/Finance';
+import CustomerPayments from '../../Screens/Admin/CustomerPayments';
+import AllPayments from '../../Screens/Admin/AllPayments';
 import Profile from '../../Screens/Admin/Profile';
 import NotificationPreferences from '../../Screens/Admin/NotificationPreferences';
 import Notifications from '../../Screens/NRI/Notifications';
@@ -45,8 +47,10 @@ function DashboardStack() {
       <Stack.Screen name="Notifications" component={Notifications} />
       <Stack.Screen name="StateOperations" component={StateOperations} />
       <Stack.Screen name="Finance" component={Finance} />
+      <Stack.Screen name="AllPayments" component={AllPayments} />
       <Stack.Screen name="VendorDetail" component={VendorDetail} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CustomerPayments" component={CustomerPayments} />
       <Stack.Screen name="TicketDetail" component={TicketDetail} />
     </Stack.Navigator>
   );
@@ -57,6 +61,7 @@ function CustomersStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="CustomersMain" component={Customers} />
       <Stack.Screen name="CustomerDetail" component={CustomerDetail} />
+      <Stack.Screen name="CustomerPayments" component={CustomerPayments} />
     </Stack.Navigator>
   );
 }

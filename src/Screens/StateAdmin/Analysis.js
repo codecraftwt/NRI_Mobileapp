@@ -8,6 +8,7 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
 import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDashboard';
@@ -15,6 +16,7 @@ import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDash
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
 
 function Analysis({ navigation }) {
+  const insets = useSafeAreaInsets();
   const {
     slaBreakdown,
     districtBreakdown,
@@ -49,10 +51,10 @@ function Analysis({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Simple Clean Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.decorDot} pointerEvents="none" />
         <View style={styles.headerTop}>
@@ -63,10 +65,11 @@ function Analysis({ navigation }) {
           >
             <Icon name="chevron-left" size={26} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Analysis</Text>
-            <Text style={styles.headerSub}>SLA & District Performance</Text>
+          <View style={styles.headerCenterWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Analysis</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>SLA & District Performance</Text>
           </View>
+          <View style={styles.backBtnPlaceholder} />
         </View>
       </View>
 
@@ -217,7 +220,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#20304C' },
 
   header: {
-    paddingTop: STATUS_BAR_HEIGHT,
     paddingHorizontal: 20,
     paddingBottom: 18,
     backgroundColor: '#20304C',
@@ -233,14 +235,16 @@ const styles = StyleSheet.create({
     width: 10, height: 10, borderRadius: 5,
     backgroundColor: 'rgba(255,255,255,0.25)',
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '800', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: '#CBD5E1', marginTop: 2 },
+  backBtnPlaceholder: { width: 40, height: 40 },
+  headerCenterWrap: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
+  headerSub: { fontSize: 12.5, color: '#CBD5E1', marginTop: 2, textAlign: 'center' },
 
   body: {
     flex: 1,

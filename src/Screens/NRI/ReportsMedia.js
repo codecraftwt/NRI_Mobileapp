@@ -81,10 +81,6 @@ function ReportsMedia({ navigation }) {
               <Text style={styles.countText}>{reports.length} report{reports.length !== 1 ? 's' : ''} available</Text>
             )}
           </View>
-          <TouchableOpacity style={styles.summaryBtn} onPress={() => navigation.navigate('Annual Summary')}>
-            <Icon name="event-note" size={16} color={colors.onAccent} />
-            <Text style={styles.summaryBtnText}>Annual Summary</Text>
-          </TouchableOpacity>
         </View>
 
         {loading && (
@@ -233,8 +229,6 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 },
   pageTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
   countText: { fontSize: 13, fontWeight: '600', color: '#64748B', marginTop: 4 },
-  summaryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#A64416', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
-  summaryBtnText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   loadingText: { fontSize: 14, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },

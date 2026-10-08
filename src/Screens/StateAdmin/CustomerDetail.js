@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { getStateAdminCustomerDetail } from '../../Api/StateAdmin/stateAdminCustomersApi';
@@ -64,6 +65,7 @@ function getRequestStatusMeta(status) {
 }
 
 function CustomerDetail({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const { customerId: paramId, customer: initialCustomer } = route.params || {};
   const customerId =
     paramId ||
@@ -108,8 +110,8 @@ function CustomerDetail({ route, navigation }) {
   if (!customerId) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
-        <View style={styles.header}>
+        <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View style={styles.headerTopRow}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
               <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
@@ -131,10 +133,10 @@ function CustomerDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -219,6 +221,15 @@ function CustomerDetail({ route, navigation }) {
                 </View>
               </View>
             </View>
+
+            <TouchableOpacity
+              style={styles.paymentsBtn}
+              onPress={() => navigation.navigate('CustomerPayments', { customerId, customerName: customer.name })}
+            >
+              <Icon name="receipt-long" size={16} color="#20304C" />
+              <Text style={styles.paymentsBtnText}>Payment History</Text>
+              <Icon name="chevron-right" size={18} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
 
           {/* Stats Grid */}
@@ -453,7 +464,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: '#20304C',
   },
@@ -474,10 +484,12 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 20,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   backBtnPlaceholder: {
     width: 36,
@@ -543,6 +555,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 14,
+  },
+  paymentsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  paymentsBtnText: {
+    flex: 1,
+    fontSize: 13.5,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#20304C',
+    fontWeight: '700',
   },
   avatar: {
     width: 52,

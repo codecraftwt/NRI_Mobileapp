@@ -41,7 +41,6 @@ import CustomPlanNew from '../Screens/NRI/CustomPlanNew';
 import AddonPackages from '../Screens/NRI/AddonPackages';
 import AddonSubscriptions from '../Screens/NRI/AddonSubscriptions';
 import ReportsMedia from '../Screens/NRI/ReportsMedia';
-import AnnualSummary from '../Screens/NRI/AnnualSummary';
 import WalletCoupons from '../Screens/NRI/WalletCoupons';
 import ReferEarn from '../Screens/NRI/ReferEarn';
 import Profile from '../Screens/NRI/Profile';
@@ -145,7 +144,6 @@ function DashboardStack() {
       <Stack.Screen name="CustomPlanNew" component={CustomPlanNew} />
       <Stack.Screen name="Add-on Packages" component={AddonPackages} />
       <Stack.Screen name="Reports & Media" component={ReportsMedia} />
-      <Stack.Screen name="Annual Summary" component={AnnualSummary} />
       <Stack.Screen name="Wallet & Coupons" component={WalletCoupons} />
       <Stack.Screen name="Refer & Earn" component={ReferEarn} />
       <Stack.Screen name="ServicesCatalog" component={ServicesStack} options={{ unmountOnBlur: true }} />

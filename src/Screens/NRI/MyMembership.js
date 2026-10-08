@@ -115,9 +115,11 @@ function MyMembership({ navigation }) {
     ]);
   };
 
-  // The membership amount to show is the plan's actual USD price (from
-  // GET /plans) plus GST — not membership.price, which falls back to the
-  // plan's INR base rate (e.g. 500) and rendered as "$500".
+  // membership.paidAmountDisplay (the real charged amount) is preferred when
+  // present. membershipTotal below is the fallback for memberships with no
+  // payment on record (e.g. admin-assigned) — the plan's actual USD price
+  // (from GET /plans) plus GST, since membership.price itself falls back to
+  // the plan's INR base rate (e.g. 500) and would render as "$500".
   const { regularPlans } = usePlans();
   const membershipPlan =
     regularPlans.find(p => p.id === membership?.planId) ||
@@ -197,12 +199,12 @@ function MyMembership({ navigation }) {
                   {/* {!!membership.endDate && <Text style={styles.validUntil}>Valid until {formatDate(membership.endDate)}</Text>} */}
                 </View>
                 <View style={styles.heroPriceCol}>
-                  {membershipTotal != null ? (
-                    <>
-                      <Text style={styles.priceValue}>{formatUsd(membershipTotal)}</Text>
-                    </>
-                  ) : (membership.amountPaid ?? membership.price) != null ? (
-                    <Text style={styles.priceValue}>{formatUsd(membership.amountPaid ?? membership.price)}</Text>
+                  {membership.paidAmountDisplay ? (
+                    <Text style={styles.priceValue}>{membership.paidAmountDisplay}</Text>
+                  ) : membershipTotal != null ? (
+                    <Text style={styles.priceValue}>{formatUsd(membershipTotal)}</Text>
+                  ) : membership.price != null ? (
+                    <Text style={styles.priceValue}>{formatUsd(membership.price)}</Text>
                   ) : null}
                   {!!membership.paymentStatus && (
                     <View style={styles.paymentBadge}>

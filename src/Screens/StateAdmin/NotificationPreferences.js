@@ -10,8 +10,9 @@ import {
   StatusBar,
   Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT, lightColors as baseColors } from '../../theme';
+import { typography, lightColors as baseColors } from '../../theme';
 import {
   getStateAdminNotificationPreferences,
   updateStateAdminNotificationPreferences,
@@ -59,6 +60,7 @@ const CHANNELS = [
 ];
 
 function NotificationPreferences({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [preferences, setPreferences] = useState({
     app: true,
     whatsapp: true,
@@ -120,10 +122,10 @@ function NotificationPreferences({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Navy Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -228,7 +230,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
     backgroundColor: '#20304C',
-    paddingTop: STATUS_BAR_HEIGHT + 14,
     paddingBottom: 22,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,
@@ -254,8 +255,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-  headerSub: { fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', marginTop: 8, lineHeight: 18 },
+  headerTitle: { flex: 1, fontSize: 19, fontWeight: '800', color: '#FFFFFF', textAlign: 'center' },
+  headerSub: { fontSize: 12.5, color: 'rgba(255, 255, 255, 0.7)', marginTop: 8, lineHeight: 18, textAlign: 'center' },
 
   body: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },

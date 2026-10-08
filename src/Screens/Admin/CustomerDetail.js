@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 
@@ -42,16 +43,20 @@ function formatDate(dateStr) {
 
 function CustomerDetail({ route, navigation }) {
   const { customer } = route.params || {};
+  const insets = useSafeAreaInsets();
 
   if (!customer) {
     return (
       <View style={styles.container}>
-        <StatusBar backgroundColor="#20304C" barStyle="light-content" />
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Customer Details</Text>
+        <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Customer Details</Text>
+            <View style={styles.backBtnPlaceholder} />
+          </View>
         </View>
         <View style={styles.emptyState}>
           <Icon name="error-outline" size={48} color="#CBD5E1" />
@@ -66,10 +71,10 @@ function CustomerDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -128,6 +133,15 @@ function CustomerDetail({ route, navigation }) {
               </View>
             </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.paymentsBtn}
+            onPress={() => navigation.navigate('CustomerPayments', { customerId: customer.id, customerName: customer.name })}
+          >
+            <Icon name="receipt-long" size={16} color="#20304C" />
+            <Text style={styles.paymentsBtnText}>Payment History</Text>
+            <Icon name="chevron-right" size={18} color="#94A3B8" />
+          </TouchableOpacity>
         </View>
 
         {/* Stats Grid */}
@@ -257,7 +271,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {
@@ -311,6 +325,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 14,
+  },
+  paymentsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  paymentsBtnText: {
+    flex: 1,
+    fontSize: 13.5,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#20304C',
+    fontWeight: '700',
   },
   avatar: {
     width: 54,

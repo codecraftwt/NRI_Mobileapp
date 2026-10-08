@@ -13,8 +13,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT, lightColors as baseColors } from '../../theme';
+import { typography, lightColors as baseColors } from '../../theme';
 import { useStateAdminUsers } from '../../Hooks/StateAdmin/useStateAdminUsers';
 import { getUserAssignableRoles, getUserRegionScope } from '../../Api/StateAdmin/stateAdminUsersApi';
 import { getStates, getCities, getDistricts } from '../../Api/geoApi';
@@ -27,6 +28,7 @@ const C = {
 };
 
 function AddUser({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const editUser = route.params?.editUser || null;
   const isEdit = !!editUser;
   const presetRole = route.params?.presetRole || null;
@@ -316,10 +318,10 @@ function AddUser({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -851,7 +853,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
     backgroundColor: '#20304C',
-    paddingTop: STATUS_BAR_HEIGHT + 14,
     paddingBottom: 22,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 28,
@@ -877,8 +878,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-  headerSub: { fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', marginTop: 8, lineHeight: 18 },
+  headerTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#FFFFFF', textAlign: 'center' },
+  headerSub: { fontSize: 13, color: 'rgba(255, 255, 255, 0.7)', marginTop: 8, lineHeight: 18, textAlign: 'center' },
 
   body: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40, gap: 14 },

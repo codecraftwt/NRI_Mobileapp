@@ -35,11 +35,18 @@ function mapFeature(raw, index) {
 
 // NOTE: verified live against GET /customer/memberships — an item there
 // looks like {id, plan:{id,name,slug}, status, starts_at, expires_at,
-// auto_renew, amount_paid} with NO explicit payment/paid field. Cross-checked
-// against GET /customer/billing (which does carry a real `is_paid` per
-// billing item) for this same membership id and found is_paid:false while
-// status:'pending' — so paymentStatus below is inferred from `status`
-// ('active'/'expired' => Paid, 'pending' => Pending) rather than a real field.
+// auto_renew, amount_paid, paid_amount, paid_currency, paid_amount_display}.
+// `amount_paid` is the plan's base price *before* GST — it is not what was
+// actually charged, so it must never be shown to the customer. The paid_*
+// trio is the real charged amount, pre-formatted (paid_amount_display, e.g.
+// "$1.18") by the backend; all three are null when no payment was taken at
+// all (e.g. an admin-assigned membership), in which case callers should fall
+// back to the plan's list price (`price` below) instead.
+// Cross-checked against GET /customer/billing (which does carry a real
+// `is_paid` per billing item) for this same membership id and found
+// is_paid:false while status:'pending' — so paymentStatus below is inferred
+// from `status` ('active'/'expired' => Paid, 'pending' => Pending) rather
+// than a real field.
 function mapMembership(raw) {
   if (!raw) return null;
   const status = raw.status || null;
@@ -47,10 +54,17 @@ function mapMembership(raw) {
     id: raw.id,
     planId: raw.plan_id ?? raw.plan?.id ?? null,
     planName: raw.plan?.name || raw.plan_name || null,
-    price: raw.amount_paid ?? raw.price ?? raw.plan?.price ?? null,
-    // The exact amount charged at registration/renewal (base + GST) — distinct
-    // from the plan's list price. Null when the backend doesn't send it.
+    // Plan's list price — fallback for display only when no payment was
+    // taken (paid_* all null below).
+    price: raw.price ?? raw.plan?.price ?? null,
+    // Base price before GST — NOT what was charged. Kept for reference; do
+    // not show this to the customer, use paidAmountDisplay instead.
     amountPaid: raw.amount_paid ?? null,
+    // The amount actually charged, with currency. paidAmountDisplay is
+    // already formatted (e.g. "$1.18") — render it as-is.
+    paidAmount: raw.paid_amount ?? null,
+    paidCurrency: raw.paid_currency ?? null,
+    paidAmountDisplay: raw.paid_amount_display ?? null,
     status,
     startDate: raw.start_date || raw.starts_at || null,
     endDate: raw.end_date || raw.expires_at || null,

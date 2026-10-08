@@ -1,20 +1,21 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { lightColors as colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { spacing, STATUS_BAR_HEIGHT } from '../theme/spacing';
 
-const HEADER_PADDING_TOP = STATUS_BAR_HEIGHT;
 const HEADER_CONTENT_HEIGHT = 46;
-const HEADER_HEIGHT = STATUS_BAR_HEIGHT + HEADER_CONTENT_HEIGHT;
 
 function Header({ navigation, title, showBack, isTabRoot, onBack }) {
+  const insets = useSafeAreaInsets();
+  const topPadding = insets?.top ? insets.top : STATUS_BAR_HEIGHT;
   const isDashboard = !showBack && !isTabRoot && !title;
 
   if (isDashboard) {
     return (
-      <View style={styles.mainContainer}>
+      <View style={[styles.mainContainer, { paddingTop: topPadding, height: topPadding + HEADER_CONTENT_HEIGHT }]}>
         <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent />
 
         <View style={styles.profileContainer}>
@@ -37,7 +38,7 @@ function Header({ navigation, title, showBack, isTabRoot, onBack }) {
 
   // Standard Header for inner screens or Tab Roots
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: topPadding, height: topPadding + HEADER_CONTENT_HEIGHT }]}>
       <StatusBar backgroundColor={'#20304C'} barStyle="light-content" translucent />
       {showBack ? (
         <TouchableOpacity style={styles.iconBtn} onPress={() => (onBack ? onBack() : navigation.goBack())}>
@@ -59,8 +60,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C',
     paddingHorizontal: spacing.lg,
-    paddingTop: HEADER_PADDING_TOP,
-    height: HEADER_HEIGHT,
     borderBottomWidth: 0,
     shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },
@@ -93,8 +92,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#20304C', // Merges perfectly with status bar
     paddingHorizontal: spacing.lg,
-    paddingTop: HEADER_PADDING_TOP,
-    height: HEADER_HEIGHT,
     borderBottomWidth: 0,
     shadowColor: '#20304C',
     shadowOffset: { width: 0, height: 4 },

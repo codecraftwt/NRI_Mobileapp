@@ -8,8 +8,9 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT } from '../../theme';
+import { typography } from '../../theme';
 import { getUserAssignableRoles } from '../../Api/StateAdmin/stateAdminUsersApi';
 
 // First step of the Admin Management drill-down: pick a role here, then land
@@ -17,6 +18,7 @@ import { getUserAssignableRoles } from '../../Api/StateAdmin/stateAdminUsersApi'
 // a "staff" role (it has its own Customers tab) and field-executive is
 // excluded app-wide — both dropped here to match Dashboard's role chips.
 function AdminRoles({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,16 +38,15 @@ function AdminRoles({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Icon name="chevron-left" size={26} color="#FFFFFF" />
           </TouchableOpacity>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Admin Management</Text>
-          </View>
+          <Text style={styles.headerTitle} numberOfLines={1}>Admin Management</Text>
+          <View style={styles.backBtnPlaceholder} />
         </View>
       </View>
 
@@ -85,17 +86,16 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#20304C',
     paddingHorizontal: 20,
-    paddingTop: STATUS_BAR_HEIGHT,
     paddingBottom: 18,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTextWrap: { flex: 1 },
-  headerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5, marginTop: 3 },
+  backBtnPlaceholder: { width: 40, height: 40 },
+  headerTitle: { flex: 1, fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.3, textAlign: 'center' },
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
 

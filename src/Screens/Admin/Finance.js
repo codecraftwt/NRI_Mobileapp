@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { getAdminFinance } from '../../Api/Admin/adminFinanceApi';
@@ -19,6 +20,7 @@ function formatInr(val) {
 }
 
 function Finance({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,10 +53,10 @@ function Finance({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -66,7 +68,13 @@ function Finance({ navigation }) {
           <Text style={styles.headerTitle} numberOfLines={1}>
             Billing & Finance
           </Text>
-          <View style={styles.backBtnPlaceholder} />
+          <TouchableOpacity
+            style={styles.allPaymentsBtn}
+            onPress={() => navigation.navigate('AllPayments')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="receipt-long" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -197,7 +205,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {
@@ -216,6 +224,14 @@ const styles = StyleSheet.create({
   backBtnPlaceholder: {
     width: 38,
     height: 38,
+  },
+  allPaymentsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     flex: 1,

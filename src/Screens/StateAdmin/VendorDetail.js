@@ -10,6 +10,7 @@ import {
   Alert,
   TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 
@@ -39,6 +40,7 @@ function formatDate(dateStr) {
 }
 
 function VendorDetail({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const vendor = route?.params?.vendor;
   const [stateSearch, setStateSearch] = useState('');
   const [expandedStates, setExpandedStates] = useState(false);
@@ -71,8 +73,8 @@ function VendorDetail({ route, navigation }) {
   if (!vendor) {
     return (
       <View style={styles.container}>
-        <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
-        <View style={styles.header}>
+        <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
           <View style={styles.headerTopRow}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
               <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={styles.backIcon} />
@@ -147,10 +149,10 @@ function VendorDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -366,7 +368,7 @@ function VendorDetail({ route, navigation }) {
                     <Icon
                       name={expandedStates ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
                       size={18}
-                      color="#A64416"
+                      color="#2563EB"
                     />
                   </TouchableOpacity>
                 )}
@@ -619,7 +621,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: '#20304C',
   },
@@ -993,19 +994,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: '#FFEDD5',
+    gap: 4,
+    paddingVertical: 8,
+    marginTop: 8,
+    alignSelf: 'center',
   },
   expandStatesBtnText: {
-    fontSize: 12.5,
+    fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
     fontWeight: '700',
-    color: '#A64416',
+    color: '#2563EB',
   },
 
   // Categories & Services

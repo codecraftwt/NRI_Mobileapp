@@ -9,22 +9,11 @@ export const fetchReports = createAsyncThunk('reports/fetchAll', async (params, 
   }
 });
 
-export const fetchAnnualSummary = createAsyncThunk('reports/fetchAnnualSummary', async (params, { rejectWithValue }) => {
-  try {
-    return await reportApi.getAnnualSummary(params);
-  } catch (error) {
-    return rejectWithValue(error);
-  }
-});
-
 const initialState = {
   reports: [],
   reportsMeta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
   reportsStatus: 'idle',
   reportsError: null,
-  annualSummary: null,
-  annualSummaryStatus: 'idle',
-  annualSummaryError: null,
 };
 
 const reportsSlice = createSlice({
@@ -45,18 +34,6 @@ const reportsSlice = createSlice({
       .addCase(fetchReports.rejected, (state, action) => {
         state.reportsStatus = 'failed';
         state.reportsError = action.payload;
-      })
-      .addCase(fetchAnnualSummary.pending, (state) => {
-        state.annualSummaryStatus = 'loading';
-        state.annualSummaryError = null;
-      })
-      .addCase(fetchAnnualSummary.fulfilled, (state, action) => {
-        state.annualSummaryStatus = 'succeeded';
-        state.annualSummary = action.payload;
-      })
-      .addCase(fetchAnnualSummary.rejected, (state, action) => {
-        state.annualSummaryStatus = 'failed';
-        state.annualSummaryError = action.payload;
       });
   },
 });

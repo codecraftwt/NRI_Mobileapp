@@ -1,4 +1,5 @@
-import apiClient, { normalizeApiError } from '../client';
+import apiClient, { API_BASE_URL, normalizeApiError } from '../client';
+import { mapAdminPayment, mapAdminPaymentsMeta } from '../adminPaymentShared';
 
 function num(v) {
   return v == null ? 0 : Number(v);
@@ -253,4 +254,31 @@ export async function getStateAdminCustomerDetail(customerId) {
   } catch (error) {
     throw normalizeApiError(error);
   }
+}
+
+// GET /admin/customers/{customer}/payments — shared across super-admin,
+// state-admin, district-admin and taluka-admin. Area admins only see
+// customers in their own area (404 otherwise); a customer role gets 403.
+// Page size is fixed server-side at 15.
+export async function getStateAdminCustomerPayments(customerId, { status, gateway, from, to, page } = {}) {
+  try {
+    const params = {};
+    if (status) params.status = status;
+    if (gateway) params.gateway = gateway;
+    if (from) params.from = from;
+    if (to) params.to = to;
+    if (page) params.page = page;
+    const response = await apiClient.get(`/admin/customers/${customerId}/payments`, { params });
+    const list = response.data?.data || [];
+    return { payments: list.map(mapAdminPayment), meta: mapAdminPaymentsMeta(response, list.length) };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// GET /admin/customers/{customer}/payments/{payment}/receipt — PDF for a
+// successful payment only; any other status 404s, so callers should only
+// surface this for rows with status === 'success'.
+export function getStateAdminCustomerPaymentReceiptUrl(customerId, paymentId) {
+  return `${API_BASE_URL}/admin/customers/${customerId}/payments/${paymentId}/receipt`;
 }

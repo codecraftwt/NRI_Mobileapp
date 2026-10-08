@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDashboard';
@@ -32,7 +33,8 @@ function getPriorityStyle(priority) {
   return { bg: '#F1F5F9', text: '#64748B' };
 }
 
-function RecentTickets() {
+function RecentTickets({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { recentTickets, loading, refresh } = useStateAdminDashboard();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('all');
@@ -80,22 +82,31 @@ function RecentTickets() {
     return list;
   }, [recentTickets, activeTab, search]);
 
+  const canGoBack = navigation?.canGoBack?.();
+
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Tickets</Text>
-            <Text style={styles.headerSub}>Tickets across your jurisdiction</Text>
+          {canGoBack ? (
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Icon name="chevron-left" size={26} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : <View style={styles.backBtnPlaceholder} />}
+          <View style={styles.headerCenterWrap}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Tickets</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>Tickets across your jurisdiction</Text>
           </View>
-          {recentTickets.length > 0 && (
+          {recentTickets.length > 0 ? (
             <View style={styles.headerCount}>
               <Icon name="confirmation-number" size={15} color="#FDE68A" />
               <Text style={styles.headerCountText}>{recentTickets.length}</Text>
             </View>
+          ) : (
+            <View style={styles.backBtnPlaceholder} />
           )}
         </View>
       </View>
@@ -243,13 +254,29 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
     paddingBottom: 16,
     backgroundColor: '#20304C',
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerTitle: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: '#94A3B8', marginTop: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnPlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  headerCenterWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  headerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', letterSpacing: -0.3, textAlign: 'center' },
+  headerSub: { fontSize: 12.5, color: '#94A3B8', marginTop: 2, textAlign: 'center' },
   headerCount: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20,

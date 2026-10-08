@@ -342,11 +342,18 @@ function BillingPayments({ navigation }) {
   // overview.autoRenewingMembership, which the backend drops entirely once
   // auto-renew is off.
   const visibleMembership = membership && membership.status === 'active' ? membership : null;
-  // GET /customer/membership's amountPaid/price can come back null — the
-  // billing overview's own invoice line for this membership (GET
+  // The billing overview's own invoice line for this membership (GET
   // /customer/billing → items[].type === 'membership') always carries the
   // real GST-inclusive amount actually charged, so prefer that for display.
   const membershipBillingItem = allItems.find(i => i.type === 'membership' && (visibleMembership ? i.id === visibleMembership.id : true));
+  // Otherwise fall back to the membership's own paidAmountDisplay (already
+  // formatted with currency by the backend), then its plan price — paid_*
+  // on GET /customer/membership is null when no payment was taken (e.g. an
+  // admin-assigned membership).
+  const membershipPriceDisplay = membershipBillingItem?.amount != null
+    ? formatUsd(membershipBillingItem.amount)
+    : visibleMembership?.paidAmountDisplay
+      || (visibleMembership?.price != null ? formatUsd(visibleMembership.price) : null);
 
   const lastPage = Math.max(1, Math.ceil(allItems.length / pageSize));
   const currentPage = Math.min(page, lastPage);
@@ -375,15 +382,6 @@ function BillingPayments({ navigation }) {
         {overview && (
           <>
             <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <View style={styles.statHeaderRow}>
-                  <View style={[styles.statIconBox, styles.statIconBoxRed]}>
-                    <Icon name="account-balance-wallet" size={18} color={colors.error} />
-                  </View>
-                  <Text style={styles.statLabel} numberOfLines={1} adjustsFontSizeToFit>Outstanding</Text>
-                </View>
-                <Text style={styles.statValue}>₹{overview.outstandingTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-              </View>
               <View style={styles.statCard}>
                 <View style={styles.statHeaderRow}>
                   <View style={[styles.statIconBox, styles.statIconBoxGreen]}>
@@ -420,9 +418,9 @@ function BillingPayments({ navigation }) {
                   <View style={styles.autoRenewInfo}>
                     <Text style={styles.autoRenewName}>{visibleMembership.planName}</Text>
                     <Text style={styles.autoRenewMeta}>
-                      {(membershipBillingItem?.amount ?? visibleMembership.amountPaid ?? visibleMembership.price) != null && (
+                      {membershipPriceDisplay != null && (
                         <Text style={styles.autoRenewPriceInline}>
-                          {formatUsd(membershipBillingItem?.amount ?? visibleMembership.amountPaid ?? visibleMembership.price)}/yr{visibleMembership.endDate ? '  ·  ' : ''}
+                          {membershipPriceDisplay}/yr{visibleMembership.endDate ? '  ·  ' : ''}
                         </Text>
                       )}
                       {!!visibleMembership.endDate && (
@@ -604,9 +602,10 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, fontFamily: typography.body.fontFamily, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 10 },
   
   statsRow: { flexDirection: 'row', gap: 14 },
-  statCard: { 
-    flex: 1, 
-    backgroundColor: '#FFFFFF', 
+  statCard: {
+    alignSelf: 'flex-start',
+    minWidth: 150,
+    backgroundColor: '#FFFFFF',
     borderRadius: 24, 
     padding: 16, 
     borderWidth: 1, 
@@ -619,7 +618,6 @@ const styles = StyleSheet.create({
   },
   statHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   statIconBox: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  statIconBoxRed: { backgroundColor: '#FEF2F2' },
   statIconBoxGreen: { backgroundColor: '#DCFCE7' },
   statLabel: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#64748B', flex: 1 },
   statValue: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A' },

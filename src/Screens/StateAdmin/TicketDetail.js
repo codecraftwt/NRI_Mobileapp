@@ -8,6 +8,7 @@ import {
   StatusBar,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 
@@ -55,6 +56,7 @@ function InfoRow({ icon, label, value, valueColor, onPress }) {
 }
 
 function TicketDetail({ route, navigation }) {
+  const insets = useSafeAreaInsets();
   const ticket = route?.params?.ticket || {};
   const statusStyle = getStatusStyle(ticket.status);
   const priorityStyle = getPriorityStyle(ticket.priority);
@@ -72,9 +74,9 @@ function TicketDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
@@ -212,9 +214,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 60,
     paddingBottom: 18,
     backgroundColor: '#20304C',
   },
@@ -223,8 +224,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitleWrap: { flex: 1, height: 36, justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', marginTop: 4 },
+  headerTitleWrap: { flex: 1, height: 36, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', textAlign: 'center' },
 
   body: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { padding: 20, paddingBottom: 60, gap: 14 },

@@ -42,39 +42,3 @@ export async function getReports({ page } = {}) {
     throw normalizeApiError(error);
   }
 }
-
-// `by_category` comes back as a plain object map, e.g. { "Parent Care": 4 },
-// not an array of { name, count } pairs.
-function mapByCategory(raw) {
-  if (!raw) return [];
-  if (Array.isArray(raw)) {
-    return raw.map(item => ({
-      name: item.name || item.category_name || item.category || 'Other',
-      count: item.count ?? item.total ?? 0,
-    }));
-  }
-  return Object.entries(raw).map(([name, count]) => ({ name, count }));
-}
-
-function mapAnnualSummary(raw) {
-  return {
-    year: raw.year,
-    totalRequests: raw.total_requests ?? 0,
-    completed: raw.completed ?? 0,
-    totalSpend: Number(raw.total_spend) || 0,
-    propertyVisits: raw.property_visits ?? 0,
-    parentCare: raw.parent_care ?? 0,
-    byCategory: mapByCategory(raw.by_category),
-  };
-}
-
-export async function getAnnualSummary({ year } = {}) {
-  try {
-    const params = {};
-    if (year) params.year = year;
-    const response = await apiClient.get('/customer/reports/annual-summary', { params });
-    return mapAnnualSummary(response.data?.data || response.data);
-  } catch (error) {
-    throw normalizeApiError(error);
-  }
-}

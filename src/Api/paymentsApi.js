@@ -131,6 +131,11 @@ function mapPayment(raw) {
     receiptNumber: raw.receipt_number,
     amount: raw.amount,
     currency: raw.currency,
+    // Already formatted with currency symbol (e.g. "$7.34") — use this for
+    // display instead of amount, which doesn't include GST.
+    amountDisplay: raw.amount_display,
+    gstAmount: raw.gst_amount,
+    gstRate: raw.gst_rate,
     gateway: raw.gateway,
     status: raw.status,
     paidAt: raw.paid_at,

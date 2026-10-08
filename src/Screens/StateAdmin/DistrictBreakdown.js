@@ -9,13 +9,15 @@ import {
   StatusBar,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT } from '../../theme';
+import { typography } from '../../theme';
 import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDashboard';
 
 const formatInr = (v) => `₹${Number(v || 0).toLocaleString('en-IN')}`;
 
 function DistrictBreakdown({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { districtBreakdown, loading, refresh } = useStateAdminDashboard();
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('revenue'); // 'revenue' | 'tickets' | 'customers' | 'name'
@@ -63,10 +65,10 @@ function DistrictBreakdown({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -218,7 +220,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#20304C' },
 
   header: {
-    paddingTop: STATUS_BAR_HEIGHT + 8,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#20304C',
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '700' },
+  headerTitle: { flex: 1, fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
 
   summaryBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',

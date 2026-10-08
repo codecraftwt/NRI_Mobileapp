@@ -13,8 +13,9 @@ import {
   Modal,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { typography, STATUS_BAR_HEIGHT, lightColors as baseColors } from '../../theme';
+import { typography, lightColors as baseColors } from '../../theme';
 import { createStateAdminVendor, fetchStateAdminVendors } from '../../Redux/slices/stateAdminVendorsSlice';
 import { getVendorRegionScope } from '../../Api/StateAdmin/stateAdminVendorsApi';
 import { getStates, getCities } from '../../Api/geoApi';
@@ -47,6 +48,7 @@ function createDefaultArea(id) {
 }
 
 function AddVendor({ navigation }) {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const createStatus = useSelector(state => state.stateAdminVendors?.createStatus);
   const submitting = createStatus === 'loading';
@@ -431,10 +433,10 @@ function AddVendor({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Navy Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.decorCircleLg} pointerEvents="none" />
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
@@ -1155,7 +1157,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#20304C' },
 
   header: {
-    paddingTop: STATUS_BAR_HEIGHT + 8,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: '#20304C',
@@ -1172,8 +1173,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '700' },
-  headerSub: { fontSize: 12, color: '#CBD5E1', marginLeft: 4 },
+  headerTitle: { flex: 1, fontSize: 20, fontFamily: typography.h2.fontFamily, color: '#FFFFFF', fontWeight: '700', textAlign: 'center' },
+  headerSub: { fontSize: 12, color: '#CBD5E1', textAlign: 'center', marginTop: 4 },
 
   body: {
     flex: 1, backgroundColor: '#FDFBF7',

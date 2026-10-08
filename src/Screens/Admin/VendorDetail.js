@@ -9,6 +9,7 @@ import {
   Linking,
   TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 
@@ -24,7 +25,10 @@ function statusBadge(status) {
 
 function VendorDetail({ route, navigation }) {
   const { vendor } = route.params || {};
+  const insets = useSafeAreaInsets();
   const [stateSearch, setStateSearch] = useState('');
+  const [expandedStates, setExpandedStates] = useState(false);
+  const INITIAL_STATES_LIMIT = 6;
 
   const statesList = useMemo(() => {
     return Array.isArray(vendor?.statesCovered) ? vendor.statesCovered : [];
@@ -36,15 +40,25 @@ function VendorDetail({ route, navigation }) {
     return statesList.filter((s) => String(s).toLowerCase().includes(q));
   }, [statesList, stateSearch]);
 
+  const displayedStates = useMemo(() => {
+    if (stateSearch.trim() || expandedStates) {
+      return filteredStates;
+    }
+    return filteredStates.slice(0, INITIAL_STATES_LIMIT);
+  }, [filteredStates, stateSearch, expandedStates]);
+
   if (!vendor) {
     return (
       <View style={styles.container}>
-        <StatusBar backgroundColor="#20304C" barStyle="light-content" />
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Details</Text>
+        <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Details</Text>
+            <View style={styles.backBtnPlaceholder} />
+          </View>
         </View>
         <View style={styles.emptyState}>
           <Icon name="error-outline" size={48} color="#CBD5E1" />
@@ -69,10 +83,10 @@ function VendorDetail({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Top Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -84,6 +98,7 @@ function VendorDetail({ route, navigation }) {
           <Text style={styles.headerTitle} numberOfLines={1}>
             Details
           </Text>
+          <View style={styles.backBtnPlaceholder} />
         </View>
       </View>
 
@@ -219,52 +234,75 @@ function VendorDetail({ route, navigation }) {
         </View>
 
         {/* States Covered Section */}
-        <View style={styles.sectionCard}>
-          <View style={styles.statesHeaderRow}>
-            <View style={styles.sectionHeader}>
-              <Icon name="explore" size={18} color="#20304C" />
-              <Text style={styles.sectionTitle}>States Covered</Text>
+        {statesList.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.statesHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <Icon name="explore" size={18} color="#20304C" />
+                <Text style={styles.sectionTitle}>States Covered</Text>
+              </View>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{statesList.length}</Text>
+              </View>
             </View>
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{statesList.length}</Text>
-            </View>
-          </View>
 
-          {statesList.length > 6 && (
-            <View style={styles.searchWrap}>
-              <Icon name="search" size={18} color="#94A3B8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search state..."
-                placeholderTextColor="#94A3B8"
-                value={stateSearch}
-                onChangeText={setStateSearch}
-              />
-              {!!stateSearch && (
-                <TouchableOpacity onPress={() => setStateSearch('')}>
-                  <Icon name="close" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+            {statesList.length > 6 && (
+              <View style={styles.searchWrap}>
+                <Icon name="search" size={18} color="#94A3B8" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search state..."
+                  placeholderTextColor="#94A3B8"
+                  value={stateSearch}
+                  onChangeText={setStateSearch}
+                />
+                {!!stateSearch && (
+                  <TouchableOpacity onPress={() => setStateSearch('')}>
+                    <Icon name="close" size={16} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
-          {filteredStates.length > 0 ? (
-            <View style={styles.chipsContainer}>
-              {filteredStates.map((stateName, idx) => (
-                <View key={`${stateName}-${idx}`} style={styles.stateChip}>
-                  <Icon name="location-on" size={13} color="#20304C" style={{ marginRight: 4 }} />
-                  <Text style={styles.stateChipText}>{stateName}</Text>
+            {filteredStates.length > 0 ? (
+              <>
+                <View style={styles.chipsContainer}>
+                  {displayedStates.map((stateName, idx) => (
+                    <View key={`${stateName}-${idx}`} style={styles.stateChip}>
+                      <Icon name="location-on" size={13} color="#20304C" style={{ marginRight: 4 }} />
+                      <Text style={styles.stateChipText}>{stateName}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyStatesBox}>
-              <Text style={styles.emptyStatesText}>
-                {stateSearch ? 'No matching states found' : 'No states assigned'}
-              </Text>
-            </View>
-          )}
-        </View>
+
+                {filteredStates.length > INITIAL_STATES_LIMIT && !stateSearch.trim() && (
+                  <TouchableOpacity
+                    style={styles.expandStatesBtn}
+                    activeOpacity={0.7}
+                    onPress={() => setExpandedStates(prev => !prev)}
+                  >
+                    <Text style={styles.expandStatesBtnText}>
+                      {expandedStates
+                        ? 'Show Less'
+                        : `View All ${statesList.length} States (+${statesList.length - INITIAL_STATES_LIMIT} more)`}
+                    </Text>
+                    <Icon
+                      name={expandedStates ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                      size={18}
+                      color="#2563EB"
+                    />
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <View style={styles.emptyStatesBox}>
+                <Text style={styles.emptyStatesText}>
+                  {stateSearch ? 'No matching states found' : 'No states assigned'}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -274,13 +312,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingBottom: 14,
     backgroundColor: '#20304C',
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   backBtn: {
     width: 38,
@@ -290,6 +328,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  backBtnPlaceholder: {
+    width: 38,
+    height: 38,
+  },
   headerTitle: {
     flex: 1,
     fontSize: 20,
@@ -297,6 +339,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: -0.3,
     includeFontPadding: false,
+    textAlign: 'center',
     textAlignVertical: 'center',
   },
 
@@ -543,6 +586,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#334155',
     fontWeight: '500',
+  },
+  expandStatesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+    gap: 4,
+    alignSelf: 'center',
+  },
+  expandStatesBtnText: {
+    fontSize: 13,
+    fontFamily: typography.labelMedium.fontFamily,
+    color: '#2563EB',
+    fontWeight: '700',
   },
   emptyStatesBox: {
     paddingVertical: 20,

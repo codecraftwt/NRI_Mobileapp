@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Switch, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
@@ -15,6 +16,7 @@ const CHANNELS = [
 ];
 
 function NotificationPreferences({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [prefs, setPrefs] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -44,8 +46,8 @@ function NotificationPreferences({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#20304C" barStyle="light-content" />
-      <View style={styles.header}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back-ios" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
@@ -93,10 +95,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FDFBF7' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#20304C',
+    paddingHorizontal: 16, paddingBottom: 14, backgroundColor: '#20304C',
   },
   backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontFamily: typography.h4.fontFamily, color: '#FFFFFF' },
+  headerTitle: { flex: 1, fontSize: 18, fontFamily: typography.h4.fontFamily, color: '#FFFFFF', textAlign: 'center' },
 
   stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 80 },
   stateText: { fontSize: 14, color: '#64748B', textAlign: 'center', paddingHorizontal: 30, lineHeight: 20 },

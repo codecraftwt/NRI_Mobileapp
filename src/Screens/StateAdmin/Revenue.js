@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { getStateAdminRevenue } from '../../Api/StateAdmin/stateAdminRevenueApi';
@@ -53,6 +54,7 @@ function getStatusMeta(status) {
 }
 
 function Revenue({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,10 +107,10 @@ function Revenue({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="#20304C" barStyle="light-content" />
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -385,7 +387,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 60,
     paddingBottom: 20,
     backgroundColor: '#20304C',
   },
@@ -406,10 +407,12 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   headerTitle: {
+    flex: 1,
     fontSize: 20,
     fontFamily: typography.h2.fontFamily,
     color: '#FFFFFF',
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   backBtnPlaceholder: {
     width: 36,
