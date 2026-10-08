@@ -155,7 +155,7 @@ function ServiceOffered({ navigation }) {
     return (
       <View style={styles.container}>
         <Header navigation={navigation} title={selectedCategory.name} showBack onBack={backToCategories} />
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView key={`svc-${selectedCategory.id}`} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           {/* Hero — category identity + area (no booking CTA) */}
           <View style={[styles.hero, { backgroundColor: accent + '12' }]}>
@@ -231,7 +231,7 @@ function ServiceOffered({ navigation }) {
     return (
       <View style={styles.container}>
         <Header navigation={navigation} title="Select a Category" showBack onBack={backToAreas} />
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView key={`cat-${selectedArea.key}`} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
           <View style={styles.areaChip}>
             <Icon name="location-on" size={16} color="#2563EB" />

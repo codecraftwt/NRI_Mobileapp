@@ -15,7 +15,6 @@ const titleCase = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const MENU_ITEMS = [
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit your details', icon: 'person-outline', route: 'ProfilePersonal' },
   { key: 'password', label: 'Change Password', subtitle: 'Update your account password', icon: 'lock-outline', route: 'ProfilePassword' },
-  { key: 'bank', label: 'Bank & Payout Details', subtitle: 'Manage payout account', icon: 'account-balance', route: 'BankDetails' },
   { key: 'documents', label: 'Documents / KYC', subtitle: 'Manage verification documents', icon: 'folder-shared', route: 'Documents' },
   { key: 'availability', label: 'Availability', subtitle: 'Manage your job availability', icon: 'event-available', route: 'Availability' },
   { key: 'services', label: 'Services Offered', subtitle: 'View your offered services', icon: 'miscellaneous-services', route: 'ServiceOffered' },

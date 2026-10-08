@@ -4,14 +4,12 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import Clipboard from '@react-native-clipboard/clipboard';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser, deleteAccount } from '../../Redux/slices/userSlice';
-import { useReferrals } from '../../Hooks/useReferrals';
 import { useToast } from '../../context/ToastContext';
 
 const MENU_ITEMS = [
@@ -34,7 +32,6 @@ function Profile({ navigation }) {
   const [deletePassword, setDeletePassword] = useState('');
   const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
-  const { referralCode } = useReferrals();
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
 
@@ -46,12 +43,6 @@ function Profile({ navigation }) {
       dispatch(fetchCurrentUser());
     }, [dispatch])
   );
-
-  const handleCopyCode = () => {
-    if (!referralCode) return;
-    Clipboard.setString(referralCode);
-    showToast('Referral code copied successfully!', 'success');
-  };
 
   const name = user?.name || '';
   const initials = (name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -217,30 +208,6 @@ function Profile({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Premium Referral Code Card */}
-        <View style={styles.referralCard}>
-          <View style={styles.referralBgDeco} />
-          
-          <View style={styles.referralHeader}>
-            <View style={styles.referralHeaderLeft}>
-              <View style={styles.giftIconWrap}>
-                <Icon name="redeem" size={20} color="#F59E0B" />
-              </View>
-              <Text style={styles.referralTitle}>Refer & Earn</Text>
-            </View>
-          </View>
-          
-          <Text style={styles.referralFooter}>Share your code & earn for every Premium plan referral.</Text>
-
-          <View style={styles.referralCodeBox}>
-            <Text style={styles.referralCodeText}>{referralCode || 'WY71RSH2'}</Text>
-            <TouchableOpacity style={styles.copyBtn} activeOpacity={0.7} onPress={handleCopyCode}>
-              <Icon name="content-copy" size={16} color="#FFFFFF" />
-              <Text style={styles.copyBtnText}>Copy</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         <View style={styles.menuCard}>
           {MENU_ITEMS.map((item, index) => (
@@ -426,109 +393,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
     minHeight: H * 0.7,
-  },
-
-  referralCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 24,
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  referralBgDeco: {
-    position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#EEF2FF',
-  },
-  referralHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 12,
-    zIndex: 1,
-  },
-  referralHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  giftIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  referralTitle: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: '#0F172A' 
-  },
-  earnedBadge: { 
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  earnedText: { 
-    fontSize: 13, 
-    fontWeight: '800', 
-    color: '#16A34A' 
-  },
-  referralFooter: { 
-    fontSize: 14, 
-    color: '#475569', 
-    marginBottom: 14,
-    lineHeight: 20,
-    paddingRight: 20,
-    zIndex: 1,
-  },
-  referralCodeBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    paddingLeft: 20,
-    paddingRight: 8,
-    paddingVertical: 8,
-    zIndex: 1,
-  },
-  referralCodeText: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: '#0F172A', 
-    letterSpacing: 4 
-  },
-  copyBtn: { 
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1E3A8A', 
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  copyBtnText: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: '#FFFFFF' 
   },
 
   menuCard: {
