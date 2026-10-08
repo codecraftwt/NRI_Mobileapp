@@ -132,6 +132,13 @@ export function mapJobDetail(raw) {
       name: customer.name || raw.customer_name || '—',
       phone: customer.phone || raw.customer_phone || '',
     },
+    familyMember: raw.family_member
+      ? {
+          id: raw.family_member.id ?? null,
+          name: raw.family_member.name || (typeof raw.family_member === 'string' ? raw.family_member : ''),
+          relationship: raw.family_member.relationship || null,
+        }
+      : (raw.family_member_name ? { id: null, name: raw.family_member_name, relationship: raw.family_member_relationship || null } : null),
     address: {
       line: loc.address || loc.line || raw.address || '—',
       city: buildLocation(loc, raw),
@@ -149,10 +156,19 @@ export function mapJobDetail(raw) {
           .filter(Boolean)
       : [],
     // Documents the customer attached to the request (viewable by the vendor).
-    customerDocuments: (raw.customer_documents || []).map(d => ({
+    customerDocuments: (raw.customer_documents || raw.documents || []).map(d => ({
       id: d.id,
-      name: d.name || 'Document',
-      url: d.url || null,
+      label: d.label || d.name || 'Document',
+      name: d.label || d.name || d.filename || 'Document',
+      url: d.url || d.file_url || null,
+    })),
+    documentRequests: (raw.document_requests || []).map(dr => ({
+      id: dr.id,
+      label: dr.label || dr.name || 'Document',
+      note: dr.note || null,
+      status: dr.status,
+      statusLabel: dr.status_label || (String(dr.status).toLowerCase() === 'fulfilled' ? 'Fulfilled' : 'Pending'),
+      files: (dr.files || []).map(f => (typeof f === 'string' ? { url: f, name: f.split('/').pop() } : { url: f?.url || f?.file_url, name: f?.name || f?.label || 'File' })).filter(Boolean),
     })),
     committedEta: formatDateTime(raw.committed_eta || raw.vendor_eta || raw.committed_at),
     report: report?.report_text || report?.note || report?.text || report?.summary || report?.description || null,

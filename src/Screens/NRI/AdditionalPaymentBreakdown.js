@@ -9,7 +9,7 @@ import { useBilling } from '../../Hooks/useBilling';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { formatAmount } from '../../Utils/currency';
 import { typography } from '../../theme/typography';
 
@@ -98,7 +98,11 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
         onPaid();
       }
     } catch (error) {
-      showAlert('Payment Failed', error?.message || 'Could not start payment. Please try again.');
+      if (isPaymentCancelled(error)) {
+        showAlert('Payment Cancelled', 'Payment was not completed. You can tap Pay whenever you are ready to retry.');
+      } else {
+        showAlert('Payment Failed', error?.message || 'Could not start payment. Please try again.');
+      }
     } finally {
       setPaying(false);
     }

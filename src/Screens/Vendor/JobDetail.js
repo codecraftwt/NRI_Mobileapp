@@ -13,7 +13,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useToast } from '../../context/ToastContext';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useVendorJobDetail } from '../../Hooks/Vendor/useVendorJobDetail';
-import { getVendorJobInvoiceUrl, getVendorJobSupportChat } from '../../Api/Vendor/vendorJobsApi';
+import { getVendorJobInvoiceUrl, getVendorJobSupportChat, reopenVendorDocumentRequest } from '../../Api/Vendor/vendorJobsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 
 // Completion proof: up to 8 files, 25 MB each (per the /complete endpoint).
@@ -41,6 +41,28 @@ function getQuoteStatusStyle(status) {
     case 'rejected': return { pill: { backgroundColor: '#FEE2E2' }, text: { color: '#DC2626' }, label: 'Rejected' };
     default: return { pill: { backgroundColor: '#F3F4F6' }, text: { color: '#4B5563' }, label: status ? String(status) : 'Pending' };
   }
+}
+
+function getDocStatusPill(status) {
+  return String(status).toLowerCase() === 'fulfilled'
+    ? { bg: '#D1FAE5', text: '#059669', label: 'Fulfilled' }
+    : { bg: '#FFEDD5', text: '#C2410C', label: 'Pending' };
+}
+
+function formatDocTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatShortDateTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day}, ${time}`;
 }
 
 function formatDisputeDate(iso) {
@@ -74,6 +96,7 @@ function JobDetail({ route, navigation }) {
 
   const [refreshing, setRefreshing] = useState(false);
   const [supportChatReplies, setSupportChatReplies] = useState([]);
+  const [reopeningId, setReopeningId] = useState(null);
 
   const fetchSupportChat = useCallback(async () => {
     if (ticketId == null) return;
@@ -84,6 +107,20 @@ function JobDetail({ route, navigation }) {
       // Chat may not exist yet or request failed; silent fallback
     }
   }, [ticketId]);
+
+  const handleReopen = async (documentRequestId) => {
+    if (reopeningId) return;
+    setReopeningId(documentRequestId);
+    try {
+      await reopenVendorDocumentRequest(ticketId, documentRequestId);
+      showToast('Document request reopened', 'success');
+      await fetchSupportChat();
+    } catch (e) {
+      showAlert('Could Not Reopen', e?.message || 'Please try again.');
+    } finally {
+      setReopeningId(null);
+    }
+  };
 
   useEffect(() => {
     fetchSupportChat();
@@ -113,24 +150,43 @@ function JobDetail({ route, navigation }) {
     }, [ticketId, fetchSupportChat])
   );
 
-  // Extract latest state of each document request from support chat
+  // Extract latest state of each document request from support chat & job detail
   const documentRequests = React.useMemo(() => {
     const map = new Map();
+    for (const dr of job?.documentRequests || []) {
+      if (dr && dr.id != null) {
+        map.set(dr.id, {
+          ...dr,
+          requestedAt: dr.createdAt || dr.requestedAt || null,
+          uploadedAt: dr.fulfilledAt || dr.uploadedAt || null,
+        });
+      }
+    }
     for (const reply of supportChatReplies) {
       const dr = reply?.documentRequest;
       if (dr && dr.id != null) {
         const existing = map.get(dr.id);
+        const isUploadReply = String(reply.message || '').toLowerCase().includes('upload') || (dr.files && dr.files.length > 0);
+        const requestedAt = existing?.requestedAt || (!isUploadReply ? reply.createdAt : null) || dr.createdAt;
+        const uploadedAt = dr.fulfilledAt || (isUploadReply ? reply.createdAt : null) || existing?.uploadedAt;
+
         if (!existing || dr.isLatest || (dr.files && dr.files.length > 0)) {
           map.set(dr.id, {
+            ...existing,
             ...dr,
-            replyCreatedAt: reply.createdAt,
+            label: dr.label || existing?.label || 'Document',
+            requestedAt,
+            uploadedAt,
+            authorName: reply.authorName || existing?.authorName,
+            replyCreatedAt: reply.createdAt || existing?.replyCreatedAt,
+            replyMessage: reply.message || existing?.replyMessage,
             files: (dr.files && dr.files.length > 0) ? dr.files : (existing?.files || []),
           });
         }
       }
     }
     return Array.from(map.values());
-  }, [supportChatReplies]);
+  }, [supportChatReplies, job?.documentRequests]);
 
   // Two-section layout: "Overview" (read-only info) vs "Actions" (everything actionable).
   const [activeTab, setActiveTab] = useState('overview');
@@ -493,12 +549,6 @@ function JobDetail({ route, navigation }) {
     }
   };
 
-  const handleCallCustomer = () => {
-    Linking.openURL(`tel:${job.customer.phone}`).catch(() =>
-      showAlert('Could Not Call', 'Unable to open the dialer.')
-    );
-  };
-
   const handleGetDirections = () => {
     const query = encodeURIComponent([job.address.line, job.address.city].filter(Boolean).join(', '));
     Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`).catch(() =>
@@ -666,12 +716,18 @@ function JobDetail({ route, navigation }) {
                 <Text style={styles.customerName}>{job.customer.name}</Text>
                 <Text style={styles.customerPhone}>{job.customer.phone}</Text>
               </View>
-              <TouchableOpacity style={styles.callBtn} onPress={handleCallCustomer} activeOpacity={0.8}>
-                <Icon name="call" size={16} color="#FFFFFF" />
-                <Text style={styles.callBtnText}>Call</Text>
-              </TouchableOpacity>
             </View>
           </View>
+
+          {!!job.familyMember?.name && (
+            <View style={styles.detailBlock}>
+              <Text style={styles.infoLabel}>Family Member</Text>
+              <Text style={styles.infoValueBold}>
+                {job.familyMember.name}
+                {job.familyMember.relationship ? ` (${job.familyMember.relationship.charAt(0).toUpperCase() + job.familyMember.relationship.slice(1)})` : ''}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.detailBlock}>
             <Text style={styles.infoLabel}>Address</Text>
@@ -728,82 +784,68 @@ function JobDetail({ route, navigation }) {
             <View style={styles.docRequestsContainer}>
               {documentRequests.map((dr, index) => {
                 const isFulfilled = String(dr.status || '').toLowerCase() === 'fulfilled';
+                const requestedStr = dr.requestedAt ? formatShortDateTime(dr.requestedAt) : '';
+                const uploadedStr = dr.uploadedAt ? formatShortDateTime(dr.uploadedAt) : (dr.replyCreatedAt ? formatShortDateTime(dr.replyCreatedAt) : '');
+                let metaText = '';
+                if (requestedStr && uploadedStr) {
+                  metaText = `Requested ${requestedStr} · uploaded ${uploadedStr}`;
+                } else if (requestedStr) {
+                  metaText = `Requested ${requestedStr}`;
+                } else if (uploadedStr) {
+                  metaText = `Uploaded ${uploadedStr}`;
+                }
+
                 return (
                   <View
                     key={dr.id ?? index}
                     style={[
-                      styles.docRequestItem,
-                      isFulfilled ? styles.docRequestItemFulfilled : styles.docRequestItemPending,
+                      styles.docItemBlock,
+                      index > 0 && styles.docItemBorderTop,
                     ]}
                   >
-                    <View style={styles.docRequestHeaderRow}>
-                      <View style={styles.docRequestTitleWrap}>
-                        <Icon
-                          name={isFulfilled ? 'check-circle' : 'hourglass-top'}
-                          size={18}
-                          color={isFulfilled ? '#059669' : '#D97706'}
-                        />
-                        <Text style={styles.docRequestTitle}>{dr.label || 'Document'}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.docRequestStatusBadge,
-                          isFulfilled ? styles.docStatusBadgeFulfilled : styles.docStatusBadgePending,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.docRequestStatusText,
-                            isFulfilled ? styles.docStatusTextFulfilled : styles.docStatusTextPending,
-                          ]}
-                        >
-                          {dr.statusLabel || (isFulfilled ? 'Fulfilled' : 'Pending Upload')}
-                        </Text>
-                      </View>
-                    </View>
+                    <Text style={styles.docItemTitle}>{dr.label || dr.name || 'Document'}</Text>
 
-                    {!!dr.note && (
-                      <Text style={styles.docRequestNote}>Note: {dr.note}</Text>
+                    {!!metaText && (
+                      <Text style={styles.docItemSubtitle}>{metaText}</Text>
                     )}
 
-                    {isFulfilled && dr.files && dr.files.length > 0 ? (
-                      <View style={styles.docFilesContainer}>
-                        {dr.files.map((file, fIdx) => {
-                          const fileUrl = typeof file === 'string' ? file : file?.url;
-                          const fileName = `File ${fIdx + 1}`;
-                          const isPdf = /\.pdf(\?|$)/i.test(fileUrl || '');
-                          const isImg = /\.(png|jpe?g|webp|gif|bmp)(\?|$)/i.test(fileUrl || '');
-
+                    {dr.files && dr.files.length > 0 && (
+                      <View style={styles.docFileListRow}>
+                        {dr.files.map((f, idx) => {
+                          const fileUrl = typeof f === 'string' ? f : f?.url;
+                          const fileName = (typeof f === 'object' && f?.name) ? f.name : `File ${idx + 1}`;
                           return (
                             <TouchableOpacity
-                              key={fileUrl || fIdx}
-                              style={styles.docFileCard}
-                              onPress={() => openAttachment(fileUrl, fileName)}
+                              key={fileUrl || idx}
+                              style={styles.docFilePill}
+                              onPress={() => openAttachment(f, fileName)}
                               activeOpacity={0.7}
                               disabled={!fileUrl}
                             >
-                              <View style={styles.docFileIconWrap}>
-                                <Icon
-                                  name={isPdf ? 'picture-as-pdf' : isImg ? 'photo' : 'insert-drive-file'}
-                                  size={20}
-                                  color="#2563EB"
-                                />
-                              </View>
-                              <View style={styles.docFileInfo}>
-                                <Text style={styles.docFileName} numberOfLines={1}>
-                                  {fileName}
-                                </Text>
-                                <Text style={styles.docFileActionText}>Tap to preview / view</Text>
-                              </View>
-                              <Icon name="visibility" size={18} color="#64748B" />
+                              <Icon name="attach-file" size={15} color="#0F172A" />
+                              <Text style={styles.docFilePillText}>File {idx + 1}</Text>
                             </TouchableOpacity>
                           );
                         })}
                       </View>
-                    ) : isFulfilled ? (
-                      <Text style={styles.docPendingText}>Customer has fulfilled this request.</Text>
-                    ) : (
-                      <Text style={styles.docPendingText}>Waiting for customer to upload the document.</Text>
+                    )}
+
+                    {isFulfilled && (
+                      <TouchableOpacity
+                        style={styles.reopenBtn}
+                        onPress={() => handleReopen(dr.id)}
+                        disabled={reopeningId === dr.id}
+                        activeOpacity={0.85}
+                      >
+                        {reopeningId === dr.id ? (
+                          <ActivityIndicator size="small" color="#B45309" />
+                        ) : (
+                          <>
+                            <Icon name="replay" size={14} color="#B45309" />
+                            <Text style={styles.reopenBtnText}>Reopen — ask again</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     )}
                   </View>
                 );
@@ -1842,48 +1884,49 @@ const styles = StyleSheet.create({
   },
   requestDocumentPillText: { fontSize: 12, fontWeight: '700', color: '#2563EB' },
 
-  docRequestsContainer: { marginTop: 12, gap: 10 },
-  docRequestItem: {
-    borderRadius: 12, borderWidth: 1, padding: 12, gap: 8,
+  docRequestsContainer: { marginTop: 8 },
+  docItemBlock: { paddingVertical: 8 },
+  docItemBorderTop: { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 12 },
+  docItemTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', fontFamily: typography.h3.fontFamily },
+  docItemSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, fontFamily: typography.labelMedium.fontFamily },
+  docFileListRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  docFilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  docRequestItemFulfilled: {
-    backgroundColor: '#F0FDF4', borderColor: '#BBF7D0',
+  docFilePillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+    fontFamily: typography.labelMedium.fontFamily,
   },
-  docRequestItemPending: {
-    backgroundColor: '#FFFBEB', borderColor: '#FEF3C7',
+  reopenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginTop: 10,
   },
-  docRequestHeaderRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+  reopenBtnText: {
+    color: '#B45309',
+    fontSize: 12.5,
+    fontFamily: typography.labelMedium.fontFamily,
+    fontWeight: '700',
   },
-  docRequestTitleWrap: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-  },
-  docRequestTitle: {
-    fontSize: 14, fontWeight: '700', color: '#0F172A', flex: 1,
-  },
-  docRequestStatusBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-  },
-  docStatusBadgeFulfilled: { backgroundColor: '#DCFCE7' },
-  docStatusBadgePending: { backgroundColor: '#FEF3C7' },
-  docRequestStatusText: { fontSize: 11, fontWeight: '700' },
-  docStatusTextFulfilled: { color: '#15803D' },
-  docStatusTextPending: { color: '#B45309' },
-  docRequestNote: { fontSize: 12, color: '#64748B', fontStyle: 'italic' },
-  docFilesContainer: { marginTop: 4, gap: 8 },
-  docFileCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#FFFFFF', borderRadius: 10, padding: 10,
-    borderWidth: 1, borderColor: '#E2E8F0',
-  },
-  docFileIconWrap: {
-    width: 34, height: 34, borderRadius: 8, backgroundColor: '#EFF6FF',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  docFileInfo: { flex: 1 },
-  docFileName: { fontSize: 13, fontWeight: '600', color: '#1E293B' },
-  docFileActionText: { fontSize: 11, color: '#64748B', marginTop: 1 },
-  docPendingText: { fontSize: 12, color: '#92400E', fontStyle: 'italic' },
 
   supportChatFab: {
     position: 'absolute', right: 20, bottom: 24,

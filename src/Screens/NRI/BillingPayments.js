@@ -8,13 +8,10 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useBilling } from '../../Hooks/useBilling';
-import { useMembership } from '../../Hooks/useMembership';
-import { useMyAddonPackages } from '../../Hooks/useMyAddonPackages';
-import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { getReceiptDownloadUrl } from '../../Api/paymentsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { usePaymentGateways } from '../../Hooks/usePaymentGateways';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
@@ -67,26 +64,12 @@ function PageSizeField({ value, onSelect }) {
 }
 
 function BillingPayments({ navigation }) {
-  const { overview, loading, failed, retry, pay, verifyPayment, stopAutoRenew, stopAutoRenewLoading, cancelAllSubscriptions, cancelAllLoading } = useBilling();
-  // The persistent membership resource (GET /customer/membership) — unlike
-  // overview.autoRenewingMembership (which the backend drops entirely once
-  // auto-renew is off), this keeps returning the membership with its own
-  // status/autoRenew fields, same shape as service subscriptions below, so
-  // the row can stay visible as "stopped" instead of vanishing after cancel.
-  const { membership, retry: retryMembership } = useMembership();
-  const { cancelSubscription } = useMyAddonPackages();
-  const {
-    subscriptions: serviceSubscriptions,
-    fetchSubscriptions,
-    cancelSubscription: cancelServiceSubAutoRenew,
-  } = useServiceSubscription();
+  const { overview, loading, failed, retry, pay, verifyPayment } = useBilling();
   const { gateways } = usePaymentGateways();
   const user = useSelector(state => state.user.user);
   const token = useSelector(state => state.user.token);
   const [payingKey, setPayingKey] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
-  const [cancelingId, setCancelingId] = useState(null);
-  const [cancelingSubId, setCancelingSubId] = useState(null);
   // { url, paymentId, label } while the hosted-checkout WebView is open.
   const [checkoutSession, setCheckoutSession] = useState(null);
   const [pageSize, setPageSize] = useState(10);
@@ -105,8 +88,6 @@ function BillingPayments({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       retry();
-      fetchSubscriptions();
-      retryMembership();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
@@ -138,7 +119,11 @@ function BillingPayments({ navigation }) {
         showAlert('Payment Successful', result.message || `${item.label} has been paid.`);
       }
     } catch (error) {
-      showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
+      if (isPaymentCancelled(error)) {
+        showAlert('Payment Cancelled', 'Payment was not completed. You can try paying again whenever you are ready.');
+      } else {
+        showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
+      }
     } finally {
       setPayingKey(null);
     }
@@ -203,158 +188,7 @@ function BillingPayments({ navigation }) {
     }
   };
 
-  const handleStopMembershipAutoRenew = (mem) => {
-    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${mem.planName}? It stays active until it expires.`, [
-      { text: 'Keep It', style: 'cancel' },
-      {
-        text: 'Stop Renewal',
-        style: 'destructive',
-        onPress: () => {
-          stopAutoRenew(mem.id)
-            .unwrap()
-            .then(() => {
-              // A 200/success:true here doesn't prove the gateway-side
-              // cancellation actually completed — re-fetch the persistent
-              // membership resource (GET /customer/membership) — same source
-              // used for the row below — so the row reflects what the server
-              // actually agrees the state is, rather than
-              // overview.autoRenewingMembership just going null and taking
-              // the whole row with it.
-              retryMembership();
-              retry(); // keep the billing overview (outstanding total etc.) in sync too
-            })
-            .catch((error) => {
-              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
-            });
-        },
-      },
-    ]);
-  };
-
-  const handleStopAddonAutoRenew = (sub) => {
-    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${sub.packageName}?`, [
-      { text: 'Keep It', style: 'cancel' },
-      {
-        text: 'Stop Renewal',
-        style: 'destructive',
-        onPress: () => {
-          setCancelingId(sub.id);
-          cancelSubscription(sub.id)
-            .unwrap()
-            .then(() => {
-              // cancelSubscription only updates the addonSubscription slice's
-              // `packages` list — the row rendered here comes from
-              // overview.addonSubscriptions (billing slice), a DIFFERENT
-              // piece of state that this call never touches. Without this
-              // refetch the row keeps showing "auto-renews" no matter what
-              // the server actually did.
-              retry();
-            })
-            .catch((error) => {
-              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
-            })
-            .finally(() => setCancelingId(null));
-        },
-      },
-    ]);
-  };
-
-  const handleStopServiceSubAutoRenew = (sub) => {
-    const label = (sub.services || []).map(s => s.name).join(', ') || 'this subscription';
-    showAlert('Stop Auto-renewal', `Stop auto-renewal for ${label}? It stays active until the current period ends.`, [
-      { text: 'Keep It', style: 'cancel' },
-      {
-        text: 'Stop Renewal',
-        style: 'destructive',
-        onPress: () => {
-          setCancelingSubId(sub.id);
-          cancelServiceSubAutoRenew(sub.id)
-            .unwrap()
-            .then(() => {
-              // The slice's reducer optimistically sets autoRenew: false on
-              // ANY 200 response, regardless of what the server actually did
-              // with it — re-fetch here so a backend that silently no-ops
-              // the cancel shows up as still-active instead of staying
-              // hidden behind the optimistic flip.
-              fetchSubscriptions();
-            })
-            .catch((error) => {
-              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
-            })
-            .finally(() => setCancelingSubId(null));
-        },
-      },
-    ]);
-  };
-
-  const handleCancelAll = () => {
-    showAlert(
-      'Cancel All Subscriptions',
-      'Stop auto-renewal on your membership and every recurring service subscription in one go? Everything stays active until its own paid period ends.',
-      [
-        { text: 'Keep Them', style: 'cancel' },
-        {
-          text: 'Cancel All',
-          style: 'destructive',
-          onPress: () => {
-            cancelAllSubscriptions()
-              .unwrap()
-              .then((result) => {
-                // This endpoint always resolves 200 with a per-item outcome —
-                // a top-level "success" doesn't mean every item actually
-                // cancelled. Surface any item whose own status isn't
-                // 'cancelled' instead of blanket-showing "Done".
-                const failedMembership = result.membership && result.membership.status !== 'cancelled' ? result.membership : null;
-                const failedSubs = (result.serviceSubscriptions || []).filter(s => s.status !== 'cancelled');
-
-                if (failedMembership || failedSubs.length) {
-                  showAlert('Partially Completed', [
-                    failedMembership ? `Membership: ${failedMembership.status}` : null,
-                    ...failedSubs.map(s => `${s.label}: ${s.status}`),
-                  ].filter(Boolean).join('\n') || 'Some subscriptions could not be cancelled. Please try again or contact support.');
-                } else {
-                  showAlert('Done', result.message || 'Auto-renewal stopped.');
-                }
-
-                retry();
-                retryMembership();
-                fetchSubscriptions();
-              })
-              .catch((error) => {
-                showAlert('Failed', error?.message || 'Could not cancel subscriptions.');
-              });
-          },
-        },
-      ]
-    );
-  };
-
   const allItems = overview?.items || [];
-  const autoRenewingAddons = (overview?.addonSubscriptions || []).filter(s => s.autoRenew);
-  const autoRenewingServiceSubs = (serviceSubscriptions || []).filter(s => s.autoRenew);
-  // Stays visible after auto-renewal is stopped — active until currentPeriodEndsAt,
-  // same as the web billing table — so the customer can still see the until date.
-  const visibleServiceSubs = (serviceSubscriptions || []).filter(s => s.status === 'active');
-  const hasAutoRenewals = !!membership?.autoRenew || autoRenewingAddons.length > 0 || autoRenewingServiceSubs.length > 0;
-  // Same "stays visible, just marked stopped" treatment as visibleServiceSubs
-  // above — sourced from the persistent GET /customer/membership resource
-  // (status stays 'active', autoRenew flips to false), not from
-  // overview.autoRenewingMembership, which the backend drops entirely once
-  // auto-renew is off.
-  const visibleMembership = membership && membership.status === 'active' ? membership : null;
-  // The billing overview's own invoice line for this membership (GET
-  // /customer/billing → items[].type === 'membership') always carries the
-  // real GST-inclusive amount actually charged, so prefer that for display.
-  const membershipBillingItem = allItems.find(i => i.type === 'membership' && (visibleMembership ? i.id === visibleMembership.id : true));
-  // Otherwise fall back to the membership's own paidAmountDisplay (already
-  // formatted with currency by the backend), then its plan price — paid_*
-  // on GET /customer/membership is null when no payment was taken (e.g. an
-  // admin-assigned membership).
-  const membershipPriceDisplay = membershipBillingItem?.amount != null
-    ? formatUsd(membershipBillingItem.amount)
-    : visibleMembership?.paidAmountDisplay
-      || (visibleMembership?.price != null ? formatUsd(visibleMembership.price) : null);
-
   const lastPage = Math.max(1, Math.ceil(allItems.length / pageSize));
   const currentPage = Math.min(page, lastPage);
   const pagedItems = allItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -392,108 +226,6 @@ function BillingPayments({ navigation }) {
                 <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{allItems.length}</Text>
               </View>
             </View>
-
-            {hasAutoRenewals && (
-              <View style={styles.cancelAllCard}>
-                <View style={styles.cancelAllHeaderRow}>
-                  <Icon name="highlight-off" size={18} color={colors.error} />
-                  <Text style={styles.cancelAllTitle}>Cancel All Subscriptions</Text>
-                </View>
-                <TouchableOpacity style={styles.cancelAllBtn} onPress={handleCancelAll} disabled={cancelAllLoading}>
-                  {cancelAllLoading ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.cancelAllBtnText}>Cancel All Subscriptions</Text>}
-                </TouchableOpacity>
-                <Text style={styles.cancelAllDesc}>
-                  Stops auto-renewal on your membership and every recurring service subscription in one go. Everything stays active until its own paid period ends.
-                </Text>
-              </View>
-            )}
-
-            {visibleMembership && (
-              <View style={styles.autoRenewCard}>
-                <View style={styles.autoRenewHeaderRow}>
-                  <Icon name="autorenew" size={18} color={colors.success} />
-                  <Text style={styles.sectionTitle}>Membership Auto-renewal</Text>
-                </View>
-                <View style={styles.autoRenewRow}>
-                  <View style={styles.autoRenewInfo}>
-                    <Text style={styles.autoRenewName}>{visibleMembership.planName}</Text>
-                    <Text style={styles.autoRenewMeta}>
-                      {membershipPriceDisplay != null && (
-                        <Text style={styles.autoRenewPriceInline}>
-                          {membershipPriceDisplay}/yr{visibleMembership.endDate ? '  ·  ' : ''}
-                        </Text>
-                      )}
-                      {!!visibleMembership.endDate && (
-                        visibleMembership.autoRenew
-                          ? `Auto-renews on ${formatDate(visibleMembership.endDate)}`
-                          : `Active until ${formatDate(visibleMembership.endDate)} — stopped`
-                      )}
-                    </Text>
-                  </View>
-                  {visibleMembership.autoRenew && (
-                    <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopMembershipAutoRenew(visibleMembership)} disabled={stopAutoRenewLoading}>
-                      {stopAutoRenewLoading ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {visibleServiceSubs.length > 0 && (
-              <View style={styles.autoRenewCard}>
-                <View style={styles.autoRenewHeaderRow}>
-                  <Icon name="autorenew" size={18} color={colors.success} />
-                  <Text style={styles.sectionTitle}>Service Subscriptions</Text>
-                </View>
-                {visibleServiceSubs.map(sub => (
-                  <View key={sub.id} style={styles.autoRenewRow}>
-                    <View style={styles.autoRenewInfo}>
-                      <Text style={styles.autoRenewName}>{(sub.services || []).map(s => s.name).join(', ') || 'Service subscription'}</Text>
-                      <Text style={styles.autoRenewMeta}>
-                        {sub.amount != null && (
-                          <Text style={styles.autoRenewPriceInline}>
-                            {formatUsd(sub.amount)}{sub.billingInterval ? `/${sub.billingInterval}` : ''}
-                            {sub.currentPeriodEndsAt ? '  ·  ' : ''}
-                          </Text>
-                        )}
-                        {!!sub.currentPeriodEndsAt && (
-                          sub.autoRenew ? `Auto-renews on ${formatDate(sub.currentPeriodEndsAt)}` : `Active until ${formatDate(sub.currentPeriodEndsAt)} — stopped`
-                        )}
-                      </Text>
-                    </View>
-                    {sub.autoRenew && (
-                      <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopServiceSubAutoRenew(sub)} disabled={cancelingSubId === sub.id}>
-                        {cancelingSubId === sub.id ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {autoRenewingAddons.length > 0 && (
-              <View style={styles.autoRenewCard}>
-                <View style={styles.autoRenewHeaderRow}>
-                  <Icon name="autorenew" size={18} color={colors.success} />
-                  <Text style={styles.sectionTitle}>Add-on Subscriptions</Text>
-                </View>
-                {autoRenewingAddons.map(sub => (
-                  <View key={sub.id} style={styles.autoRenewRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.autoRenewName}>
-                        {sub.packageName} <Text style={styles.autoRenewType}>(monthly add-on)</Text>
-                      </Text>
-                      <Text style={styles.autoRenewMeta}>
-                        {sub.currentPeriodEndsAt ? `Auto-renews on ${formatDate(sub.currentPeriodEndsAt)}` : `Status: ${sub.status}`}
-                      </Text>
-                    </View>
-                    <TouchableOpacity style={styles.stopRenewBtn} onPress={() => handleStopAddonAutoRenew(sub)} disabled={cancelingId === sub.id}>
-                      {cancelingId === sub.id ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.stopRenewBtnText}>Stop Auto-renewal</Text>}
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
 
             <View style={styles.invoicesContainer}>
               <View style={styles.sectionHeaderRow}>
@@ -623,41 +355,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   
   sectionTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
-
-  cancelAllCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  cancelAllHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cancelAllTitle: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  cancelAllBtn: { alignSelf: 'flex-start', borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginTop: 12 },
-  cancelAllBtnText: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
-  cancelAllDesc: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 10, lineHeight: 18 },
-
-  autoRenewCard: {
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 20, 
-    padding: 16, 
-    borderWidth: 1, 
-    borderColor: '#E0E7FF', 
-    shadowColor: '#1E3A8A', 
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.06, 
-    shadowRadius: 16, 
-    elevation: 4 
-  },
-  autoRenewHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  autoRenewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
-  autoRenewInfo: { flex: 1, gap: 2 },
-  autoRenewName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
-  autoRenewType: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
-  autoRenewMeta: { fontSize: 13, fontFamily: typography.body.fontFamily, color: '#64748B', marginTop: 4 },
-  autoRenewPriceInline: { fontFamily: typography.h4.fontFamily, color: colors.primary },
-  stopRenewBtn: { borderWidth: 1, borderColor: '#EF4444', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  stopRenewBtnText: { fontSize: 12, fontFamily: typography.labelMedium.fontFamily, color: '#EF4444' },
 
   invoicesContainer: { marginTop: 4 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 },

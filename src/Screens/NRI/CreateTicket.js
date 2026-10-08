@@ -34,7 +34,7 @@ import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useTalukas } from '../../Hooks/useTalukas';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
@@ -654,6 +654,13 @@ function CreateTicket({ route, navigation }) {
         );
         return;
       }
+      if (isPaymentCancelled(error)) {
+        showAlert(
+          'Payment Cancelled',
+          'Payment was not completed. Your recurring subscription has not been activated. You can tap "Submit Request" to try again whenever you are ready.'
+        );
+        return;
+      }
       showAlert('Subscription Failed', error?.message || 'Could not start your subscription. Please try again.');
     }
   };
@@ -743,6 +750,13 @@ function CreateTicket({ route, navigation }) {
             { text: 'Cancel', style: 'cancel' },
             { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
           ]
+        );
+        return;
+      }
+      if (isPaymentCancelled(error)) {
+        showAlert(
+          'Payment Cancelled',
+          'Payment was not completed. Your request has not been submitted yet. You can review your details and tap "Submit Request" to try again whenever you are ready.'
         );
         return;
       }

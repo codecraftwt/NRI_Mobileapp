@@ -12,7 +12,7 @@ import { useCities } from '../../Hooks/useCities';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { getServices } from '../../Api/catalogApi';
 import { typography } from '../../theme/typography';
 
@@ -309,7 +309,11 @@ function CustomPlanNew({ navigation }) {
             // cached quote so a retry fetches a fresh one.
             setQuote(null);
             lastFetchedFingerprintRef.current = null;
-            showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
+            if (isPaymentCancelled(error)) {
+              showAlert('Payment Cancelled', 'Payment was not completed. Your custom plan request has not been submitted yet.');
+            } else {
+              showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
+            }
           } finally {
             setPayingRazorpay(false);
           }

@@ -20,8 +20,7 @@ import { useBilling } from '../../Hooks/useBilling';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { pick, types as docTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
-import { resolveLocalCopies } from '../../Utils/localFileCopy';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
@@ -594,9 +593,16 @@ function SubmitRequest({ navigation }) {
         await finishSuccess();
         return;
       }
-      showAlert('Subscription Failed', error?.message || 'Could not start payment for your recurring service. Please try again from Requests.');
       submissionLockRef.current = false;
       setSubmissionInProgress(false);
+      if (isPaymentCancelled(error)) {
+        showAlert(
+          'Payment Cancelled',
+          'Payment was not completed. Your recurring service has not been activated yet. You can tap "Submit Request" to try again whenever you are ready.'
+        );
+        return;
+      }
+      showAlert('Subscription Failed', error?.message || 'Could not start payment for your recurring service. Please try again from Requests.');
     }
   };
 
@@ -866,9 +872,9 @@ function SubmitRequest({ navigation }) {
         await handlePostCheckout(result.pendingRecurringBundle);
       }
     } catch (error) {
+      submissionLockRef.current = false;
+      setSubmissionInProgress(false);
       if (error?.requiresMembership || error?.errors?.requires_membership || (error?.status === 403 && String(error?.message).toLowerCase().includes('membership'))) {
-        submissionLockRef.current = false;
-        setSubmissionInProgress(false);
         showAlert(
           'Active Membership Required',
           error?.message || 'An active membership is required to book services. Please purchase a membership first.',
@@ -876,6 +882,13 @@ function SubmitRequest({ navigation }) {
             { text: 'Cancel', style: 'cancel' },
             { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
           ]
+        );
+        return;
+      }
+      if (isPaymentCancelled(error)) {
+        showAlert(
+          'Payment Cancelled',
+          'Payment was not completed. Your request has not been submitted yet. You can review your details and tap "Submit Request" to try again whenever you are ready.'
         );
         return;
       }
@@ -895,8 +908,6 @@ function SubmitRequest({ navigation }) {
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
         || 'Could not submit your request. Please try again.';
       showAlert('Submission Failed', msg);
-      submissionLockRef.current = false;
-      setSubmissionInProgress(false);
     }
   };
 

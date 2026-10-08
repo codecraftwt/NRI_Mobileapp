@@ -18,6 +18,23 @@ function extractRazorpayMessage(raw) {
   }
 }
 
+// Determines if a payment rejection/error was caused by the user cancelling or closing the checkout.
+export function isPaymentCancelled(error) {
+  if (!error) return false;
+  if (error.isCancelled) return true;
+  if (error.code === 0 || error.code === 2) return true;
+  const msg = String(error.message || error.description || error || '').toLowerCase();
+  return (
+    msg.includes('cancelled') ||
+    msg.includes('canceled') ||
+    msg.includes('closed') ||
+    msg.includes('dismissed') ||
+    msg === 'payment error' ||
+    msg.includes('payment processing cancelled') ||
+    msg.includes('the payment was not completed')
+  );
+}
+
 // A gateway `order` from the backend is either a one-time order
 // ({ order_id, amount, currency }) or a recurring subscription
 // ({ subscription_id }) — e.g. membership checkout returns the former,
@@ -59,7 +76,23 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
     // react-native-razorpay rejects with { code, description } on
     // cancel/failure rather than an Error — normalize it so callers can
     // just read `error.message`.
-    throw new Error(extractRazorpayMessage(error?.description) || 'The payment was not completed.');
+    const rawDesc = extractRazorpayMessage(error?.description) || error?.message;
+    const isCancelled =
+      error?.code === 0 ||
+      error?.code === 2 ||
+      rawDesc === 'Payment Error' ||
+      /cancelled|canceled|closed|dismissed/i.test(rawDesc || '') ||
+      /cancelled|canceled|closed|dismissed/i.test(error?.description || '');
+
+    const message = isCancelled
+      ? 'Payment was cancelled. Your request has not been submitted.'
+      : (rawDesc || 'The payment was not completed.');
+
+    const err = new Error(message);
+    err.isCancelled = isCancelled;
+    err.code = error?.code;
+    err.description = rawDesc;
+    throw err;
   }
 }
 

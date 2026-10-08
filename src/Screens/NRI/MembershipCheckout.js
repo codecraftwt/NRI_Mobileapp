@@ -10,7 +10,7 @@ import { useMembershipCheckout } from '../../Hooks/useMembershipCheckout';
 import { useMembership } from '../../Hooks/useMembership';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import PendingRecurringBundleModal from '../../Components/PendingRecurringBundleModal';
-import { runRazorpayPayment } from '../../Utils/paymentGateway';
+import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
 import { gatewayIcon } from '../../Hooks/usePaymentGateways';
 import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
 import CurrencyToggle from '../../Components/CurrencyToggle';
@@ -218,7 +218,11 @@ function MembershipCheckout({ navigation, route }) {
         });
       }
     } catch (error) {
-      showAlert('Checkout Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
+      if (isPaymentCancelled(error)) {
+        showAlert('Payment Cancelled', 'Payment was not completed. Your membership has not been charged or activated yet.', 'info');
+      } else {
+        showAlert('Checkout Failed', error?.message || 'Could not complete checkout. Please try again.', 'error');
+      }
     } finally {
       setSubmitting(false);
     }
