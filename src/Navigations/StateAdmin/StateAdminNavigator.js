@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+
+import { fetchStateAdminVendors } from '../../Redux/slices/stateAdminVendorsSlice';
+import { fetchStateAdminTickets } from '../../Redux/slices/stateAdminTicketsSlice';
+import { fetchStateAdminCustomers } from '../../Redux/slices/stateAdminCustomersSlice';
 
 import Dashboard from '../../Screens/StateAdmin/Dashboard';
 import AdminRoles from '../../Screens/StateAdmin/AdminRoles';
@@ -112,6 +117,16 @@ function CustomTabBar({ state, descriptors, navigation }) {
   const translateX = React.useRef(new Animated.Value(0)).current;
   const pillWidth = React.useRef(new Animated.Value(0)).current;
 
+  // Tab count can shrink after mount (a module tab hides once its 403 probe
+  // resolves) — stale per-index measurements from the larger route set would
+  // otherwise permanently block isLayoutReady below (its length check could
+  // never match again), leaving the focused pill — and the white focused
+  // icon riding on it — stuck un-rendered. Re-measure from scratch whenever
+  // the route count changes.
+  React.useEffect(() => {
+    setLayouts([]);
+  }, [state.routes.length]);
+
   const handleLayout = (e, index) => {
     const { x, width } = e.nativeEvent.layout;
     setLayouts(prev => {
@@ -144,6 +159,15 @@ function CustomTabBar({ state, descriptors, navigation }) {
   if (tabBarStyle && tabBarStyle.display === 'none') {
     return null;
   }
+
+  // With all 5 tabs visible, items size to their own content (icon-only vs.
+  // icon+label) and space-between spreads them out — an equal 1/5 slot per
+  // tab is too narrow for a label like "Customers" and truncates it. But
+  // once a module's hidden by the 403 check and only 2-3 tabs remain, each
+  // slot is wide enough to go fully equal-width, which is what actually
+  // reads as "full" rather than two items anchored to the bar's outer edges
+  // with a dead gap between them.
+  const isCompact = state.routes.length <= 3;
 
   return (
     <View style={[styles.floatingTabBar, { paddingBottom: bottomInset }]}>
@@ -200,7 +224,7 @@ function CustomTabBar({ state, descriptors, navigation }) {
             onPress={onPress}
             onLongPress={onLongPress}
             activeOpacity={0.8}
-            style={styles.tabItem}
+            style={[styles.tabItem, isCompact && styles.tabItemCompact]}
           >
             <Icon
               name={iconName}
@@ -219,7 +243,38 @@ function CustomTabBar({ state, descriptors, navigation }) {
   );
 }
 
+// A tab is hidden ONLY when its list endpoint has confirmed a 403 "This
+// action is unauthorized" response for this admin (district/taluka-admins
+// don't all get the same module access as a state-admin). Any other state —
+// not yet fetched, loading, succeeded with an empty list, or a non-403
+// failure (network error etc.) — must keep the tab visible, so this only
+// ever flips to `true` on a confirmed permission denial, never on "no data
+// yet".
+const isForbidden = (error) => error?.status === 403;
+
 function StateAdminTabNavigator() {
+  const dispatch = useDispatch();
+  const vendorsStatus = useSelector(s => s.stateAdminVendors?.status || 'idle');
+  const vendorsError = useSelector(s => s.stateAdminVendors?.error);
+  const ticketsStatus = useSelector(s => s.stateAdminTickets?.status || 'idle');
+  const ticketsError = useSelector(s => s.stateAdminTickets?.error);
+  const customersStatus = useSelector(s => s.stateAdminCustomers?.status || 'idle');
+  const customersError = useSelector(s => s.stateAdminCustomers?.error);
+
+  // Probe each module once up front so a tab this admin can't access is
+  // hidden from the very first render, instead of only after they tap into
+  // it and hit a 403 screen.
+  useEffect(() => {
+    if (vendorsStatus === 'idle') dispatch(fetchStateAdminVendors());
+    if (ticketsStatus === 'idle') dispatch(fetchStateAdminTickets());
+    if (customersStatus === 'idle') dispatch(fetchStateAdminCustomers());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showVendors = !isForbidden(vendorsError);
+  const showTickets = !isForbidden(ticketsError);
+  const showCustomers = !isForbidden(customersError);
+
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
@@ -237,42 +292,48 @@ function StateAdminTabNavigator() {
           };
         }}
       />
-      <Tab.Screen
-        name="Vendors"
-        component={VendorsStack}
-        options={({ route }) => {
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'VendorsMain';
-          return {
-            tabBarIconName: 'engineering',
-            tabBarLabel: 'Vendors',
-            tabBarStyle: focusedRouteName === 'VendorsMain' ? {} : { display: 'none' },
-          };
-        }}
-      />
-      <Tab.Screen
-        name="Customers"
-        component={UsersStack}
-        options={({ route }) => {
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'UsersMain';
-          return {
-            tabBarIconName: 'people',
-            tabBarLabel: 'Customers',
-            tabBarStyle: focusedRouteName === 'UsersMain' ? {} : { display: 'none' },
-          };
-        }}
-      />
-      <Tab.Screen
-        name="Tickets"
-        component={TicketsStack}
-        options={({ route }) => {
-          const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'TicketsMain';
-          return {
-            tabBarIconName: 'confirmation-number',
-            tabBarLabel: 'Tickets',
-            tabBarStyle: focusedRouteName === 'TicketsMain' ? {} : { display: 'none' },
-          };
-        }}
-      />
+      {showVendors && (
+        <Tab.Screen
+          name="Vendors"
+          component={VendorsStack}
+          options={({ route }) => {
+            const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'VendorsMain';
+            return {
+              tabBarIconName: 'engineering',
+              tabBarLabel: 'Vendors',
+              tabBarStyle: focusedRouteName === 'VendorsMain' ? {} : { display: 'none' },
+            };
+          }}
+        />
+      )}
+      {showCustomers && (
+        <Tab.Screen
+          name="Customers"
+          component={UsersStack}
+          options={({ route }) => {
+            const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'UsersMain';
+            return {
+              tabBarIconName: 'people',
+              tabBarLabel: 'Customers',
+              tabBarStyle: focusedRouteName === 'UsersMain' ? {} : { display: 'none' },
+            };
+          }}
+        />
+      )}
+      {showTickets && (
+        <Tab.Screen
+          name="Tickets"
+          component={TicketsStack}
+          options={({ route }) => {
+            const focusedRouteName = getFocusedRouteNameFromRoute(route) ?? 'TicketsMain';
+            return {
+              tabBarIconName: 'confirmation-number',
+              tabBarLabel: 'Tickets',
+              tabBarStyle: focusedRouteName === 'TicketsMain' ? {} : { display: 'none' },
+            };
+          }}
+        />
+      )}
       <Tab.Screen
         name="Profile"
         component={ProfileStack}
@@ -312,6 +373,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 30,
+  },
+  tabItemCompact: {
+    flex: 1,
   },
   tabLabelFocused: {
     color: '#FFFFFF',

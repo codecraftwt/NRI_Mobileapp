@@ -13,7 +13,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
 import { useStateAdminUsers } from '../../Hooks/StateAdmin/useStateAdminUsers';
-import { getStateAdminCustomers } from '../../Api/StateAdmin/stateAdminCustomersApi';
+import { useStateAdminCustomers } from '../../Hooks/StateAdmin/useStateAdminCustomers';
 
 const CUSTOMER_STATUS_FILTERS = [
   { id: 'all', label: 'All Status' },
@@ -170,10 +170,14 @@ function Users({ navigation, route }) {
     loadMore,
   } = useStateAdminUsers();
 
-  const [customerList, setCustomerList] = useState([]);
-  const [customerMeta, setCustomerMeta] = useState({ currentPage: 1, lastPage: 1, total: 0 });
-  const [customerLoading, setCustomerLoading] = useState(false);
-  const [customerLoadingMore, setCustomerLoadingMore] = useState(false);
+  const {
+    customers: customerList = [],
+    meta: customerMeta = { currentPage: 1, lastPage: 1, total: 0 },
+    loading: customerLoading = false,
+    loadingMore: customerLoadingMore = false,
+    loadCustomers,
+    loadMore: loadMoreCustomers,
+  } = useStateAdminCustomers();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -191,33 +195,13 @@ function Users({ navigation, route }) {
   }, [search]);
 
   // Fetch customers from GET /api/v1/admin/customers
-  const fetchCustomers = useCallback(async (page = 1, isLoadMore = false) => {
-    if (isLoadMore) {
-      setCustomerLoadingMore(true);
-    } else {
-      setCustomerLoading(true);
-    }
-
-    try {
-      const res = await getStateAdminCustomers({
-        search: debouncedSearch.trim() || undefined,
-        membership_status: selectedStatus !== 'all' ? selectedStatus : undefined,
-        page,
-      });
-
-      if (page === 1) {
-        setCustomerList(res.customers || []);
-      } else {
-        setCustomerList(prev => [...prev, ...(res.customers || [])]);
-      }
-      setCustomerMeta(res.meta || { currentPage: page, lastPage: page, total: res.customers?.length || 0 });
-    } catch {
-      if (page === 1) setCustomerList([]);
-    } finally {
-      setCustomerLoading(false);
-      setCustomerLoadingMore(false);
-    }
-  }, [debouncedSearch, selectedStatus]);
+  const fetchCustomers = useCallback((page = 1) => {
+    loadCustomers({
+      search: debouncedSearch.trim() || undefined,
+      membership_status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      page,
+    });
+  }, [loadCustomers, debouncedSearch, selectedStatus]);
 
   // Fetch staff users from GET /api/v1/admin/users
   const fetchStaff = useCallback((page = 1) => {
@@ -231,7 +215,7 @@ function Users({ navigation, route }) {
 
   useEffect(() => {
     if (isCustomerRole) {
-      fetchCustomers(1, false);
+      fetchCustomers(1);
     }
   }, [isCustomerRole, fetchCustomers]);
 
@@ -244,7 +228,7 @@ function Users({ navigation, route }) {
   const handleRefresh = async () => {
     setRefreshing(true);
     if (isCustomerRole) {
-      await fetchCustomers(1, false);
+      await fetchCustomers(1);
     } else {
       await fetchStaff(1);
     }
@@ -254,7 +238,10 @@ function Users({ navigation, route }) {
   const handleLoadMore = () => {
     if (isCustomerRole) {
       if (customerLoading || customerLoadingMore || customerMeta.currentPage >= customerMeta.lastPage) return;
-      fetchCustomers(customerMeta.currentPage + 1, true);
+      loadMoreCustomers({
+        search: debouncedSearch.trim() || undefined,
+        membership_status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      });
     } else {
       if (staffLoading || staffLoadingMore || staffMeta.currentPage >= staffMeta.lastPage) return;
       loadMore({

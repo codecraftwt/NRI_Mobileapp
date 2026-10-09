@@ -54,6 +54,7 @@ import stateAdminDashboardReducer from './slices/stateAdminDashboardSlice';
 import stateAdminVendorsReducer from './slices/stateAdminVendorsSlice';
 import stateAdminUsersReducer from './slices/stateAdminUsersSlice';
 import stateAdminTicketsReducer from './slices/stateAdminTicketsSlice';
+import stateAdminCustomersReducer from './slices/stateAdminCustomersSlice';
 import telecallerDashboardReducer from './slices/telecallerDashboardSlice';
 import { loginUser, registerUser, logoutUser, login, logout } from './slices/userSlice';
 
@@ -171,6 +172,7 @@ const appReducer = combineReducers({
   stateAdminVendors: stateAdminVendorsReducer,
   stateAdminUsers: stateAdminUsersReducer,
   stateAdminTickets: stateAdminTicketsReducer,
+  stateAdminCustomers: stateAdminCustomersReducer,
   telecallerDashboard: telecallerDashboardReducer,
 });
 
