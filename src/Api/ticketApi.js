@@ -184,6 +184,16 @@ function mapTicket(raw) {
     } : null,
     customerNotes: raw.customer_notes || null,
     attachments: raw.attachments || [],
+    documentRequests: (raw.document_requests || raw.documentRequests || []).map(dr => ({
+      id: dr.id,
+      label: dr.label || dr.name || 'Document',
+      note: dr.note || null,
+      status: dr.status,
+      files: (dr.files || []).map(f => typeof f === 'string' ? { url: f, name: f.split('/').pop() } : { url: f.url || f.file_url || f.path, name: f.name || f.file_name || f.filename }).filter(Boolean),
+      fulfilledAt: dr.fulfilled_at || dr.fulfilledAt || null,
+      createdAt: dr.created_at || dr.createdAt || dr.requested_at || null,
+      requestedAt: dr.requested_at || dr.requestedAt || dr.created_at || null,
+    })),
     timeline: (raw.timeline || []).map(mapTimelineEvent),
     rating: mapRating(raw.rating),
     // Lightweight request-linked support-chat summary (present on the detail

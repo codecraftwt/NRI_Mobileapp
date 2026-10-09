@@ -1,14 +1,22 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Alert, Modal, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { pick, types as pickerTypes, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Header from '../../Components/Header';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { useAttachmentViewer } from '../../Components/useAttachmentViewer';
 import { useTicketDetail } from '../../Hooks/useTicketDetail';
 import { useReports } from '../../Hooks/useReports';
+import { getTicketSupportChat } from '../../Api/ticketApi';
+import { fulfillDocumentRequest } from '../../Api/supportTicketApi';
+import { resolveLocalCopies } from '../../Utils/localFileCopy';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
+
+const MAX_DOC_FILES = 5;
+const MAX_DOC_SIZE_BYTES = 5 * 1024 * 1024;
 
 // Ticket amounts (total, base, add-ons, surcharge, discount) are USD, same as
 // the booking flow — format with $ instead of the old ₹.
@@ -62,12 +70,112 @@ function TicketDetail({ route, navigation }) {
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
   const report = (ticket && reports.find(r => r.ticketNumber === ticket.ticketNumber)) || ticket?.report || null;
   const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
+  const { showAlert, alertProps } = useAppAlert();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [supportChatReplies, setSupportChatReplies] = useState([]);
+  const [pendingDocFiles, setPendingDocFiles] = useState({});
+  const [uploadingDocId, setUploadingDocId] = useState(null);
+
+  const fetchSupportChat = useCallback(async () => {
+    if (!ticketId) return;
+    try {
+      const res = await getTicketSupportChat(ticketId);
+      setSupportChatReplies(res?.replies || []);
+    } catch (e) {
+      // Chat may not exist yet or request failed; silent fallback
+    }
+  }, [ticketId]);
+
+  useEffect(() => {
+    fetchSupportChat();
+  }, [fetchSupportChat]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([retry(), retryReports()]);
+    await Promise.all([retry(), retryReports(), fetchSupportChat()]);
     setRefreshing(false);
+  };
+
+  // Extract latest state of each document request from support chat & ticket detail
+  const documentRequests = useMemo(() => {
+    const map = new Map();
+    for (const dr of ticket?.documentRequests || []) {
+      if (dr && dr.id != null) {
+        map.set(dr.id, {
+          ...dr,
+          requestedAt: dr.createdAt || dr.requestedAt || null,
+          uploadedAt: dr.fulfilledAt || dr.uploadedAt || null,
+        });
+      }
+    }
+    for (const reply of supportChatReplies) {
+      const dr = reply?.documentRequest;
+      if (dr && dr.id != null) {
+        const existing = map.get(dr.id);
+        const isUploadReply = String(reply.message || '').toLowerCase().includes('upload') || (dr.files && dr.files.length > 0);
+        const requestedAt = existing?.requestedAt || (!isUploadReply ? reply.createdAt : null) || dr.createdAt;
+        const uploadedAt = dr.fulfilledAt || (isUploadReply ? reply.createdAt : null) || existing?.uploadedAt;
+
+        if (!existing || dr.isLatest || (dr.files && dr.files.length > 0)) {
+          map.set(dr.id, {
+            ...existing,
+            ...dr,
+            label: dr.label || existing?.label || 'Document',
+            requestedAt,
+            uploadedAt,
+            authorName: reply.authorName || existing?.authorName,
+            replyCreatedAt: reply.createdAt || existing?.replyCreatedAt,
+            replyMessage: reply.message || existing?.replyMessage,
+            files: (dr.files && dr.files.length > 0) ? dr.files : (existing?.files || []),
+          });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [supportChatReplies, ticket?.documentRequests]);
+
+  const handlePickDocFiles = async (documentRequestId) => {
+    try {
+      const results = await pick({
+        type: [pickerTypes.images, pickerTypes.pdf],
+        allowMultiSelection: true,
+      });
+      const tooMany = results.length > MAX_DOC_FILES;
+      const candidates = results.slice(0, MAX_DOC_FILES);
+      const oversized = candidates.filter(f => f.size && f.size > MAX_DOC_SIZE_BYTES);
+      const accepted = (await resolveLocalCopies(
+        candidates.filter(f => !f.size || f.size <= MAX_DOC_SIZE_BYTES),
+      )).map(f => ({ name: f.name, uri: f.uri, type: f.type, size: f.size }));
+      if (oversized.length > 0) {
+        showAlert('File Too Large', `${oversized.length} file(s) were skipped for exceeding 5 MB.`);
+      } else if (tooMany) {
+        showAlert('Limit Reached', `Only the first ${MAX_DOC_FILES} file(s) were kept (max ${MAX_DOC_FILES}).`);
+      }
+      if (accepted.length) setPendingDocFiles(prev => ({ ...prev, [documentRequestId]: accepted }));
+    } catch (err) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      showAlert('Error', 'Could not select the file(s). Please try again.');
+    }
+  };
+
+  const handleUploadDocFiles = async (documentRequestId) => {
+    const files = pendingDocFiles[documentRequestId];
+    if (!files?.length || uploadingDocId) return;
+    setUploadingDocId(documentRequestId);
+    try {
+      await fulfillDocumentRequest(documentRequestId, files);
+      setPendingDocFiles(prev => { const next = { ...prev }; delete next[documentRequestId]; return next; });
+      await Promise.all([retry(), fetchSupportChat()]);
+      showAlert('Success', 'Document(s) uploaded successfully.');
+    } catch (error) {
+      const msg = error?.status === 422
+        ? 'This request has already been fulfilled. Please wait for the vendor to reopen it.'
+        : error?.message || 'Please try again.';
+      showAlert('Could Not Upload', msg);
+    } finally {
+      setUploadingDocId(null);
+    }
   };
 
   const [selectedStars, setSelectedStars] = useState(0);
@@ -76,14 +184,14 @@ function TicketDetail({ route, navigation }) {
 
   const handleSubmitRating = async () => {
     if (!selectedStars) {
-      Alert.alert('Select a Rating', 'Please tap a star to rate this service.');
+      showAlert('Select a Rating', 'Please tap a star to rate this service.');
       return;
     }
     try {
       await rate(selectedStars, feedbackNote.trim() || undefined).unwrap();
       setThankYouVisible(true);
     } catch (error) {
-      Alert.alert('Could Not Submit Rating', error?.message || 'Please try again.');
+      showAlert('Could Not Submit Rating', error?.message || 'Please try again.');
     }
   };
 
@@ -118,10 +226,13 @@ function TicketDetail({ route, navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      if (ticketId) retry();
+      if (ticketId) {
+        retry();
+        fetchSupportChat();
+      }
       retryReports();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ticketId])
+    }, [ticketId, fetchSupportChat])
   );
 
   if (loading && !ticket) {
@@ -199,55 +310,6 @@ function TicketDetail({ route, navigation }) {
         extraHeight={80}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
-        <TouchableOpacity
-          style={styles.supportChatBar}
-          activeOpacity={0.85}
-          onPress={() => {
-            // A chat already exists on this request → open its full thread.
-            // kind: 'job' routes the screen through the request-linked chat
-            // endpoints (GET/POST /customer/tickets/{ticket}/support-chat,
-            // keyed by this ticket's own id) rather than the generic
-            // /customer/support-tickets/{id} endpoint — only the former
-            // carries document-request data (the vendor's "ask for a
-            // document" flow). Otherwise start one via the same endpoint.
-            if (ticket.supportChat?.id) {
-              navigation.navigate('SupportTicketChat', { ticketId: ticket.id, kind: 'job' });
-            } else {
-              navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber });
-            }
-          }}
-        >
-          {/* Left: a distinct "support agent" icon in a filled badge. */}
-          <View style={styles.supportChatLeftIcon}>
-            <Icon name="support-agent" size={24} color="#FFFFFF" />
-          </View>
-
-          <View style={styles.supportChatTextWrap}>
-            <View style={styles.supportChatTitleRow}>
-              <Text style={styles.supportChatTitle}>Support Chat</Text>
-              {ticket.supportChat?.escalated && (
-                <View style={styles.chatEscalatedBadge}>
-                  <Text style={styles.chatEscalatedText}>Escalated</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.supportChatSubtitle} numberOfLines={1}>
-              {ticket.supportChat?.id ? 'Continue your conversation' : 'Need help? Chat with our team'}
-            </Text>
-          </View>
-
-          {/* Right: the chat icon as an accent action button, with the unread
-              count overlaid as a badge. */}
-          <View style={styles.supportChatRightIcon}>
-            <Icon name="chat-bubble" size={20} color="#FFFFFF" />
-            {ticket.supportChat?.unreadCount > 0 && (
-              <View style={styles.chatUnreadBadge}>
-                <Text style={styles.chatUnreadText}>{ticket.supportChat.unreadCount}</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-
         <View style={styles.card}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
@@ -306,6 +368,121 @@ function TicketDetail({ route, navigation }) {
             </View>
           )}
         </View>
+
+        {/* Documents requested by vendor */}
+        {documentRequests.length > 0 && (
+          <View style={styles.card}>
+            <View style={styles.docsHeaderRow}>
+              <View style={styles.docsTitleWrap}>
+                <Icon name="upload-file" size={20} color="#2563EB" />
+                <Text style={styles.docsSectionTitle}>Documents requested by vendor</Text>
+              </View>
+            </View>
+
+            <View style={styles.docRequestsContainer}>
+              {documentRequests.map((dr, index) => {
+                const isFulfilled = String(dr.status || '').toLowerCase() === 'fulfilled';
+                const requestedStr = dr.requestedAt ? formatDateTime(dr.requestedAt) : '';
+                const uploadedStr = dr.uploadedAt ? formatDateTime(dr.uploadedAt) : '';
+                let metaText = '';
+                if (isFulfilled) {
+                  if (requestedStr && uploadedStr) {
+                    metaText = `Requested ${requestedStr} · uploaded ${uploadedStr}`;
+                  } else if (uploadedStr) {
+                    metaText = `Uploaded ${uploadedStr}`;
+                  } else if (requestedStr) {
+                    metaText = `Requested ${requestedStr}`;
+                  }
+                } else if (requestedStr) {
+                  metaText = `Requested ${requestedStr}`;
+                }
+
+                const chosenFiles = pendingDocFiles[dr.id] || [];
+                const isUploading = uploadingDocId === dr.id;
+
+                return (
+                  <View
+                    key={dr.id ?? index}
+                    style={[
+                      styles.docItemBlock,
+                      index > 0 && styles.docItemBorderTop,
+                    ]}
+                  >
+                    <View style={styles.docItemTopRow}>
+                      <Text style={styles.docItemTitle}>{dr.label || dr.name || 'Document'}</Text>
+                      <View style={[styles.docStatusBadge, isFulfilled ? styles.docStatusFulfilled : styles.docStatusPending]}>
+                        <Text style={[styles.docStatusBadgeText, isFulfilled ? styles.docStatusFulfilledText : styles.docStatusPendingText]}>
+                          {isFulfilled ? 'Received' : 'Pending'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {!!metaText && (
+                      <Text style={styles.docItemSubtitle}>{metaText}</Text>
+                    )}
+
+                    {isFulfilled && dr.files && dr.files.length > 0 && (
+                      <View style={styles.docFileListRow}>
+                        {dr.files.map((f, idx) => {
+                          const fileUrl = typeof f === 'string' ? f : f?.url;
+                          const fileName = (typeof f === 'object' && f?.name) ? f.name : `File ${idx + 1}`;
+                          return (
+                            <TouchableOpacity
+                              key={fileUrl || idx}
+                              style={styles.docFilePill}
+                              onPress={() => handleViewAttachment(fileUrl || f)}
+                              activeOpacity={0.7}
+                              disabled={!fileUrl}
+                            >
+                              <Icon name="attach-file" size={15} color="#2563EB" />
+                              <Text style={styles.docFilePillText}>File {idx + 1}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {!isFulfilled && (
+                      <View style={styles.docUploadSection}>
+                        <View style={styles.docUploadRow}>
+                          <TouchableOpacity
+                            style={styles.docPickerBox}
+                            onPress={() => handlePickDocFiles(dr.id)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={styles.docChooseBtn}>
+                              <Text style={styles.docChooseBtnText}>Choose Files</Text>
+                            </View>
+                            <Text style={styles.docChosenText} numberOfLines={1}>
+                              {chosenFiles.length ? chosenFiles.map(f => f.name).join(', ') : 'No file chosen'}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.docUploadBtn, (!chosenFiles.length || isUploading) && styles.docUploadBtnDisabled]}
+                            onPress={() => handleUploadDocFiles(dr.id)}
+                            disabled={!chosenFiles.length || isUploading}
+                            activeOpacity={0.85}
+                          >
+                            {isUploading ? (
+                              <ActivityIndicator size="small" color="#FFFFFF" />
+                            ) : (
+                              <>
+                                <Icon name="file-upload" size={16} color="#FFFFFF" />
+                                <Text style={styles.docUploadBtnText}>Upload</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={styles.docUploadHint}>PDF, JPG or PNG · up to 5 files · 5 MB each</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {!!ticket.pendingAdditionalCharge && (
           <View style={styles.extraChargeCard}>
@@ -509,6 +686,26 @@ function TicketDetail({ route, navigation }) {
         )}
       </KeyboardAwareScrollView>
 
+      {/* Floating quick-access to Support Chat */}
+      <TouchableOpacity
+        style={styles.supportChatFab}
+        onPress={() => {
+          if (ticket.supportChat?.id) {
+            navigation.navigate('SupportTicketChat', { ticketId: ticket.id, kind: 'job' });
+          } else {
+            navigation.navigate('RequestSupportChat', { serviceTicketId: ticket.id, ticketNumber: ticket.ticketNumber });
+          }
+        }}
+        activeOpacity={0.85}
+      >
+        <Icon name="sms" size={26} color="#FFFFFF" />
+        {ticket.supportChat?.unreadCount > 0 && (
+          <View style={styles.chatFabUnreadBadge}>
+            <Text style={styles.chatFabUnreadText}>{ticket.supportChat.unreadCount}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
       {/* Styled "Thank You" confirmation after a rating is submitted */}
       <Modal
         visible={thankYouVisible}
@@ -541,6 +738,8 @@ function TicketDetail({ route, navigation }) {
         </View>
       </Modal>
 
+      {/* Styled AppAlert component */}
+      <AppAlert {...alertProps} />
       {attachmentPreview}
     </KeyboardAvoidingView>
   );
@@ -619,6 +818,210 @@ const styles = StyleSheet.create({
   
   sectionTitle: { ...typography.sectionTitle, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 4 },
 
+  // Documents requested by vendor
+  docsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  docsTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    marginRight: 8,
+  },
+  docsSectionTitle: {
+    fontSize: 15,
+    fontFamily: typography.h2.fontFamily,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  docsCountBadge: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+  },
+  docsCountBadgeText: {
+    fontSize: 11.5,
+    fontFamily: typography.labelMedium.fontFamily,
+    fontWeight: '700',
+    color: '#EA580C',
+  },
+  docRequestsContainer: {
+    gap: 16,
+  },
+  docItemBlock: {
+    gap: 10,
+  },
+  docItemBorderTop: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 16,
+  },
+  docItemTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docItemTitle: {
+    fontSize: 15.5,
+    fontFamily: typography.h2.fontFamily,
+    fontWeight: '700',
+    color: '#0F172A',
+    flex: 1,
+  },
+  docStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+  },
+  docStatusPending: {
+    backgroundColor: '#FFEDD5',
+  },
+  docStatusPendingText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#C2410C',
+  },
+  docStatusFulfilled: {
+    backgroundColor: '#D1FAE5',
+  },
+  docStatusFulfilledText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  docItemSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+  },
+  docFileListRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  docFilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  docFilePillText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1D4ED8',
+  },
+  docUploadSection: {
+    gap: 6,
+    marginTop: 2,
+  },
+  docUploadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  docPickerBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  docChooseBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#CBD5E1',
+  },
+  docChooseBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  docChosenText: {
+    flex: 1,
+    paddingHorizontal: 10,
+    fontSize: 12.5,
+    color: '#64748B',
+  },
+  docUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#047857',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8.5,
+  },
+  docUploadBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    opacity: 0.6,
+  },
+  docUploadBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  docUploadHint: {
+    fontSize: 11.5,
+    color: '#64748B',
+  },
+
+  supportChatFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#D94625',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  chatFabUnreadBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  chatFabUnreadText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
   // Additional Payment Requested card
   extraChargeCard: {
     backgroundColor: '#FFFFFF',
@@ -659,57 +1062,6 @@ const styles = StyleSheet.create({
   },
   payChargeBtnText: { ...typography.labelMedium, color: '#FFFFFF', fontWeight: '700' },
 
-  supportChatBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: '#EFF6FF',
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  supportChatLeftIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  supportChatTextWrap: { flex: 1, gap: 2 },
-  supportChatTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  supportChatTitle: { fontSize: 15, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
-  supportChatSubtitle: { ...typography.tiny, color: '#3B82F6' },
-  supportChatRightIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  chatUnreadBadge: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#EFF6FF' },
-  chatUnreadText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#FFFFFF' },
-  chatEscalatedBadge: { backgroundColor: '#FEE2E2', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  chatEscalatedText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
-  
   chargesList: { gap: 0 },
   chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', borderStyle: 'dashed' },
   chargeLabel: { ...typography.small, color: '#64748B', flex: 1, paddingRight: 8 },

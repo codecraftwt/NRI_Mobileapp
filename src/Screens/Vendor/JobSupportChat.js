@@ -284,9 +284,9 @@ function JobSupportChat({ route, navigation }) {
                       {dr.files.length > 0 && (
                         <View style={styles.docFileList}>
                           {dr.files.map((f, idx) => (
-                            <TouchableOpacity key={f.url || idx} style={styles.docFileRow} onPress={() => openAttachment(f, f.name || `File ${idx + 1}`)}>
-                              <Icon name="attach-file" size={14} color="#1D4ED8" />
-                              <Text style={styles.docFileLink}>File {idx + 1}</Text>
+                            <TouchableOpacity key={f.url || idx} style={styles.docFilePill} onPress={() => openAttachment(f, `File ${idx + 1}`)}>
+                              <Icon name="attach-file" size={15} color="#1D4ED8" />
+                              <Text style={styles.docFilePillText}>File {idx + 1}</Text>
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -494,10 +494,25 @@ const styles = StyleSheet.create({
   docStatusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   docStatusPillText: { fontSize: 11, fontWeight: '700' },
   docCardMeta: { fontSize: 11, color: '#94A3B8' },
-  docCardText: { fontSize: 13.5, color: '#0F172A', lineHeight: 19 },
-  docFileList: { gap: 4, marginTop: 2 },
-  docFileRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  docFileLink: { fontSize: 13, color: '#1D4ED8', textDecorationLine: 'underline', fontFamily: typography.labelMedium.fontFamily },
+  docFileList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  docFilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  docFilePillText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1D4ED8',
+    fontFamily: typography.labelMedium.fontFamily,
+  },
   reopenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1.5, borderColor: '#F59E0B', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7, marginTop: 4 },
   reopenBtnText: { color: '#B45309', fontSize: 12.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
