@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, StatusBar, Platform, Animated } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Switch, StatusBar, Platform, Animated, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme';
@@ -62,6 +63,24 @@ function Dashboard({ navigation }) {
     inputRange: [-1, 0, 1],
     outputRange: ['-15deg', '0deg', '15deg'],
   });
+
+  // Dashboard is the app's home screen (root of the bottom-tab navigator) —
+  // hardware back here has nowhere left to go, so it falls through to the
+  // OS default of closing the app outright. Intercept it only while this
+  // screen is focused so every other screen keeps its normal back behavior.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showAlert])
+  );
 
   const vendorName = profile?.businessName || user?.name || 'Vendor';
   // Prefer the customer-facing average; fall back to the overall/composite score,

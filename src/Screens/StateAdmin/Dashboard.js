@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,9 +9,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   Animated,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
 import { useStateAdminDashboard } from '../../Hooks/StateAdmin/useStateAdminDashboard';
 import { useNotifications } from '../../Hooks/useNotifications';
@@ -77,6 +80,25 @@ function Dashboard({ navigation }) {
   const stateName = user?.homeState || user?.state || 'State';
 
   const [refreshing, setRefreshing] = useState(false);
+  const { showAlert, alertProps } = useAppAlert();
+
+  // Dashboard is the app's home screen (root of the bottom-tab navigator) —
+  // hardware back here has nowhere left to go, so it falls through to the
+  // OS default of closing the app outright. Intercept it only while this
+  // screen is focused so every other screen keeps its normal back behavior.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showAlert])
+  );
 
   // Waving-hand animation
   const waveAnim = useRef(new Animated.Value(0)).current;
@@ -328,6 +350,7 @@ function Dashboard({ navigation }) {
           </View>
         </ScrollView>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

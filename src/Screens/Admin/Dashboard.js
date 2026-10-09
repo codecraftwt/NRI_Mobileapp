@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, StatusBar, TouchableOpacity } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, ScrollView, StatusBar, TouchableOpacity, BackHandler } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { typography, STATUS_BAR_HEIGHT } from '../../theme';
 import { useAdminDashboard } from '../../Hooks/Admin/useAdminDashboard';
 import { useNotifications } from '../../Hooks/useNotifications';
@@ -42,9 +44,28 @@ function Dashboard({ navigation }) {
   const { unreadCount, fetch: fetchNotifications } = useNotifications();
   const user = useSelector(state => state.user.user);
   const adminName = user?.name || 'Admin';
+  const { showAlert, alertProps } = useAppAlert();
 
   // Load the unread count for the header bell badge.
   useEffect(() => { fetchNotifications(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Dashboard is the app's home screen (root of the bottom-tab navigator) —
+  // hardware back here has nowhere left to go, so it falls through to the
+  // OS default of closing the app outright. Intercept it only while this
+  // screen is focused so every other screen keeps its normal back behavior.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showAlert])
+  );
 
   const totalStateRevenue = (stateBreakdown || []).reduce((sum, s) => sum + (Number(s.revenue) || 0), 0);
 
@@ -159,6 +180,7 @@ function Dashboard({ navigation }) {
           )}
         </ScrollView>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }

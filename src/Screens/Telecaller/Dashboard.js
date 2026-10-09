@@ -9,9 +9,12 @@ import {
   Animated,
   RefreshControl,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { lightColors as colors, typography, STATUS_BAR_HEIGHT } from '../../theme';
 import { useNotifications } from '../../Hooks/useNotifications';
 import { useTelecallerDashboard } from '../../Hooks/Telecaller/useTelecallerDashboard';
@@ -91,10 +94,29 @@ function Dashboard({ navigation }) {
   } = useTelecallerDashboard();
 
   const telecallerName = user?.name || 'Telecaller';
+  const { showAlert, alertProps } = useAppAlert();
 
   useEffect(() => {
     fetchNotifications();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Dashboard is the app's home screen (root of the bottom-tab navigator) —
+  // hardware back here has nowhere left to go, so it falls through to the
+  // OS default of closing the app outright. Intercept it only while this
+  // screen is focused so every other screen keeps its normal back behavior.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        showAlert('Exit App', 'Are you sure you want to exit NRI Circle?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showAlert])
+  );
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = useCallback(async () => {
@@ -331,6 +353,7 @@ function Dashboard({ navigation }) {
 
         </ScrollView>
       </View>
+      <AppAlert {...alertProps} />
     </View>
   );
 }
@@ -369,8 +392,10 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.85)',
   },
   userName: {
-    fontSize: 17,
+    fontSize: 26,
     fontFamily: typography.h2.fontFamily,
+    fontWeight: '800',
+    letterSpacing: -0.3,
     color: '#FFFFFF',
     textTransform: 'capitalize',
     flexShrink: 1,
