@@ -921,7 +921,7 @@ function JobDetail({ route, navigation }) {
                     <ActivityIndicator size="small" color="#DC2626" />
                   ) : (
                     <>
-                      <Icon name="close" size={18} color="#DC2626" />
+                      <Icon name="close" size={16} color="#DC2626" />
                       <Text style={styles.rejectBtnText}>{rejecting ? 'Confirm Reject' : 'Reject Job'}</Text>
                     </>
                   )}
@@ -1717,9 +1717,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DC2626',
     justifyContent: 'center', alignItems: 'center',
   },
-  rejectBtnText: { fontSize: 15, fontWeight: '700', color: '#DC2626' },
+  rejectBtnText: { fontSize: 13.5, fontWeight: '700', color: '#DC2626' },
   rejectBtnFull: {
-    flexDirection: 'row', gap: 8, paddingVertical: 14, borderRadius: 14,
+    flexDirection: 'row', gap: 6, paddingVertical: 10, borderRadius: 12,
     backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DC2626',
     justifyContent: 'center', alignItems: 'center',
   },

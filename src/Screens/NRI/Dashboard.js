@@ -296,8 +296,13 @@ function Dashboard({ navigation }) {
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>All Requests</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Requests')}>
-                <Text style={styles.viewAllText}>View all →</Text>
+              <TouchableOpacity
+                style={styles.viewAllChip}
+                onPress={() => navigation.navigate('Requests')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewAllText}>View all</Text>
+                <Icon name="chevron-right" size={14} color="#D94625" />
               </TouchableOpacity>
             </View>
 
@@ -583,8 +588,14 @@ const styles = StyleSheet.create({
     fontFamily: typography.h2.fontFamily,
     color: '#1A1A1A',
   },
+  viewAllChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 1,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    borderWidth: 1, backgroundColor: '#D9462515', borderColor: '#D9462530',
+  },
   viewAllText: {
-    ...typography.labelMedium,
+    fontSize: 12,
+    fontWeight: '700',
     color: '#D94625',
   },
 
