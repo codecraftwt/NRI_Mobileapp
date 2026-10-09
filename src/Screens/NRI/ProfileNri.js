@@ -172,10 +172,10 @@ export default function ProfileNri({ navigation }) {
   );
 
   const handleStopMembershipAutoRenew = (mem) => {
-    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${mem.planName || 'Membership'}? It stays active until it expires.`, [
-      { text: 'Keep It', style: 'cancel' },
+    showAlert('Are you sure?', 'Stop auto-renewal? Your membership stays active until its expiry date; after that you will need to renew manually.', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Stop Renewal',
+        text: 'Yes, proceed',
         style: 'destructive',
         onPress: () => {
           stopAutoRenew(mem.id)
@@ -215,11 +215,10 @@ export default function ProfileNri({ navigation }) {
   };
 
   const handleStopServiceSubAutoRenew = (sub) => {
-    const label = (sub.services || []).map(s => s.name).join(', ') || 'this subscription';
-    showAlert('Stop Auto-renewal', `Stop auto-renewal for ${label}? It stays active until the current period ends.`, [
-      { text: 'Keep It', style: 'cancel' },
+    showAlert('Are you sure?', 'Stop auto-renewal? The subscription stays active until the end of the paid period.', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Stop Renewal',
+        text: 'Yes, proceed',
         style: 'destructive',
         onPress: () => {
           setCancelingServiceSubId(sub.id);
@@ -239,12 +238,12 @@ export default function ProfileNri({ navigation }) {
 
   const handleCancelAll = () => {
     showAlert(
-      'Cancel All Subscriptions',
-      'Stop auto-renewal on your membership and every recurring service subscription in one go? Everything stays active until its own paid period ends.',
+      'Are you sure?',
+      'Stop auto-renewal on your membership and all recurring service subscriptions? Each stays active until its current paid period ends, then will not renew.',
       [
-        { text: 'Keep Them', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Cancel All',
+          text: 'Yes, proceed',
           style: 'destructive',
           onPress: () => {
             cancelAllSubscriptions()
