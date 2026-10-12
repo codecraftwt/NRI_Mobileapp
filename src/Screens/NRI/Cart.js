@@ -27,7 +27,7 @@ function SummaryRow({ label, sub, value, strong }) {
   );
 }
 
-function Cart({ navigation }) {
+function Cart({ navigation, route }) {
   const dispatch = useDispatch();
   const items = useSelector(selectCartItems);
   // Services total is each line's `base` (pre-GST vendor price); GST is each
@@ -61,7 +61,7 @@ function Cart({ navigation }) {
   // authenticated account still mid-registration — keeps the membership +
   // sign-in/register cart below.
   if (isAuthenticated && hasMembership) {
-    return <SubmitRequest navigation={navigation} />;
+    return <SubmitRequest navigation={navigation} route={route} />;
   }
 
   // Annual NRI Circle membership that activates a guest's account before their

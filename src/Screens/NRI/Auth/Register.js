@@ -23,7 +23,7 @@ const PASSWORD_UPPER_REGEX = /[A-Z]/;
 const PASSWORD_LOWER_REGEX = /[a-z]/;
 const PASSWORD_SYMBOL_REGEX = /[^A-Za-z0-9]/;
 
-function Register({ navigation }) {
+function Register({ navigation, route }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const registerStatus = useSelector(state => state.user.registerStatus);
@@ -242,7 +242,7 @@ function Register({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.signUpRow} onPress={() => navigation.navigate('Login')} disabled={submitting}>
+          <TouchableOpacity style={styles.signUpRow} onPress={() => navigation.navigate('Login', route?.params)} disabled={submitting}>
             <Text style={styles.signUpText}>Already have an account? <Text style={[styles.signUpLink, { color: C.accent }]}>Sign In</Text></Text>
           </TouchableOpacity>
 

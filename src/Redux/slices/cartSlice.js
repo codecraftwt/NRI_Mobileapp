@@ -31,7 +31,21 @@ const initialState = {
   // was priced against (see pricingBasis on each item) — null until one's
   // saved. Only ever updated from a full GET /customer/cart response.
   pricedCity: null,
+  pendingQuotedService: null,
 };
+
+// A service is on-quote (no upfront fixed charge) if flagged as quoted or if it
+// has a 'Quoted' label. Quoted services can never be stored in the server cart
+// (POST /customer/cart/items 422s with errors.use_endpoint).
+export const isQuotedItem = (item) => Boolean(
+  item?.isQuoted ||
+  item?.is_quoted ||
+  item?.pricing?.is_quoted ||
+  item?.pricing?.isQuoted ||
+  item?.label === 'Quoted' ||
+  item?.label?.toLowerCase() === 'quoted' ||
+  (item?.pricingBasis === null && item?.categoryBaseBookable === null)
+);
 
 // Adopt the authoritative server cart rows into the local display list while
 // keeping the fields the guest already resolved that the cart API omits:
@@ -39,9 +53,11 @@ const initialState = {
 // GET /customer/cart returns no per-line pricing, so a plain `...si` spread
 // would overwrite the guest's bound price with 0 and zero out the cart total —
 // keep the existing price/currency whenever the server row has no real price.
+// Also preserves local quoted items since the server cart never holds them.
 function mergeServerIntoLocal(state, serverItems) {
   const indexById = new Map(state.items.map((i, idx) => [String(i.serviceId), idx]));
-  state.items = serverItems.map((si) => {
+  const preservedQuoted = state.items.filter(isQuotedItem);
+  const merged = serverItems.map((si) => {
     const idx = indexById.get(String(si.serviceId));
     if (idx != null) {
       const existing = state.items[idx];
@@ -69,6 +85,15 @@ function mergeServerIntoLocal(state, serverItems) {
     // one-time.
     return { ...si, isRecurring: si.billingMode === 'recurring' };
   });
+
+  // Preserve local quoted items (server cart never holds them)
+  for (const qItem of preservedQuoted) {
+    if (!merged.some(m => String(m.serviceId) === String(qItem.serviceId))) {
+      merged.push(qItem);
+    }
+  }
+
+  state.items = merged;
 }
 
 // Authenticated-only server cart thunks. These never run for guests (the
@@ -98,11 +123,12 @@ export const fetchServerCart = createAsyncThunk('cart/fetchServer', async (_, { 
 // is a no-op (the cart is keyed by service), so this is safe to run once per
 // sign-in. Individual add failures are swallowed so one bad row can't abort the
 // whole merge — the final GET reflects whatever made it in.
+// Quoted services are skipped here as POST /customer/cart/items rejects them with 422.
 export const mergeGuestCart = createAsyncThunk('cart/mergeGuest', async (_, { getState, rejectWithValue }) => {
   try {
     const localItems = getState().cart?.items || [];
     for (const item of localItems) {
-      if (item?.serviceId != null) {
+      if (item?.serviceId != null && !isQuotedItem(item)) {
         try {
           await cartApi.addCartItem(item.serviceId, item.isRecurring ? 'recurring' : 'one_time');
         } catch (e) {
@@ -209,6 +235,12 @@ const cartSlice = createSlice({
       });
     },
     clearCart: () => initialState,
+    setPendingQuotedService: (state, action) => {
+      state.pendingQuotedService = action.payload;
+    },
+    clearPendingQuotedService: (state) => {
+      state.pendingQuotedService = null;
+    },
     clearAppliedCartCoupon: (state) => {
       state.appliedCoupon = null;
       state.couponApplyStatus = 'idle';
@@ -219,7 +251,9 @@ const cartSlice = createSlice({
     // POST/DELETE return only the authoritative count — keep it in sync (the
     // local `items` list was already updated optimistically by the hook).
     const applyCount = (state, action) => {
-      if (action.payload?.count != null) state.serverCount = action.payload.count;
+      if (action.payload?.count != null) {
+        state.serverCount = action.payload.count;
+      }
     };
     builder
       // GET returns the full authoritative server cart for signed-in users.
@@ -245,7 +279,7 @@ const cartSlice = createSlice({
       .addCase(mergeGuestCart.fulfilled, (state, action) => {
         state.guestMergeStatus = 'succeeded';
         const serverItems = action.payload?.items || [];
-        if (serverItems.length > 0) mergeServerIntoLocal(state, serverItems);
+        mergeServerIntoLocal(state, serverItems);
         if (action.payload?.count != null) state.serverCount = action.payload.count;
         state.pricedCity = action.payload?.pricedCity ?? null;
       })
@@ -316,17 +350,26 @@ const cartSlice = createSlice({
   },
 });
 
-export const { addToCart, removeFromCart, updateCartItemPrices, clearCart, clearAppliedCartCoupon } = cartSlice.actions;
+export const {
+  addToCart,
+  removeFromCart,
+  updateCartItemPrices,
+  clearCart,
+  clearAppliedCartCoupon,
+  setPendingQuotedService,
+  clearPendingQuotedService,
+} = cartSlice.actions;
 
 // Selectors
 export const selectCartItems = (s) => s.cart.items;
 export const selectCartCount = (s) => s.cart.items.length;
-export const selectServerCartCount = (s) => s.cart.serverCount;
+export const selectServerCartCount = (s) => s.cart?.serverCount || 0;
 export const selectPricedCity = (s) => s.cart.pricedCity;
+export const selectPendingQuotedService = (s) => s.cart?.pendingQuotedService;
 // Count for the header badges: the server count once signed in (authoritative,
 // fetched from GET /customer/cart), the local item count for guests.
 export const selectCartBadgeCount = (s) =>
-  s.user?.isAuthenticated ? s.cart.serverCount : s.cart.items.length;
+  s.user?.isAuthenticated ? (s.cart?.serverCount || 0) : s.cart.items.length;
 // Sum of each line's `base` (pre-GST vendor price) — GET /customer/cart's
 // real per-service figure once a city is on file. Quoted services (isQuoted /
 // label === 'Quoted') have no upfront charge and contribute 0 here.

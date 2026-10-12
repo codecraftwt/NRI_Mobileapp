@@ -3,7 +3,8 @@ import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal,
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, syncDeviceToken } from '../../../Redux/slices/userSlice';
-import { selectOnboardingRoute } from '../../../Redux/slices/onboardingSlice';
+import { selectOnboardingRoute, setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
+import { isQuotedItem } from '../../../Redux/slices/cartSlice';
 import { store } from '../../../Redux/store';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
@@ -16,7 +17,7 @@ const C = {
 
 const { width: W, height: H } = Dimensions.get('window');
 
-function Login({ navigation }) {
+function Login({ navigation, route }) {
   const dispatch = useDispatch();
   const loginStatus = useSelector(state => state.user.loginStatus);
   const submitting = loginStatus === 'loading';
@@ -104,15 +105,72 @@ function Login({ navigation }) {
         }
         // Uses the persistent per-user onboarding record so signing out
         // mid-onboarding resumes the wizard instead of the dashboard.
-        const route = selectOnboardingRoute(store.getState());
-        if (route === 'AppHome') {
+        const onboardingTargetRoute = selectOnboardingRoute(store.getState());
+        if (onboardingTargetRoute === 'AppHome') {
+          const state = store.getState();
+          const cartItems = state.cart?.items || [];
+          const hasQuotedItem = cartItems.some(isQuotedItem);
+          const pendingQuoted = state.cart?.pendingQuotedService || route?.params?.service || route?.params?.quotedService;
+          const user = result?.user || state.user?.user;
+          const membership = user?.membership;
+          const hasMembership = (!!membership && membership !== 'None' && membership !== 'none') || (user?.membershipStatus === 'active') || (user?.has_membership === true);
+
+          if ((hasQuotedItem || pendingQuoted) && hasMembership) {
+            navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'AppHome',
+                  params: {
+                    screen: 'Services',
+                    params: {
+                      screen: 'Cart',
+                      params: {
+                        service: pendingQuoted,
+                        isQuoted: true,
+                      },
+                    },
+                  },
+                },
+              ],
+            });
+            return;
+          }
+
+          if (route?.params?.nextRoute === 'CustomPlanNew') {
+            // Reopening the exact tapped service via these route params —
+            // clear the redux-persisted flag/service (Services.js's other
+            // fallback for a brand-new guest who instead registers) so it
+            // doesn't go stale and bundle an unrelated custom-plan request
+            // into some other guest's registration later on this device.
+            dispatch(setPendingCustomPlanRequest(false));
+            navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'AppHome',
+                  params: {
+                    screen: 'Services',
+                    params: {
+                      screen: 'CustomPlanNew',
+                      params: {
+                        service: route?.params?.customPlanService,
+                      },
+                    },
+                  },
+                },
+              ],
+            });
+            return;
+          }
+
           // Fully onboarded → dashboard as the sole root (no back to auth).
           navigation.reset({ index: 0, routes: [{ name: 'AppHome' }] });
         } else {
           // Not onboarded → land on the wizard but keep Login directly beneath
           // it, so the onboarding back button returns to Login (and nothing
           // else — no intro carousel / stale pre-login stack).
-          navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: route }] });
+          navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: onboardingTargetRoute }] });
         }
       })
       .catch((error) => {

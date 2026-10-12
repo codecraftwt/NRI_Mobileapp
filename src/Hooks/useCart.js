@@ -14,6 +14,7 @@ import {
   clearAppliedCartCoupon,
   selectCartItems,
   selectServerCartCount,
+  isQuotedItem,
 } from '../Redux/slices/cartSlice';
 
 // Cart access that binds the server cart APIs ONLY for authenticated users.
@@ -68,14 +69,15 @@ export function useCart({ autoFetch = true } = {}) {
     // POST /customer/tickets/quoted/{service} instead. The local add above is
     // all it needs: SubmitRequest's quoted-only path reads straight off this
     // local cart and never depends on the server cart for that flow.
-    if (isAuthenticated && item?.serviceId != null && !item?.isQuoted) {
+    if (isAuthenticated && item?.serviceId != null && !isQuotedItem(item)) {
       dispatch(addServerCartItem({ serviceId: item.serviceId, billingMode: item.isRecurring ? 'recurring' : 'one_time' }));
     }
   };
 
   const remove = (serviceId) => {
+    const item = items.find(i => i.serviceId === serviceId);
     dispatch(removeFromCart(serviceId));
-    if (isAuthenticated) dispatch(removeServerCartItem(serviceId));
+    if (isAuthenticated && !isQuotedItem(item)) dispatch(removeServerCartItem(serviceId));
   };
 
   const refresh = () => {

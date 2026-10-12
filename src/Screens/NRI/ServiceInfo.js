@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, StatusBar, Image, ImageBackground, Modal } from 'react-native';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { selectCartItems } from '../../Redux/slices/cartSlice';
+import { selectCartItems, setPendingQuotedService } from '../../Redux/slices/cartSlice';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
 import { useCart } from '../../Hooks/useCart';
 import { useToast } from '../../context/ToastContext';
@@ -54,6 +54,7 @@ const durationLabel = (pricing, mode) => {
 };
 
 function ServiceInfo({ route, navigation }) {
+  const dispatch = useDispatch();
   const { service, category } = route.params;
   // Defaults to one-time when opened without a mode (e.g. a stale deep link).
   const mode = route.params?.mode === 'recurring' ? 'recurring' : 'oneTime';
@@ -116,8 +117,8 @@ function ServiceInfo({ route, navigation }) {
   // "Not available in your area" — adding it would put a $0 line in the cart and
   // 422 at checkout, so the CTA is blocked (matches the list screen, which hides
   // these entirely).
-  const canBook = !!pricing && (pricing.isQuoted || priceValue(pricing, mode) != null);
-  const isQuoted = !!pricing?.isQuoted;
+  const canBook = !!pricing && (pricing.isQuoted || pricing.is_quoted || priceValue(pricing, mode) != null);
+  const isQuoted = !!(pricing?.isQuoted || pricing?.is_quoted);
 
   const handleAdd = () => {
     if (hasLocation && !canBook) return;
@@ -130,6 +131,34 @@ function ServiceInfo({ route, navigation }) {
       navigation.navigate(target.name, { openLocation: true });
       return;
     }
+
+    // A quoted service has no price to pay now — it does NOT go in the cart.
+    // Instead, save it as the pending quoted service and navigate directly
+    // to Register (or to Cart if already authenticated member).
+    if (isQuoted) {
+      dispatch(setPendingQuotedService({
+        serviceId: svc.id,
+        name: svc.name,
+        categoryName: category?.name,
+        imageUrl: svc.imageUrl,
+        isQuoted: true,
+        isRecurring: mode === 'recurring',
+        billingInterval: mode === 'recurring' ? pricing?.billingInterval : undefined,
+        stateName: savedLocation?.stateName,
+        cityName: savedLocation?.cityName,
+        cityId: savedLocation?.cityId,
+        pincode: savedLocation?.pincode,
+        pricing: svc.pricing,
+      }));
+      navigation.navigate(isAuthenticated && hasMembership ? 'Cart' : 'Register', {
+        service: svc,
+        category,
+        mode,
+        isQuoted: true,
+      });
+      return;
+    }
+
     if (modeConflict) {
       setConflictModalOpen(true);
       return;
@@ -148,27 +177,15 @@ function ServiceInfo({ route, navigation }) {
       price: priceValue(pricing, mode) ?? 0,
       currency: pricing?.currency || 'USD',
       durationLabel: durationLabel(pricing, mode),
-      isQuoted: !!pricing?.isQuoted,
+      isQuoted: false,
       isRecurring: mode === 'recurring',
       billingInterval: mode === 'recurring' ? pricing?.billingInterval : undefined,
       stateName: savedLocation.stateName,
       cityName: savedLocation.cityName,
       cityId: savedLocation.cityId,
       pincode: savedLocation.pincode,
+      pricing: svc.pricing,
     });
-
-    // A quoted service has no price to pay now — a vendor/RM proposes one
-    // after review, so there's nothing to "keep browsing" for. A member goes
-    // straight to the request flow (Cart renders SubmitRequest's quoted-only
-    // form). A guest/not-yet-member has no account yet to attach the request
-    // to — send them straight into registration instead of parking on Cart,
-    // which (for this case) is just a dead-end summary screen with nothing to
-    // pay for. The item still rides along locally and is requested once
-    // they've registered.
-    if (isQuoted) {
-      navigation.navigate(isAuthenticated && hasMembership ? 'Cart' : 'Register');
-      return;
-    }
 
     const shortName = svc.name.length > 24 ? `${svc.name.slice(0, 24).trim()}…` : svc.name;
     showToast(inOtherMode ? `${shortName} switched to ${mode === 'recurring' ? 'recurring' : 'one-time'}` : `${shortName} added to cart`, 'success');

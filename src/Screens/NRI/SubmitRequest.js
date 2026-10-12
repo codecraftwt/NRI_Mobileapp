@@ -1,10 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Image, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
-import { clearCart, clearServerCart, selectCartItems } from '../../Redux/slices/cartSlice';
+import { clearCart, clearServerCart, selectCartItems, selectPendingQuotedService, clearPendingQuotedService } from '../../Redux/slices/cartSlice';
 import { setPendingTicketFinalize, clearPendingTicketFinalize } from '../../Redux/slices/pendingRequestsSlice';
 import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
@@ -89,7 +89,7 @@ function SummaryRow({ label, sub, value, strong }) {
 // Authenticated cart checkout — a member's services go out as one service
 // request (ticket) they pay for here. Distinct from the guest onboarding flow,
 // which also activates membership.
-function SubmitRequest({ navigation }) {
+function SubmitRequest({ navigation, route }) {
   const dispatch = useDispatch();
   const { showAlert, alertProps } = useAppAlert();
   const { showToast } = useToast();
@@ -101,8 +101,43 @@ function SubmitRequest({ navigation }) {
     appliedCoupon: appliedCartCoupon, couponApplyLoading: cartCouponApplyLoading,
     applyCoupon: applyCartCoupon, clearCoupon: clearCartCoupon,
   } = useCart();
-  const items = useSelector(selectCartItems);
+  const cartItems = useSelector(selectCartItems);
+  const pendingQuoted = useSelector(selectPendingQuotedService) || route?.params?.service;
   const savedLocation = useSelector(s => s.serviceLocation);
+  const items = useMemo(() => {
+    if (cartItems.length > 0) return cartItems;
+    if (!pendingQuoted) return [];
+    return [{
+      serviceId: pendingQuoted.serviceId || pendingQuoted.id,
+      name: pendingQuoted.name,
+      categoryName: pendingQuoted.categoryName || pendingQuoted.category?.name,
+      imageUrl: pendingQuoted.imageUrl,
+      isQuoted: true,
+      isRecurring: pendingQuoted.isRecurring || route?.params?.mode === 'recurring',
+      stateName: pendingQuoted.stateName || savedLocation?.stateName,
+      cityName: pendingQuoted.cityName || savedLocation?.cityName,
+      cityId: pendingQuoted.cityId || savedLocation?.cityId,
+      pincode: pendingQuoted.pincode || savedLocation?.pincode,
+      pricing: pendingQuoted.pricing,
+    }];
+  }, [
+    cartItems,
+    pendingQuoted?.serviceId,
+    pendingQuoted?.id,
+    pendingQuoted?.name,
+    pendingQuoted?.categoryName,
+    pendingQuoted?.imageUrl,
+    pendingQuoted?.isRecurring,
+    pendingQuoted?.stateName,
+    pendingQuoted?.cityName,
+    pendingQuoted?.cityId,
+    pendingQuoted?.pincode,
+    route?.params?.mode,
+    savedLocation?.stateName,
+    savedLocation?.cityName,
+    savedLocation?.cityId,
+    savedLocation?.pincode,
+  ]);
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -252,17 +287,26 @@ function SubmitRequest({ navigation }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priorities]);
 
+  const initialLocState = items[0]?.stateName || savedLocation?.stateName || '';
+  const initialLocCity = items[0]?.cityName || savedLocation?.cityName || '';
+  const initialLocPincode = items[0]?.pincode || savedLocation?.pincode || '';
+
   useEffect(() => {
-    const stateName = items[0]?.stateName || savedLocation?.stateName || '';
-    const cityName = items[0]?.cityName || savedLocation?.cityName || '';
-    const pincode = items[0]?.pincode || savedLocation?.pincode || '';
-    setReqForm(prev => ({
-      ...prev,
-      state: prev.state || stateName,
-      city: prev.city || cityName,
-      pincode: prev.pincode || pincode,
-    }));
-  }, [items, savedLocation?.stateName, savedLocation?.cityName, savedLocation?.pincode]);
+    setReqForm(prev => {
+      const nextState = prev.state || initialLocState;
+      const nextCity = prev.city || initialLocCity;
+      const nextPincode = prev.pincode || initialLocPincode;
+      if (prev.state === nextState && prev.city === nextCity && prev.pincode === nextPincode) {
+        return prev;
+      }
+      return {
+        ...prev,
+        state: nextState,
+        city: nextCity,
+        pincode: nextPincode,
+      };
+    });
+  }, [initialLocState, initialLocCity, initialLocPincode]);
 
   useEffect(() => {
     const code = reqForm.pincode.trim();
@@ -442,17 +486,21 @@ function SubmitRequest({ navigation }) {
       }
     }
     dispatch(clearCart());
+    dispatch(clearPendingQuotedService());
     setGoServicesOnAlertClose(true);
     showAlert('Request Submitted', 'Your service request has been submitted. Track its progress under Requests.', [
       {
         text: 'Track my Request',
         onPress: () => {
           setGoServicesOnAlertClose(false);
-          // Cart lives in the Services tab stack. Open the Requests tab to track,
-          // then reset the Services stack back to its list root so leaving the
-          // tracking screen doesn't drop the user back on this now-empty cart.
+          // Cart lives in the Services tab stack. Reset the Services stack back to its list root
+          // so returning to Services doesn't drop the user back on this now-empty cart.
+          if (navigation.canGoBack && navigation.canGoBack()) {
+            navigation.popToTop();
+          } else {
+            navigation.navigate('Services', { screen: 'ServicesMain' });
+          }
           navigation.navigate('Requests');
-          navigation.popToTop();
         },
       },
     ]);
@@ -996,6 +1044,7 @@ function SubmitRequest({ navigation }) {
     // the server delete syncs in the background (like the per-item remove).
     if (items.length) dispatch(clearServerCart(items));
     dispatch(clearCart());
+    dispatch(clearPendingQuotedService());
     showToast('Cart cleared', 'success');
   };
   const confirmClearCart = () => {
@@ -1021,7 +1070,18 @@ function SubmitRequest({ navigation }) {
 
       <View style={styles.headerCard}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.headerBack} onPress={() => ((page === 'form' && !isQuotedOnlyCart) ? setPage('cart') : navigation.goBack())}>
+          <TouchableOpacity
+            style={styles.headerBack}
+            onPress={() => {
+              if (page === 'form' && !isQuotedOnlyCart) {
+                setPage('cart');
+              } else if (navigation.canGoBack && navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate('ServicesMain');
+              }
+            }}
+          >
             <Icon name="arrow-back-ios" size={20} color="#FFFFFF" style={styles.headerBackIcon} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -1041,7 +1101,10 @@ function SubmitRequest({ navigation }) {
         <View style={styles.emptyWrap}>
           <Icon name="shopping-cart" size={54} color="#CBD5E1" />
           <Text style={styles.emptyTitle}>No services selected</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => (navigation.canGoBack && navigation.canGoBack() ? navigation.goBack() : navigation.navigate('ServicesMain'))}
+          >
             <Text style={styles.primaryBtnText}>Back to Services</Text>
           </TouchableOpacity>
         </View>
