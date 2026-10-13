@@ -113,13 +113,21 @@ function SelectField({ label, value, placeholder, options, disabled, loading, on
 // requires_membership) rather than the free "no service_id" branch — state/city
 // still travel alongside it for vendor availability. The form always pays
 // before the ticket is raised.
-function CustomPlanNew({ navigation }) {
+function CustomPlanNew({ navigation, route }) {
+  // Opened from a tapped "Need Something Custom?" chip for a specific
+  // is_custom_task catalog service (see Services.js's openCustomTaskService)
+  // — that service_id is used directly below and the state/city fields are
+  // skipped entirely (the API doesn't need them when service_id is sent).
+  // Without this param the form falls back to its original behaviour:
+  // resolve the shared "Custom Task" catalog service by name and collect
+  // state/city for vendor availability.
+  const presetService = route?.params?.service || null;
   const { create, createLoading, resetCreate } = useCustomPlans();
   const { verifyPayment: verifyBillingPayment } = useBilling();
   const { currency, setCurrency, gateways, loading: gatewaysLoading } = useCurrencyGateways();
   const user = useSelector(s => s.user.user);
   const { showAlert, alertProps } = useAppAlert();
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(presetService?.name || '');
   const [message, setMessage] = useState('');
   const [stateVal, setStateVal] = useState('');
   const [city, setCity] = useState('');
@@ -136,8 +144,8 @@ function CustomPlanNew({ navigation }) {
   // /customer/custom-plans (same service OnboardingPayment.js's guest flow
   // uses). Without a service_id the API creates the ticket for free, which is
   // NOT what this screen wants — every request here must carry the fee.
-  const [customTaskServiceId, setCustomTaskServiceId] = useState(null);
-  const [resolvingService, setResolvingService] = useState(true);
+  const [customTaskServiceId, setCustomTaskServiceId] = useState(presetService?.id || null);
+  const [resolvingService, setResolvingService] = useState(!presetService);
   // Live fee preview — POST /customer/custom-plans is the only endpoint that
   // returns the actual amount, so calling it IS the quote (it also saves the
   // draft server-side, per its own response message). Fetched once per
@@ -158,6 +166,7 @@ function CustomPlanNew({ navigation }) {
   }, [gateways, paymentMethod]);
 
   useEffect(() => {
+    if (presetService) return;
     let cancelled = false;
     (async () => {
       try {
@@ -171,12 +180,13 @@ function CustomPlanNew({ navigation }) {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [presetService]);
 
-  const stateId = stateVal ? states.find(s => s.name === stateVal)?.id : null;
-  const cityId = city ? cities.find(c => c.name === city)?.id : null;
+  const stateId = presetService ? null : (stateVal ? states.find(s => s.name === stateVal)?.id : null);
+  const cityId = presetService ? null : (city ? cities.find(c => c.name === city)?.id : null);
 
-  const isValid = subject.trim().length > 0 && message.trim().length > 0 && !!stateId && !!cityId && !!paymentMethod && !!customTaskServiceId;
+  const isValid = subject.trim().length > 0 && message.trim().length > 0
+    && (!!presetService || (!!stateId && !!cityId)) && !!paymentMethod && !!customTaskServiceId;
   const busy = createLoading || payingRazorpay || pollingPayment || resolvingService || quoteLoading;
 
   // Identifies which exact field values a fetched quote/draft belongs to —
@@ -324,7 +334,14 @@ function CustomPlanNew({ navigation }) {
       }
 
       if (result.requiresMembership) {
-        showAlert('Membership Required', 'An active membership is required to open a custom plan request. Please complete your membership first.');
+        // No active membership — nothing was created. Hand the quote off to
+        // membership checkout, which bundles its fee into that same payment
+        // (POST /customer/membership/checkout with custom_quote_service_id/
+        // subject/message) and raises this request once it clears.
+        resetCreate();
+        navigation.navigate('MembershipCheckout', {
+          customQuote: { serviceId: result.serviceId, subject: result.subject, message: result.message, fee: result.fee },
+        });
         return;
       }
 
@@ -338,7 +355,7 @@ function CustomPlanNew({ navigation }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <Header navigation={navigation} title="New Custom Plan Request" showBack />
+      <Header navigation={navigation} title={presetService ? 'Request a Quote' : 'New Custom Plan Request'} showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.infoRow}>
           <TouchableOpacity
@@ -353,41 +370,45 @@ function CustomPlanNew({ navigation }) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.customPlanNote}>
-            Where would this custom plan take place? This helps us check vendor availability there.
-          </Text>
-          <View style={styles.row}>
-            <SelectField
-              label="State"
-              value={stateVal}
-              placeholder="Select state..."
-              options={stateNames}
-              loading={loadingStates}
-              onSelect={(v) => { setStateVal(v); setCity(''); }}
-              style={styles.rowItem}
-              required
-            />
-            <SelectField
-              label="City"
-              value={city}
-              placeholder={stateVal ? 'Select city...' : 'Select state first...'}
-              options={cityNames}
-              disabled={!stateVal}
-              loading={loadingCities}
-              onSelect={setCity}
-              style={styles.rowItem}
-              required
-            />
-          </View>
-          {statesFailed && (
-            <TouchableOpacity onPress={retryStates}>
-              <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
-            </TouchableOpacity>
-          )}
-          {citiesFailed && (
-            <TouchableOpacity onPress={retryCities}>
-              <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
-            </TouchableOpacity>
+          {!presetService && (
+            <>
+              <Text style={styles.customPlanNote}>
+                Where would this custom plan take place? This helps us check vendor availability there.
+              </Text>
+              <View style={styles.row}>
+                <SelectField
+                  label="State"
+                  value={stateVal}
+                  placeholder="Select state..."
+                  options={stateNames}
+                  loading={loadingStates}
+                  onSelect={(v) => { setStateVal(v); setCity(''); }}
+                  style={styles.rowItem}
+                  required
+                />
+                <SelectField
+                  label="City"
+                  value={city}
+                  placeholder={stateVal ? 'Select city...' : 'Select state first...'}
+                  options={cityNames}
+                  disabled={!stateVal}
+                  loading={loadingCities}
+                  onSelect={setCity}
+                  style={styles.rowItem}
+                  required
+                />
+              </View>
+              {statesFailed && (
+                <TouchableOpacity onPress={retryStates}>
+                  <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
+                </TouchableOpacity>
+              )}
+              {citiesFailed && (
+                <TouchableOpacity onPress={retryCities}>
+                  <Text style={styles.retryText}>Couldn't load cities. Tap to retry.</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
           <View style={styles.fieldWrap}>

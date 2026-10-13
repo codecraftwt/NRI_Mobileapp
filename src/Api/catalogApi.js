@@ -96,7 +96,10 @@ function mapService(raw) {
     allowsRecurring: raw.allows_recurring,
     allowsEmergency: raw.allows_emergency,
     imageUrl: toAbsoluteUrl(raw.image_url || raw.image || null),
-    category: raw.category ? { id: raw.category.id, name: raw.category.name, icon: raw.category.icon, description: raw.category.description, disclaimer: raw.category.disclaimer } : null,
+    // Quote-based "not on the list?" request — shown in the Services screen's
+    // "Need Something Custom?" banner instead of a regular grid card.
+    isCustomTask: !!raw.is_custom_task,
+    category: raw.category ? { id: raw.category.id, name: raw.category.name, slug: raw.category.slug, icon: raw.category.icon, description: raw.category.description, disclaimer: raw.category.disclaimer } : null,
     pricing: mapPricing(raw.pricing),
   };
 }

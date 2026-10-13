@@ -177,6 +177,11 @@ function MainServicesStack() {
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
       <Stack.Screen name="CustomPlanPayment" component={CustomPlanPayment} />
+      {/* Reached from Services.js's "Need Something Custom?" banner (a tapped
+          is_custom_task catalog service) — and from Login.js's nextRoute
+          redirect, which resumes straight back here after sign-in. */}
+      <Stack.Screen name="CustomPlanNew" component={CustomPlanNew} />
+      <Stack.Screen name="MembershipCheckout" component={MembershipCheckout} />
     </Stack.Navigator>
   );
 }

@@ -178,28 +178,52 @@ function Services({ navigation, route }) {
   const [allLoadingMore, setAllLoadingMore] = useState(false); // true while later categories are still streaming in
   // Reusable loader so both the auto-fetch effect and pull-to-refresh use one
   // code path; returns the promise so refresh can await it.
-  const loadAllServices = useCallback(() => {
+  // `runIdRef` guards against overlapping runs: if stateId/cityId resolve
+  // async and re-trigger this (new callback identity) while a prior run's
+  // category fetches are still in flight, the stale run's results — deduped
+  // only against its own `seen` Set, not the new run's — would otherwise
+  // land on top of the fresh run's and double up every service.
+  const runIdRef = useRef(0);
+  // `silent`: used by pull-to-refresh — keeps the currently-shown list (and
+  // the custom-quote banner, which is data-driven) visible while the fresh
+  // data loads, instead of blanking it to [] first and streaming it back in.
+  // Without this, every refresh made the banner (and grid) flash away and
+  // only reappear once its category's fetch came back.
+  const loadAllServices = useCallback((opts = {}) => {
+    const { silent = false } = opts;
     if (!categories.length) return Promise.resolve();
-    setAllServices([]);
-    setAllLoading(true);
+    const myRunId = ++runIdRef.current;
+    if (!silent) {
+      setAllServices([]);
+      setAllLoading(true);
+    }
     setAllLoadingMore(true);
     const seen = new Set();
+    const collected = [];
     let firstArrived = false;
     const tasks = categories.map(c =>
       getServiceGroups({ categoryId: c.id, stateId: stateId || null, cityId: savedLocation?.cityId || null })
         .then(({ oneTime: ot, recurring: rc }) => {
+          if (runIdRef.current !== myRunId) return; // superseded by a newer run
           const fresh = [...ot, ...rc].filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-          if (fresh.length) setAllServices(prev => [...prev, ...fresh]);
+          if (!fresh.length) return;
+          if (silent) collected.push(...fresh);
+          else setAllServices(prev => [...prev, ...fresh]);
         })
         .catch(() => {})
         .finally(() => {
-          if (!firstArrived) {
+          if (runIdRef.current !== myRunId) return;
+          if (!silent && !firstArrived) {
             firstArrived = true;
             setAllLoading(false);
           }
         })
     );
     return Promise.allSettled(tasks).finally(() => {
+      if (runIdRef.current !== myRunId) return;
+      // Swap the stale list for the fresh one in one shot, only once
+      // everything is in — no mid-refresh flicker.
+      if (silent) setAllServices(collected);
       setAllLoading(false);
       setAllLoadingMore(false);
     });
@@ -218,7 +242,7 @@ function Services({ navigation, route }) {
     try {
       await Promise.all([
         refreshCartRef.current?.(),
-        isAll ? loadAllServices() : Promise.resolve(retryCategory?.()),
+        isAll ? loadAllServices({ silent: true }) : Promise.resolve(retryCategory?.()),
       ]);
     } finally {
       setRefreshing(false);
@@ -227,8 +251,17 @@ function Services({ navigation, route }) {
 
   const catSeen = new Set();
   const catServices = [...oneTime, ...recurring].filter(s => (catSeen.has(s.id) ? false : catSeen.add(s.id)));
+  // Defensive final dedupe — allServices streams in from several parallel
+  // per-category requests, so a repeat id here would otherwise show up as a
+  // duplicate card/chip (and a React duplicate-key warning).
+  const allSeen = new Set();
+  const baseServices = (isAll ? allServices : catServices).filter(s => (allSeen.has(s.id) ? false : allSeen.add(s.id)));
+  // Quote-based "not on the list?" entries never show as regular cards — they
+  // drive the "Need Something Custom?" banner instead (see CustomQuoteCard below).
+  const customServices = baseServices.filter(s => s.isCustomTask);
   const q = search.toLowerCase().trim();
-  const services = (isAll ? allServices : catServices)
+  const services = baseServices
+    .filter(s => !s.isCustomTask)
     .filter(s => (mode === 'recurring' ? s.allowsRecurring : s.allowsSingleUse))
     .filter(s => s.name.toLowerCase().includes(q))
     .filter(s => !hasLocation || isServiceAvailable(s, mode));
@@ -259,6 +292,22 @@ function Services({ navigation, route }) {
       return;
     }
     navigation.navigate('GuestServiceInfo', target);
+  };
+
+  // Custom-task services (is_custom_task) are quote-only — tapping one opens
+  // its dedicated "request a quote" form (CustomPlanNew) rather than the
+  // normal booking detail screen. A guest is sent straight to Register —
+  // there's no route to carry the tapped service through registration, so
+  // flip pendingCustomPlanRequest instead: it survives the registration
+  // flow's store reset and makes OnboardingPayment.js auto-request this
+  // quote and bundle its fee into checkout, matching the web flow.
+  const openCustomTaskService = (service) => {
+    if (!isAuthenticated) {
+      dispatch(setPendingCustomPlanRequest(true));
+      navigation.navigate('Register');
+      return;
+    }
+    navigation.navigate('CustomPlanNew', { service });
   };
 
   const pickCategory = (name) => { setActiveCatName(name); setFilterOpen(false); };
@@ -330,22 +379,7 @@ function Services({ navigation, route }) {
         }
         ListHeaderComponent={(
           <>
-            <CustomQuoteCard onPress={() => {
-              if (!isAuthenticated) {
-                // Custom Plan requires an authenticated account — POST
-                // /customer/custom-plans is under /customer/*. Send guests to
-                // Registration first; OnboardingPayment.js reads this flag (it
-                // survives registerUser.fulfilled wiping the rest of the store)
-                // to auto-request the quote and bundle its fee into membership
-                // checkout once the wizard reaches the payment step.
-                dispatch(setPendingCustomPlanRequest(true));
-                navigation.navigate('Register');
-                return;
-              }
-              // Cross into the Dashboard tab's stack, where the Custom Plan
-              // screens live (same pattern the tab bar itself uses).
-              navigation.navigate('Dashboard', { screen: 'CustomPlanRequests' });
-            }} />
+            <CustomQuoteCard services={customServices} onSelect={openCustomTaskService} />
 
             {/* Search + filter */}
             <View style={styles.searchRow}>

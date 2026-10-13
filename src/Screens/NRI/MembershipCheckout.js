@@ -31,8 +31,19 @@ const colors = C;
 const formatUsd = (value) =>
   `$${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+// The bundled custom-plan opening fee comes back in its own currency from
+// POST /customer/custom-plans, not necessarily USD like the rest of this
+// screen — format it with its own symbol (same helper as OnboardingPayment.js).
+const formatFee = (amount, currency) =>
+  `${currency === 'INR' ? '₹' : '$'}${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 function MembershipCheckout({ navigation, route }) {
   const { mode = 'new', planId: initialPlanId } = route.params || {};
+  // Set by CustomPlanNew.js when POST /customer/custom-plans came back
+  // requires_membership: true — no membership yet, so nothing was created.
+  // Bundling these into this same checkout (custom_quote_service_id/subject/
+  // message) raises the custom-plan request as soon as this payment clears.
+  const customQuote = route.params?.customQuote || null;
   const user = useSelector(state => state.user.user);
 
   const { regularPlans, loading: plansLoading, failed: plansFailed, retry: retryPlans } = usePlans();
@@ -157,6 +168,43 @@ function MembershipCheckout({ navigation, route }) {
       });
   };
 
+  // Shared by both gateway paths below — resolves what to show once a
+  // payment actually clears: a recurring cart service left unpaid, a custom
+  // plan request this same payment just raised (see customQuote above), or
+  // just plain membership activation.
+  const finishAfterVerify = (data) => {
+    refetchMembership();
+    const bundle = data?.pendingRecurringBundle;
+    if (bundle) {
+      setPendingBundle(bundle);
+      return;
+    }
+    if (data?.customPlanTicket) {
+      showAlert('Request Submitted', `Your custom plan request ${data.customPlanTicket.ticketNumber} has been created.`, 'success', {
+        btnText: 'OK',
+        onConfirm: () => navigation.replace('SupportTicketChat', {
+          ticketId: data.customPlanTicket.id,
+          createdTicketNumber: data.customPlanTicket.ticketNumber,
+          kind: 'custom_plan',
+        }),
+      });
+      return;
+    }
+    // Rare webhook-race window (see paymentsApi.js's pendingCustomPlan) — the
+    // ticket hasn't been raised yet even though payment cleared.
+    if (data?.pendingCustomPlan) {
+      showAlert('Payment Received', "Your payment was received. If your custom plan request doesn't appear shortly, please check My Requests.", 'success', {
+        btnText: 'OK',
+        onConfirm: () => navigation.goBack(),
+      });
+      return;
+    }
+    showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
+      btnText: 'OK',
+      onConfirm: () => navigation.goBack(),
+    });
+  };
+
   const handleSubmit = async () => {
     if (!selectedPlanId) {
       showAlert('Select a Plan', 'Please choose a membership plan to continue.', 'error');
@@ -177,6 +225,9 @@ function MembershipCheckout({ navigation, route }) {
         addonCouponCode: addonCouponCode.trim() || undefined,
         autoRenew,
         useWallet,
+        customQuoteServiceId: customQuote?.serviceId || undefined,
+        customQuoteSubject: customQuote?.subject || undefined,
+        customQuoteMessage: customQuote?.message || undefined,
       }).unwrap();
 
       if (result.checkoutUrl) {
@@ -194,16 +245,7 @@ function MembershipCheckout({ navigation, route }) {
           user,
           verify: (params) => verifyPayment(params).unwrap(),
         });
-        refetchMembership();
-        const bundle = verifyResult?.data?.pendingRecurringBundle;
-        if (bundle) {
-          setPendingBundle(bundle);
-        } else {
-          showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-            btnText: 'OK',
-            onConfirm: () => navigation.goBack(),
-          });
-        }
+        finishAfterVerify(verifyResult?.data);
       } else if (result.planId) {
         // PayPal auto-renew returns a plan_id for PayPal's native subscription
         // SDK, which isn't built on mobile yet — steer the user to a supported
@@ -236,16 +278,7 @@ function MembershipCheckout({ navigation, route }) {
     setSubmitting(true);
     try {
       const verifyResult = await verifyPayment({ paymentId, sessionId }).unwrap();
-      refetchMembership();
-      const bundle = verifyResult?.data?.pendingRecurringBundle;
-      if (bundle) {
-        setPendingBundle(bundle);
-      } else {
-        showAlert('Membership Activated', 'Your membership payment was verified successfully.', 'success', {
-          btnText: 'OK',
-          onConfirm: () => navigation.goBack(),
-        });
-      }
+      finishAfterVerify(verifyResult?.data);
     } catch (error) {
       showAlert('Verification Failed', error?.message || 'Could not verify this payment yet. Please try again in a moment.', 'error');
     } finally {
@@ -344,10 +377,21 @@ function MembershipCheckout({ navigation, route }) {
               <Text style={styles.rowValue}>{formatUsd(pkg.priceMonthly)}/mo</Text>
             </View>
           ))}
+          {!!customQuote && (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel} numberOfLines={2}>{customQuote.subject || 'Custom plan request fee'}</Text>
+              <Text style={styles.rowValue}>{formatFee(customQuote.fee?.amount, customQuote.fee?.currency)}</Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Amount Payable</Text>
             <Text style={styles.totalValue}>{formatUsd(amountPayable)}</Text>
           </View>
+          {!!customQuote && (
+            <Text style={styles.hint}>
+              Your custom plan request's opening fee rides along in this same payment — it isn't included in the total above.
+            </Text>
+          )}
 
           <Text style={styles.couponLabel}>Have a plan coupon?</Text>
           <View style={styles.couponRow}>

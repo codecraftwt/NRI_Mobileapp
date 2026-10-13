@@ -10,8 +10,16 @@ const DESCRIPTION = 'Not on the list? Describe what you need and our team will r
 // carries the short pitch + fee note; the info button behind it opens the
 // fuller explainer without crowding the card. Its own component so the
 // copy/CTA can be tweaked without touching the Services screen that hosts it.
-export default function CustomQuoteCard({ onPress }) {
+//
+// `services` are the catalog's is_custom_task=true entries — the banner only
+// renders when at least one exists. A single one gets a generic "Request a
+// Quote" button; more than one gets a chip per service name (each opening
+// that specific service's quote flow via `onSelect`).
+export default function CustomQuoteCard({ services = [], onSelect }) {
   const [infoVisible, setInfoVisible] = useState(false);
+
+  if (!services.length) return null;
+  const single = services.length === 1 ? services[0] : null;
 
   return (
     <View style={styles.card}>
@@ -39,10 +47,20 @@ export default function CustomQuoteCard({ onPress }) {
       </View>
 
       <View style={styles.bottomRow}>
-        <TouchableOpacity style={styles.cta} activeOpacity={0.85} onPress={onPress}>
-          <Text style={styles.ctaText}>Request a quote</Text>
-          <Icon name="arrow-forward" size={16} color="#FFFFFF" />
-        </TouchableOpacity>
+        {single ? (
+          <TouchableOpacity style={styles.cta} activeOpacity={0.85} onPress={() => onSelect(single)}>
+            <Text style={styles.ctaText}>Request a Quote</Text>
+            <Icon name="arrow-forward" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.chipsWrap}>
+            {services.map(s => (
+              <TouchableOpacity key={s.id} style={styles.serviceChip} activeOpacity={0.85} onPress={() => onSelect(s)}>
+                <Text style={styles.serviceChipText} numberOfLines={1}>{s.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <Modal visible={infoVisible} transparent animationType="fade" onRequestClose={() => setInfoVisible(false)}>
@@ -103,6 +121,12 @@ const styles = StyleSheet.create({
     shadowColor: '#D94625', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 4,
   },
   ctaText: { color: '#FFFFFF', fontFamily: 'Montserrat-Bold', fontSize: 13 },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flex: 1 },
+  serviceChip: {
+    backgroundColor: '#D94625', borderRadius: 999, paddingHorizontal: 14, height: 34,
+    justifyContent: 'center', alignItems: 'center', maxWidth: '100%',
+  },
+  serviceChipText: { color: '#FFFFFF', fontFamily: 'Montserrat-Bold', fontSize: 12 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
   modalSheet: { width: '100%', maxWidth: 380, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, alignItems: 'center', gap: 8 },
