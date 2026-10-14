@@ -15,7 +15,7 @@ import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import OnboardingCartModal from '../../../Components/OnboardingCartModal';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, updateMembership, saveUserProfile } from '../../../Redux/slices/userSlice';
-import { setPendingCustomPlanRequest, setOnboardingStep, setOnboardingPaymentSubStep, setCartReqForm, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
+import { setPendingCustomPlanRequest, setResolvedCustomQuote, setOnboardingStep, setOnboardingPaymentSubStep, setCartReqForm, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { addInvoice } from '../../../Redux/slices/walletSlice';
 import { clearCart, selectCartItems, mergeGuestCart, fetchServerCart } from '../../../Redux/slices/cartSlice';
 import { useCart } from '../../../Hooks/useCart';
@@ -64,14 +64,6 @@ function toAmount(value) {
 
 function formatUsd(amount) {
   return `$${toAmount(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-// The bundled custom-plan opening fee (see `customQuote` below) comes back
-// in its own currency from POST /customer/custom-plans, not necessarily USD
-// like the rest of this screen — format it with its own symbol.
-function formatMoney(amount, currency) {
-  const symbol = currency === 'INR' ? '₹' : '$';
-  return `${symbol}${toAmount(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function convertPlanAmountToUsd(amount, plan) {
@@ -230,6 +222,12 @@ function OnboardingPayment({ route, navigation }) {
   // (see customPlanApi.createCustomPlan), which becomes the same bundled
   // `customQuote` a service-linked quote screen would pass via route params.
   const pendingCustomPlanRequest = useSelector(s => s.onboarding.pendingCustomPlanRequest);
+  // Persisted copy of the result below, keyed by user — pendingCustomPlanRequest
+  // only fires the fetch once (it's flipped false right after), so without this
+  // the bundled fee silently vanished whenever this screen unmounted and
+  // remounted (e.g. tapping back to OnboardingProfile and forward again), since
+  // autoCustomQuote is local state that resets to null on every fresh mount.
+  const resolvedCustomQuote = useSelector(s => s.onboarding?.resolvedCustomQuoteByUser?.[userId]);
   const [autoCustomQuote, setAutoCustomQuote] = useState(null);
   const [customQuoteLoading, setCustomQuoteLoading] = useState(false);
   const [customQuoteError, setCustomQuoteError] = useState(null);
@@ -238,7 +236,7 @@ function OnboardingPayment({ route, navigation }) {
   // but if it happens there's nothing to bundle; just deep-link to it once
   // membership checkout finishes normally.
   const [preCreatedCustomPlanTicket, setPreCreatedCustomPlanTicket] = useState(null);
-  const customQuote = routeCustomQuote || autoCustomQuote;
+  const customQuote = routeCustomQuote || autoCustomQuote || resolvedCustomQuote;
 
   useEffect(() => {
     if (!pendingCustomPlanRequest || routeCustomQuote || autoCustomQuote || customQuoteLoading) return;
@@ -257,7 +255,9 @@ function OnboardingPayment({ route, navigation }) {
         })).unwrap();
         if (cancelled) return;
         if (result.requiresMembership) {
-          setAutoCustomQuote({ serviceId: result.serviceId, subject: result.subject, message: result.message, fee: result.fee });
+          const quote = { serviceId: result.serviceId, subject: result.subject, message: result.message, fee: result.fee };
+          setAutoCustomQuote(quote);
+          if (userId != null) dispatch(setResolvedCustomQuote({ userId, quote }));
         } else if (result.ticket) {
           // No fee owed / already covered — already created, nothing to bundle.
           setPreCreatedCustomPlanTicket({ id: result.ticket.id, ticketNumber: result.ticket.ticketNumber });
@@ -565,14 +565,17 @@ function OnboardingPayment({ route, navigation }) {
   const servicesPayableDisplay = cartCouponTotal != null ? cartCouponTotal : (currency === 'INR' ? servicesPayableInr : servicesPayable);
   // A pending custom-plan request fee (see customQuote above) rides along
   // with this same membership checkout, one combined charge — mirrors how a
-  // cart's one-time services are bundled in. Summed directly into the USD
-  // total like cart item prices already are elsewhere on this screen — this
-  // assumes the fee comes back in the customer's USD billing currency (same
-  // assumption the rest of this screen makes); it's only ever shown/added
-  // for display, the backend computes the real combined charge itself.
+  // cart's one-time services are bundled in. The fee comes back in its own
+  // currency from POST /customer/custom-plans (not necessarily whichever one
+  // is selected here), so convert it to the on-screen currency before summing
+  // and displaying it — otherwise a USD fee gets added straight onto an INR
+  // total as if the numbers were in the same currency. It's only ever
+  // shown/added for display, the backend computes the real combined charge
+  // itself.
   const customQuoteFee = toAmount(customQuote?.fee?.amount);
   const customQuoteCurrency = customQuote?.fee?.currency || 'USD';
-  const amountPayable = membershipPayable + (fromCart ? servicesPayableDisplay : 0) + customQuoteFee;
+  const customQuoteFeeDisplay = convertToDisplayCurrency(customQuoteFee, customQuoteCurrency, currency, plan);
+  const amountPayable = membershipPayable + (fromCart ? servicesPayableDisplay : 0) + customQuoteFeeDisplay;
 
   // Same city resolution handlePay ultimately sends to checkout — needed here
   // too since a services coupon (below) is priced against a city, not the
@@ -1292,7 +1295,7 @@ function OnboardingPayment({ route, navigation }) {
                   </View>
                   <View style={styles.row}>
                     <Text style={styles.rowLabel} numberOfLines={2}>{customQuote.subject || 'Custom plan request fee'}</Text>
-                    <Text style={styles.rowValue}>{formatMoney(customQuoteFee, customQuoteCurrency)}</Text>
+                    <Text style={styles.rowValue}>{formatAmount(customQuoteFeeDisplay, currency)}</Text>
                   </View>
                   <View style={styles.customQuoteNoteRow}>
                     <Icon name="info-outline" size={13} color="#94A3B8" />

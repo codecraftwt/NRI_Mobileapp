@@ -113,7 +113,16 @@ export default function Splash({ navigation }) {
     };
 
     Promise.all([resolveRoute(), minDelay]).then(([route]) => {
-      if (!cancelled) navigation.replace(route);
+      if (cancelled) return;
+      // Mid-onboarding destinations (unverified email / wizard not finished)
+      // need Login kept directly beneath them — same as Login.handleSignIn's
+      // own reset for this case — so the back button returns there instead
+      // of exiting the app (Splash would otherwise be the only/root entry).
+      if (route === 'VerifyEmail' || route === 'OnboardingProfile' || route === 'OnboardingPayment') {
+        navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: route }] });
+      } else {
+        navigation.replace(route);
+      }
     });
 
     return () => { cancelled = true; };

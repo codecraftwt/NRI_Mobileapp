@@ -19,6 +19,14 @@ const initialState = {
   // a custom-plan quote (POST /customer/custom-plans) once the wizard reaches
   // the payment step, bundling the fee into membership checkout.
   pendingCustomPlanRequest: false,
+  // The quote POST /customer/custom-plans returned once pendingCustomPlanRequest
+  // above was consumed, keyed by user. OnboardingPayment.js only kept this in
+  // local component state before, so going back a step (unmounting the screen)
+  // and forward again silently dropped the bundled fee — pendingCustomPlanRequest
+  // was already flipped false, so it never re-fetched, and the fresh mount's
+  // local state started back at null. Persisting it here instead lets it
+  // survive remounts for the rest of the wizard.
+  resolvedCustomQuoteByUser: {}, // { [userId]: { serviceId, subject, message, fee } }
 };
 
 // Stable key for a user across register/login (id preferred, email fallback).
@@ -39,6 +47,7 @@ const onboardingSlice = createSlice({
         if (state.draftProfileByUser) delete state.draftProfileByUser[userId];
         if (state.paymentSubStepByUser) delete state.paymentSubStepByUser[userId];
         if (state.cartReqFormByUser) delete state.cartReqFormByUser[userId];
+        if (state.resolvedCustomQuoteByUser) delete state.resolvedCustomQuoteByUser[userId];
       }
     },
     markOnboardingIncomplete: (state, action) => {
@@ -87,6 +96,13 @@ const onboardingSlice = createSlice({
     },
     setPendingCustomPlanRequest: (state, action) => {
       state.pendingCustomPlanRequest = !!action.payload;
+    },
+    setResolvedCustomQuote: (state, action) => {
+      const { userId, quote } = action.payload || {};
+      if (userId == null) return;
+      if (!state.resolvedCustomQuoteByUser) state.resolvedCustomQuoteByUser = {};
+      if (quote) state.resolvedCustomQuoteByUser[userId] = quote;
+      else delete state.resolvedCustomQuoteByUser[userId];
     },
   },
   extraReducers: (builder) => {
@@ -191,5 +207,6 @@ export const {
   setCartReqForm,
   clearDraftProfile,
   setPendingCustomPlanRequest,
+  setResolvedCustomQuote,
 } = onboardingSlice.actions;
 export default onboardingSlice.reducer;

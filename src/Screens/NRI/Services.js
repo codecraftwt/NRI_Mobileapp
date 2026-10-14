@@ -294,20 +294,16 @@ function Services({ navigation, route }) {
     navigation.navigate('GuestServiceInfo', target);
   };
 
-  // Custom-task services (is_custom_task) are quote-only — tapping one opens
-  // its dedicated "request a quote" form (CustomPlanNew) rather than the
-  // normal booking detail screen. A guest is sent straight to Register —
-  // there's no route to carry the tapped service through registration, so
-  // flip pendingCustomPlanRequest instead: it survives the registration
-  // flow's store reset and makes OnboardingPayment.js auto-request this
-  // quote and bundle its fee into checkout, matching the web flow.
-  const openCustomTaskService = (service) => {
-    if (!isAuthenticated) {
-      dispatch(setPendingCustomPlanRequest(true));
-      navigation.navigate('Register');
-      return;
-    }
-    navigation.navigate('CustomPlanNew', { service });
+  // Custom-task services (is_custom_task) are quote-only — tapping one always
+  // routes through the Create Account screen first (there's no route to carry
+  // the tapped service through registration, so flip pendingCustomPlanRequest
+  // instead: it survives the registration flow's store reset and makes
+  // OnboardingPayment.js auto-request this quote and bundle its fee into
+  // checkout, matching the web flow). An already-registered user taps "Sign
+  // In" from Register to reach Login and resumes normally from there.
+  const openCustomTaskService = () => {
+    dispatch(setPendingCustomPlanRequest(true));
+    navigation.navigate('Register');
   };
 
   const pickCategory = (name) => { setActiveCatName(name); setFilterOpen(false); };
