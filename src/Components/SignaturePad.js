@@ -10,10 +10,16 @@ import { WebView } from 'react-native-webview';
 const BG = '#F8FAFC';
 
 // No native canvas/SVG lib in this app, so the cursive signature is rendered
-// inside a WebView's <canvas> and reported back as a base64 PNG data URL —
-// this is a visual signature only (no legal-font requirement per the
-// checkout API), matching what the web checkout does.
+// inside a WebView's <canvas> and reported back as a base64 PNG data URL.
+// Per the API team (signer_name/signature_data docs on POST
+// /customer/membership/checkout), the font must specifically be Dancing
+// Script at weight 700 — loaded from Google Fonts here rather than bundled as
+// a native asset, same visual result as the web checkout without a native
+// relink. draw() waits on document.fonts.ready so the very first render
+// (before the webfont finishes loading) doesn't get silently captured in the
+// fallback cursive font.
 const SIGNATURE_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;padding:0;width:100%;height:100%;background:${BG};overflow:hidden;}
   canvas{display:block;width:100%;height:100%;}
@@ -21,7 +27,8 @@ const SIGNATURE_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content
 <body>
 <canvas id="c" width="900" height="310"></canvas>
 <script>
-function draw(name) {
+var SIG_FONT = "'Dancing Script', cursive";
+function renderNow(name) {
   var canvas = document.getElementById('c');
   var ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -30,13 +37,22 @@ function draw(name) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   var fontSize = 100;
-  ctx.font = fontSize + 'px cursive';
+  ctx.font = '700 ' + fontSize + 'px ' + SIG_FONT;
   while (ctx.measureText(name).width > canvas.width - 60 && fontSize > 30) {
     fontSize -= 2;
-    ctx.font = fontSize + 'px cursive';
+    ctx.font = '700 ' + fontSize + 'px ' + SIG_FONT;
   }
   ctx.fillText(name, canvas.width / 2, canvas.height / 2);
   window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
+}
+function draw(name) {
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.load('700 100px ' + SIG_FONT).then(function () {
+      document.fonts.ready.then(function () { renderNow(name); });
+    }).catch(function () { renderNow(name); });
+  } else {
+    renderNow(name);
+  }
 }
 window.draw = draw;
 true;

@@ -292,6 +292,7 @@ function OnboardingPayment({ route, navigation }) {
   // Push them to the server cart once and adopt the authoritative priced
   // response, same one-time sync every other screen gets via useCart().
   const isAuthenticated = useSelector(s => s.user?.isAuthenticated);
+  const user = useSelector(s => s.user.user);
   const serverCartCount = useSelector(s => s.cart.serverCount);
   const guestMergeStatus = useSelector(s => s.cart.guestMergeStatus);
   useEffect(() => {
@@ -473,9 +474,20 @@ function OnboardingPayment({ route, navigation }) {
   // Required e-signature (POST /customer/membership/checkout now 422s
   // without accept_terms/signer_name/signature_data) — checking the box
   // reveals the "type to sign" field, which live-renders into signatureData.
+  // Prefilled with the account's name (GET /auth/me, same `user` the rest of
+  // the app reads) but stays editable — the API docs call for the legal name
+  // to be editable in case it doesn't match what's on file.
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [signerName, setSignerName] = useState('');
+  const [signerName, setSignerName] = useState(user?.name || '');
   const [signatureData, setSignatureData] = useState('');
+
+  // `user` isn't guaranteed to be loaded by the time this screen first mounts
+  // (e.g. right after registerUser.fulfilled) — only backfills the field, and
+  // only while it's still untouched, so it never clobbers what was typed.
+  useEffect(() => {
+    if (!signerName && user?.name) setSignerName(user.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.name]);
   const [legalModal, setLegalModal] = useState({ visible: false, tab: 'terms' });
   const openLegalModal = (tab) => setLegalModal({ visible: true, tab });
   const closeLegalModal = () => setLegalModal(prev => ({ ...prev, visible: false }));
