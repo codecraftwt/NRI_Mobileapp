@@ -387,7 +387,7 @@ function SupportTicketChat({ route, navigation }) {
               </View>
               <Text style={styles.threadDate}>{formatTime(ticket.createdAt)}</Text>
             </View>
-            {!isClosed && ticket.status !== 'escalated' && (
+            {!isCustomPlan && !isClosed && ticket.status !== 'escalated' && (
               <TouchableOpacity style={styles.escalateChip} onPress={handleEscalate} disabled={escalateLoading} activeOpacity={0.85}>
                 {escalateLoading ? <ActivityIndicator size="small" color="#DC2626" /> : (
                   <>
