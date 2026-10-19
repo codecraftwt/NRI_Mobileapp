@@ -302,8 +302,12 @@ function Services({ navigation, route }) {
   // checkout, matching the web flow). An already-registered user taps "Sign
   // In" from Register to reach Login and resumes normally from there.
   const openCustomTaskService = () => {
-    dispatch(setPendingCustomPlanRequest(true));
-    navigation.navigate('Register');
+    if (!isAuthenticated) {
+      dispatch(setPendingCustomPlanRequest(true));
+      navigation.navigate('Register');
+      return;
+    }
+    navigation.navigate('CustomPlanNew');
   };
 
   const pickCategory = (name) => { setActiveCatName(name); setFilterOpen(false); };
