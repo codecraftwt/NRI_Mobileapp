@@ -139,6 +139,11 @@ export function normalizeApiError(error) {
       errors: data?.errors || null,
       retryAfter: data?.retry_after ?? null,
       requiresMembership,
+      // Some endpoints (e.g. POST /customer/custom-plans) still save their
+      // record even when the gateway call that follows fails (502/503) —
+      // the error body carries the saved record's id so the caller can route
+      // to it instead of retrying blind and risking a duplicate.
+      supportTicketId: data?.data?.support_ticket_id ?? data?.support_ticket_id ?? null,
     };
   }
   if (error?.request) {

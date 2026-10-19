@@ -8,12 +8,7 @@ import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { removeFamilyMember } from '../../Redux/slices/familySlice';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
 import { useToast } from '../../context/ToastContext';
-
-const AVATAR_COLORS = ['#16A34A', '#1E3A8A', '#D97706', '#DC2626', '#8B5CF6', '#06B6D4'];
-function avatarColorFor(name) {
-  const idx = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[idx];
-}
+import { typography } from '../../theme/typography';
 
 function initialsFor(name) {
   return (name || '')
@@ -25,6 +20,9 @@ function initialsFor(name) {
     .toUpperCase();
 }
 
+// Fallback only — the backend now returns relationship_label (mapped to
+// m.relationshipLabel) directly; this just covers a cached/older response
+// that doesn't have it yet.
 function relationLabel(relationship) {
   if (!relationship) return '';
   return relationship.charAt(0).toUpperCase() + relationship.slice(1);
@@ -82,15 +80,26 @@ function Family({ navigation }) {
   return (
     <View style={styles.container}>
       <Header navigation={navigation} title="My Family" showBack />
+
+      {/* Fixed at the top so it's always reachable, even with a long member list. */}
+      <TouchableOpacity
+        style={styles.addBtn}
+        activeOpacity={0.9}
+        onPress={() => navigation.navigate('AddFamilyMember')}
+      >
+        <Icon name="person-add" size={18} color="#FFFFFF" />
+        <Text style={styles.addBtnText}>Add Family Member</Text>
+      </TouchableOpacity>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#007AFF']} tintColor="#007AFF" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
 
         {loading && (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#1E3A8A" />
+            <ActivityIndicator size="small" color="#D94625" />
             <Text style={styles.loadingText}>Loading family members…</Text>
           </View>
         )}
@@ -109,15 +118,17 @@ function Family({ navigation }) {
         ) : (
           members.map(m => (
             <View key={m.id} style={styles.memberCard}>
-              <View style={[styles.memberAvatar, { backgroundColor: avatarColorFor(m.name) }]}>
+              <View style={styles.memberAvatar}>
                 <Text style={styles.memberAvatarText}>{initialsFor(m.name)}</Text>
               </View>
-              
+
               <View style={styles.memberInfo}>
                 <Text style={styles.memberName} numberOfLines={1}>{m.name}</Text>
-                
+
                 <View style={styles.memberSubRow}>
-                  <Text style={styles.relationType}>{relationLabel(m.relationship)}</Text>
+                  <View style={styles.relationPill}>
+                    <Text style={styles.relationPillText}>{m.relationshipLabel || relationLabel(m.relationship)}</Text>
+                  </View>
                 </View>
 
                 {!!(m.phone || m.cityName || m.stateName) && (
@@ -139,7 +150,7 @@ function Family({ navigation }) {
 
               <View style={styles.actionCol}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('AddFamilyMember', { memberId: m.id })}>
-                  <Icon name="edit" size={18} color="#1E3A8A" />
+                  <Icon name="edit" size={18} color="#2563EB" />
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => handleDelete(m)}>
                   <Icon name="delete-outline" size={18} color="#DC2626" />
@@ -148,17 +159,6 @@ function Family({ navigation }) {
             </View>
           ))
         )}
-
-        <TouchableOpacity
-          style={styles.addBtn}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('AddFamilyMember')}
-        >
-          <View style={styles.addIconWrap}>
-            <Icon name="person-add" size={22} color="#1E3A8A" />
-          </View>
-          <Text style={styles.addBtnText}>Add Family Member</Text>
-        </TouchableOpacity>
       </ScrollView>
       <AppAlert {...alertProps} />
     </View>
@@ -166,54 +166,56 @@ function Family({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
 
   loadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 20 },
   loadingText: { fontSize: 15, color: '#64748B' },
   retryBox: { alignItems: 'center', paddingVertical: 12 },
-  retryText: { fontSize: 14, fontWeight: '600', color: '#DC2626' },
+  retryText: { fontSize: 14, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
 
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 20, fontWeight: '700', color: '#0F172A' },
-  emptySubText: { fontSize: 15, color: '#94A3B8' },
+  emptyText: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
+  emptySubText: { fontSize: 14, color: '#94A3B8' },
 
   memberCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: '#1E3A8A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 3,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
+    gap: 14,
   },
   memberAvatar: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 14,
+    backgroundColor: '#FFF1E8',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  memberAvatarText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  
+  memberAvatarText: { fontSize: 16, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', color: '#D94625' },
+
   memberInfo: {
     flex: 1,
     gap: 6,
   },
-  memberName: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  memberName: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', color: '#0F172A' },
   memberSubRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexWrap: 'wrap',
   },
-  relationType: { fontSize: 13, color: '#64748B' },
+  relationPill: { backgroundColor: '#F1F5F9', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 },
+  relationPillText: { fontSize: 11.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', color: '#64748B' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   memberMeta: { fontSize: 13, color: '#64748B', flexShrink: 1 },
   memberHealth: { fontSize: 13, color: '#D97706', flexShrink: 1 },
@@ -221,13 +223,13 @@ const styles = StyleSheet.create({
   actionCol: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   actionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#EEF2FF',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -237,26 +239,22 @@ const styles = StyleSheet.create({
 
   addBtn: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: '#D94625',
+    borderRadius: 18,
+    paddingVertical: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-    borderWidth: 1.5,
-    borderColor: '#1E3A8A',
-    borderStyle: 'dashed',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 4,
+    shadowColor: '#D94625',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  addIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addBtnText: { fontSize: 15, fontWeight: '700', color: '#1E3A8A' },
+  addBtnText: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', color: '#FFFFFF' },
 });
 
 export default Family;

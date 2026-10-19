@@ -93,6 +93,7 @@ function Dashboard({ navigation }) {
       case 'in review':
       case 'in_review': return { bg: '#E0E7FF', text: '#4338CA' };
       case 'completed': return { bg: '#D1FAE5', text: '#059669' };
+      case 'awaiting payment': return { bg: '#FEF3C7', text: '#92400E' };
       case 'overdue': return { bg: '#FEE2E2', text: '#DC2626' };
       default: return { bg: '#F1F5F9', text: '#64748B' };
     }
@@ -149,6 +150,7 @@ function Dashboard({ navigation }) {
 
   const exploreActions = [
     { id: 'customPlan', name: 'Custom Plan', icon: 'tune', screen: 'CustomPlanRequests', color: '#15803D' },
+    { id: 'family', name: 'My Family', icon: 'people', screen: 'FamilyMain', color: '#0891B2' },
     { id: 'billing', name: 'Billing', icon: 'receipt-long', screen: 'Billing & Payments', color: '#1E3A8A' },
     { id: 'reports', name: 'Reports', icon: 'bar-chart', screen: 'Reports & Media', color: '#10B981' },
     { id: 'wallet', name: 'Wallet', icon: 'account-balance-wallet', screen: 'Wallet & Coupons', color: '#8B5CF6' },
@@ -313,9 +315,12 @@ function Dashboard({ navigation }) {
                   // can already have a past sla_deadline, so overdue applies
                   // from creation, not just once work starts — exclude only
                   // the terminal statuses where a missed SLA no longer matters.
-                  const normalizedStatus = ticket.status?.toLowerCase().replace('_', ' ');
-                  const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled', 'in review'].includes(normalizedStatus);
-                  const displayStatus = overdue ? 'Overdue' : ticket.status;
+                  // status stays "new" for an unpaid request — statusLabel
+                  // (e.g. "Awaiting Payment") is the field to display, same
+                  // as the Requests/TicketDetail screens.
+                  const normalizedStatus = (ticket.statusLabel || ticket.status)?.toLowerCase().replace('_', ' ');
+                  const overdue = isOverdue(ticket.slaDeadline) && !['completed', 'cancelled', 'in review', 'awaiting payment'].includes(normalizedStatus);
+                  const displayStatus = overdue ? 'Overdue' : (ticket.statusLabel || ticket.status);
                   const statusStyle = getStatusColor(displayStatus);
                   return (
                     <TouchableOpacity

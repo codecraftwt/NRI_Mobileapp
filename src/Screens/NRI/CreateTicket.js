@@ -32,6 +32,7 @@ import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useMembership } from '../../Hooks/useMembership';
 import { usePostalCodeLookup } from '../../Hooks/usePostalCodeLookup';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import FamilyMemberPicker, { isValidFamilyMemberName } from '../../Components/FamilyMemberPicker';
 import { useTalukas } from '../../Hooks/useTalukas';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
@@ -44,8 +45,6 @@ import { resolveLocalCopies } from '../../Utils/localFileCopy';
 const ONE_TIME = 'One-Time Request';
 const RECURRING = 'Recurring Subscription';
 const REQUEST_TYPES = [ONE_TIME, RECURRING];
-// Matches the family member API's relationship enum (same as SubmitRequest).
-const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
 // Standard GST rate used for the instant local estimate (shown before a state
@@ -150,6 +149,8 @@ function CreateTicket({ route, navigation }) {
   const [pincode, setPincode] = useState('');
   const [fullName, setFullName] = useState('');
   const [relation, setRelation] = useState('');
+  // A saved family member's id, SOMEONE_ELSE, or null — see FamilyMemberPicker.
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [taluka, setTaluka] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
@@ -179,7 +180,7 @@ function CreateTicket({ route, navigation }) {
   const { priorities, loading: prioritiesLoading, failed: prioritiesFailed, retry: retryPriorities } = usePriorities();
   const { loading: loadingPincodeLookup, lookup: lookupPincode } = usePostalCodeLookup();
   const { talukaNames, talukas } = useTalukas(null, city);
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
+  const { members: familyMembers, loading: familyMembersLoading } = useFamilyMembers();
   const { membership, usage, loading: membershipLoading } = useMembership();
   const user = useSelector(s => s.user.user);
   const userId = useSelector(s => onboardingUserKey(s.user.user));
@@ -332,16 +333,16 @@ function CreateTicket({ route, navigation }) {
   const quoteLines = quote?.lines?.length
     ? quote.lines
     : (quoteBaseCharge > 0
-        ? [{
-            serviceId: primaryBaseServiceId || 'base',
-            name: selectedBaseServicesList.length === 1
-              ? selectedBaseServicesList[0].name
-              : selectedBaseServicesList.length > 1
-                ? 'Services'
-                : selectedService?.name || 'Service charge',
-            customerPrice: quoteBaseCharge,
-          }]
-        : []);
+      ? [{
+        serviceId: primaryBaseServiceId || 'base',
+        name: selectedBaseServicesList.length === 1
+          ? selectedBaseServicesList[0].name
+          : selectedBaseServicesList.length > 1
+            ? 'Services'
+            : selectedService?.name || 'Service charge',
+        customerPrice: quoteBaseCharge,
+      }]
+      : []);
 
   // The live backend bakes GST into total_amount and often returns
   // gst_amount / gst_rate as null on the quote — so GST didn't render and the
@@ -353,8 +354,8 @@ function CreateTicket({ route, navigation }) {
     : 0;
   const quoteGstAmount = quote
     ? (Number(quote.gstAmount) > 0
-        ? Number(quote.gstAmount)
-        : Math.max(0, Math.round((Number(quote.totalAmount || 0) - quotePreGst) * 100) / 100))
+      ? Number(quote.gstAmount)
+      : Math.max(0, Math.round((Number(quote.totalAmount || 0) - quotePreGst) * 100) / 100))
     : 0;
   // If the quote didn't return usable GST, estimate it at the standard rate so
   // the customer always sees a GST line and a correct total.
@@ -380,22 +381,21 @@ function CreateTicket({ route, navigation }) {
   // Who/where is now collected up front (fullName/relation/address), same
   // as the cart checkout screen — sent together with the pay request so the
   // ticket/subscription is created the moment payment clears.
-  const hasWhoWhere = fullName.trim().length > 0 && !!relation && address.trim().length > 0;
+  const hasWhoSelected = typeof selectedMemberId === 'number' || (isValidFamilyMemberName(fullName) && !!relation);
+  const hasWhoWhere = hasWhoSelected && address.trim().length > 0;
   const isValid = isRecurring
     ? (serviceCategory && selectedSubscriptionIds.length > 0 && !!state && !!cityId && pincode.trim().length > 0 && hasWhoWhere)
     : (serviceCategory && selectedBaseServiceIds.length > 0 && !!prioritySlug
-        && !!state && !!cityId && pincode.trim().length > 0 && hasWhoWhere);
+      && !!state && !!cityId && pincode.trim().length > 0 && hasWhoWhere);
 
-  const resolveFamilyMemberId = async () => {
-    const name = fullName.trim();
-    const relationship = relation.toLowerCase();
-    const existing = familyMembers.find(
-      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
-    );
-    if (existing) return existing.id;
-    const created = await createFamilyMember({ name, relationship }).unwrap();
-    return created.id;
-  };
+  // A saved family member sends family_member_id; "Someone else" sends the
+  // typed name/relation directly — the backend saves it as a new family
+  // member automatically, no separate create call needed first.
+  const whoForFields = () => (
+    typeof selectedMemberId === 'number'
+      ? { familyMemberId: selectedMemberId }
+      : { familyMemberName: fullName.trim(), familyMemberRelationship: relation.toLowerCase() }
+  );
 
   const handleChooseFiles = async () => {
     if (files.length >= MAX_FILES) { Alert.alert('Limit Reached', `You can attach up to ${MAX_FILES} files.`); return; }
@@ -512,11 +512,10 @@ function CreateTicket({ route, navigation }) {
   // one-time ticket, which the pay-first call can't carry).
   const finalizeAfterPayment = async (paymentId) => {
     try {
-      const familyMemberId = await resolveFamilyMemberId();
       const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       await finalizeTicketAction({
         paymentId,
-        familyMemberId,
+        ...whoForFields(),
         talukaId,
         address: address.trim(),
         customerNotes: notes || undefined,
@@ -538,11 +537,10 @@ function CreateTicket({ route, navigation }) {
   // later as a "pending" prompt on Requests/FinishRequest.
   const finalizeSubscriptionAfterPayment = async (paymentId) => {
     try {
-      const familyMemberId = await resolveFamilyMemberId();
       const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       await finalizeSubscriptionAction({
         paymentId,
-        familyMemberId,
+        ...whoForFields(),
         talukaId,
         address: address.trim(),
         customerNotes: notes || undefined,
@@ -581,7 +579,19 @@ function CreateTicket({ route, navigation }) {
   };
 
   const handleCheckoutCancel = () => {
+    const session = checkoutSession;
     setCheckoutSession(null);
+    // When who/where was sent up front, the request already exists server-side
+    // (saved as "Awaiting Payment") — send the customer to it instead of back
+    // to this form, so retrying doesn't create a duplicate request.
+    if (session?.ticketId) {
+      showAlert(
+        'Payment Required',
+        'This request will not be processed until payment is completed. You can pay anytime from its request details.',
+        [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: session.ticketId }) }]
+      );
+      return;
+    }
     // The request isn't confirmed until it's paid — make that explicit instead
     // of silently closing (which looked like the request went through).
     showAlert(
@@ -597,7 +607,6 @@ function CreateTicket({ route, navigation }) {
   const submitSubscription = async (gateway) => {
     if (!isValid) return;
     try {
-      const familyMemberId = await resolveFamilyMemberId();
       const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       const result = await createSubscription({
         serviceIds: selectedSubscriptionIds,
@@ -606,7 +615,7 @@ function CreateTicket({ route, navigation }) {
         stateId,
         cityId,
         pincode: pincode.trim(),
-        familyMemberId,
+        ...whoForFields(),
         talukaId,
         address: address.trim(),
         customerNotes: notes || undefined,
@@ -673,12 +682,16 @@ function CreateTicket({ route, navigation }) {
       return;
     }
     const hasFiles = files.length > 0;
+    // Set once submitTicket resolves with an address (the pre-created
+    // "Awaiting Payment" request's id) — used below to send the customer to
+    // that request's detail screen instead of back to this form if payment
+    // is cancelled or fails, since the request already exists.
+    let createdTicketId = null;
     try {
       const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       // A file can only ride the old pay-first→finalize sequence (this call
       // is JSON-only) — omit who/where here and finalize afterward instead.
       // Otherwise send who/where together with the pay request (one-shot).
-      const familyMemberId = hasFiles ? null : await resolveFamilyMemberId();
       const result = await submitTicket({
         serviceId: selectedBaseServiceIds[0],
         extraServices: selectedBaseServiceIds.slice(1),
@@ -690,8 +703,9 @@ function CreateTicket({ route, navigation }) {
         urgency: prioritySlug || 'standard',
         gateway: paymentMethod,
         currency,
-        ...(hasFiles ? {} : { familyMemberId, talukaId, address: address.trim(), customerNotes: notes || undefined }),
+        ...(hasFiles ? {} : { ...whoForFields(), talukaId, address: address.trim(), customerNotes: notes || undefined }),
       }).unwrap();
+      createdTicketId = result.ticketId || null;
 
       if (hasFiles && result.paymentId) {
         dispatch(setPendingTicketFinalize({
@@ -713,7 +727,7 @@ function CreateTicket({ route, navigation }) {
         // Stripe / PayPal hosted checkout — open in the in-app WebView;
         // handleCheckoutSuccess finishes the flow once it redirects back
         // with a session_id.
-        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, finalizeAfter: hasFiles });
+        setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, finalizeAfter: hasFiles, ticketId: createdTicketId });
         return;
       }
       if (result.order) {
@@ -754,9 +768,25 @@ function CreateTicket({ route, navigation }) {
         return;
       }
       if (isPaymentCancelled(error)) {
+        if (createdTicketId) {
+          showAlert(
+            'Payment Cancelled',
+            'Your request has been saved, but it will not be processed until payment is completed.',
+            [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
+          );
+          return;
+        }
         showAlert(
           'Payment Cancelled',
           'Payment was not completed. Your request has not been submitted yet. You can review your details and tap "Submit Request" to try again whenever you are ready.'
+        );
+        return;
+      }
+      if (createdTicketId) {
+        showAlert(
+          'Payment Failed',
+          error?.message || 'Payment could not be completed. Your request has been saved, but it will not be processed until payment is completed.',
+          [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
         );
         return;
       }
@@ -974,23 +1004,16 @@ function CreateTicket({ route, navigation }) {
 
         <Text style={styles.sectionTitle}>Who / Where</Text>
         <View style={styles.card}>
-          <View style={styles.fieldWrap}>
-            <Text style={styles.label}>Full Name<Text style={styles.required}> *</Text></Text>
-            <TextInput
-              style={styles.input}
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Family member's name"
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-          <SelectField
-            label="Relation"
+          <FamilyMemberPicker
             required
-            value={relation}
-            placeholder="Select..."
-            options={RELATION_OPTIONS}
-            onSelect={setRelation}
+            members={familyMembers}
+            membersLoading={familyMembersLoading}
+            selectedMemberId={selectedMemberId}
+            onSelectMemberId={setSelectedMemberId}
+            name={fullName}
+            onChangeName={setFullName}
+            relation={relation}
+            onChangeRelation={setRelation}
           />
           <SelectField
             label="Taluka"
@@ -1009,6 +1032,7 @@ function CreateTicket({ route, navigation }) {
               placeholder="House/flat no., street, landmark..."
               placeholderTextColor="#9CA3AF"
               multiline
+              maxLength={500}
             />
           </View>
           <View style={styles.fieldWrap}>
@@ -1361,11 +1385,11 @@ const styles = StyleSheet.create({
   usageBannerText: { flex: 1, fontSize: 13, color: '#D94625', lineHeight: 20 },
   bold: { fontWeight: '700' },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 16, letterSpacing: -0.3 },
-  card: { 
-    backgroundColor: '#FFFFFF', 
-    padding: 24, 
-    borderRadius: 24, 
-    gap: 20, 
+  card: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 24,
+    gap: 20,
     marginBottom: 28,
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 8 },
@@ -1375,10 +1399,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F1F5F9',
   },
-  estimateCard: { 
-    backgroundColor: '#FFFFFF', 
-    padding: 24, 
-    borderRadius: 24, 
+  estimateCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 24,
     gap: 16,
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 8 },

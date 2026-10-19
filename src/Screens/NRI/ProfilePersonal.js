@@ -9,12 +9,6 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { updateProfile, saveUserProfile } from '../../Redux/slices/userSlice';
 
-const GENDERS = ['Male', 'Female', 'Other'];
-
-// The API stores gender lower-cased ("male"); match it back to the display
-// option so the picker shows a checkmark and the label isn't lower-cased.
-const normalizeGender = (g) => GENDERS.find(o => o.toLowerCase() === String(g || '').toLowerCase()) || (g || '');
-
 // Letters, spaces and the punctuation real names use (O'Brien, Anne-Marie) —
 // no digits or symbols.
 const sanitizeName = (v) => String(v || '').replace(/[^A-Za-z\s'.-]/g, '');
@@ -73,7 +67,11 @@ export default function ProfilePersonal({ navigation }) {
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [dob, setDob] = useState(user?.dob ? new Date(user.dob) : null);
-  const [gender, setGender] = useState(normalizeGender(user?.gender));
+  // The raw value (e.g. "prefer_not_to_say") — driven entirely by the
+  // backend's gender_options so a new option never needs an app release.
+  const [genderValue, setGenderValue] = useState(user?.gender || '');
+  const genderOptions = user?.genderOptions || [];
+  const genderLabel = genderOptions.find(o => o.value === genderValue)?.label || '';
   const [bio, setBio] = useState(user?.bio || '');
   const [emergencyName, setEmergencyName] = useState(user?.emergencyContactName || '');
   const [emergencyPhone, setEmergencyPhone] = useState(user?.emergencyContactPhone || '');
@@ -95,7 +93,7 @@ export default function ProfilePersonal({ navigation }) {
         phone: phone || undefined,
         profile: {
           dateOfBirth: toApiDate(dob),
-          gender: gender ? gender.toLowerCase() : undefined,
+          gender: genderValue || undefined,
           bio: bio || undefined,
           emergencyContactName: emergencyName || undefined,
           emergencyContactPhone: emergencyPhone || undefined,
@@ -107,7 +105,8 @@ export default function ProfilePersonal({ navigation }) {
         name: name.trim(),
         phone,
         dob: dob ? dob.toISOString() : null,
-        gender,
+        gender: genderValue,
+        genderLabel,
         bio,
         emergencyContactName: emergencyName,
         emergencyContactPhone: emergencyPhone,
@@ -116,7 +115,9 @@ export default function ProfilePersonal({ navigation }) {
     } catch (error) {
       // Backend validates phone per-country (libphonenumber) and returns a 422
       // with a field-specific message — surface that instead of the generic one.
-      const fieldMessage = error?.errors?.phone?.[0];
+      // Gender is nested under `profile` in the request body, so its own 422
+      // comes back keyed as "profile.gender", not "gender".
+      const fieldMessage = error?.errors?.phone?.[0] || error?.errors?.['profile.gender']?.[0];
       showAlert('Could Not Save Profile', fieldMessage || error?.message || 'Please try again.');
     } finally {
       setSavingPersonal(false);
@@ -159,7 +160,16 @@ export default function ProfilePersonal({ navigation }) {
             onCancel={() => setShowDobPicker(false)}
           />
 
-          <SelectField label="Gender" value={gender} placeholder="Select Gender" options={GENDERS} onSelect={setGender} />
+          <SelectField
+            label="Gender"
+            value={genderLabel}
+            placeholder="Select Gender"
+            options={genderOptions.map(o => o.label)}
+            onSelect={(label) => {
+              const opt = genderOptions.find(o => o.label === label);
+              setGenderValue(opt ? opt.value : '');
+            }}
+          />
 
           <Text style={styles.inputLabel}>Bio</Text>
           <TextInput style={[styles.input, styles.multiline]} value={bio} onChangeText={setBio} multiline placeholderTextColor="#94A3B8" />

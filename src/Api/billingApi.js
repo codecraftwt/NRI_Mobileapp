@@ -6,6 +6,12 @@ function mapBillingItem(raw) {
     id: raw.id,
     label: raw.label,
     amount: raw.amount,
+    currency: raw.currency,
+    gstRate: raw.gst_rate,
+    gstAmount: raw.gst_amount,
+    // Live INR equivalent of `amount` (GST-inclusive) — lets the Pay Now
+    // modal offer a real $/₹ choice instead of guessing a conversion.
+    amountInr: raw.amount_inr != null ? Number(raw.amount_inr) : null,
     isPaid: !!raw.is_paid,
     createdAt: raw.created_at,
     receipt: raw.receipt || null,
@@ -72,9 +78,11 @@ export async function payBillableItem(payableType, id, { gateway, useWallet, cur
   }
 }
 
-export async function stopMembershipAutoRenew(membershipId) {
+// `reason` is required by the backend (5-1000 chars) — it 422s with
+// errors.reason otherwise.
+export async function stopMembershipAutoRenew(membershipId, reason) {
   try {
-    const response = await apiClient.post(`/customer/billing/membership/${membershipId}/stop-auto-renew`);
+    const response = await apiClient.post(`/customer/billing/membership/${membershipId}/stop-auto-renew`, { reason });
     // A 200 here does NOT mean the cancellation actually happened — this
     // endpoint returns HTTP 200 with { success: false } when the gateway-side
     // cancel call fails, and axios only rejects on a non-2xx status. Without
@@ -98,9 +106,11 @@ function mapCancelAllItem(raw) {
 // active auto-renewing service subscription, independently — always resolves
 // 200; per-item outcome (status: 'cancelled' | 'failed') lives in the payload,
 // not the HTTP status, since one gateway failure doesn't block the others.
-export async function cancelAllSubscriptions() {
+// `reason` is required by the backend (5-1000 chars) — it 422s with
+// errors.reason otherwise.
+export async function cancelAllSubscriptions(reason) {
   try {
-    const response = await apiClient.post('/customer/billing/cancel-all');
+    const response = await apiClient.post('/customer/billing/cancel-all', { reason });
     const data = response.data?.data || {};
     return {
       message: response.data?.message,

@@ -38,6 +38,7 @@ function getStatusPill(statusLabel) {
     case 'In Progress': return { bg: '#FFEDD5', text: '#C2410C', label: 'In Progress' };
     case 'In Review': return { bg: '#E0E7FF', text: '#4338CA', label: 'In Review' };
     case 'Assigned': return { bg: '#DBEAFE', text: '#1D4ED8', label: 'Assigned' };
+    case 'Awaiting Payment': return { bg: '#FEF3C7', text: '#92400E', label: 'Awaiting Payment' };
     case 'Cancelled': return { bg: '#FEE2E2', text: '#B91C1C', label: 'Cancelled' };
     case 'Overdue': return { bg: '#FEE2E2', text: '#DC2626', label: 'Overdue' };
     default: return { bg: '#F3F4F6', text: '#4B5563', label: statusLabel || 'Requested' };

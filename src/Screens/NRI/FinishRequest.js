@@ -15,6 +15,7 @@ import { useTicketBooking } from '../../Hooks/useTicketBooking';
 import { useBilling } from '../../Hooks/useBilling';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import FamilyMemberPicker, { SOMEONE_ELSE, isValidFamilyMemberName } from '../../Components/FamilyMemberPicker';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -28,7 +29,6 @@ import { resolveLocalCopies } from '../../Utils/localFileCopy';
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
-const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 
 const fmt = (amount, currency) => {
   const symbol = currency === 'INR' ? '₹' : '$';
@@ -104,7 +104,11 @@ function FinishRequest({ route, navigation }) {
   const pendingBundle = (bundleId != null ? bundleFinishes.find(b => b.bundleId === bundleId) : bundleFinishes[0]) || null;
   const pendingSubscription = (paymentId != null ? subscriptionFinalizes.find(s => s.paymentId === paymentId) : subscriptionFinalizes[0]) || null;
   const pendingQuoted = (serviceId != null ? quotedRequests.find(q => q.serviceId === serviceId) : quotedRequests[0]) || null;
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
+  const { members: familyMembers, loading: familyMembersLoading } = useFamilyMembers();
+  // A saved family member's id, SOMEONE_ELSE, or null — see FamilyMemberPicker.
+  // Pre-filled who/where (pendingQuoted) already has name/relation typed in,
+  // so default straight to the "someone else" sub-fields to keep it visible.
+  const [selectedMemberId, setSelectedMemberId] = useState(pendingQuoted?.fullName ? SOMEONE_ELSE : null);
 
   const {
     finalizeTicket: finalizeTicketAction, finalizeLoading,
@@ -269,21 +273,30 @@ function FinishRequest({ route, navigation }) {
   };
   const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
 
-  const resolveFamilyMemberId = async () => {
-    const name = form.fullName.trim();
-    const relationship = form.relation.toLowerCase();
-    const existing = familyMembers.find(
-      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
-    );
-    if (existing) return existing.id;
-    const created = await createFamilyMember({ name, relationship }).unwrap();
-    return created.id;
+  // A saved family member sends family_member_id; "Someone else" sends the
+  // typed name/relation directly — every booking endpoint now saves that as a
+  // new family member automatically, no separate create call needed first.
+  const whoForFields = () => (
+    typeof selectedMemberId === 'number'
+      ? { familyMemberId: selectedMemberId }
+      : { familyMemberName: form.fullName.trim(), familyMemberRelationship: form.relation.toLowerCase() }
+  );
+
+  // The checkout-bundle "finish" endpoint below predates family_member_id
+  // support and only takes raw name/relationship strings — resolve a saved
+  // pick back into those strings rather than sending an id it doesn't accept.
+  const resolveNameRelationStrings = () => {
+    if (typeof selectedMemberId === 'number') {
+      const m = familyMembers.find(fm => fm.id === selectedMemberId);
+      return { familyMemberName: m?.name || '', familyMemberRelationship: m?.relationship || '' };
+    }
+    return { familyMemberName: form.fullName.trim(), familyMemberRelationship: form.relation.toLowerCase() };
   };
 
   const validate = () => {
     const missing = [];
-    if (!form.fullName.trim()) missing.push('Full Name');
-    if (!form.relation) missing.push('Relation');
+    const hasWhoSelected = typeof selectedMemberId === 'number' || (isValidFamilyMemberName(form.fullName) && !!form.relation);
+    if (!hasWhoSelected) missing.push('Who is this for');
     if (mode === 'quoted') {
       if (!form.state) missing.push('State');
       if (!form.city) missing.push('City / District');
@@ -306,10 +319,9 @@ function FinishRequest({ route, navigation }) {
       const talukaId = talukas.find(t => t.name === form.taluka)?.id || null;
 
       if (mode === 'ticket') {
-        const familyMemberId = await resolveFamilyMemberId();
         await finalizeTicketAction({
           paymentId: pendingTicket.paymentId,
-          familyMemberId,
+          ...whoForFields(),
           talukaId,
           address: form.address.trim(),
           customerNotes: form.notes || undefined,
@@ -324,10 +336,9 @@ function FinishRequest({ route, navigation }) {
           { text: 'OK', onPress: () => navigation.navigate('Requests', { screen: 'RequestsMain' }) },
         ]);
       } else if (mode === 'subscription') {
-        const familyMemberId = await resolveFamilyMemberId();
         await finalizeSubscriptionAction({
           paymentId: pendingSubscription.paymentId,
-          familyMemberId,
+          ...whoForFields(),
           talukaId,
           address: form.address.trim(),
           customerNotes: form.notes || undefined,
@@ -343,10 +354,9 @@ function FinishRequest({ route, navigation }) {
       } else if (mode === 'quoted') {
         const stateId = states.find(s => s.name === form.state)?.id || null;
         const cityId = cities.find(c => c.name === form.city)?.id || null;
-        const familyMemberId = await resolveFamilyMemberId();
         await bookQuotedTicket({
           serviceId: pendingQuoted.serviceId,
-          stateId, cityId, talukaId, familyMemberId,
+          stateId, cityId, talukaId, ...whoForFields(),
           address: form.address.trim(),
           pincode: form.pincode?.trim() || undefined,
           urgency: selectedPriority?.slug || 'standard',
@@ -366,8 +376,7 @@ function FinishRequest({ route, navigation }) {
       } else {
         await finishBundle({
           bundleId: pendingBundle.bundleId,
-          familyMemberName: form.fullName.trim(),
-          familyMemberRelationship: form.relation.toLowerCase(),
+          ...resolveNameRelationStrings(),
           talukaId,
           address: form.address.trim(),
           customerNotes: form.notes || undefined,
@@ -484,22 +493,16 @@ function FinishRequest({ route, navigation }) {
             <Text style={styles.cardTitle}>Who / Where</Text>
           </View>
 
-          <Text style={styles.fieldLabel}>Full Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Family member's name"
-            placeholderTextColor="#94A3B8"
-            value={form.fullName}
-            onChangeText={t => setField('fullName', t)}
-          />
-
-          <FormSelect
-            label="Relation"
+          <FamilyMemberPicker
             required
-            value={form.relation}
-            placeholder="Select..."
-            options={RELATION_OPTIONS}
-            onSelect={v => setField('relation', v)}
+            members={familyMembers}
+            membersLoading={familyMembersLoading}
+            selectedMemberId={selectedMemberId}
+            onSelectMemberId={setSelectedMemberId}
+            name={form.fullName}
+            onChangeName={t => setField('fullName', t)}
+            relation={form.relation}
+            onChangeRelation={v => setField('relation', v)}
           />
 
           {mode === 'quoted' && (

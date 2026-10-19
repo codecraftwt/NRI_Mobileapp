@@ -5,6 +5,10 @@ function mapFamilyMember(raw) {
     id: raw.id,
     name: raw.name,
     relationship: raw.relationship,
+    // Backend-provided display label ("Spouse", "Child", "Parent", "Sibling",
+    // "Myself", "Other") — prefer this over title-casing the raw enum
+    // ourselves, since it's the source of truth for how it should read.
+    relationshipLabel: raw.relationship_label || null,
     phone: raw.phone || '',
     address: raw.address || '',
     stateId: raw.state_id ?? null,

@@ -26,6 +26,15 @@ export const rateTicket = createAsyncThunk('myTickets/rate', async ({ ticketId, 
   }
 });
 
+export const cancelTicket = createAsyncThunk('myTickets/cancel', async ({ ticketId, reason }, { rejectWithValue }) => {
+  try {
+    await ticketApi.cancelTicket(ticketId, reason);
+    return { ticketId };
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 const initialState = {
   tickets: [],
   meta: { currentPage: 1, lastPage: 1, perPage: 10, total: 0 },
@@ -39,6 +48,8 @@ const initialState = {
   detailError: null,
   rateStatus: 'idle',
   rateError: null,
+  cancelStatus: 'idle',
+  cancelError: null,
 };
 
 const myTicketsSlice = createSlice({
@@ -106,6 +117,28 @@ const myTicketsSlice = createSlice({
       .addCase(rateTicket.rejected, (state, action) => {
         state.rateStatus = 'failed';
         state.rateError = action.payload;
+      })
+      .addCase(cancelTicket.pending, (state) => {
+        state.cancelStatus = 'loading';
+        state.cancelError = null;
+      })
+      .addCase(cancelTicket.fulfilled, (state, action) => {
+        state.cancelStatus = 'succeeded';
+        // Optimistically reflect the cancellation — the backend doesn't echo
+        // the updated ticket back, only a confirmation message.
+        if (state.detail && state.detail.id === action.payload.ticketId) {
+          state.detail.status = 'cancelled';
+          state.detail.statusLabel = 'Cancelled';
+          state.detail.awaitingPayment = false;
+        }
+        const idx = state.tickets.findIndex(t => t.id === action.payload.ticketId);
+        if (idx !== -1) {
+          state.tickets[idx] = { ...state.tickets[idx], status: 'cancelled', statusLabel: 'Cancelled', awaitingPayment: false };
+        }
+      })
+      .addCase(cancelTicket.rejected, (state, action) => {
+        state.cancelStatus = 'failed';
+        state.cancelError = action.payload;
       });
   },
 });

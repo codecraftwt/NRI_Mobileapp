@@ -268,6 +268,22 @@ function CustomPlanNew({ navigation, route }) {
     }
   };
 
+  // The request already exists server-side (saved as "awaiting payment") the
+  // moment create() returns a supportTicketId — if the customer backs out of
+  // the checkout, send them to that request's chat instead of leaving them on
+  // this form, where submitting again would create a duplicate request.
+  const handleCheckoutCancel = () => {
+    const session = checkoutSession;
+    setCheckoutSession(null);
+    if (session?.supportTicketId) {
+      showAlert(
+        'Payment Required',
+        'Your request has been saved, but our team will not start on it until the request fee is paid.',
+        [{ text: 'OK', onPress: () => navigation.replace('SupportTicketChat', { ticketId: session.supportTicketId, kind: 'custom_plan' }) }]
+      );
+    }
+  };
+
   const handleSubmit = async () => {
     if (!isValid) return;
     try {
@@ -301,7 +317,7 @@ function CustomPlanNew({ navigation, route }) {
         // gateway. verifyPayment's customPlanTicket/pendingCustomPlan (see
         // finishAfterPayment) is what actually confirms the ticket exists.
         if (result.checkoutUrl) {
-          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
+          setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId, supportTicketId: result.supportTicketId });
         } else if (result.order) {
           setPayingRazorpay(true);
           try {
@@ -319,7 +335,17 @@ function CustomPlanNew({ navigation, route }) {
             // cached quote so a retry fetches a fresh one.
             setQuote(null);
             lastFetchedFingerprintRef.current = null;
-            if (isPaymentCancelled(error)) {
+            // The request already exists server-side (awaiting payment) once
+            // supportTicketId comes back — route to its chat instead of
+            // leaving the customer on this form, where resubmitting would
+            // create a duplicate request.
+            if (result.supportTicketId) {
+              showAlert(
+                isPaymentCancelled(error) ? 'Payment Cancelled' : 'Payment Failed',
+                'Your request has been saved, but our team will not start on it until the request fee is paid.',
+                [{ text: 'OK', onPress: () => navigation.replace('SupportTicketChat', { ticketId: result.supportTicketId, kind: 'custom_plan' }) }]
+              );
+            } else if (isPaymentCancelled(error)) {
               showAlert('Payment Cancelled', 'Payment was not completed. Your custom plan request has not been submitted yet.');
             } else {
               showAlert('Payment Failed', error?.message || 'Could not complete payment. Please try again.');
@@ -349,6 +375,17 @@ function CustomPlanNew({ navigation, route }) {
       // else rather than silently doing nothing.
       showAlert('Could Not Submit', 'Unexpected response from the server. Please try again.');
     } catch (error) {
+      // Even if the gateway call itself failed to start (502/503), the
+      // request may already be saved server-side — route to its chat instead
+      // of letting the customer resubmit and create a duplicate.
+      if (error?.supportTicketId) {
+        showAlert(
+          'Request Saved',
+          "We couldn't start the payment just now, but your request has been saved. You can pay the request fee from its chat whenever you're ready.",
+          [{ text: 'OK', onPress: () => navigation.replace('SupportTicketChat', { ticketId: error.supportTicketId, kind: 'custom_plan' }) }]
+        );
+        return;
+      }
       showAlert('Could Not Submit', error?.message || 'Please try again.');
     }
   };
@@ -522,7 +559,7 @@ function CustomPlanNew({ navigation, route }) {
         checkoutUrl={checkoutSession?.url}
         title="Pay Opening Fee"
         onSuccess={handleCheckoutSuccess}
-        onCancel={() => setCheckoutSession(null)}
+        onCancel={handleCheckoutCancel}
       />
 
       <AppAlert {...alertProps} />

@@ -33,7 +33,7 @@ export function useServiceSubscription() {
     finalizeSubscription: (params) => dispatch(finalizeServiceSubscription(params)),
 
     cancelLoading,
-    cancelSubscription: (id) => dispatch(cancelServiceSubscription(id)),
+    cancelSubscription: (id, reason) => dispatch(cancelServiceSubscription({ subscriptionId: id, reason })),
 
     reset: () => dispatch(resetServiceSubscription()),
   };

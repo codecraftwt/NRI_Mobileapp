@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import CancelReasonModal from '../../Components/CancelReasonModal';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
@@ -81,21 +82,41 @@ function MyMembership({ navigation }) {
   const { showAlert, alertProps } = useAppAlert();
   const [cancelingId, setCancelingId] = useState(null);
 
+  // Which membership the reason-prompt modal is open for (null when closed),
+  // and any server-side validation error for its reason field.
+  const [stopAutoRenewTarget, setStopAutoRenewTarget] = useState(null);
+  const [reasonError, setReasonError] = useState(null);
+  const closeReasonPrompt = () => {
+    setStopAutoRenewTarget(null);
+    setReasonError(null);
+  };
+
   const autoRenewingMembership = overview?.autoRenewingMembership || null;
   const autoRenewingAddons = (overview?.addonSubscriptions || []).filter(s => s.autoRenew);
   const hasAutoRenewals = !!autoRenewingMembership || autoRenewingAddons.length > 0;
 
   const handleStopMembershipAutoRenew = (m) => {
-    showAlert('Stop Auto-Renewal', `Stop auto-renewal for ${m.planName}? It stays active until it expires.`, [
-      { text: 'Keep It', style: 'cancel' },
-      {
-        text: 'Stop Renewal',
-        style: 'destructive',
-        onPress: () => {
-          stopAutoRenew(m.id).unwrap().catch((error) => showAlert('Failed', error?.message || 'Could not stop auto-renewal.'));
-        },
-      },
-    ]);
+    setReasonError(null);
+    setStopAutoRenewTarget(m);
+  };
+
+  const handleConfirmStopAutoRenew = (reason) => {
+    if (!stopAutoRenewTarget) return;
+    setReasonError(null);
+    stopAutoRenew(stopAutoRenewTarget.id, reason)
+      .unwrap()
+      .then(() => {
+        setStopAutoRenewTarget(null);
+        retryBilling();
+      })
+      .catch((error) => {
+        if (error?.errors?.reason) {
+          setReasonError(error.errors.reason[0]);
+        } else {
+          setStopAutoRenewTarget(null);
+          showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
+        }
+      });
   };
 
   const handleStopAddonAutoRenew = (sub) => {
@@ -383,6 +404,14 @@ function MyMembership({ navigation }) {
 
       </ScrollView>
       <AppAlert {...alertProps} />
+      <CancelReasonModal
+        visible={!!stopAutoRenewTarget}
+        loading={stopAutoRenewLoading}
+        serverError={reasonError}
+        subjectText="your membership"
+        onClose={closeReasonPrompt}
+        onConfirm={handleConfirmStopAutoRenew}
+      />
     </View>
   );
 }

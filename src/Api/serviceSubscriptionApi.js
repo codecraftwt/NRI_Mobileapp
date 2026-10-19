@@ -40,7 +40,7 @@ export async function getServiceSubscriptions() {
 // the response, no separate finalizeServiceSubscription() call needed).
 // Subscriptions never accept files/documents, in either path.
 export async function createServiceSubscription({
-  serviceIds, gateway, currency, stateId, cityId, pincode, familyMemberId, talukaId, address, customerNotes,
+  serviceIds, gateway, currency, stateId, cityId, pincode, familyMemberId, familyMemberName, familyMemberRelationship, talukaId, address, customerNotes,
 }) {
   try {
     const response = await apiClient.post('/customer/service-subscriptions', {
@@ -51,6 +51,8 @@ export async function createServiceSubscription({
       city_id: cityId || undefined,
       pincode: pincode || undefined,
       family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
       taluka_id: talukaId || undefined,
       address: address || undefined,
       customer_notes: customerNotes || undefined,
@@ -85,11 +87,13 @@ export async function createServiceSubscription({
 // createServiceSubscription() above has cleared. Safe to call twice — an
 // already-finalized payment_id just returns the existing subscription.
 export async function finalizeServiceSubscription(paymentId, {
-  familyMemberId, talukaId, address, customerNotes,
+  familyMemberId, familyMemberName, familyMemberRelationship, talukaId, address, customerNotes,
 }) {
   try {
     const response = await apiClient.post(`/customer/service-subscriptions/${paymentId}/finalize`, {
-      family_member_id: familyMemberId,
+      family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
       taluka_id: talukaId || undefined,
       address,
       customer_notes: customerNotes || undefined,
@@ -105,10 +109,12 @@ export async function finalizeServiceSubscription(paymentId, {
   }
 }
 
-// Stop auto-renewal — the subscription stays active until the current period ends.
-export async function cancelServiceSubscription(subscriptionId) {
+// Stop auto-renewal — the subscription stays active until the current period
+// ends. `reason` is required by the backend (5-1000 chars) — it 422s with
+// errors.reason otherwise.
+export async function cancelServiceSubscription(subscriptionId, reason) {
   try {
-    const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/cancel`);
+    const response = await apiClient.post(`/customer/service-subscriptions/${subscriptionId}/cancel`, { reason });
     // A 200 here does NOT mean the cancellation actually happened — this
     // endpoint returns HTTP 200 with { success: false } when the gateway-side
     // cancel call fails, and axios only rejects on a non-2xx status. Without

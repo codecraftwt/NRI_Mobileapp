@@ -124,7 +124,7 @@ function Customer({ navigation }) {
             <Icon name="edit" size={16} color="#007AFF" />
             <Text style={[styles.actionBtnText, { color: '#007AFF' }]}>Edit Profile</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnTeal]} onPress={() => navigation.navigate('Family')}>
+          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnTeal]} onPress={() => navigation.navigate('FamilyMain')}>
             <Icon name="people" size={16} color="#0891B2" />
             <Text style={[styles.actionBtnText, { color: '#0891B2' }]}>Manage Family ({familyMembers.length})</Text>
           </TouchableOpacity>
@@ -150,7 +150,7 @@ function Customer({ navigation }) {
                 <Text style={styles.listRowName}>{m.name}</Text>
                 <View style={styles.listRowMetaRow}>
                   <View style={styles.relationPill}>
-                    <Text style={styles.relationPillText}>{m.relationship}</Text>
+                    <Text style={styles.relationPillText}>{m.relationshipLabel || m.relationship}</Text>
                   </View>
                   <Text style={styles.listRowMeta}>{m.phone}</Text>
                 </View>

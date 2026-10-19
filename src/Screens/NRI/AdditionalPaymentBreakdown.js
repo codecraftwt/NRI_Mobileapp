@@ -25,32 +25,39 @@ function formatGstLabel(rate) {
   return `GST (${rounded}%)`;
 }
 
-// Invoice-style breakdown + gateway picker shown before settling a
-// staff-requested additional (extra-cost) charge on a ticket. Reached from
-// TicketDetail's "Additional Payment Requested" card. All the summary numbers
-// come from the ticket's own pricing (amount_due_now/amount_due_gst already
-// equal this exact charge, verified live) — no extra fetch needed here.
-// Pays via the same generic "pay this ticket's current balance" endpoint
-// CustomPlanPayment.js uses (POST /customer/billing/ticket/{id}/pay).
+// Invoice-style breakdown + gateway picker shown before settling a ticket
+// payment. Two uses: `mode: 'additional'` (default) for a staff-requested
+// extra-cost charge, reached from TicketDetail's "Additional Payment
+// Requested" card; `mode: 'initial'` for a pre-created ticket that's still
+// "Awaiting Payment" (never paid at all), reached from its "Pay Now" button.
+// All the summary numbers come from the ticket's own pricing (amount_due_now/
+// amount_due_gst already equal this exact charge, verified live) — no extra
+// fetch needed here. Pays via the same generic "pay this ticket's current
+// balance" endpoint CustomPlanPayment.js uses (POST /customer/billing/ticket/{id}/pay).
 function AdditionalPaymentBreakdown({ route, navigation }) {
   const {
+    mode = 'additional',
     ticketId, ticketNumber, serviceName, reason,
     baseAmount, additionalAmount, additionalAmountInr, additionalGstAmountInr, additionalTotalAmountInr, gstAmount, gstRate,
   } = route.params || {};
+  const isInitial = mode === 'initial';
 
   const user = useSelector(s => s.user.user);
   const { pay: payBill, verifyPayment: verifyBillPayment } = useBilling();
   const { currency, setCurrency, gateways, loading: gatewaysLoading } = useCurrencyGateways();
   const { showAlert, alertProps } = useAppAlert();
 
+  // amountPreGst is deliberately the FULL pre-GST subtotal (base + add-ons +
+  // surcharge − discount for isInitial; just the charge amount for an
+  // additional charge) — isInitial doesn't render a separate Base row (see
+  // below), so there's nothing else for this row to double-count against.
   const amountPreGst = Math.max(0, Number(additionalAmount || 0) - Number(gstAmount || 0));
 
-  // additionalAmountInr/additionalGstAmountInr/additionalTotalAmountInr are the
-  // live INR equivalents straight off the ticket's pending_additional_charge
-  // (amount_inr/gst_inr/total_inr) — all authoritative from the backend, no
-  // local rate-based derivation. The payable total is amount_inr + gst_inr;
-  // total_inr already equals that sum, but fall back to summing the other two
-  // in case a cached/older ticket response doesn't carry total_inr yet.
+  // additionalAmountInr/additionalGstAmountInr/additionalTotalAmountInr are
+  // the live INR equivalents — for `additional` straight off the ticket's
+  // pending_additional_charge (amount_inr/gst_inr/total_inr); for `initial`
+  // off the ticket's own pricing (total_amount_inr/total_gst_amount_inr).
+  // Both are authoritative from the backend, no local rate-based derivation.
   const isInr = currency === 'INR';
   const inrReady = isInr && additionalAmountInr != null && additionalGstAmountInr != null;
   const totalAmountInr = additionalTotalAmountInr != null
@@ -72,9 +79,11 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
   const [checkoutSession, setCheckoutSession] = useState(null);
 
   const onPaid = () => {
-    showAlert('Payment Successful', 'Your additional payment has been confirmed.', [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    showAlert(
+      'Payment Successful',
+      isInitial ? 'Your payment has been confirmed. Your request will now be processed.' : 'Your additional payment has been confirmed.',
+      [{ text: 'OK', onPress: () => navigation.goBack() }]
+    );
   };
 
   const handlePay = async () => {
@@ -89,7 +98,7 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
           order: result.order,
           paymentId: result.paymentId,
           name: 'NRI Circle',
-          description: 'Additional payment',
+          description: isInitial ? 'Service request payment' : 'Additional payment',
           user,
           verify: (params) => verifyBillPayment(params).unwrap(),
         });
@@ -124,9 +133,13 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
       <Header navigation={navigation} title="Complete Payment" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.infoBanner}>
-          <Icon name="request-quote" size={18} color="#92400E" style={{ marginTop: 1 }} />
+          <Icon name={isInitial ? 'payment' : 'request-quote'} size={18} color="#92400E" style={{ marginTop: 1 }} />
           <Text style={styles.infoText}>
-            An additional payment was requested on <Text style={styles.infoBold}>{ticketNumber}</Text>{reason ? `: ${reason}` : ''}
+            {isInitial ? (
+              <>Complete payment for <Text style={styles.infoBold}>{ticketNumber}</Text> — it will not be processed until payment is completed.</>
+            ) : (
+              <>An additional payment was requested on <Text style={styles.infoBold}>{ticketNumber}</Text>{reason ? `: ${reason}` : ''}</>
+            )}
           </Text>
         </View>
 
@@ -136,12 +149,19 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
             <Text style={styles.cardTitle}>Charges Summary</Text>
           </View>
 
+          {/* isInitial has no separate "already paid" base — this row below
+              is the full pre-GST amount (base + add-ons + surcharge −
+              discount), so a standalone Base row here would double-count it. */}
+          {!isInitial && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Base: {serviceName || 'Service'}</Text>
+              <Text style={styles.summaryValue}>{formatUsd(baseAmount)}</Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Base: {serviceName || 'Service'}</Text>
-            <Text style={styles.summaryValue}>{formatUsd(baseAmount)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Additional charge{reason ? ` — ${reason}` : ''}</Text>
+            <Text style={styles.summaryLabel}>
+              {isInitial ? (serviceName || 'Service charges') : `Additional charge${reason ? ` — ${reason}` : ''}`}
+            </Text>
             <Text style={styles.summaryValue}>
               {isInr ? (inrReady ? formatAmount(additionalAmountInr, 'INR') : '…') : formatUsd(amountPreGst)}
             </Text>

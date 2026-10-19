@@ -10,6 +10,7 @@ import { onboardingUserKey } from '../../Redux/slices/onboardingSlice';
 import { useCart } from '../../Hooks/useCart';
 import { useServiceSubscription } from '../../Hooks/useServiceSubscription';
 import { useFamilyMembers } from '../../Hooks/useFamilyMembers';
+import FamilyMemberPicker, { isValidFamilyMemberName } from '../../Components/FamilyMemberPicker';
 import { useStates } from '../../Hooks/useStates';
 import { useCities } from '../../Hooks/useCities';
 import { useTalukas } from '../../Hooks/useTalukas';
@@ -30,8 +31,6 @@ import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { useToast } from '../../context/ToastContext';
 
 const GST_RATE = 0.18;
-// Matches the family member API's relationship enum (same as CreateTicket).
-const RELATION_OPTIONS = ['Myself', 'Parent', 'Sibling', 'Spouse', 'Child', 'Other'];
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
 
@@ -143,9 +142,9 @@ function SubmitRequest({ navigation, route }) {
   // Available gateways come from the backend (already NRI + admin-toggle gated).
   const { currency, setCurrency, gateways } = useCurrencyGateways();
   const { membership, loading: membershipLoading } = useMembership();
-  // Resolves the who-for-this fields into a family_member_id — needed by
-  // POST /customer/tickets/quoted/{service} (see resolveFamilyMemberId below).
-  const { members: familyMembers, create: createFamilyMember } = useFamilyMembers();
+  const { members: familyMembers, loading: familyMembersLoading } = useFamilyMembers();
+  // A saved family member's id, SOMEONE_ELSE, or null — see FamilyMemberPicker.
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
 
   const [reqForm, setReqForm] = useState({
     fullName: '', relation: '',
@@ -461,20 +460,14 @@ function SubmitRequest({ navigation, route }) {
   };
   const handleRemoveFile = (uri) => setFiles(prev => prev.filter(f => f.uri !== uri));
 
-  // POST /customer/tickets/quoted/{service} needs an existing family_member_id
-  // (unlike checkoutCart, which still takes raw name/relationship) — reuse a
-  // matching saved member if one exists, else create one on the fly. Same
-  // pattern as FinishRequest.js's resolveFamilyMemberId.
-  const resolveFamilyMemberId = async () => {
-    const name = reqForm.fullName.trim();
-    const relationship = reqForm.relation.toLowerCase();
-    const existing = familyMembers.find(
-      m => m.name.trim().toLowerCase() === name.toLowerCase() && m.relationship === relationship
-    );
-    if (existing) return existing.id;
-    const created = await createFamilyMember({ name, relationship }).unwrap();
-    return created.id;
-  };
+  // A saved family member sends family_member_id; "Someone else" sends the
+  // typed name/relation directly — every booking endpoint now saves that as a
+  // new family member automatically, no separate create call needed first.
+  const whoForFields = () => (
+    typeof selectedMemberId === 'number'
+      ? { familyMemberId: selectedMemberId }
+      : { familyMemberName: reqForm.fullName.trim(), familyMemberRelationship: reqForm.relation.toLowerCase() }
+  );
 
   const finishSuccess = async () => {
     if (items.length) {
@@ -518,8 +511,8 @@ function SubmitRequest({ navigation, route }) {
   // listing anything missing.
   const validateDetails = () => {
     const missing = [];
-    if (!reqForm.fullName.trim()) missing.push('Full Name');
-    if (!reqForm.relation) missing.push('Relation');
+    const hasWhoSelected = typeof selectedMemberId === 'number' || (isValidFamilyMemberName(reqForm.fullName) && !!reqForm.relation);
+    if (!hasWhoSelected) missing.push('Who is this for');
     if (!reqForm.state) missing.push('State');
     if (!reqForm.city) missing.push('City / District');
     if (!reqForm.address.trim()) missing.push('Full Address');
@@ -576,11 +569,10 @@ function SubmitRequest({ navigation, route }) {
   // "pending" prompt on Requests/FinishRequest.
   const finalizeSubscriptionAfterPayment = async (paymentId) => {
     try {
-      const familyMemberId = await resolveFamilyMemberId();
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
       await finalizeSubscriptionAction({
         paymentId,
-        familyMemberId,
+        ...whoForFields(),
         talukaId,
         address: reqForm.address.trim(),
         customerNotes: reqForm.notes || undefined,
@@ -665,11 +657,10 @@ function SubmitRequest({ navigation, route }) {
   // "Finish Request" banner.
   const finalizeAfterPayment = async (paymentId) => {
     try {
-      const familyMemberId = await resolveFamilyMemberId();
       const talukaId = talukas.find(t => t.name === reqForm.taluka)?.id || null;
       await finalizeTicketAction({
         paymentId,
-        familyMemberId,
+        ...whoForFields(),
         talukaId,
         address: reqForm.address.trim(),
         customerNotes: reqForm.notes || undefined,
@@ -693,6 +684,13 @@ function SubmitRequest({ navigation, route }) {
 
     submissionLockRef.current = true;
     setSubmissionInProgress(true);
+    // Set only when checkoutCart() comes back with a ticket_id — the cart's
+    // one-time part is pre-saved as "Awaiting Payment" the moment that
+    // happens, regardless of this payment's outcome — so cancelling/failing
+    // the separate pay call below routes to that ticket instead of leaving
+    // the customer on this form, where resubmitting the same cart would risk
+    // creating a duplicate request.
+    let createdTicketId = null;
     try {
       const stateId = states.find(s => s.name === reqForm.state)?.id;
       const cityId = cities.find(c => c.name === reqForm.city)?.id || pincodeLocation?.cityId || items[0]?.cityId || savedLocation?.cityId || null;
@@ -704,10 +702,9 @@ function SubmitRequest({ navigation, route }) {
       // after review; the customer pays it later the normal way, once
       // approved (see TicketDetail.js's "Additional Payment Requested" card).
       if (isQuotedOnlyCart && items.length > 0) {
-        const familyMemberId = await resolveFamilyMemberId();
         await bookQuotedTicket({
           serviceId: items[0].serviceId,
-          stateId, cityId, talukaId, familyMemberId,
+          stateId, cityId, talukaId, ...whoForFields(),
           address: reqForm.address.trim(),
           pincode: reqForm.pincode.trim(),
           urgency: selectedPriority?.slug || 'standard',
@@ -781,14 +778,13 @@ function SubmitRequest({ navigation, route }) {
       // case. finalizeSubscriptionAfterPayment is still checked as a safety
       // net in case the backend reports it pending anyway.
       if (isPureRecurring) {
-        const familyMemberId = await resolveFamilyMemberId();
         const result = await createSubscription({
           serviceIds: recurringItems.map(i => i.serviceId),
           gateway: paymentMethod,
           currency,
           stateId, cityId,
           pincode: reqForm.pincode.trim(),
-          familyMemberId, talukaId,
+          ...whoForFields(), talukaId,
           address: reqForm.address.trim(),
           customerNotes: reqForm.notes || undefined,
         }).unwrap();
@@ -828,8 +824,7 @@ function SubmitRequest({ navigation, route }) {
         gateway: paymentMethod,
         currency,
         couponCode: couponCode.trim() || undefined,
-        familyMemberName: reqForm.fullName.trim() || undefined,
-        familyMemberRelationship: reqForm.relation.trim().toLowerCase() || undefined,
+        ...whoForFields(),
         stateId, cityId, talukaId,
         address: reqForm.address.trim(),
         pincode: reqForm.pincode.trim(),
@@ -881,14 +876,24 @@ function SubmitRequest({ navigation, route }) {
       }
 
       if (result.ticketId) {
-        // The ticket already exists — pay it separately, the same way the
-        // pre-cart flow always did.
+        // The ticket is already saved (address was sent) — pay it
+        // separately, the same way the pre-cart flow always did.
+        createdTicketId = result.ticketId;
+        if (!result.paymentRequired) {
+          // Free (₹0) cart — the request is already fully submitted, no pay
+          // call needed (per the backend: "no finalize call is needed" here
+          // either — this is the one-shot path, not the old finalize one).
+          await handlePostCheckout(result.pendingRecurringBundle);
+          submissionLockRef.current = false;
+          setSubmissionInProgress(false);
+          return;
+        }
         const pay = await payForTicket('ticket', result.ticketId, paymentMethod, false, currency).unwrap();
         if (pay.checkoutUrl) {
           // Stripe — open the hosted checkout page; confirmed in
           // handleCheckoutSuccess once it redirects back with a session_id.
           // Carry the pending bundle (if any) through to that point.
-          setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId, pendingBundle: result.pendingRecurringBundle });
+          setCheckoutSession({ url: pay.checkoutUrl, paymentId: pay.paymentId, pendingBundle: result.pendingRecurringBundle, ticketId: result.ticketId });
           submissionLockRef.current = false;
           setSubmissionInProgress(false);
         } else if (pay.order) {
@@ -934,9 +939,25 @@ function SubmitRequest({ navigation, route }) {
         return;
       }
       if (isPaymentCancelled(error)) {
+        if (createdTicketId) {
+          showAlert(
+            'Payment Cancelled',
+            'Your request has been saved, but it will not be processed until payment is completed.',
+            [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
+          );
+          return;
+        }
         showAlert(
           'Payment Cancelled',
           'Payment was not completed. Your request has not been submitted yet. You can review your details and tap "Submit Request" to try again whenever you are ready.'
+        );
+        return;
+      }
+      if (createdTicketId) {
+        showAlert(
+          'Payment Failed',
+          error?.message || 'Payment could not be completed. Your request has been saved, but it will not be processed until payment is completed.',
+          [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
         );
         return;
       }
@@ -956,6 +977,22 @@ function SubmitRequest({ navigation, route }) {
       const msg = [error?.message, fieldErrors].filter(Boolean).join('\n\n')
         || 'Could not submit your request. Please try again.';
       showAlert('Submission Failed', msg);
+    }
+  };
+
+  // When checkoutCart() already returned a ticket_id (address was sent), that
+  // request is saved server-side regardless of this payment's outcome —
+  // route there instead of leaving the customer on this form, where
+  // resubmitting the same cart would risk creating a duplicate request.
+  const handleCheckoutCancel = () => {
+    const session = checkoutSession;
+    setCheckoutSession(null);
+    if (session?.ticketId) {
+      showAlert(
+        'Payment Required',
+        'Your request has been saved, but it will not be processed until payment is completed.',
+        [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: session.ticketId }) }]
+      );
     }
   };
 
@@ -1262,10 +1299,17 @@ function SubmitRequest({ navigation, route }) {
           <View style={styles.card}>
             <View style={styles.cardHeadRow}><Icon name="place" size={16} color="#20304C" /><Text style={styles.cardTitle}>Who / Where</Text></View>
 
-            <Text style={styles.fieldLabel}>Full Name *</Text>
-            <TextInput style={styles.input} placeholder="Family member's name" placeholderTextColor="#94A3B8" value={reqForm.fullName} onChangeText={t => setField('fullName', t)} />
-
-            <FormSelect label="Relation" required value={reqForm.relation} placeholder="Select..." options={RELATION_OPTIONS} onSelect={v => setField('relation', v)} />
+            <FamilyMemberPicker
+              required
+              members={familyMembers}
+              membersLoading={familyMembersLoading}
+              selectedMemberId={selectedMemberId}
+              onSelectMemberId={setSelectedMemberId}
+              name={reqForm.fullName}
+              onChangeName={t => setField('fullName', t)}
+              relation={reqForm.relation}
+              onChangeRelation={v => setField('relation', v)}
+            />
             <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
             <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
             <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
@@ -1466,7 +1510,7 @@ function SubmitRequest({ navigation, route }) {
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
         onSuccess={handleCheckoutSuccess}
-        onCancel={() => setCheckoutSession(null)}
+        onCancel={handleCheckoutCancel}
         title="Secure Payment"
       />
 

@@ -41,6 +41,7 @@ function getStatusColor(statusLabel) {
     case 'IN REVIEW':
     case 'IN_REVIEW': return { bg: '#E0E7FF', text: '#4338CA' };
     case 'COMPLETED': return { bg: '#E0F2FE', text: '#0284C7' };
+    case 'AWAITING PAYMENT': return { bg: '#FEF3C7', text: '#92400E' };
     case 'CANCELLED': return { bg: '#FEE2E2', text: '#DC2626' };
     default: return { bg: '#F1F5F9', text: '#475569' };
   }
@@ -66,7 +67,7 @@ function isOverdue(dateStr) {
 
 function TicketDetail({ route, navigation }) {
   const { ticketId } = route.params || {};
-  const { detail: ticket, loading, failed, retry, rate, rateLoading } = useTicketDetail(ticketId);
+  const { detail: ticket, loading, failed, retry, rate, rateLoading, cancel, cancelLoading } = useTicketDetail(ticketId);
   const { reports, loading: reportsLoading, failed: reportsFailed, retry: retryReports } = useReports();
   const report = (ticket && reports.find(r => r.ticketNumber === ticket.ticketNumber)) || ticket?.report || null;
   const { openAttachment, preview: attachmentPreview } = useAttachmentViewer();
@@ -224,6 +225,47 @@ function TicketDetail({ route, navigation }) {
     });
   };
 
+  // Pay Now on the "Awaiting Payment" notice — the request was pre-created
+  // but never paid, so it reuses the same breakdown + gateway-picker screen
+  // as an additional charge (mode: 'initial' swaps the copy/labels).
+  const handleAwaitingPaymentPayNow = () => {
+    const p = ticket.pricing || {};
+    navigation.navigate('AdditionalPaymentBreakdown', {
+      mode: 'initial',
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      serviceName: ticket.serviceName,
+      additionalAmount: p.totalAmount,
+      additionalAmountInr: p.totalAmountInr != null && p.totalGstAmountInr != null
+        ? p.totalAmountInr - p.totalGstAmountInr
+        : null,
+      additionalGstAmountInr: p.totalGstAmountInr,
+      additionalTotalAmountInr: p.totalAmountInr,
+      gstAmount,
+      gstRate,
+    });
+  };
+
+  const confirmCancelRequest = async () => {
+    try {
+      await cancel().unwrap();
+      showAlert('Request Cancelled', 'Your service request has been cancelled.');
+    } catch (error) {
+      showAlert('Could Not Cancel', error?.message || 'Please try again.');
+    }
+  };
+
+  const handleCancelRequestPress = () => {
+    showAlert(
+      'Cancel Request?',
+      'This will cancel your service request. This action cannot be undone.',
+      [
+        { text: 'No', style: 'cancel' },
+        { text: 'Yes, Cancel', style: 'destructive', onPress: confirmCancelRequest },
+      ]
+    );
+  };
+
   useFocusEffect(
     useCallback(() => {
       if (ticketId) {
@@ -368,6 +410,40 @@ function TicketDetail({ route, navigation }) {
             </View>
           )}
         </View>
+
+        {ticket.awaitingPayment && (
+          <View style={styles.awaitingPaymentCard}>
+            <View style={styles.awaitingPaymentHeader}>
+              <Icon name="payment" size={18} color="#92400E" />
+              <Text style={styles.awaitingPaymentHeaderText}>Awaiting Payment</Text>
+            </View>
+            <View style={styles.awaitingPaymentBody}>
+              <Text style={styles.awaitingPaymentText}>This request will not be processed until payment is completed.</Text>
+              <View style={styles.awaitingPaymentActions}>
+                <TouchableOpacity
+                  style={styles.payChargeBtn}
+                  onPress={handleAwaitingPaymentPayNow}
+                  activeOpacity={0.85}
+                >
+                  <Icon name="credit-card" size={16} color="#FFFFFF" />
+                  <Text style={styles.payChargeBtnText}>Pay Now</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelRequestBtn}
+                  onPress={handleCancelRequestPress}
+                  disabled={cancelLoading}
+                  activeOpacity={0.85}
+                >
+                  {cancelLoading ? (
+                    <ActivityIndicator size="small" color="#DC2626" />
+                  ) : (
+                    <Text style={styles.cancelRequestBtnText}>Cancel Request</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Documents requested by vendor */}
         {documentRequests.length > 0 && (
@@ -777,13 +853,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   scrollContent: { paddingBottom: 120, paddingHorizontal: 16, paddingTop: 16, gap: 16 },
-  
-  card: { 
+
+  card: {
     backgroundColor: '#FFFFFF',
-    padding: 20, 
+    padding: 20,
     borderRadius: 20,
     gap: 16,
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: '#F1F5F9',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 6 },
@@ -791,31 +867,31 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
-  
+
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   badgeRow: { flexDirection: 'row', gap: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   badgeNeutral: { backgroundColor: '#F1F5F9' },
   badgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, textTransform: 'uppercase' },
   badgeTextNeutral: { color: '#64748B' },
-  
+
   submittedWrap: { alignItems: 'flex-end' },
   hint: { ...typography.tiny, color: '#94A3B8' },
   submittedDate: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', marginTop: 2 },
-  
+
   ticketId: { ...typography.h2, color: '#0F172A' },
-  
+
   infoGrid: { gap: 16, marginTop: 8 },
   infoBlock: { gap: 4 },
   label: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
   value: { ...typography.h4, color: '#0F172A' },
   subValue: { ...typography.small, color: '#64748B' },
-  
+
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   overdueText: { color: '#DC2626' },
   overdueBadge: { backgroundColor: '#FEE2E2', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   overdueBadgeText: { ...typography.tiny, fontFamily: typography.labelMedium.fontFamily, color: '#DC2626' },
-  
+
   sectionTitle: { ...typography.sectionTitle, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 4 },
 
   // Documents requested by vendor
@@ -1062,16 +1138,53 @@ const styles = StyleSheet.create({
   },
   payChargeBtnText: { ...typography.labelMedium, color: '#FFFFFF', fontWeight: '700' },
 
+  // Awaiting Payment card
+  awaitingPaymentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  awaitingPaymentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f9f1e0',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  awaitingPaymentHeaderText: { ...typography.labelLarge, fontFamily: typography.h2.fontFamily, color: '#92400E' },
+  awaitingPaymentBody: { padding: 16, gap: 12 },
+  awaitingPaymentText: { ...typography.small, color: '#475569', lineHeight: 19 },
+  awaitingPaymentActions: { flexDirection: 'row', gap: 12 },
+  cancelRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  cancelRequestBtnText: { ...typography.labelMedium, color: '#DC2626', fontWeight: '700' },
+
   chargesList: { gap: 0 },
   chargeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9', borderStyle: 'dashed' },
   chargeLabel: { ...typography.small, color: '#64748B', flex: 1, paddingRight: 8 },
   chargeValue: { ...typography.body, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
   discountValue: { color: '#10B981' },
-  
+
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, marginTop: 4, borderTopWidth: 2, borderTopColor: '#F1F5F9' },
   totalLabel: { ...typography.h4, color: '#0F172A' },
   totalValue: { ...typography.appTitle, color: '#0F172A' },
-  
+
   timelineHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#FFFFFF' },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' },
@@ -1091,7 +1204,7 @@ const styles = StyleSheet.create({
   timelineTitle: { ...typography.body, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', fontWeight: '700', marginTop: 6 },
   timelineSub: { ...typography.small, color: '#64748B', marginTop: 2 },
   timelinePlaceholder: { ...typography.small, color: '#94A3B8', fontStyle: 'italic', flex: 1, marginTop: 2 },
-  
+
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyText: { ...typography.body, color: '#64748B' },
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },

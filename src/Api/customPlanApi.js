@@ -57,6 +57,10 @@ export async function createCustomPlan({ subject, message, serviceId, stateId, c
       return {
         requiresPayment: true,
         paymentId: data.payment_id,
+        // The request this fee is for, pre-created as "awaiting payment" so
+        // it isn't lost if the customer backs out of payment — null only if
+        // the backend hasn't rolled this out yet.
+        supportTicketId: data.support_ticket_id ?? null,
         checkoutUrl: data.checkout_url || null,
         order: data.order || null,
         amount: data.amount,
@@ -144,6 +148,31 @@ export async function payCustomPlanProposal(ticketId, replyId, { gateway, curren
       gst: data.gst,
       checkoutUrl: data.checkout_url || null,
       order: data.order || null,
+      message: response.data?.message,
+    };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /customer/custom-plans/{id}/pay-fee — pay (or retry) the request's
+// opening/consultation fee when it's still unpaid (ticket shows
+// awaitingFeePayment: true). Same checkout_url/order shape as creation;
+// verify via the generic POST /customer/payments/{payment}/verify. 422s if
+// the fee is already paid or the gateway isn't allowed.
+export async function payCustomPlanFee(ticketId, { gateway, currency } = {}) {
+  try {
+    const response = await apiClient.post(`/customer/custom-plans/${ticketId}/pay-fee`, {
+      gateway,
+      currency: currency || undefined,
+    });
+    const data = response.data?.data || {};
+    return {
+      paymentId: data.payment_id,
+      checkoutUrl: data.checkout_url || null,
+      order: data.order || null,
+      amount: data.amount,
+      currency: data.currency,
       message: response.data?.message,
     };
   } catch (error) {

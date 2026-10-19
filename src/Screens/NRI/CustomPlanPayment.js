@@ -15,15 +15,25 @@ import { formatAmount } from '../../Utils/currency';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// Invoice-settlement screen shown after a customer accepts a Custom Plan
-// proposal, before the chosen gateway's checkout opens. Base price comes from
-// the accepted proposal (proposed_price for USD, proposed_price_inr for
-// INR — the backend quotes both up front, no live conversion needed); GST
-// is added at 18% (matching the web invoice) in whichever currency is picked.
+// Invoice-settlement screen. Two uses: `mode: 'proposal'` (default), shown
+// after a customer accepts a Custom Plan proposal, before the chosen
+// gateway's checkout opens — base price comes from the accepted proposal
+// (proposed_price for USD, proposed_price_inr for INR — the backend quotes
+// both up front, no live conversion needed); GST is added at 18% (matching
+// the web invoice) in whichever currency is picked. `mode: 'fee'` pays (or
+// retries) the original request's opening/consultation fee instead — that
+// amount is already final (POST /customer/custom-plans/{id}/pay-fee), so no
+// GST markup or currency switching here; reached from SupportTicketChat's
+// "Awaiting payment" notice.
 function CustomPlanPayment({ route, navigation }) {
-  const { ticketNumber, ticketSubject, proposalMessage, basePrice, basePriceInr, replyId, supportTicketId, kind } = route.params || {};
+  const {
+    mode = 'proposal',
+    ticketNumber, ticketSubject, proposalMessage, basePrice, basePriceInr, replyId, supportTicketId, kind,
+    feeAmount, feeCurrency,
+  } = route.params || {};
+  const isFee = mode === 'fee';
   const { verifyPayment } = useBilling();
-  const { payPlan, rejectPlan } = useCustomPlanDetail(supportTicketId);
+  const { payPlan, payFee, rejectPlan } = useCustomPlanDetail(supportTicketId);
   const { showAlert, alertProps } = useAppAlert();
   const user = useSelector(s => s.user.user);
   // Gateway list is backend-driven (already NRI + admin-toggle gated) — this
@@ -38,6 +48,14 @@ function CustomPlanPayment({ route, navigation }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateways]);
+
+  // The fee was already quoted in a fixed currency at request time — unlike
+  // the proposal flow there's no INR/USD equivalent to switch between, so
+  // lock the currency toggle to whatever it was quoted in.
+  useEffect(() => {
+    if (isFee && feeCurrency) setCurrency(feeCurrency);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFee, feeCurrency]);
 
   // Return to the support/custom-plan chat, flagging this proposal reply as
   // paid so its "Pay Now" button is removed. Navigate with the ticket id
@@ -87,10 +105,10 @@ function CustomPlanPayment({ route, navigation }) {
     );
   };
 
-  const base = Number((currency === 'INR' ? basePriceInr : basePrice)) || 0;
+  const base = isFee ? (Number(feeAmount) || 0) : (Number((currency === 'INR' ? basePriceInr : basePrice)) || 0);
   const gstRate = 0.18;
-  const gstAmount = Math.round(base * gstRate * 100) / 100;
-  const amountPayable = Math.round((base + gstAmount) * 100) / 100;
+  const gstAmount = isFee ? 0 : Math.round(base * gstRate * 100) / 100;
+  const amountPayable = isFee ? base : Math.round((base + gstAmount) * 100) / 100;
 
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
@@ -99,7 +117,9 @@ function CustomPlanPayment({ route, navigation }) {
   const handlePay = async () => {
     setPaying(true);
     try {
-      const result = await payPlan(replyId, { gateway: paymentMethod, currency }).unwrap();
+      const result = isFee
+        ? await payFee({ gateway: paymentMethod, currency }).unwrap()
+        : await payPlan(replyId, { gateway: paymentMethod, currency }).unwrap();
       if (result.checkoutUrl) {
         // Stripe / PayPal — hosted checkout page.
         setCheckoutSession({ url: result.checkoutUrl, paymentId: result.paymentId });
@@ -150,26 +170,45 @@ function CustomPlanPayment({ route, navigation }) {
       <Header navigation={navigation} title="Complete Payment" showBack />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          {(ticketNumber || ticketSubject || proposalMessage) && (
-            <View style={styles.proposalBox}>
-              <View style={styles.proposalHeader}>
-                <Icon name="description" size={16} color="#15803D" />
-                <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
-              </View>
-              {!!(ticketNumber || ticketSubject) && (
+          {isFee ? (
+            (ticketNumber || ticketSubject) && (
+              <View style={styles.proposalBox}>
+                <View style={styles.proposalHeader}>
+                  <Icon name="payment" size={16} color="#92400E" />
+                  <Text style={[styles.proposalTitle, { color: '#92400E' }]}>Request Fee Payment</Text>
+                </View>
                 <Text style={styles.proposalMeta}>
                   {[ticketNumber, ticketSubject].filter(Boolean).join(' · ')}
                 </Text>
-              )}
-              {!!proposalMessage && <Text style={styles.proposalMessage}>{proposalMessage}</Text>}
-              <View style={styles.divider} />
-            </View>
+                <View style={styles.divider} />
+              </View>
+            )
+          ) : (
+            (ticketNumber || ticketSubject || proposalMessage) && (
+              <View style={styles.proposalBox}>
+                <View style={styles.proposalHeader}>
+                  <Icon name="description" size={16} color="#15803D" />
+                  <Text style={styles.proposalTitle}>Custom Plan Proposal</Text>
+                </View>
+                {!!(ticketNumber || ticketSubject) && (
+                  <Text style={styles.proposalMeta}>
+                    {[ticketNumber, ticketSubject].filter(Boolean).join(' · ')}
+                  </Text>
+                )}
+                {!!proposalMessage && <Text style={styles.proposalMessage}>{proposalMessage}</Text>}
+                <View style={styles.divider} />
+              </View>
+            )
           )}
 
-          <View style={styles.fieldSection}>
-            <Text style={styles.sectionLabel}>Currency</Text>
-            <CurrencyToggle value={currency} onChange={setCurrency} />
-          </View>
+          {/* The fee was quoted in a fixed currency at request time — no live
+              INR/USD equivalent to switch between, so skip the toggle. */}
+          {!isFee && (
+            <View style={styles.fieldSection}>
+              <Text style={styles.sectionLabel}>Currency</Text>
+              <CurrencyToggle value={currency} onChange={setCurrency} />
+            </View>
+          )}
 
           <View style={styles.fieldSection}>
             <Text style={styles.sectionLabel}>Payment Method</Text>
@@ -198,18 +237,27 @@ function CustomPlanPayment({ route, navigation }) {
           </View>
 
           <View style={styles.summarySection}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Services</Text>
-              <Text style={styles.summaryValue}>1</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Services total</Text>
-              <Text style={styles.summaryValue}>{formatAmount(base, currency)}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Services GST (18%)</Text>
-              <Text style={styles.summaryValue}>{formatAmount(gstAmount, currency)}</Text>
-            </View>
+            {isFee ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Request Fee</Text>
+                <Text style={styles.summaryValue}>{formatAmount(base, currency)}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Services</Text>
+                  <Text style={styles.summaryValue}>1</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Services total</Text>
+                  <Text style={styles.summaryValue}>{formatAmount(base, currency)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Services GST (18%)</Text>
+                  <Text style={styles.summaryValue}>{formatAmount(gstAmount, currency)}</Text>
+                </View>
+              </>
+            )}
           </View>
 
           <View style={styles.youPayBox}>
@@ -227,7 +275,7 @@ function CustomPlanPayment({ route, navigation }) {
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.submitBtnText}>Pay & start my service</Text>
+                <Text style={styles.submitBtnText}>{isFee ? 'Pay Request Fee' : 'Pay & start my service'}</Text>
                 <Icon name="arrow-forward" size={18} color="#FFFFFF" />
               </>
             )}
@@ -238,10 +286,14 @@ function CustomPlanPayment({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.declineLink} onPress={handleDecline} disabled={paying} activeOpacity={0.7}>
-          <Icon name="cancel" size={15} color="#EF4444" />
-          <Text style={styles.declineLinkText}>I've changed my mind — decline this proposal</Text>
-        </TouchableOpacity>
+        {/* Declining only applies to a staff proposal, not the original
+            request — there's nothing to decline when paying the opening fee. */}
+        {!isFee && (
+          <TouchableOpacity style={styles.declineLink} onPress={handleDecline} disabled={paying} activeOpacity={0.7}>
+            <Icon name="cancel" size={15} color="#EF4444" />
+            <Text style={styles.declineLinkText}>I've changed my mind — decline this proposal</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <StripeCheckoutModal

@@ -238,6 +238,22 @@ function SupportTicketChat({ route, navigation }) {
     });
   };
 
+  // Custom Plan only — pay (or retry paying) the opening fee for this
+  // request itself (not a staff proposal), reusing CustomPlanPayment's
+  // 'fee' mode. supportTicketId isn't needed from route params here since
+  // we're already on this ticket's own chat.
+  const handlePayFeeNow = () => {
+    navigation.navigate('CustomPlanPayment', {
+      mode: 'fee',
+      ticketNumber: ticket.ticketNumber,
+      ticketSubject: ticket.subject,
+      feeAmount: ticket.fee?.amount,
+      feeCurrency: ticket.fee?.currency,
+      supportTicketId: ticketId,
+      kind,
+    });
+  };
+
   // Opens the Google Meet URL — the OS handles routing it to the Meet app if
   // installed, or the browser otherwise (both register meet.google.com as a
   // universal/app link).
@@ -382,6 +398,18 @@ function SupportTicketChat({ route, navigation }) {
               </TouchableOpacity>
             )}
           </View>
+
+          {isCustomPlan && ticket.awaitingFeePayment && (
+            <View style={styles.awaitingFeeBanner}>
+              <Icon name="payment" size={16} color="#92400E" />
+              <Text style={styles.awaitingFeeText}>
+                Awaiting payment — our team will start on this request once the request fee is paid.
+              </Text>
+              <TouchableOpacity style={styles.awaitingFeePayBtn} onPress={handlePayFeeNow} activeOpacity={0.85}>
+                <Text style={styles.awaitingFeePayBtnText}>Pay Now</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <ScrollView
             ref={scrollRef}
@@ -649,6 +677,20 @@ const styles = StyleSheet.create({
   escalateChipText: { color: '#DC2626', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
+
+  awaitingFeeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  awaitingFeeText: { flex: 1, fontSize: 12.5, color: '#92400E', lineHeight: 17 },
+  awaitingFeePayBtn: { backgroundColor: '#92400E', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8 },
+  awaitingFeePayBtnText: { color: '#FFFFFF', fontSize: 12.5, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   messagesScroll: { flexShrink: 1, marginTop: 14 },
   messagesContent: { gap: 12, paddingBottom: 4 },

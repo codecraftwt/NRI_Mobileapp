@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Header from '../../Components/Header';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
+import CancelReasonModal from '../../Components/CancelReasonModal';
 import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { saveUserProfile } from '../../Redux/slices/userSlice';
@@ -139,6 +140,16 @@ export default function ProfileNri({ navigation }) {
   const [cancelingAddonId, setCancelingAddonId] = useState(null);
   const [cancelingServiceSubId, setCancelingServiceSubId] = useState(null);
 
+  // Which "stop auto-renewal" action the reason-prompt modal is open for —
+  // { kind: 'membership' | 'service' | 'all', target } — and any server-side
+  // validation error for its reason field. null/null when closed.
+  const [reasonPrompt, setReasonPrompt] = useState(null);
+  const [reasonError, setReasonError] = useState(null);
+  const closeReasonPrompt = () => {
+    setReasonPrompt(null);
+    setReasonError(null);
+  };
+
   // Collapse the family list to the first 3 by default; the rest is behind a
   // Show more / Show less toggle.
   const [showAllFamily, setShowAllFamily] = useState(false);
@@ -172,24 +183,8 @@ export default function ProfileNri({ navigation }) {
   );
 
   const handleStopMembershipAutoRenew = (mem) => {
-    showAlert('Are you sure?', 'Stop auto-renewal? Your membership stays active until its expiry date; after that you will need to renew manually.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Yes, proceed',
-        style: 'destructive',
-        onPress: () => {
-          stopAutoRenew(mem.id)
-            .unwrap()
-            .then(() => {
-              retryMembership();
-              retryBilling();
-            })
-            .catch((error) => {
-              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
-            });
-        },
-      },
-    ]);
+    setReasonError(null);
+    setReasonPrompt({ kind: 'membership', target: mem, subjectText: 'your membership' });
   };
 
   const handleStopAddonAutoRenew = (sub) => {
@@ -215,64 +210,99 @@ export default function ProfileNri({ navigation }) {
   };
 
   const handleStopServiceSubAutoRenew = (sub) => {
-    showAlert('Are you sure?', 'Stop auto-renewal? The subscription stays active until the end of the paid period.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Yes, proceed',
-        style: 'destructive',
-        onPress: () => {
-          setCancelingServiceSubId(sub.id);
-          cancelServiceSubAutoRenew(sub.id)
-            .unwrap()
-            .then(() => {
-              fetchSubscriptions();
-            })
-            .catch((error) => {
-              showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
-            })
-            .finally(() => setCancelingServiceSubId(null));
-        },
-      },
-    ]);
+    setReasonError(null);
+    const subjectText = (sub.services || []).map(s => s.name).join(', ') || 'this service subscription';
+    setReasonPrompt({ kind: 'service', target: sub, subjectText });
   };
 
   const handleCancelAll = () => {
-    showAlert(
-      'Are you sure?',
-      'Stop auto-renewal on your membership and all recurring service subscriptions? Each stays active until its current paid period ends, then will not renew.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, proceed',
-          style: 'destructive',
-          onPress: () => {
-            cancelAllSubscriptions()
-              .unwrap()
-              .then((result) => {
-                const failedMembership = result.membership && result.membership.status !== 'cancelled' ? result.membership : null;
-                const failedSubs = (result.serviceSubscriptions || []).filter(s => s.status !== 'cancelled');
-
-                if (failedMembership || failedSubs.length) {
-                  showAlert('Partially Completed', [
-                    failedMembership ? `Membership: ${failedMembership.status}` : null,
-                    ...failedSubs.map(s => `${s.label}: ${s.status}`),
-                  ].filter(Boolean).join('\n') || 'Some subscriptions could not be cancelled. Please try again or contact support.');
-                } else {
-                  showAlert('Done', result.message || 'Auto-renewal stopped.');
-                }
-
-                retryBilling();
-                retryMembership();
-                fetchSubscriptions();
-              })
-              .catch((error) => {
-                showAlert('Failed', error?.message || 'Could not cancel subscriptions.');
-              });
-          },
-        },
-      ]
-    );
+    setReasonError(null);
+    setReasonPrompt({ kind: 'all', target: null, subjectText: 'your membership and all recurring service subscriptions' });
   };
+
+  // Shared confirm for all three "stop auto-renewal" actions above — the
+  // backend requires `reason` (5-1000 chars) on each; a 422 on it is shown
+  // inline under the text box instead of closing the modal, so the customer
+  // doesn't lose what they typed.
+  const handleConfirmReason = (reason) => {
+    if (!reasonPrompt) return;
+    setReasonError(null);
+
+    if (reasonPrompt.kind === 'membership') {
+      stopAutoRenew(reasonPrompt.target.id, reason)
+        .unwrap()
+        .then(() => {
+          setReasonPrompt(null);
+          retryMembership();
+          retryBilling();
+        })
+        .catch((error) => {
+          if (error?.errors?.reason) {
+            setReasonError(error.errors.reason[0]);
+          } else {
+            setReasonPrompt(null);
+            showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
+          }
+        });
+      return;
+    }
+
+    if (reasonPrompt.kind === 'service') {
+      const sub = reasonPrompt.target;
+      setCancelingServiceSubId(sub.id);
+      cancelServiceSubAutoRenew(sub.id, reason)
+        .unwrap()
+        .then(() => {
+          setReasonPrompt(null);
+          fetchSubscriptions();
+        })
+        .catch((error) => {
+          if (error?.errors?.reason) {
+            setReasonError(error.errors.reason[0]);
+          } else {
+            setReasonPrompt(null);
+            showAlert('Failed', error?.message || 'Could not stop auto-renewal.');
+          }
+        })
+        .finally(() => setCancelingServiceSubId(null));
+      return;
+    }
+
+    // kind === 'all'
+    cancelAllSubscriptions(reason)
+      .unwrap()
+      .then((result) => {
+        setReasonPrompt(null);
+        const failedMembership = result.membership && result.membership.status !== 'cancelled' ? result.membership : null;
+        const failedSubs = (result.serviceSubscriptions || []).filter(s => s.status !== 'cancelled');
+
+        if (failedMembership || failedSubs.length) {
+          showAlert('Partially Completed', [
+            failedMembership ? `Membership: ${failedMembership.status}` : null,
+            ...failedSubs.map(s => `${s.label}: ${s.status}`),
+          ].filter(Boolean).join('\n') || 'Some subscriptions could not be cancelled. Please try again or contact support.');
+        } else {
+          showAlert('Done', result.message || 'Auto-renewal stopped.');
+        }
+
+        retryBilling();
+        retryMembership();
+        fetchSubscriptions();
+      })
+      .catch((error) => {
+        if (error?.errors?.reason) {
+          setReasonError(error.errors.reason[0]);
+        } else {
+          setReasonPrompt(null);
+          showAlert('Failed', error?.message || 'Could not cancel subscriptions.');
+        }
+      });
+  };
+
+  const reasonPromptLoading = !reasonPrompt ? false
+    : reasonPrompt.kind === 'membership' ? stopAutoRenewLoading
+    : reasonPrompt.kind === 'service' ? cancelingServiceSubId === reasonPrompt.target?.id
+    : cancelAllLoading;
 
   const autoRenewingAddons = (overview?.addonSubscriptions || []).filter(s => s.autoRenew);
   const autoRenewingServiceSubs = (serviceSubscriptions || []).filter(s => s.autoRenew);
@@ -482,7 +512,7 @@ export default function ProfileNri({ navigation }) {
                 <Text style={styles.listRowName}>{m.name}</Text>
                 <View style={styles.listRowMetaRow}>
                   <View style={styles.relationPill}>
-                    <Text style={styles.relationPillText}>{m.relationship}</Text>
+                    <Text style={styles.relationPillText}>{m.relationshipLabel || m.relationship}</Text>
                   </View>
                   <Text style={styles.listRowMeta}>{m.phone}</Text>
                 </View>
@@ -501,6 +531,14 @@ export default function ProfileNri({ navigation }) {
         </View>
       </ScrollView>
       <AppAlert {...alertProps} />
+      <CancelReasonModal
+        visible={!!reasonPrompt}
+        loading={reasonPromptLoading}
+        serverError={reasonError}
+        subjectText={reasonPrompt?.subjectText}
+        onClose={closeReasonPrompt}
+        onConfirm={handleConfirmReason}
+      />
     </View>
   );
 }

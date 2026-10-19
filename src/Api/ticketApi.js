@@ -106,6 +106,14 @@ function mapTicketPricing(raw) {
     // exactly that charge's total/GST (not the original booking's).
     amountDueGst: raw.amount_due_gst,
     isPaid: raw.is_paid,
+    // Live INR equivalents of the figures above — now returned directly on
+    // every ticket's pricing (previously only pending_additional_charge had
+    // one), so the "Awaiting Payment" Pay Now screen can show a real INR
+    // total instead of deferring to the gateway's own checkout page.
+    totalAmountInr: raw.total_amount_inr != null ? Number(raw.total_amount_inr) : null,
+    totalGstAmountInr: raw.total_gst_amount_inr != null ? Number(raw.total_gst_amount_inr) : null,
+    amountDueNowInr: raw.amount_due_now_inr != null ? Number(raw.amount_due_now_inr) : null,
+    amountDueGstInr: raw.amount_due_gst_inr != null ? Number(raw.amount_due_gst_inr) : null,
   };
 }
 
@@ -165,6 +173,10 @@ function mapTicket(raw) {
     addons: (raw.addons || []).map(a => ({ serviceId: a.service_id, name: a.name, customerPrice: a.customer_price })),
     status: raw.status,
     statusLabel: raw.status_label,
+    // True while a pre-created ticket sits unpaid (status stays "new",
+    // status_label "Awaiting Payment") — it isn't processed by the team
+    // until payment clears.
+    awaitingPayment: !!raw.awaiting_payment,
     urgency: raw.urgency,
     preferredDate: raw.preferred_date,
     pricing: mapTicketPricing(raw.pricing),
@@ -221,6 +233,11 @@ function mapPayFirstCheckout(raw, message) {
   return {
     requiresPayment: !!raw.requires_payment,
     paymentId: raw.payment_id,
+    // The request this payment is for, pre-created as "Awaiting Payment" so
+    // it isn't lost if the customer backs out of payment. Null when no
+    // address was sent (the old pay-first-then-finalize path), where nothing
+    // is created server-side until finalizeTicket() confirms it.
+    ticketId: raw.ticket_id ?? null,
     gateway: raw.gateway,
     amount: raw.amount,
     currency: raw.currency,
@@ -240,10 +257,10 @@ function mapPayFirstCheckout(raw, message) {
 // flow instead.
 export async function createTicket({
   serviceId, extraServices, addons, couponCode, stateId, cityId, pincode, urgency, gateway, currency,
-  familyMemberId, talukaId, address, customerNotes,
+  familyMemberId, familyMemberName, familyMemberRelationship, talukaId, address, customerNotes,
 }) {
   try {
-    const response = await apiClient.post('/customer/tickets', {
+    const body = {
       service_id: serviceId,
       extra_services: extraServices && extraServices.length > 0 ? extraServices : undefined,
       addons: addons && addons.length > 0 ? addons : undefined,
@@ -254,11 +271,18 @@ export async function createTicket({
       urgency,
       gateway,
       currency: currency || undefined,
+      // Saved member → family_member_id; a newly typed name/relation instead
+      // → the backend saves it as a new family member automatically.
       family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
       taluka_id: talukaId || undefined,
-      address: address || undefined,
+      // Top-level string, capped at the backend's 500-char limit — trimmed
+      // here defensively rather than relying on the caller never exceeding it.
+      address: address ? address.slice(0, 500) : undefined,
       customer_notes: customerNotes || undefined,
-    });
+    };
+    const response = await apiClient.post('/customer/tickets', body);
     return mapPayFirstCheckout(response.data?.data || {}, response.data?.message);
   } catch (error) {
     throw normalizeApiError(error);
@@ -270,15 +294,20 @@ export async function createTicket({
 // returns the existing ticket. Sends multipart when there are attachments to
 // upload, plain JSON otherwise.
 export async function finalizeTicket(paymentId, {
-  familyMemberId, talukaId, address, customerNotes, files,
+  familyMemberId, familyMemberName, familyMemberRelationship, talukaId, address, customerNotes, files,
 }) {
   try {
     const hasFiles = files && files.length > 0;
     let response;
+    const whoFields = {
+      family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
+    };
 
     if (hasFiles) {
       const fields = {
-        family_member_id: familyMemberId || undefined,
+        ...whoFields,
         taluka_id: talukaId || undefined,
         address,
         customer_notes: customerNotes || undefined,
@@ -287,7 +316,7 @@ export async function finalizeTicket(paymentId, {
       response = await postMultipart(`/customer/tickets/${paymentId}/finalize`, fields, uploadFiles);
     } else {
       response = await apiClient.post(`/customer/tickets/${paymentId}/finalize`, {
-        family_member_id: familyMemberId || undefined,
+        ...whoFields,
         taluka_id: talukaId || undefined,
         address,
         customer_notes: customerNotes || undefined,
@@ -315,7 +344,7 @@ export async function finalizeTicket(paymentId, {
 // multipart when there are attachments to upload, plain JSON otherwise (same
 // convention as finalizeTicket above).
 export async function bookQuotedTicket(serviceId, {
-  stateId, cityId, urgency, address, pincode, familyMemberId, talukaId, customerNotes, files,
+  stateId, cityId, urgency, address, pincode, familyMemberId, familyMemberName, familyMemberRelationship, talukaId, customerNotes, files,
 }) {
   try {
     const fields = {
@@ -325,6 +354,8 @@ export async function bookQuotedTicket(serviceId, {
       address,
       pincode: pincode || undefined,
       family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
       taluka_id: talukaId || undefined,
       customer_notes: customerNotes || undefined,
     };
@@ -461,6 +492,20 @@ export async function rateTicket(ticketId, { rating, note }) {
     const response = await apiClient.post(`/customer/tickets/${ticketId}/rate`, {
       rating,
       note: note || undefined,
+    });
+    return { message: response.data?.message };
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
+}
+
+// POST /customer/tickets/{ticket}/cancel — for an unpaid (awaiting-payment)
+// request this also cancels its add-ons; nothing to refund since the
+// customer was never charged.
+export async function cancelTicket(ticketId, reason) {
+  try {
+    const response = await apiClient.post(`/customer/tickets/${ticketId}/cancel`, {
+      reason: reason || undefined,
     });
     return { message: response.data?.message };
   } catch (error) {

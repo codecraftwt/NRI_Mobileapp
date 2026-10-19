@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator, Modal, FlatList, RefreshControl, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,7 +12,10 @@ import { getReceiptDownloadUrl } from '../../Api/paymentsApi';
 import { downloadDocumentFile } from '../../Utils/fileDownload';
 import StripeCheckoutModal from '../../Components/StripeCheckoutModal';
 import { runRazorpayPayment, isPaymentCancelled } from '../../Utils/paymentGateway';
-import { usePaymentGateways } from '../../Hooks/usePaymentGateways';
+import { gatewayIcon, GATEWAY_META } from '../../Hooks/usePaymentGateways';
+import { useCurrencyGateways } from '../../Hooks/useCurrencyGateways';
+import CurrencyToggle from '../../Components/CurrencyToggle';
+import { formatAmount } from '../../Utils/currency';
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
@@ -65,7 +68,7 @@ function PageSizeField({ value, onSelect }) {
 
 function BillingPayments({ navigation }) {
   const { overview, loading, failed, retry, pay, verifyPayment } = useBilling();
-  const { gateways } = usePaymentGateways();
+  const { currency: payCurrency, setCurrency: setPayCurrency, gateways } = useCurrencyGateways();
   const user = useSelector(state => state.user.user);
   const token = useSelector(state => state.user.token);
   const [payingKey, setPayingKey] = useState(null);
@@ -75,6 +78,17 @@ function BillingPayments({ navigation }) {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
   const { showAlert, alertProps } = useAppAlert();
+
+  // The invoice currently open in the "Choose Payment Method" sheet, and
+  // which gateway is selected there — null/null when the sheet is closed.
+  const [payItem, setPayItem] = useState(null);
+  const [selectedGateway, setSelectedGateway] = useState(null);
+  useEffect(() => {
+    if (payItem && gateways.length && !gateways.some(g => g.value === selectedGateway)) {
+      setSelectedGateway(gateways[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payItem, gateways]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -92,11 +106,11 @@ function BillingPayments({ navigation }) {
     }, [])
   );
 
-  const handleGatewayPayment = async (item, gateway) => {
+  const handleGatewayPayment = async (item, gateway, currency) => {
     const key = `${item.type}:${item.id}`;
     setPayingKey(key);
     try {
-      const result = await pay(item.type, item.id, gateway, false).unwrap();
+      const result = await pay(item.type, item.id, gateway, false, currency).unwrap();
 
       if (result.checkoutUrl) {
         // Stripe / PayPal hosted checkout — open in the in-app WebView; verified
@@ -149,19 +163,23 @@ function BillingPayments({ navigation }) {
 
   const handlePayNow = (item) => {
     // Gateway list comes straight from the backend (already NRI + admin-toggle
-    // gated) — build the buttons from it rather than hardcoding.
+    // gated) — the sheet below builds its radio rows from it rather than
+    // hardcoding.
     if (!gateways.length) {
       showAlert('Unavailable', 'No payment methods are available right now. Please try again shortly.');
       return;
     }
-    showAlert(
-      'Choose Payment Method',
-      `Pay ${formatUsd(item.amount)} for ${item.label}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        ...gateways.map(g => ({ text: g.label, onPress: () => handleGatewayPayment(item, g.value) })),
-      ]
-    );
+    setPayCurrency('USD');
+    setSelectedGateway(null);
+    setPayItem(item);
+  };
+
+  const handleProceedToPay = () => {
+    if (!payItem || !selectedGateway) return;
+    const item = payItem;
+    const currency = payCurrency;
+    setPayItem(null);
+    handleGatewayPayment(item, selectedGateway, currency);
   };
 
   const handleDownloadReceipt = async (item) => {
@@ -313,6 +331,68 @@ function BillingPayments({ navigation }) {
       </ScrollView>
       <AppAlert {...alertProps} />
 
+      <Modal visible={!!payItem} transparent animationType="fade" onRequestClose={() => setPayItem(null)}>
+        <TouchableOpacity style={styles.payModalOverlay} activeOpacity={1} onPress={() => setPayItem(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.payModalCard} onPress={() => {}}>
+            <View style={styles.payModalHeader}>
+              <Text style={styles.payModalTitle}>Choose Payment Method</Text>
+              <TouchableOpacity onPress={() => setPayItem(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.payModalLabel} numberOfLines={2}>{payItem?.label}</Text>
+
+            <CurrencyToggle value={payCurrency} onChange={setPayCurrency} />
+
+            <View style={styles.payAmountBox}>
+              <Text style={styles.payAmountLabel}>Amount</Text>
+              <Text style={styles.payAmountValue}>
+                {payCurrency === 'INR'
+                  ? (payItem?.amountInr != null ? formatAmount(payItem.amountInr, 'INR') : '…')
+                  : formatUsd(payItem?.amount)}
+              </Text>
+            </View>
+
+            <View style={styles.payGatewayList}>
+              {gateways.map(g => {
+                const active = g.value === selectedGateway;
+                return (
+                  <TouchableOpacity
+                    key={g.value}
+                    style={[styles.payMethodRow, active && styles.payMethodRowActive]}
+                    onPress={() => setSelectedGateway(g.value)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.payMethodIconBox}>
+                      <Icon name={gatewayIcon(g.value)} size={18} color="#4F46E5" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.payMethodTitle}>{g.label}</Text>
+                      {!!GATEWAY_META[g.value]?.desc && <Text style={styles.payMethodSub}>{GATEWAY_META[g.value].desc}</Text>}
+                    </View>
+                    <View style={styles.payRadioOuter}>{active && <View style={styles.payRadioInner} />}</View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.payModalActions}>
+              <TouchableOpacity style={styles.payCancelBtn} onPress={() => setPayItem(null)} activeOpacity={0.85}>
+                <Text style={styles.payCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.payProceedBtn, !selectedGateway && styles.payProceedBtnDisabled]}
+                onPress={handleProceedToPay}
+                disabled={!selectedGateway}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.payProceedBtnText}>Proceed to Pay</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
@@ -410,6 +490,44 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '50%', paddingBottom: 40, paddingTop: 16 },
   modalOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   modalOptionText: { fontSize: 16, fontFamily: typography.body.fontFamily, color: '#1E293B' },
+
+  payModalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  payModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    gap: 14,
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+  },
+  payModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  payModalTitle: { fontSize: 17, fontFamily: typography.h4.fontFamily, color: '#0F172A', fontWeight: '700' },
+  payModalLabel: { fontSize: 13.5, color: '#64748B', marginTop: -8, lineHeight: 19 },
+
+  payAmountBox: { backgroundColor: '#EEF2FF', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  payAmountLabel: { fontSize: 14, color: '#4F46E5', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  payAmountValue: { fontSize: 20, color: '#4F46E5', fontFamily: typography.h4.fontFamily, fontWeight: '700' },
+
+  payGatewayList: { gap: 10 },
+  payMethodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, padding: 14, backgroundColor: '#FBFBFE' },
+  payMethodRowActive: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
+  payMethodIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+  payMethodTitle: { fontSize: 14, color: '#0F172A', fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  payMethodSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  payRadioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#2563EB', alignItems: 'center', justifyContent: 'center' },
+  payRadioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563EB' },
+
+  payModalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  payCancelBtn: { flex: 1, borderWidth: 1.5, borderColor: '#C7D2FE', borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  payCancelBtnText: { color: '#4F46E5', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  payProceedBtn: { flex: 1, backgroundColor: '#D94625', borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  payProceedBtnDisabled: { opacity: 0.6 },
+  payProceedBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 });
 
 export default BillingPayments;

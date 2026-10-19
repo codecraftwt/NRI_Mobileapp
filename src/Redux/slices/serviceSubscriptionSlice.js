@@ -38,9 +38,9 @@ export const finalizeServiceSubscription = createAsyncThunk(
 
 export const cancelServiceSubscription = createAsyncThunk(
   'serviceSubscription/cancel',
-  async (subscriptionId, { rejectWithValue }) => {
+  async ({ subscriptionId, reason }, { rejectWithValue }) => {
     try {
-      return await serviceSubscriptionApi.cancelServiceSubscription(subscriptionId);
+      return await serviceSubscriptionApi.cancelServiceSubscription(subscriptionId, reason);
     } catch (error) {
       return rejectWithValue(error);
     }

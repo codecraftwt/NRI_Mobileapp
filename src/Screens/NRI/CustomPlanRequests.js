@@ -124,6 +124,12 @@ function CustomPlanRequests({ navigation }) {
                       <Icon name="schedule" size={13} color="#94A3B8" />
                       <Text style={styles.ticketDate}>{formatDate(ticket.createdAt)}</Text>
                     </View>
+                    {ticket.awaitingFeePayment && (
+                      <View style={styles.awaitingFeeRow}>
+                        <Icon name="payment" size={12} color="#92400E" />
+                        <Text style={styles.awaitingFeeRowText}>Awaiting payment</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={styles.viewBtn}>
                     <Icon name="visibility" size={16} color="#3B82F6" />
@@ -195,6 +201,8 @@ const styles = StyleSheet.create({
   ticketSubject: { fontSize: 13, color: '#64748B' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ticketDate: { fontSize: 12, color: '#94A3B8' },
+  awaitingFeeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  awaitingFeeRowText: { fontSize: 11.5, fontWeight: '700', color: '#92400E' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
   viewBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },

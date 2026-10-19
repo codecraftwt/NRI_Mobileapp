@@ -60,6 +60,13 @@ export function mapSupportTicket(raw) {
     escalated: !!raw.escalated,
     createdAt: raw.created_at,
     unreadRepliesCount: raw.unread_replies_count ?? raw.unread_count ?? 0,
+    // Custom Plan only: true while the request's opening/consultation fee
+    // (saved before payment, see customPlanApi.createCustomPlan) is still
+    // unpaid — our team won't start on it until it's paid.
+    awaitingFeePayment: !!raw.awaiting_fee_payment,
+    // Only present (non-null) on the detail payload while the fee above is
+    // still unpaid; null once paid or if there's no fee at all.
+    fee: raw.fee ? { amount: raw.fee.amount, currency: raw.fee.currency } : null,
   };
 }
 

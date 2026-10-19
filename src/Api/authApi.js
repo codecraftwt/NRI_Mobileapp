@@ -144,6 +144,16 @@ function mapAuthResponse(data, { onboardedOverride } = {}) {
     referredByCode: customer.referred_by_code || null,
     dob: profileObj.date_of_birth || null,
     gender: profileObj.gender || null,
+    // Ready-to-display text for the raw gender code (e.g. "Rather not say"
+    // for "prefer_not_to_say") — prefer this over title-casing the code
+    // ourselves, since it's the source of truth for how it should read.
+    genderLabel: profileObj.gender_label || null,
+    // The gender picker's option list — driven entirely by the backend so a
+    // new option (e.g. "Rather not say") shows up without an app release.
+    // Tolerant of the list living at a few different nesting levels since the
+    // exact placement in the /auth/me payload isn't pinned down.
+    genderOptions: (data?.gender_options || apiUser.gender_options || profileObj.gender_options || [])
+      .map(o => ({ value: o.value, label: o.label })),
     bio: profileObj.bio || null,
     emergencyContactName: profileObj.emergency_contact_name || null,
     emergencyContactPhone: profileObj.emergency_contact_phone || null,

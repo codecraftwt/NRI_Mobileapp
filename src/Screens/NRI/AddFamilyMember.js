@@ -22,9 +22,9 @@ import { useFamilyMemberDetail } from '../../Hooks/useFamilyMemberDetail';
 import { useStates } from '../../Hooks/useStates';
 import { useDistricts } from '../../Hooks/useDistricts';
 
-const RELATIONSHIP_OPTIONS = ['Parent', 'Spouse', 'Child', 'Sibling', 'Other'];
-const RELATIONSHIP_TO_API = { Parent: 'parent', Spouse: 'spouse', Child: 'child', Sibling: 'sibling', Other: 'other' };
-const RELATIONSHIP_FROM_API = { parent: 'Parent', spouse: 'Spouse', child: 'Child', sibling: 'Sibling', other: 'Other' };
+const RELATIONSHIP_OPTIONS = ['Myself', 'Parent', 'Spouse', 'Child', 'Sibling', 'Other'];
+const RELATIONSHIP_TO_API = { Myself: 'myself', Parent: 'parent', Spouse: 'spouse', Child: 'child', Sibling: 'sibling', Other: 'other' };
+const RELATIONSHIP_FROM_API = { myself: 'Myself', parent: 'Parent', spouse: 'Spouse', child: 'Child', sibling: 'Sibling', other: 'Other' };
 
 function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
   const [open, setOpen] = useState(false);
@@ -338,7 +338,7 @@ function AddFamilyMember({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  container: { flex: 1, backgroundColor: '#FDFBF7' },
   scrollContent: { padding: 20, paddingBottom: 40, gap: 16 },
 
   detailLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 40 },

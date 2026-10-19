@@ -71,6 +71,14 @@ export const payCustomPlanProposal = createAsyncThunk('customPlan/payPlan', asyn
   }
 });
 
+export const payCustomPlanFee = createAsyncThunk('customPlan/payFee', async ({ ticketId, gateway, currency }, { rejectWithValue }) => {
+  try {
+    return await customPlanApi.payCustomPlanFee(ticketId, { gateway, currency });
+  } catch (error) {
+    return rejectWithValue(error);
+  }
+});
+
 export const rejectCustomPlanProposal = createAsyncThunk('customPlan/rejectPlan', async ({ ticketId, replyId, reason }, { rejectWithValue }) => {
   try {
     return await customPlanApi.rejectCustomPlanProposal(ticketId, replyId, reason);
@@ -104,6 +112,9 @@ const initialState = {
 
   payPlanStatus: 'idle',
   payPlanError: null,
+
+  payFeeStatus: 'idle',
+  payFeeError: null,
 
   rejectPlanStatus: 'idle',
   rejectPlanError: null,
@@ -208,6 +219,17 @@ const customPlanSlice = createSlice({
       .addCase(payCustomPlanProposal.rejected, (state, action) => {
         state.payPlanStatus = 'failed';
         state.payPlanError = action.payload;
+      })
+      .addCase(payCustomPlanFee.pending, (state) => {
+        state.payFeeStatus = 'loading';
+        state.payFeeError = null;
+      })
+      .addCase(payCustomPlanFee.fulfilled, (state) => {
+        state.payFeeStatus = 'succeeded';
+      })
+      .addCase(payCustomPlanFee.rejected, (state, action) => {
+        state.payFeeStatus = 'failed';
+        state.payFeeError = action.payload;
       })
       .addCase(rejectCustomPlanProposal.pending, (state) => {
         state.rejectPlanStatus = 'loading';

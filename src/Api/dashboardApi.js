@@ -29,6 +29,11 @@ function mapRecentTicket(raw) {
     service: raw.service?.name || raw.service_name || raw.title || (typeof raw.service === 'string' ? raw.service : 'Service Request'),
     vendor: raw.vendor?.name || raw.vendor_name || null,
     status: raw.status,
+    // status stays "new" for an unpaid (awaiting-payment) request — same as
+    // GET /customer/tickets — so statusLabel/awaitingPayment are the fields
+    // to render from, not status alone (see ticketApi.js's mapTicket).
+    statusLabel: raw.status_label || raw.status,
+    awaitingPayment: !!raw.awaiting_payment,
     date: raw.created_at || raw.date || null,
     slaDeadline: raw.sla_deadline || null,
   };
@@ -79,6 +84,16 @@ function mapRecentReport(raw) {
   };
 }
 
+function mapDashboardFamilyMember(raw) {
+  return {
+    id: raw.id,
+    name: raw.name,
+    relationship: raw.relationship,
+    relationshipLabel: raw.relationship_label || null,
+    phone: raw.phone || null,
+  };
+}
+
 function mapDashboard(raw) {
   return {
     stats: {
@@ -125,6 +140,8 @@ function mapDashboard(raw) {
     pendingTicketFinalizations: (raw.pending_ticket_finalizations || []).map(mapPendingTicketFinalization),
     pendingCheckoutBundles: (raw.pending_checkout_bundles || []).map(mapPendingCheckoutBundle),
     pendingSubscriptionFinalizations: (raw.pending_subscription_finalizations || []).map(mapPendingSubscriptionFinalization),
+    familyMembers: (raw.family_members || []).map(mapDashboardFamilyMember),
+    familyMembersCount: raw.family_members_count ?? (raw.family_members || []).length,
   };
 }
 

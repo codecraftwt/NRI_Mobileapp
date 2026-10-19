@@ -255,11 +255,12 @@ export async function validateCartCoupon({ code, cityId } = {}) {
 // pay it via billingApi.subscribeRecurringBundle, same as everywhere else
 // a pending bundle shows up (dashboard, membership-combined checkout).
 // family_member_name/family_member_relationship are raw strings here, not a
-// resolved family_member_id — confirmed live (a family_member_id payload
-// 422'd with "family member name/relationship/pincode field is required").
+// resolved family_member_id — this endpoint now also accepts a saved
+// family_member_id directly as an alternative (per the backend's family-member
+// picker rollout); send whichever one the "who is this for" picker produced.
 // Same shape as membershipApi.checkoutMembership's combined-cart checkout.
 export async function checkoutCart({
-  gateway, currency, couponCode, familyMemberName, familyMemberRelationship, stateId,
+  gateway, currency, couponCode, familyMemberId, familyMemberName, familyMemberRelationship, stateId,
   cityId, talukaId, address, pincode, urgency, customerNotes,
 }) {
   try {
@@ -267,8 +268,9 @@ export async function checkoutCart({
       gateway,
       currency: currency || undefined,
       coupon_code: couponCode || undefined,
-      family_member_name: familyMemberName || undefined,
-      family_member_relationship: familyMemberRelationship || undefined,
+      family_member_id: familyMemberId || undefined,
+      family_member_name: familyMemberId ? undefined : (familyMemberName || undefined),
+      family_member_relationship: familyMemberId ? undefined : (familyMemberRelationship || undefined),
       state_id: stateId,
       city_id: cityId || undefined,
       taluka_id: talukaId || undefined,
@@ -280,17 +282,26 @@ export async function checkoutCart({
     const response = await apiClient.post('/customer/cart/checkout', fields);
     const data = response.data?.data || {};
     // Confirmed live this response can come back in TWO different shapes:
-    // (a) the ticket already exists — `tickets`/`ticket_id`/`payment_required`/
-    // `amount_due`, and payment is a separate POST /customer/billing/ticket/
-    // {id}/pay call (billingApi.payBillableItem, see SubmitRequest.js); or
-    // (b) a pay-first fallback — no ticket_id at all yet, `requires_payment`/
+    // (a) `address` was sent — the one-time part is pre-saved as "Awaiting
+    // Payment" the moment this call returns: `ticket_id`/`finish_required:
+    // false`/`payment_required`/`amount_due`. Pay it via the separate
+    // POST /customer/billing/ticket/{id}/pay call (billingApi.payBillableItem,
+    // see SubmitRequest.js) — unless payment_required is false (a free ₹0
+    // cart), in which case the request is already fully submitted and no pay
+    // call is needed either. `ticket_id` is what the Awaiting Payment screen,
+    // Pay Now, Cancel, and the cancelled/failed-payment redirect all key off.
+    // (b) no `address` (or a cart service needs a document upload — see the
+    // 422 this returns then) — no ticket_id at all yet, `requires_payment`/
     // `order`/`checkout_url`/`amount` sit directly on this response instead,
     // and the ticket isn't created until that payment clears (same contract
-    // as ticketApi.finalizeTicket's paymentId). Map both sets of fields so
-    // callers can branch on whichever one actually came back.
+    // as ticketApi.finalizeTicket's paymentId; `finish_required: true`).
+    // A cart with a recurring item alongside a one-time one behaves the same
+    // either way — the one-time part saves/pays as above, the recurring part
+    // is always separate via `pending_recurring_bundle`.
     return {
       tickets: (data.tickets || []).map(mapCheckoutTicket).filter(Boolean),
       ticketId: data.ticket_id ?? null,
+      finishRequired: data.finish_required ?? null,
       paymentRequired: !!(data.payment_required ?? data.requires_payment),
       amountDue: data.amount_due ?? data.amount ?? null,
       paymentId: data.payment_id ?? null,

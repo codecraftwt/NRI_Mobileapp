@@ -156,6 +156,8 @@ function DashboardStack() {
       <Stack.Screen name="NewSupportTicket" component={NewSupportTicket} />
       <Stack.Screen name="SupportTicketChat" component={SupportTicketChat} />
       <Stack.Screen name="RequestSupportChat" component={RequestSupportChat} />
+      <Stack.Screen name="FamilyMain" component={Family} />
+      <Stack.Screen name="AddFamilyMember" component={AddFamilyMember} />
     </Stack.Navigator>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchTicketDetail, rateTicket } from '../Redux/slices/myTicketsSlice';
+import { fetchTicketDetail, rateTicket, cancelTicket } from '../Redux/slices/myTicketsSlice';
 
 export function useTicketDetail(ticketId) {
   const dispatch = useDispatch();
@@ -9,6 +9,8 @@ export function useTicketDetail(ticketId) {
   const error = useSelector(state => state.myTickets.detailError);
   const rateStatus = useSelector(state => state.myTickets.rateStatus);
   const rateError = useSelector(state => state.myTickets.rateError);
+  const cancelStatus = useSelector(state => state.myTickets.cancelStatus);
+  const cancelError = useSelector(state => state.myTickets.cancelError);
 
   useEffect(() => {
     if (ticketId) dispatch(fetchTicketDetail(ticketId));
@@ -25,5 +27,9 @@ export function useTicketDetail(ticketId) {
     rateLoading: rateStatus === 'loading',
     rateError,
     rate: (rating, note) => dispatch(rateTicket({ ticketId, rating, note })),
+
+    cancelLoading: cancelStatus === 'loading',
+    cancelError,
+    cancel: (reason) => dispatch(cancelTicket({ ticketId, reason })),
   };
 }
