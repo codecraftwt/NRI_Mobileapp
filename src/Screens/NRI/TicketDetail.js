@@ -257,11 +257,11 @@ function TicketDetail({ route, navigation }) {
 
   const handleCancelRequestPress = () => {
     showAlert(
-      'Cancel Request?',
-      'This will cancel your service request. This action cannot be undone.',
+      'Are you sure?',
+      `Cancel request ${ticket.ticketNumber}? You have not been charged for it.`,
       [
-        { text: 'No', style: 'cancel' },
-        { text: 'Yes, Cancel', style: 'destructive', onPress: confirmCancelRequest },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Yes, proceed', style: 'destructive', onPress: confirmCancelRequest },
       ]
     );
   };
