@@ -82,7 +82,22 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
     showAlert(
       'Payment Successful',
       isInitial ? 'Your payment has been confirmed. Your request will now be processed.' : 'Your additional payment has been confirmed.',
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
+      [{ text: 'OK', onPress: () => {
+        // An additional (post-service) charge keeps the existing goBack —
+        // TicketDetail is exactly where the customer wants to be. But
+        // `initial` means this was resuming a ticket whose payment had
+        // earlier been abandoned (see SubmitRequest.js) — goBack would just
+        // land on TicketDetail too, but a second back-press from there could
+        // still walk into whatever's left underneath in this tab's stack.
+        // Reset straight to Requests, same landing spot a normal (never-
+        // abandoned) checkout already uses.
+        if (isInitial) {
+          if (navigation.canGoBack()) navigation.popToTop();
+          navigation.navigate('Requests', { screen: 'RequestsMain' });
+        } else {
+          navigation.goBack();
+        }
+      } }]
     );
   };
 

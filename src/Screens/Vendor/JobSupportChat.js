@@ -37,7 +37,12 @@ function formatTime(dateStr) {
 }
 
 function JobSupportChat({ route, navigation }) {
-  const { ticketId } = route.params || {};
+  const { ticketId, jobStatus } = route.params || {};
+  // Passed in from JobDetail.js's own already-loaded job — a completed job's
+  // chat is closed for new replies/document requests (matches the customer
+  // app's equivalent "this request is completed" lock), independent of
+  // whatever the chat thread's own status happens to be.
+  const isJobCompleted = jobStatus === 'Completed';
   const user = useSelector(s => s.user.user);
   const { showAlert, alertProps } = useAppAlert();
   const { openAttachment, preview } = useAttachmentViewer();
@@ -197,33 +202,43 @@ function JobSupportChat({ route, navigation }) {
 
   // No chat exists yet — a vendor can still start one by requesting a document;
   // a plain reply still needs the customer/RM to have started the thread.
+  // Once the job is completed, though, there's nothing left to kick off.
   if (!chat) {
     return (
       <View style={styles.container}>
         <Header navigation={navigation} title="Support Chat" showBack />
-        <View style={styles.emptyState}>
-          <Icon name="chat-bubble-outline" size={48} color="#CBD5E1" />
-          <Text style={styles.emptyTitle}>No support chat yet</Text>
-          <Text style={styles.emptyText}>The customer or their relationship manager starts this chat. You can also kick it off by requesting a document below.</Text>
-          <TouchableOpacity style={styles.requestDocBtn} onPress={openRequestModal} activeOpacity={0.85}>
-            <Icon name="note-add" size={16} color="#1D4ED8" />
-            <Text style={styles.requestDocBtnText}>Request Document</Text>
-          </TouchableOpacity>
-        </View>
-        <RequestDocumentModal
-          visible={showRequestModal}
-          onClose={() => setShowRequestModal(false)}
-          docTypes={docTypes}
-          selectedDocLabel={selectedDocLabel}
-          setSelectedDocLabel={setSelectedDocLabel}
-          customDocLabel={customDocLabel}
-          setCustomDocLabel={setCustomDocLabel}
-          requestNote={requestNote}
-          setRequestNote={setRequestNote}
-          canSend={!!requestLabel}
-          sending={requestSending}
-          onSend={handleSendDocumentRequest}
-        />
+        {isJobCompleted ? (
+          <View style={styles.emptyState}>
+            <Icon name="lock" size={40} color="#94A3B8" />
+            <Text style={styles.closedText}>This service request is completed, so its chat is closed.</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.emptyState}>
+              <Icon name="chat-bubble-outline" size={48} color="#CBD5E1" />
+              <Text style={styles.emptyTitle}>No support chat yet</Text>
+              <Text style={styles.emptyText}>The customer or their relationship manager starts this chat. You can also kick it off by requesting a document below.</Text>
+              <TouchableOpacity style={styles.requestDocBtn} onPress={openRequestModal} activeOpacity={0.85}>
+                <Icon name="note-add" size={16} color="#1D4ED8" />
+                <Text style={styles.requestDocBtnText}>Request Document</Text>
+              </TouchableOpacity>
+            </View>
+            <RequestDocumentModal
+              visible={showRequestModal}
+              onClose={() => setShowRequestModal(false)}
+              docTypes={docTypes}
+              selectedDocLabel={selectedDocLabel}
+              setSelectedDocLabel={setSelectedDocLabel}
+              customDocLabel={customDocLabel}
+              setCustomDocLabel={setCustomDocLabel}
+              requestNote={requestNote}
+              setRequestNote={setRequestNote}
+              canSend={!!requestLabel}
+              sending={requestSending}
+              onSend={handleSendDocumentRequest}
+            />
+          </>
+        )}
         <AppAlert {...alertProps} />
       </View>
     );
@@ -323,7 +338,12 @@ function JobSupportChat({ route, navigation }) {
             )}
           </ScrollView>
 
-          {isResolved ? (
+          {isJobCompleted ? (
+            <View style={styles.resolvedNote}>
+              <Icon name="lock" size={14} color="#64748B" />
+              <Text style={styles.closedNoteText}>This service request is completed, so its chat is closed.</Text>
+            </View>
+          ) : isResolved ? (
             <View style={styles.resolvedNote}>
               <Icon name="lock" size={14} color="#059669" />
               <Text style={styles.resolvedNoteText}>This chat has been resolved.</Text>
@@ -456,6 +476,7 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 16, fontFamily: typography.h2.fontFamily, color: '#0F172A' },
   emptyText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20 },
+  closedText: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20, fontFamily: typography.labelMedium.fontFamily },
 
   card: {
     maxHeight: '100%',
@@ -518,6 +539,7 @@ const styles = StyleSheet.create({
 
   resolvedNote: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   resolvedNoteText: { fontSize: 13, color: '#059669', fontFamily: typography.labelMedium.fontFamily },
+  closedNoteText: { fontSize: 13, color: '#64748B', fontFamily: typography.labelMedium.fontFamily, flexShrink: 1 },
 
   replyInputRow: { paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   replyInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },

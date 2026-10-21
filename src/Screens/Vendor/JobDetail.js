@@ -768,7 +768,7 @@ function JobDetail({ route, navigation }) {
             </View>
             <TouchableOpacity
               style={styles.requestDocumentPill}
-              onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+              onPress={() => navigation.navigate('JobSupportChat', { ticketId, jobStatus: job.status })}
               activeOpacity={0.8}
             >
               <Icon name="add" size={14} color="#2563EB" />
@@ -1566,7 +1566,7 @@ function JobDetail({ route, navigation }) {
           scrolling into the Actions tab. */}
       <TouchableOpacity
         style={styles.supportChatFab}
-        onPress={() => navigation.navigate('JobSupportChat', { ticketId })}
+        onPress={() => navigation.navigate('JobSupportChat', { ticketId, jobStatus: job.status })}
         activeOpacity={0.85}
       >
         <Icon name="sms" size={26} color="#FFFFFF" />

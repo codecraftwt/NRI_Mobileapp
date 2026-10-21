@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, FlatList, StatusBar, Image, Alert } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { CommonActions } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
@@ -29,6 +30,7 @@ import { formatAmount } from '../../Utils/currency';
 import AppAlert, { useAppAlert } from '../../Components/AppAlert';
 import { saveServiceLocation } from '../../Redux/slices/serviceLocationSlice';
 import { useToast } from '../../context/ToastContext';
+import { dispatch as dispatchNav } from '../../Navigations/navigationRef';
 
 const GST_RATE = 0.18;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -468,6 +470,41 @@ function SubmitRequest({ navigation, route }) {
       ? { familyMemberId: selectedMemberId }
       : { familyMemberName: reqForm.fullName.trim(), familyMemberRelationship: reqForm.relation.toLowerCase() }
   );
+
+  // Routes to a saved-but-unpaid ticket after the user backed out of/cancelled
+  // its payment. This screen is rendered in place of Cart (see Cart.js), so a
+  // plain navigate('TicketDetail', ...) would just push TicketDetail on top
+  // of it here in the Services tab's stack — back from TicketDetail would
+  // land on ServicesMain, and a second back-press could still walk into this
+  // now-pointless form. A bare nested navigate('Requests', { screen:
+  // 'TicketDetail' }) doesn't reliably seed RequestsMain underneath it either
+  // (confirmed live: back from TicketDetail fell through to the Home tab
+  // instead) — so this rebuilds the whole tab tree explicitly via
+  // CommonActions.reset, same proven approach notificationRouting.js's
+  // resetCustomerRequests() uses for this identical problem: Requests becomes
+  // [RequestsMain, TicketDetail] (so Back lands on the request list) and
+  // every other tab resets to its own root.
+  const goToTicketAfterExit = (ticketId) => {
+    dispatchNav(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'AppHome',
+            state: {
+              index: 2, // Requests tab focused
+              routes: [
+                { name: 'Dashboard', state: { index: 0, routes: [{ name: 'DashboardMain' }] } },
+                { name: 'Services', state: { index: 0, routes: [{ name: 'ServicesMain' }] } },
+                { name: 'Requests', state: { index: 1, routes: [{ name: 'RequestsMain' }, { name: 'TicketDetail', params: { ticketId } }] } },
+                { name: 'Profile', state: { index: 0, routes: [{ name: 'ProfileMain' }] } },
+              ],
+            },
+          },
+        ],
+      })
+    );
+  };
 
   const finishSuccess = async () => {
     if (items.length) {
@@ -943,7 +980,7 @@ function SubmitRequest({ navigation, route }) {
           showAlert(
             'Payment Cancelled',
             'Your request has been saved, but it will not be processed until payment is completed.',
-            [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
+            [{ text: 'OK', onPress: () => goToTicketAfterExit(createdTicketId) }]
           );
           return;
         }
@@ -957,7 +994,7 @@ function SubmitRequest({ navigation, route }) {
         showAlert(
           'Payment Failed',
           error?.message || 'Payment could not be completed. Your request has been saved, but it will not be processed until payment is completed.',
-          [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
+          [{ text: 'OK', onPress: () => goToTicketAfterExit(createdTicketId) }]
         );
         return;
       }
@@ -991,7 +1028,7 @@ function SubmitRequest({ navigation, route }) {
       showAlert(
         'Payment Required',
         'Your request has been saved, but it will not be processed until payment is completed.',
-        [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: session.ticketId }) }]
+        [{ text: 'OK', onPress: () => goToTicketAfterExit(session.ticketId) }]
       );
     }
   };
