@@ -26,7 +26,7 @@ const NEXT_STEPS = [
 ];
 
 function OnboardingWelcome({ route, navigation }) {
-  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked, customPlanTicket } = route.params || {};
+  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked, customPlanTicket, customPlanSubject } = route.params || {};
   const dispatch = useDispatch();
   const [bundlePaid, setBundlePaid] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
@@ -51,6 +51,21 @@ function OnboardingWelcome({ route, navigation }) {
     // re-login from resuming the wizard once onboarding is genuinely done.
     if (userId != null) dispatch(markOnboardingComplete(userId));
   }, [dispatch, userId]);
+
+  // The bundled custom-plan request (see OnboardingPayment.js) was raised
+  // with a generic placeholder subject/message — the customer never got to
+  // say what they actually need, since that fee was paid before they could
+  // type anything. Hand off to the dedicated "describe it" step (same stack,
+  // so a plain replace resolves it) instead of landing on this screen.
+  useEffect(() => {
+    if (!customPlanTicket?.id) return;
+    const serviceName = (customPlanSubject || '').replace(/\s*\(consultation fee\)\s*$/i, '') || 'Custom Task Service Request';
+    navigation.replace('DescribeCustomRequest', {
+      ticketId: customPlanTicket.id,
+      serviceName,
+      subject: customPlanSubject || `Custom Quote — ${serviceName}`,
+    });
+  }, [customPlanTicket, customPlanSubject, navigation]);
 
   return (
     <View style={styles.container}>

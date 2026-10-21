@@ -815,9 +815,12 @@ function OnboardingPayment({ route, navigation }) {
       pendingRecurringBundle,
       cartNotBooked: fromCart && !combinedCart,
       // Set when this payment also raised the bundled custom-plan request
-      // (see customQuote above) — lets the welcome screen deep-link into
-      // SupportTicketChat with { ticketId, kind: 'custom_plan' }.
+      // (see customQuote above) — lets the welcome screen hand off to
+      // DescribeCustomRequest so the customer can finally say what they need
+      // (the ticket itself was raised with a placeholder subject/message,
+      // since the fee was paid before they could type anything).
       customPlanTicket: resolvedCustomPlanTicket,
+      customPlanSubject: customQuote?.subject || null,
     });
   };
 

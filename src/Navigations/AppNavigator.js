@@ -23,6 +23,7 @@ import VerifyEmail from '../Screens/NRI/Auth/VerifyEmail';
 import OnboardingProfile from '../Screens/NRI/Auth/OnboardingProfile';
 import OnboardingPayment from '../Screens/NRI/Auth/OnboardingPayment';
 import OnboardingWelcome from '../Screens/NRI/Auth/OnboardingWelcome';
+import DescribeCustomRequest from '../Screens/NRI/Auth/DescribeCustomRequest';
 
 // Import Core Dashboard Screens
 import Dashboard from '../Screens/NRI/Dashboard';
@@ -464,6 +465,7 @@ export default function AppNavigator() {
       <Stack.Screen name="OnboardingProfile" component={OnboardingProfile} />
       <Stack.Screen name="OnboardingPayment" component={OnboardingPayment} />
       <Stack.Screen name="OnboardingWelcome" component={OnboardingWelcome} />
+      <Stack.Screen name="DescribeCustomRequest" component={DescribeCustomRequest} />
       <Stack.Screen name="FinishRequest" component={FinishRequest} />
 
       {/* Guest Browse + Cart Flow — the landing experience after onboarding */}
