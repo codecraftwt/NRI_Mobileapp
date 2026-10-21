@@ -85,7 +85,7 @@ function SupportTicketChat({ route, navigation }) {
   const supportBundle = useSupportTicketDetail((isCustomPlan || isJob) ? null : ticketId);
   const customPlanBundle = useCustomPlanDetail(isCustomPlan ? ticketId : null);
   const jobBundle = useTicketSupportChat(isJob ? ticketId : null);
-  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, escalate, escalateLoading, acceptPlan, rejectPlan } = isJob ? jobBundle : (isCustomPlan ? customPlanBundle : supportBundle);
+  const { detail: ticket, replies, loading, failed, retry, reply: sendReply, replyLoading, acceptPlan, rejectPlan } = isJob ? jobBundle : (isCustomPlan ? customPlanBundle : supportBundle);
   const { overview: billing, retry: refreshBilling } = useBilling();
   const { showAlert, alertProps } = useAppAlert();
   const [replyText, setReplyText] = useState('');
@@ -261,28 +261,6 @@ function SupportTicketChat({ route, navigation }) {
     Linking.openURL(link).catch(() => showAlert('Could Not Open', 'Please try again.'));
   };
 
-  const handleEscalate = () => {
-    showAlert(
-      'Escalate to Admin',
-      'This will notify our admin team that you need further help with this ticket. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Escalate',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await escalate().unwrap();
-              showAlert('Escalated', 'Your ticket has been escalated to our admin team.');
-            } catch (error) {
-              showAlert('Could Not Escalate', error?.message || 'Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
   // Picks 1-5 files (pdf/jpg/jpeg/png, 5MB each) for a pending document
   // request. Replaces any previously picked selection for that request.
   const handlePickDocFiles = async (documentRequestId) => {
@@ -380,23 +358,14 @@ function SupportTicketChat({ route, navigation }) {
           <View style={styles.threadHeaderRow}>
             <View style={styles.threadHeaderLeft}>
               <View style={styles.threadTitleLine}>
-                <Text style={styles.threadSubject} numberOfLines={1}>{ticket.subject}</Text>
-                <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
-                  <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket.statusLabel}</Text>
-                </View>
+                {isJob && <Icon name="chat-bubble-outline" size={18} color="#2563EB" />}
+                <Text style={styles.threadSubject} numberOfLines={1}>{isJob ? 'Support Chat' : ticket.subject}</Text>
               </View>
               <Text style={styles.threadDate}>{formatTime(ticket.createdAt)}</Text>
             </View>
-            {!isCustomPlan && !isClosed && ticket.status !== 'escalated' && (
-              <TouchableOpacity style={styles.escalateChip} onPress={handleEscalate} disabled={escalateLoading} activeOpacity={0.85}>
-                {escalateLoading ? <ActivityIndicator size="small" color="#DC2626" /> : (
-                  <>
-                    <Icon name="arrow-upward" size={14} color="#DC2626" />
-                    <Text style={styles.escalateChipText}>Escalate</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
+              <Text style={[styles.statusPillText, { color: pill.text }]}>{ticket.statusLabel}</Text>
+            </View>
           </View>
 
           {isCustomPlan && ticket.awaitingFeePayment && (
@@ -696,8 +665,6 @@ const styles = StyleSheet.create({
   threadTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   threadSubject: { fontSize: 15, fontFamily: typography.labelMedium.fontFamily, color: '#0F172A', flexShrink: 1 },
   threadDate: { fontSize: 11, color: '#94A3B8' },
-  escalateChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 },
-  escalateChipText: { color: '#DC2626', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 

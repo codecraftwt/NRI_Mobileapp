@@ -205,7 +205,7 @@ function JobSupportChat({ route, navigation }) {
   // Once the job is completed, though, there's nothing left to kick off.
   if (!chat) {
     return (
-      <View style={styles.container}>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Header navigation={navigation} title="Support Chat" showBack />
         {isJobCompleted ? (
           <View style={styles.emptyState}>
@@ -214,14 +214,37 @@ function JobSupportChat({ route, navigation }) {
           </View>
         ) : (
           <>
-            <View style={styles.emptyState}>
-              <Icon name="chat-bubble-outline" size={48} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No support chat yet</Text>
-              <Text style={styles.emptyText}>The customer or their relationship manager starts this chat. You can also kick it off by requesting a document below.</Text>
-              <TouchableOpacity style={styles.requestDocBtn} onPress={openRequestModal} activeOpacity={0.85}>
-                <Icon name="note-add" size={16} color="#1D4ED8" />
-                <Text style={styles.requestDocBtnText}>Request Document</Text>
-              </TouchableOpacity>
+            {/* No thread exists yet — a vendor can start one either by sending a
+                plain message directly (same composer as an active chat) or by
+                requesting a document below; either one creates the thread. */}
+            <View style={styles.chatWrap}>
+              <View style={styles.card}>
+                <Text style={styles.composerLabel}>Start a conversation about this request:</Text>
+                <View style={styles.replyInputRow}>
+                  <TextInput
+                    style={styles.replyInput}
+                    placeholder="Type your message..."
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                    value={replyText}
+                    onChangeText={setReplyText}
+                  />
+                </View>
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity style={styles.requestDocBtn} onPress={openRequestModal} activeOpacity={0.85}>
+                    <Icon name="note-add" size={16} color="#1D4ED8" />
+                    <Text style={styles.requestDocBtnText}>Request Document</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.sendBtn, (!replyText.trim() || sending) && styles.sendBtnDisabled]} onPress={handleSend} disabled={!replyText.trim() || sending}>
+                    {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                      <>
+                        <Text style={styles.sendBtnText}>Send</Text>
+                        <Icon name="send" size={16} color="#FFFFFF" />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
             <RequestDocumentModal
               visible={showRequestModal}
@@ -240,7 +263,7 @@ function JobSupportChat({ route, navigation }) {
           </>
         )}
         <AppAlert {...alertProps} />
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -248,14 +271,15 @@ function JobSupportChat({ route, navigation }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Header navigation={navigation} title={chat.ticketNumber || 'Support Chat'} showBack />
+      <Header navigation={navigation} title="Support Chat" showBack />
 
       <View style={styles.chatWrap}>
         <View style={styles.card}>
           <View style={styles.threadHeaderRow}>
-            <Text style={styles.threadSubject} numberOfLines={1}>
-              Regarding request {chat.ticketNumber}
-            </Text>
+            <View style={styles.threadTitleLine}>
+              <Icon name="chat-bubble-outline" size={18} color="#2563EB" />
+              <Text style={styles.threadSubject} numberOfLines={1}>Support Chat</Text>
+            </View>
             <View style={[styles.statusPill, { backgroundColor: pill.bg }]}>
               <Text style={[styles.statusPillText, { color: pill.text }]}>{chat.statusLabel}</Text>
             </View>
@@ -485,7 +509,9 @@ const styles = StyleSheet.create({
     shadowColor: '#64748B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 3,
   },
   threadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  threadTitleLine: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   threadSubject: { flex: 1, fontSize: 15, fontWeight: '700', fontFamily: typography.labelMedium.fontFamily, color: '#0F172A' },
+  composerLabel: { fontSize: 13, fontFamily: typography.labelMedium.fontFamily, color: '#334155', fontWeight: '600' },
   statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusPillText: { fontSize: 11, fontWeight: '700' },
 

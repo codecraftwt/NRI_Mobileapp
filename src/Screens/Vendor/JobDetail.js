@@ -20,12 +20,7 @@ import { downloadDocumentFile } from '../../Utils/fileDownload';
 const MAX_MEDIA_FILES = 8;
 const MAX_MEDIA_SIZE_BYTES = 25 * 1024 * 1024;
 
-// Prefer the linked charge's own payment state over the dispute's — the
-// dispute flips to "resolved" the moment the RM requests payment, well before
-// the customer has actually paid it.
 function getDisputeStatusStyle(dispute) {
-  if (dispute.chargeStatus === 'pending') return { bg: '#FFEDD5', text: '#C2410C', label: 'Payment Pending' };
-  if (dispute.chargeStatus === 'paid') return { bg: '#D1FAE5', text: '#059669', label: 'Paid' };
   switch (String(dispute.status || '').toLowerCase()) {
     case 'resolved': return { bg: '#D1FAE5', text: '#059669', label: 'Resolved' };
     case 'rejected': return { bg: '#FEE2E2', text: '#DC2626', label: 'Rejected' };
@@ -785,15 +780,8 @@ function JobDetail({ route, navigation }) {
               {documentRequests.map((dr, index) => {
                 const isFulfilled = String(dr.status || '').toLowerCase() === 'fulfilled';
                 const requestedStr = dr.requestedAt ? formatShortDateTime(dr.requestedAt) : '';
-                const uploadedStr = dr.uploadedAt ? formatShortDateTime(dr.uploadedAt) : (dr.replyCreatedAt ? formatShortDateTime(dr.replyCreatedAt) : '');
-                let metaText = '';
-                if (requestedStr && uploadedStr) {
-                  metaText = `Requested ${requestedStr} · uploaded ${uploadedStr}`;
-                } else if (requestedStr) {
-                  metaText = `Requested ${requestedStr}`;
-                } else if (uploadedStr) {
-                  metaText = `Uploaded ${uploadedStr}`;
-                }
+                const metaText = requestedStr ? `Requested ${requestedStr}` : '';
+                const docPill = getDocStatusPill(dr.status);
 
                 return (
                   <View
@@ -803,7 +791,12 @@ function JobDetail({ route, navigation }) {
                       index > 0 && styles.docItemBorderTop,
                     ]}
                   >
-                    <Text style={styles.docItemTitle}>{dr.label || dr.name || 'Document'}</Text>
+                    <View style={styles.docItemTitleRow}>
+                      <Text style={styles.docItemTitle}>{dr.label || dr.name || 'Document'}</Text>
+                      <View style={[styles.disputeStatusPill, { backgroundColor: docPill.bg }]}>
+                        <Text style={[styles.disputeStatusText, { color: docPill.text }]}>{docPill.label}</Text>
+                      </View>
+                    </View>
 
                     {!!metaText && (
                       <Text style={styles.docItemSubtitle}>{metaText}</Text>
@@ -1186,6 +1179,77 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
+        {isAssigned && !alreadyAccepted && (
+          <View style={[styles.card, styles.flagCard]}>
+            <View style={styles.sectionHeader}>
+              <Icon name="flag" size={18} color="#B45309" />
+              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
+            </View>
+            <Text style={styles.actionDesc}>
+              You can flag a cost issue once you've accepted this job and started work.
+            </Text>
+          </View>
+        )}
+
+        {/* Once the job is Completed, flagging a new issue no longer makes
+            sense — but a vendor who already flagged one (and may have been
+            paid for it) still needs to see that history, so this stays
+            visible read-only instead of disappearing along with the rest of
+            the in-progress actions. */}
+        {(isInProgress || (isCompleted && vendorDisputes.length > 0)) && (
+          <View style={[styles.card, styles.flagCard]}>
+            <View style={styles.sectionHeader}>
+              <Icon name="flag" size={18} color="#B45309" />
+              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
+            </View>
+            {isInProgress && (
+              <Text style={styles.actionDesc}>
+                If the actual cost of this job is higher than what was quoted, flag it here
+              </Text>
+            )}
+
+            {vendorDisputes.length > 0 && (
+              <View style={styles.disputeHistory}>
+                {vendorDisputes.map((d) => {
+                  const dStyle = getDisputeStatusStyle(d);
+                  return (
+                    <View key={d.id} style={styles.disputeHistoryRow}>
+                      <View style={styles.disputeHistoryTop}>
+                        <Text style={styles.disputeHistoryAmount}>{d.amount != null ? `₹${d.amount.toFixed(2)}` : 'No extra amount'}</Text>
+                        <View style={[styles.disputeStatusPill, { backgroundColor: dStyle.bg }]}>
+                          <Text style={[styles.disputeStatusText, { color: dStyle.text }]}>{dStyle.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.disputeHistoryReason}>{d.reason}</Text>
+                      {!!d.resolutionNotes && (
+                        <Text style={styles.disputeHistoryResolution}>{d.resolutionNotes}</Text>
+                      )}
+                      {d.chargeStatus === 'paid' && !!d.chargePaidAt && (
+                        <Text style={styles.disputeHistoryResolution}>Paid {formatDisputeDate(d.chargePaidAt)}</Text>
+                      )}
+                      <Text style={styles.disputeHistoryDate}>Raised {formatDisputeDate(d.createdAt)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {isCompleted ? (
+              <Text style={styles.actionDesc}>This job is already complete — cost issues can no longer be flagged.</Text>
+            ) : hasPendingDispute ? (
+              <View style={styles.awaitingReviewPill}>
+                <Icon name="hourglass-empty" size={16} color="#C2410C" />
+                <Text style={styles.awaitingReviewText}>Awaiting review</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.flagBtn} onPress={handleOpenFlagModal} activeOpacity={0.85}>
+                <Icon name="flag" size={16} color="#B45309" />
+                <Text style={styles.flagBtnText}>Flag Cost Issue</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Rate This Customer — internal only, only available once completed */}
         {isCompleted && (
           <View style={styles.card}>
@@ -1241,116 +1305,6 @@ function JobDetail({ route, navigation }) {
             {!!job.myFeedback?.createdAt && (
               <Text style={styles.fileHint}>Last updated {formatDisputeDate(job.myFeedback.createdAt)}</Text>
             )}
-          </View>
-        )}
-
-        {isAssigned && !alreadyAccepted && (
-          <View style={[styles.card, styles.flagCard]}>
-            <View style={styles.sectionHeader}>
-              <Icon name="flag" size={18} color="#B45309" />
-              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
-            </View>
-            <Text style={styles.actionDesc}>
-              You can flag a cost issue once you've accepted this job and started work.
-            </Text>
-          </View>
-        )}
-
-        {isInProgress && (
-          <View style={[styles.card, styles.flagCard]}>
-            <View style={styles.sectionHeader}>
-              <Icon name="flag" size={18} color="#B45309" />
-              <Text style={styles.sectionTitle}>Cost Higher Than Quoted?</Text>
-            </View>
-            <Text style={styles.actionDesc}>
-              If the actual cost of this job is higher than what was quoted, flag it here
-            </Text>
-
-            {vendorDisputes.length > 0 && (
-              <View style={styles.disputeHistory}>
-                {vendorDisputes.map((d) => {
-                  const dStyle = getDisputeStatusStyle(d);
-                  return (
-                    <View key={d.id} style={styles.disputeHistoryRow}>
-                      <View style={styles.disputeHistoryTop}>
-                        <Text style={styles.disputeHistoryAmount}>{d.amount != null ? `₹${d.amount.toFixed(2)}` : 'No extra amount'}</Text>
-                        <View style={[styles.disputeStatusPill, { backgroundColor: dStyle.bg }]}>
-                          <Text style={[styles.disputeStatusText, { color: dStyle.text }]}>{dStyle.label}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.disputeHistoryReason}>{d.reason}</Text>
-                      {!!d.resolutionNotes && (
-                        <Text style={styles.disputeHistoryResolution}>{d.resolutionNotes}</Text>
-                      )}
-                      {d.chargeStatus === 'paid' && !!d.chargePaidAt && (
-                        <Text style={styles.disputeHistoryResolution}>Paid {formatDisputeDate(d.chargePaidAt)}</Text>
-                      )}
-                      <Text style={styles.disputeHistoryDate}>Raised {formatDisputeDate(d.createdAt)}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {hasPendingDispute ? (
-              <View style={styles.awaitingReviewPill}>
-                <Icon name="hourglass-empty" size={16} color="#C2410C" />
-                <Text style={styles.awaitingReviewText}>Awaiting review</Text>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.flagBtn} onPress={handleOpenFlagModal} activeOpacity={0.85}>
-                <Icon name="flag" size={16} color="#B45309" />
-                <Text style={styles.flagBtnText}>Flag Cost Issue</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Shipment / Tracking */}
-        {(isInProgress || isCompleted) && (
-          <View style={styles.card}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionHeader}>
-                <Icon name="local-shipping" size={18} color="#0EA5E9" />
-                <Text style={styles.sectionTitle}>Shipment / Tracking</Text>
-              </View>
-              <Text style={styles.optionalText}>optional</Text>
-            </View>
-
-            <View style={styles.reportField}>
-              <Text style={styles.commitLabel}>Tracking / Shipment Number</Text>
-              <TextInput
-                style={styles.dateInput}
-                placeholder="e.g. AWB123456789"
-                placeholderTextColor="#94A3B8"
-                value={trackingNumber}
-                onChangeText={setTrackingNumber}
-              />
-            </View>
-
-            <View style={styles.reportField}>
-              <Text style={styles.commitLabel}>Tracking URL</Text>
-              <TextInput
-                style={styles.dateInput}
-                placeholder="https://tracking.example.com/..."
-                placeholderTextColor="#94A3B8"
-                value={trackingUrl}
-                onChangeText={setTrackingUrl}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            </View>
-
-            <TouchableOpacity style={[styles.saveTrackingBtn, (actionLoading || trackingUnchanged) && styles.btnDisabled]} onPress={handleSaveTracking} disabled={actionLoading || trackingUnchanged} activeOpacity={0.8}>
-              {actionLoading ? (
-                <ActivityIndicator size="small" color="#2563EB" />
-              ) : (
-                <>
-                  <Icon name="save-alt" size={16} color="#2563EB" />
-                  <Text style={styles.saveTrackingText}>Save Tracking</Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
         )}
 
@@ -1439,6 +1393,54 @@ function JobDetail({ route, navigation }) {
             <Icon name="chevron-right" size={18} color="#6D28D9" />
           </TouchableOpacity>
         </View>
+
+        {/* Shipment / Tracking */}
+        {(isInProgress || isCompleted) && (
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <Icon name="local-shipping" size={18} color="#0EA5E9" />
+                <Text style={styles.sectionTitle}>Shipment / Tracking</Text>
+              </View>
+              <Text style={styles.optionalText}>optional</Text>
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Tracking / Shipment Number</Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="e.g. AWB123456789"
+                placeholderTextColor="#94A3B8"
+                value={trackingNumber}
+                onChangeText={setTrackingNumber}
+              />
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.commitLabel}>Tracking URL</Text>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="https://tracking.example.com/..."
+                placeholderTextColor="#94A3B8"
+                value={trackingUrl}
+                onChangeText={setTrackingUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+
+            <TouchableOpacity style={[styles.saveTrackingBtn, (actionLoading || trackingUnchanged) && styles.btnDisabled]} onPress={handleSaveTracking} disabled={actionLoading || trackingUnchanged} activeOpacity={0.8}>
+              {actionLoading ? (
+                <ActivityIndicator size="small" color="#2563EB" />
+              ) : (
+                <>
+                  <Icon name="save-alt" size={16} color="#2563EB" />
+                  <Text style={styles.saveTrackingText}>Save Tracking</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
         </>
         )}
 
@@ -1887,7 +1889,8 @@ const styles = StyleSheet.create({
   docRequestsContainer: { marginTop: 8 },
   docItemBlock: { paddingVertical: 8 },
   docItemBorderTop: { borderTopWidth: 1, borderTopColor: '#F1F5F9', marginTop: 8, paddingTop: 12 },
-  docItemTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', fontFamily: typography.h3.fontFamily },
+  docItemTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  docItemTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', fontFamily: typography.h3.fontFamily, flexShrink: 1 },
   docItemSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, fontFamily: typography.labelMedium.fontFamily },
   docFileListRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   docFilePill: {
