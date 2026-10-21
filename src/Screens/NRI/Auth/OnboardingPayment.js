@@ -1047,15 +1047,19 @@ function OnboardingPayment({ route, navigation }) {
       <View style={styles.bgShape3} />
       <OnboardingTopBar
         navigation={navigation}
+        backLabel="Back to Profile"
         onBack={() => {
-          if (userId != null) {
-            dispatch(setOnboardingStep({ userId, step: 'OnboardingProfile' }));
-          }
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.replace('OnboardingProfile');
-          }
+          // Deliberately does NOT reset the saved resume step back to
+          // 'OnboardingProfile' — this button is also the only way to reach
+          // the logout control while mid-payment, and logging out from there
+          // should still resume here (the furthest step already saved), not
+          // bounce back to a blank Profile form.
+          //
+          // Always land on the Profile step explicitly — navigation.goBack()
+          // isn't reliable here: this screen is often reached via a stack
+          // reset (e.g. straight from Login), so whatever sits "behind" it on
+          // the native stack can be the Sign In page rather than Profile.
+          navigation.replace('OnboardingProfile');
         }}
         // Always available on this step (not just once the cart already has
         // items) — the drawer's own empty state lets the customer browse and

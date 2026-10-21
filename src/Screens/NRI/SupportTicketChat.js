@@ -495,6 +495,10 @@ function SupportTicketChat({ route, navigation }) {
                 const paid = isJobPaid(msg.convertedTicket)
                   || paidReplyIds.has(msg.id)
                   || (jobId != null && paidTicketIds.has(String(jobId)));
+                // Once paid, the ticket row below already states "accepted &
+                // paid" with the job number — showing the pills above it too
+                // would just repeat the same two facts twice.
+                const showTicketRow = paid && !!msg.convertedTicket?.ticket_number;
                 return (
                   <View key={msg.id} style={styles.proposalCard}>
                     <View style={styles.proposalHeader}>
@@ -511,6 +515,7 @@ function SupportTicketChat({ route, navigation }) {
                         <Text style={styles.proposalPriceValue}>{priceLabel}</Text>
                       </View>
                     )}
+                    {!showTicketRow && (
                     <View style={styles.proposalActions}>
                       {accepted ? (
                         <>
@@ -570,6 +575,24 @@ function SupportTicketChat({ route, navigation }) {
                         </View>
                       ) : null}
                     </View>
+                    )}
+                    {showTicketRow && (
+                      <View style={styles.proposalTicketRow}>
+                        <View style={styles.proposalTicketInfo}>
+                          <Icon name="check-circle" size={14} color="#15803D" />
+                          <Text style={styles.proposalTicketText}>
+                            Accepted & paid — Job {msg.convertedTicket.ticket_number}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.viewRequestBtn}
+                          onPress={() => navigation.navigate('TicketDetail', { ticketId: jobId })}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.viewRequestBtnText}>View request</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 );
               }
@@ -793,6 +816,11 @@ const styles = StyleSheet.create({
   proposalAcceptedText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
   proposalDeclinedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FEE2E2', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   proposalDeclinedText: { color: '#DC2626', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
+  proposalTicketRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginTop: 2 },
+  proposalTicketInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  proposalTicketText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700', flexShrink: 1 },
+  viewRequestBtn: { borderWidth: 1.5, borderColor: '#15803D', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#FFFFFF' },
+  viewRequestBtnText: { color: '#15803D', fontSize: 12, fontFamily: typography.labelMedium.fontFamily, fontWeight: '700' },
 
   replyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
   replyInput: { flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC', maxHeight: 100 },

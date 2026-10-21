@@ -11,7 +11,7 @@ import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { useCart } from '../../Hooks/useCart';
 import { useServiceCategories } from '../../Hooks/useServiceCategories';
 import { useServiceGroups } from '../../Hooks/useServiceGroups';
-import { getServiceGroups } from '../../Api/catalogApi';
+import { getServiceGroups, getServices } from '../../Api/catalogApi';
 import LocationPickerModal from '../../Components/LocationPickerModal';
 import CustomQuoteCard from '../../Components/CustomQuoteCard';
 
@@ -129,7 +129,14 @@ function Services({ navigation, route }) {
   // without losing it. Signed-in members are never touched — their city stays
   // sticky across sessions.
   useEffect(() => {
-    if (!isAuthenticated) dispatch(clearServiceLocation());
+    if (!isAuthenticated) {
+      dispatch(clearServiceLocation());
+      // Also drop any stale "Request a Quote" intent from an earlier, abandoned
+      // visit (see openCustomTaskService below) — otherwise it's redux-persisted
+      // and would silently bundle an unrelated custom-plan fee into whatever
+      // this fresh guest registers for next.
+      dispatch(setPendingCustomPlanRequest(false));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -233,6 +240,20 @@ function Services({ navigation, route }) {
     loadAllServices();
   }, [isAll, loadingCats, loadAllServices]);
 
+  // The "Need Something Custom?" banner's is_custom_task entries — fetched
+  // once, independent of the category filter above. They used to be derived
+  // from the active category's own service list, so picking any category
+  // other than "All Categories" hid the banner (the Custom Task service
+  // lives in its own category and was never in that list).
+  const [customServices, setCustomServices] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    getServices({ search: 'Custom Task' })
+      .then(list => { if (!cancelled) setCustomServices(list.filter(s => s.isCustomTask)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Pull-to-refresh: re-fetch the server cart count (so a just-added service
   // reflects in the badge without leaving the screen) and reload the visible
   // service list.
@@ -256,9 +277,6 @@ function Services({ navigation, route }) {
   // duplicate card/chip (and a React duplicate-key warning).
   const allSeen = new Set();
   const baseServices = (isAll ? allServices : catServices).filter(s => (allSeen.has(s.id) ? false : allSeen.add(s.id)));
-  // Quote-based "not on the list?" entries never show as regular cards — they
-  // drive the "Need Something Custom?" banner instead (see CustomQuoteCard below).
-  const customServices = baseServices.filter(s => s.isCustomTask);
   const q = search.toLowerCase().trim();
   const services = baseServices
     .filter(s => !s.isCustomTask)
@@ -283,6 +301,13 @@ function Services({ navigation, route }) {
 
   const openService = (service) => {
     const target = { service, category: catForService(service), mode };
+    // Picking a regular service supersedes any earlier, unfinished "Request a
+    // Quote" tap (see openCustomTaskService below) — without this an
+    // unauthenticated guest who taps the custom-quote banner, backs out, then
+    // registers for a completely different service would still have that
+    // stale request silently bundled into their order (pendingCustomPlanRequest
+    // is redux-persisted, so it otherwise survives until actually consumed).
+    if (!isAuthenticated) dispatch(setPendingCustomPlanRequest(false));
     // Ask for a location first — without it the detail screen can't price or add
     // the service, and would just send the user back here. Resume into the
     // service once a location is saved (see onSaved below).

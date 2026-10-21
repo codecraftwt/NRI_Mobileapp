@@ -287,10 +287,19 @@ function OnboardingProfile({ navigation }) {
   const [phoneIso, setPhoneIso] = useState('');
   const [whatsappIso, setWhatsappIso] = useState('');
 
+  // Only seeds the resume step for a brand-new wizard (registerUser.fulfilled
+  // already does this) — never downgrades it. Without the guard, merely
+  // glancing back at this screen (e.g. the Payment step's "Back to Profile"
+  // button, used just to reach the logout control) would stomp an
+  // already-saved 'OnboardingPayment' step, so a user who logs out and signs
+  // back in would be dropped back at Profile instead of resuming where they
+  // actually left off.
+  const savedStep = useSelector(state => state.onboarding?.stepByUser?.[userId]);
   useEffect(() => {
-    if (userId != null) {
+    if (userId != null && savedStep == null) {
       dispatch(setOnboardingStep({ userId, step: 'OnboardingProfile' }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, userId]);
 
   const residenceCountry = countries.find(c => c.name === country) || null;

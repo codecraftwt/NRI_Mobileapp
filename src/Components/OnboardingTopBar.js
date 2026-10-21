@@ -12,12 +12,13 @@ const colors = {
   accent: '#A64416',  // Chocolate
 };
 
-function OnboardingTopBar({ navigation, onBack, onLogout, onCartPress, cartCount }) {
+function OnboardingTopBar({ navigation, onBack, backLabel, onLogout, onCartPress, cartCount }) {
   return (
     <View style={styles.container}>
       {onBack ? (
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Icon name="arrow-back" size={20} color="#1E293B" />
+          {!!backLabel && <Text style={styles.backBtnText}>{backLabel}</Text>}
         </TouchableOpacity>
       ) : (
         <View style={styles.brandRow}>
@@ -53,7 +54,8 @@ const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: STATUS_BAR_HEIGHT, paddingBottom: 12, minHeight: STATUS_BAR_HEIGHT + 44, backgroundColor: 'transparent' },
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   brandText: { fontSize: 20, fontFamily: 'Montserrat-Bold', color: '#1A1A1A', letterSpacing: -0.5 },
-  backBtn: { padding: 4, position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10 },
+  backBtnText: { fontSize: 13, fontFamily: 'Montserrat-Bold', color: '#1E293B' },
   logoutBtn: { position: 'absolute', left: 16, top: STATUS_BAR_HEIGHT, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 4, paddingHorizontal: 9, borderRadius: 12, backgroundColor: 'rgba(166,68,22,0.10)' },
   logoutText: { fontSize: 11, fontFamily: 'Montserrat-Bold', color: colors.accent },
   cartBtn: { position: 'absolute', right: 16, top: STATUS_BAR_HEIGHT, zIndex: 10, padding: 4 },
