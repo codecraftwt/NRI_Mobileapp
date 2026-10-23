@@ -34,6 +34,7 @@ function getQuoteStatusStyle(status) {
     case 'pending_approval': return { pill: { backgroundColor: '#DBEAFE' }, text: { color: '#1D4ED8' }, label: 'Awaiting Approval' };
     case 'approved': return { pill: { backgroundColor: '#D1FAE5' }, text: { color: '#059669' }, label: 'Approved' };
     case 'rejected': return { pill: { backgroundColor: '#FEE2E2' }, text: { color: '#DC2626' }, label: 'Rejected' };
+    case 'paid': return { pill: { backgroundColor: '#D1FAE5' }, text: { color: '#059669' }, label: 'Paid' };
     default: return { pill: { backgroundColor: '#F3F4F6' }, text: { color: '#4B5563' }, label: status ? String(status) : 'Pending' };
   }
 }
@@ -990,110 +991,6 @@ function JobDetail({ route, navigation }) {
           </View>
         )}
 
-        {isAssigned && !alreadyAccepted && job.requiresPriceConfirmation && (
-          <View style={[styles.card, styles.priceCard, isPricePaid && styles.priceCardPaid]}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIconBadge, styles.priceIconBadge, isPricePaid && styles.priceIconBadgePaid]}>
-                  <Icon name={isPricePaid ? 'check-circle' : 'sell'} size={16} color={isPricePaid ? '#059669' : '#D97706'} />
-                </View>
-                <Text style={[styles.priceCardHeaderText, isPricePaid && styles.priceCardHeaderTextPaid]}>
-                  {isPricePaid ? 'Price Confirmed & Paid' : 'Price Not Yet Confirmed'}
-                </Text>
-              </View>
-              <View style={[styles.priceStatusPill, isPricePaid && styles.priceStatusPillPaid]}>
-                <Text style={[styles.priceStatusPillText, isPricePaid && styles.priceStatusPillTextPaid]}>
-                  {isPricePaid ? 'Paid' : 'Pending'}
-                </Text>
-              </View>
-            </View>
-
-            <View style={[styles.priceInfoBanner, isPricePaid && styles.pricePaidBanner]}>
-              <View style={[styles.priceWaitIconWrap, isPricePaid && styles.priceWaitIconWrapPaid]}>
-                <Icon name={isPricePaid ? 'check-circle' : 'warning-amber'} size={16} color={isPricePaid ? '#059669' : '#D97706'} />
-              </View>
-              <Text style={[styles.priceInfoBannerText, isPricePaid && styles.pricePaidBannerText]}>
-                {isPricePaid ? (
-                  `Payment of ₹${Number(job.quote.amount || 0).toFixed(2)} has been received. This job will be available to accept shortly.`
-                ) : (
-                  <>
-                    <Text style={styles.priceBannerTextBold}>Customer payment: Incomplete</Text>
-                    {' '}— this service has no fixed price. Propose what it should cost so the customer can be asked to pay.
-                  </>
-                )}
-              </Text>
-            </View>
-
-            {!isPricePaid && job.quote?.amount != null && (
-              <View style={styles.quoteStatusRow}>
-                <View style={styles.quoteStatusTop}>
-                  <Text style={styles.quoteStatusAmount}>₹{Number(job.quote.amount || 0).toFixed(2)}</Text>
-                  <View style={[styles.quoteStatusPill, getQuoteStatusStyle(job.quote.status).pill]}>
-                    <Text style={[styles.quoteStatusPillText, getQuoteStatusStyle(job.quote.status).text]}>
-                      {getQuoteStatusStyle(job.quote.status).label}
-                    </Text>
-                  </View>
-                </View>
-                {!!job.quote.reason && <Text style={styles.quoteStatusReason}>{job.quote.reason}</Text>}
-              </View>
-            )}
-
-            {!isPricePaid && isPriceAwaitingApproval && (
-              <View style={styles.quoteAwaitingNoteRow}>
-                <Icon name="hourglass-empty" size={14} color="#94A3B8" />
-                <Text style={styles.quoteAwaitingNoteText}>Awaiting Super Admin approval — you'll be notified once it's reviewed.</Text>
-              </View>
-            )}
-
-            {!isPricePaid && job.quote?.status === 'rejected' && !!job.quote?.rejectionReason && (
-              <Text style={styles.priceRejectionText}>Rejected: {job.quote.rejectionReason}</Text>
-            )}
-
-            {!isPricePaid && job.canProposePrice && (
-              <>
-                <View style={styles.reportField}>
-                  <Text style={styles.commitLabel}>Your charge (₹) *</Text>
-                  <TextInput
-                    style={styles.dateInput}
-                    placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
-                    value={proposeAmount}
-                    onChangeText={setProposeAmount}
-                    keyboardType="numeric"
-                  />
-                  <Text style={styles.fileHint}>
-                    Enter what you charge for this job — the customer's price (with our service margin and GST) is calculated separately.
-                  </Text>
-                </View>
-
-                <View style={styles.reportField}>
-                  <Text style={styles.commitLabel}>Basis for this price *</Text>
-                  <TextInput
-                    style={styles.reportInput}
-                    placeholder="e.g. Labor, materials, travel — whatever justifies the figure."
-                    placeholderTextColor="#94A3B8"
-                    value={proposeReason}
-                    onChangeText={setProposeReason}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
-
-                <TouchableOpacity style={[styles.proposePriceBtn, actionLoading && styles.btnDisabled]} onPress={handleProposePrice} disabled={actionLoading}>
-                  {actionLoading ? (
-                    <ActivityIndicator size="small" color="#B45309" />
-                  ) : (
-                    <>
-                      <Icon name="sell" size={16} color="#B45309" />
-                      <Text style={styles.proposePriceBtnText}>Propose Price</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        )}
-
         {isInProgress && reportBlocked && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
@@ -1180,6 +1077,123 @@ function JobDetail({ route, navigation }) {
                 </>
               )}
             </TouchableOpacity>
+          </View>
+        )}
+
+        {((isAssigned && !alreadyAccepted) || isInProgress) && job.requiresPriceConfirmation && (
+          <View style={[styles.card, styles.priceCard, isPricePaid && styles.priceCardPaid]}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionIconBadge}>
+                  <Icon name="sell" size={16} color="#D94625" />
+                </View>
+                <Text style={[styles.priceCardHeaderText, isPricePaid && styles.priceCardHeaderTextPaid]}>
+                  {isPricePaid ? 'Price Confirmed' : 'Price Not Yet Confirmed'}
+                </Text>
+              </View>
+              {!isPricePaid && (
+                <View style={styles.priceStatusPill}>
+                  <Text style={styles.priceStatusPillText}>Pending</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.priceInfoBanner, isPricePaid && styles.pricePaidBanner]}>
+              <View style={[styles.priceWaitIconWrap, isPricePaid && styles.priceWaitIconWrapPaid]}>
+                <Icon name={isPricePaid ? 'check-circle' : 'warning-amber'} size={16} color={isPricePaid ? '#059669' : '#D97706'} />
+              </View>
+              <Text style={[styles.priceInfoBannerText, isPricePaid && styles.pricePaidBannerText]}>
+                {isPricePaid ? (
+                  <>
+                    <Text style={styles.priceBannerTextBoldPaid}>Customer payment: Complete</Text>
+                    {' '}— the customer has paid the confirmed price for this job.
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.priceBannerTextBold}>Customer payment: Incomplete</Text>
+                    {' '}— this service has no fixed price. Propose what it should cost so the customer can be asked to pay.
+                  </>
+                )}
+              </Text>
+            </View>
+
+            {job.quote?.amount != null && (
+              <View style={styles.quoteStatusRow}>
+                <View style={styles.quoteStatusTop}>
+                  <Text style={styles.quoteStatusAmount}>₹{Number(job.quote.amount || 0).toFixed(2)}</Text>
+                  <View style={[styles.quoteStatusPill, getQuoteStatusStyle(job.quote.status).pill]}>
+                    <Text style={[styles.quoteStatusPillText, getQuoteStatusStyle(job.quote.status).text]}>
+                      {getQuoteStatusStyle(job.quote.status).label}
+                    </Text>
+                  </View>
+                </View>
+                {!!job.quote.reason && <Text style={styles.quoteStatusReason}>{job.quote.reason}</Text>}
+              </View>
+            )}
+
+            {isPricePaid && (
+              <View style={styles.pricePaidFootRow}>
+                <Icon name="check-circle" size={14} color="#059669" />
+                <Text style={styles.pricePaidFootText}>
+                  <Text style={styles.pricePaidFootTextBold}>Paid</Text>
+                  {' '}— you can go ahead and start the job.
+                </Text>
+              </View>
+            )}
+
+            {!isPricePaid && isPriceAwaitingApproval && (
+              <View style={styles.quoteAwaitingNoteRow}>
+                <Icon name="hourglass-empty" size={14} color="#94A3B8" />
+                <Text style={styles.quoteAwaitingNoteText}>Awaiting Super Admin approval — you'll be notified once it's reviewed.</Text>
+              </View>
+            )}
+
+            {!isPricePaid && job.quote?.status === 'rejected' && !!job.quote?.rejectionReason && (
+              <Text style={styles.priceRejectionText}>Rejected: {job.quote.rejectionReason}</Text>
+            )}
+
+            {!isPricePaid && job.canProposePrice && (
+              <>
+                <View style={styles.reportField}>
+                  <Text style={styles.commitLabel}>Your charge (₹) *</Text>
+                  <TextInput
+                    style={styles.dateInput}
+                    placeholder="0.00"
+                    placeholderTextColor="#94A3B8"
+                    value={proposeAmount}
+                    onChangeText={setProposeAmount}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.fileHint}>
+                    Enter what you charge for this job — the customer's price (with our service margin and GST) is calculated separately.
+                  </Text>
+                </View>
+
+                <View style={styles.reportField}>
+                  <Text style={styles.commitLabel}>Basis for this price *</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    placeholder="e.g. Labor, materials, travel — whatever justifies the figure."
+                    placeholderTextColor="#94A3B8"
+                    value={proposeReason}
+                    onChangeText={setProposeReason}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                <TouchableOpacity style={[styles.proposePriceBtn, actionLoading && styles.btnDisabled]} onPress={handleProposePrice} disabled={actionLoading}>
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#B45309" />
+                  ) : (
+                    <>
+                      <Icon name="sell" size={16} color="#B45309" />
+                      <Text style={styles.proposePriceBtnText}>Propose Price</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
@@ -1764,19 +1778,19 @@ const styles = StyleSheet.create({
   priceWaitIconWrapPaid: { backgroundColor: '#D1FAE5' },
   priceWaitBannerText: { flex: 1, fontSize: 13, color: '#57534E', lineHeight: 19 },
   priceBannerTextBold: { fontWeight: '700', color: '#292524' },
+  priceBannerTextBoldPaid: { fontWeight: '700', color: '#065F46' },
   priceCard: { borderColor: '#FDE68A', backgroundColor: '#FFFDF7' },
-  priceCardPaid: { borderColor: '#A7F3D0', backgroundColor: '#F0FDF9' },
-  priceIconBadge: { backgroundColor: '#FEF3C7' },
-  priceIconBadgePaid: { backgroundColor: '#D1FAE5' },
+  priceCardPaid: { borderColor: '#A7F3D0', backgroundColor: '#FFFFFF' },
   priceCardHeaderText: { fontSize: 16, fontWeight: '700', color: '#78350F' },
-  priceCardHeaderTextPaid: { color: '#065F46' },
+  priceCardHeaderTextPaid: { color: '#0F172A' },
   priceStatusPill: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
     backgroundColor: '#FEF3C7',
   },
-  priceStatusPillPaid: { backgroundColor: '#D1FAE5' },
   priceStatusPillText: { fontSize: 11, fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.3 },
-  priceStatusPillTextPaid: { color: '#065F46' },
+  pricePaidFootRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pricePaidFootText: { fontSize: 13, fontWeight: '500', color: '#059669' },
+  pricePaidFootTextBold: { fontWeight: '700' },
   priceInfoBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14,
