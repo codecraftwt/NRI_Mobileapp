@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
-import PendingRecurringBundleModal from '../../../Components/PendingRecurringBundleModal';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
 import { updateProfile, setOnboarded } from '../../../Redux/slices/userSlice';
 import { markOnboardingComplete, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
@@ -26,14 +25,11 @@ const NEXT_STEPS = [
 ];
 
 function OnboardingWelcome({ route, navigation }) {
-  const { plan, hasServiceRequests, pendingRecurringBundle, cartNotBooked, customPlanTicket, customPlanSubject } = route.params || {};
+  const { plan, hasServiceRequests, cartNotBooked, customPlanTicket, customPlanSubject } = route.params || {};
   const dispatch = useDispatch();
-  const [bundlePaid, setBundlePaid] = useState(false);
-  const [showBundleModal, setShowBundleModal] = useState(false);
 
-  // Always land on the Dashboard/Home tab — it's also where the pending
-  // recurring bundle prompt persists (see PendingRecurringBundleModal above),
-  // so a customer who skips it here still sees it right after entering the app.
+  // Always land on the Dashboard/Home tab — the pending recurring bundle
+  // prompt (if any) surfaces from there instead.
   const enterApp = () => {
     navigation.replace('AppHome');
   };
@@ -124,13 +120,6 @@ function OnboardingWelcome({ route, navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      <PendingRecurringBundleModal
-        visible={showBundleModal}
-        bundle={pendingRecurringBundle}
-        onClose={() => setShowBundleModal(false)}
-        onSuccess={() => { setShowBundleModal(false); setBundlePaid(true); }}
-      />
     </View>
   );
 }
@@ -152,23 +141,6 @@ const styles = StyleSheet.create({
   cartNoticeText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
   customPlanNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#DCFCE7', borderRadius: radius.lg, padding: 14, marginBottom: 20, width: '100%' },
   customPlanNoticeText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#15803D', lineHeight: 18 },
-  pendingBundleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#FFFBEB',
-    borderRadius: radius.lg,
-    padding: 14,
-    marginBottom: 16,
-    alignSelf: 'stretch',
-    borderWidth: 1,
-    borderColor: '#FEF3C7',
-  },
-  pendingBundleIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center' },
-  pendingBundleTitle: { fontSize: 13.5, fontFamily: 'Montserrat-SemiBold', color: '#92400E' },
-  pendingBundleMeta: { fontSize: 11.5, color: '#B45309', marginTop: 3, lineHeight: 16 },
-  pendingBundleBtn: { backgroundColor: C.accent, borderRadius: radius.full, paddingHorizontal: 16, paddingVertical: 8 },
-  pendingBundleBtnText: { fontSize: 12.5, fontFamily: 'Montserrat-Bold', color: '#FFFFFF' },
   stepRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', backgroundColor: C.primary + '08', borderRadius: radius.lg, padding: 16, marginBottom: 12, alignSelf: 'stretch', borderWidth: 1, borderColor: C.primary + '20' },
   stepTitle: { fontSize: 14, fontFamily: 'Montserrat-SemiBold', color: '#1E293B' },
   stepDesc: { fontSize: 12, fontFamily: 'Poppins-Regular', color: '#64748B', marginTop: 4, lineHeight: 18 },

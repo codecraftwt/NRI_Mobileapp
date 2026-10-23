@@ -195,11 +195,16 @@ function Cart({ navigation, route }) {
               account still mid-registration (see hasMembership above). */}
           {!hasMembership && (
             <View style={styles.authCard}>
-              <Text style={styles.authTitle}>Almost there</Text>
-              <Text style={styles.authDesc}>
-                Your account needs an active NRI Circle membership before we can send your
-                service request to a vendor.
-              </Text>
+              <View style={styles.membershipBanner}>
+                <Icon name="shield" size={16} color="#D97706" style={styles.membershipBannerIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.membershipBannerTitle}>Membership required</Text>
+                  <Text style={styles.membershipBannerDesc}>
+                    Your account needs an active NRI Circle membership before we can send your
+                    service request to a vendor.
+                  </Text>
+                </View>
+              </View>
               {isAuthenticated ? (
                 <TouchableOpacity style={styles.continueMembershipBtn} onPress={() => navigation.navigate('OnboardingProfile')}>
                   <Text style={styles.continueMembershipText}>Continue to Membership Payment</Text>
@@ -359,8 +364,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, marginBottom: 20,
     borderWidth: 1, borderColor: '#F1F5F9',
   },
-  authTitle: { fontSize: 18, fontFamily: typography.h2.fontFamily, color: '#0F172A', marginBottom: 6 },
-  authDesc: { fontSize: 13, lineHeight: 19, color: '#64748B', marginBottom: 16 },
+  membershipBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#FFF7ED', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA',
+    padding: 12, marginBottom: 16,
+  },
+  membershipBannerIcon: { marginTop: 1 },
+  membershipBannerTitle: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#C2410C', marginBottom: 2 },
+  membershipBannerDesc: { fontSize: 12.5, lineHeight: 18, color: '#9A3412' },
   authBtnRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   signInBtn: {
     flex: 1, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12,

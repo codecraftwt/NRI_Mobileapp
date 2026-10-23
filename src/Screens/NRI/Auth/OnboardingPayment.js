@@ -333,7 +333,10 @@ function OnboardingPayment({ route, navigation }) {
   // A recurring-only or quoted-only cart has nothing priced at this checkout (see above), so
   // only priced one-time cart items can be discounted by a services coupon.
   const hasServicesInCart = pricedOneTimeCartItems.length > 0;
-  const hasCartDetails = fromCart && pricedOneTimeCartItems.length > 0;
+  // Who/where still needs collecting up front even for a pure-recurring cart
+  // (no priced one-time item at all) — it's what the cart's recurring
+  // service request is ultimately created with once paid.
+  const hasCartDetails = fromCart && (pricedOneTimeCartItems.length > 0 || recurringCartItems.length > 0);
 
   const [planCouponCode, setPlanCouponCode] = useState('');
   // Available gateways come from the backend (already NRI + admin-toggle gated).
@@ -1268,38 +1271,54 @@ function OnboardingPayment({ route, navigation }) {
                   {recurringCartItems.length > 0 && (
                     <>
                       <View style={styles.divider} />
-                      <View style={styles.recurringChip}>
-                        <Icon name="autorenew" size={13} color="#B45309" />
-                        <Text style={styles.recurringChipText}>Recurring Services ({recurringCartItems.length}) — not charged now</Text>
-                      </View>
-                      {recurringCartItems.map((it) => (
-                        <View key={it.serviceId} style={styles.row}>
-                          <Text style={styles.rowLabel} numberOfLines={2}>{it.name}</Text>
-                          <Text style={styles.rowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price))}{it.billingInterval ? '/mo' : ''}</Text>
+                      <View style={styles.recurringCard}>
+                        <View style={styles.recurringCardHeader}>
+                          <View style={styles.recurringCardHeaderLeft}>
+                            <Icon name="autorenew" size={14} color="#9A3412" />
+                            <Text style={styles.recurringCardTitle}>Recurring Subscription ({recurringCartItems.length})</Text>
+                          </View>
+                          <View style={styles.recurringBadge}>
+                            <Text style={styles.recurringBadgeText} numberOfLines={1}>BILLED SEPARATELY</Text>
+                          </View>
                         </View>
-                      ))}
-                      <View style={styles.row}>
-                        <Text style={styles.rowLabel}>Recurring GST (18%)</Text>
-                        <Text style={styles.rowValue}>{formatAmount(currency === 'INR' ? recurringGstTotalInr : recurringGst, currency)}</Text>
+
+                        <View style={styles.recurringNoteRow}>
+                          <Icon name="info-outline" size={13} color="#9A3412" style={styles.recurringNoteIcon} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.recurringNote} numberOfLines={2} ellipsizeMode="tail">
+                              Not part of the amount payable above — you'll be asked to complete payment for this subscription from your dashboard right after your membership payment.
+                            </Text>
+                            <TouchableOpacity
+                              activeOpacity={0.7}
+                              onPress={() => showAlert(
+                                'About Recurring Services',
+                                'Not part of the amount payable above — you\'ll be asked to complete payment for this subscription from your dashboard right after your membership payment.\n\nOnce your registration payment is confirmed, you\'ll see a "Pay Now" prompt for these on your dashboard to complete their payment separately.',
+                                'info'
+                              )}
+                            >
+                              <Text style={styles.recurringNoteLink}>Learn more</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {recurringCartItems.map((it) => (
+                          <View key={it.serviceId} style={styles.recurringRow}>
+                            <Text style={styles.recurringRowLabel} numberOfLines={2}>{it.name}</Text>
+                            <Text style={styles.recurringRowValue}>{(currency === 'INR' ? formatAmount(itemBaseInr(it), 'INR') : formatUsd(it.base ?? it.price))}{it.billingInterval ? '/mo' : ''}</Text>
+                          </View>
+                        ))}
+                        <View style={styles.recurringRow}>
+                          <Text style={styles.recurringRowLabel}>Subscription GST (18%)</Text>
+                          <Text style={styles.recurringRowValue}>{formatAmount(currency === 'INR' ? recurringGstTotalInr : recurringGst, currency)}</Text>
+                        </View>
+
+                        <View style={styles.recurringDivider} />
+
+                        <View style={styles.recurringRow}>
+                          <Text style={[styles.recurringRowLabel, styles.recurringRowLabelStrong]}>Subscription Total (billed monthly)</Text>
+                          <Text style={[styles.recurringRowValue, styles.recurringRowValueStrong]}>{formatAmount(currency === 'INR' ? recurringPayableInr : recurringPayable, currency)}</Text>
+                        </View>
                       </View>
-                      <View style={styles.row}>
-                        <Text style={[styles.rowLabel, styles.rowLabelStrong]}>Recurring Total</Text>
-                        <Text style={[styles.rowValue, styles.rowValueStrong]}>{formatAmount(currency === 'INR' ? recurringPayableInr : recurringPayable, currency)}/mo</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.recurringNoteRow}
-                        activeOpacity={0.7}
-                        onPress={() => showAlert(
-                          'About Recurring Services',
-                          'Not included in the amount payable below — a recurring service is billed separately from your membership/platform fee.\n\nA checkout session can only ever produce one subscription, and the membership itself is already that one, so a recurring cart item can\'t be charged alongside it here.\n\nOnce your registration payment is confirmed, you\'ll see a "Pay Now" prompt for these on your dashboard to complete their payment separately.',
-                          'info'
-                        )}
-                      >
-                        <Icon name="info-outline" size={13} color="#B45309" />
-                        <Text style={styles.recurringNote}>
-                          Not included in the amount payable below — billed separately. Tap to learn more.
-                        </Text>
-                      </TouchableOpacity>
                     </>
                   )}
                 </>
@@ -1578,10 +1597,22 @@ const styles = StyleSheet.create({
   combinedNoteStrong: { fontFamily: 'Montserrat-Bold', color: '#64748B' },
   customQuoteNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
   customQuoteNoteText: { flex: 1, fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#94A3B8', lineHeight: 17 },
-  recurringChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#FEF3C7', borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 6 },
-  recurringChipText: { fontSize: 13, color: '#B45309', fontFamily: 'Montserrat-Bold' },
-  recurringNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 8 },
-  recurringNote: { flex: 1, fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#B45309', lineHeight: 17 },
+  recurringCard: { backgroundColor: '#FFF7ED', borderRadius: 14, padding: 14, marginTop: 6 },
+  recurringCardHeader: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
+  recurringCardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
+  recurringCardTitle: { fontSize: 13.5, fontFamily: 'Montserrat-Bold', color: '#9A3412', flexShrink: 1 },
+  recurringBadge: { backgroundColor: '#EA580C', borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
+  recurringBadgeText: { fontSize: 9.5, fontFamily: 'Montserrat-Bold', color: '#FFFFFF', letterSpacing: 0.3 },
+  recurringNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10, paddingVertical: 2 },
+  recurringNoteIcon: { marginTop: 1 },
+  recurringNote: { fontSize: 11.5, fontFamily: 'Poppins-Regular', color: '#9A3412', lineHeight: 17 },
+  recurringNoteLink: { fontSize: 11.5, fontFamily: 'Montserrat-Bold', color: '#C2410C', marginTop: 2, textDecorationLine: 'underline' },
+  recurringRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, gap: 8 },
+  recurringRowLabel: { fontSize: 13.5, fontFamily: 'Poppins-Regular', color: '#9A3412', flex: 1 },
+  recurringRowValue: { fontSize: 13.5, fontFamily: 'Montserrat-SemiBold', color: '#7C2D12', flexShrink: 0 },
+  recurringRowLabelStrong: { fontSize: 14, fontFamily: 'Montserrat-Bold', color: '#7C2D12' },
+  recurringRowValueStrong: { fontSize: 15, fontFamily: 'Montserrat-Bold', color: '#7C2D12' },
+  recurringDivider: { height: 1, backgroundColor: '#FDBA74', marginVertical: 8 },
   customQuoteErrorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFFBEB', borderRadius: radius.lg, padding: 12, borderWidth: 1, borderColor: '#FEF3C7' },
   customQuoteErrorText: { flex: 1, fontSize: 12.5, fontFamily: 'Poppins-Regular', color: '#92400E', lineHeight: 18 },
 
