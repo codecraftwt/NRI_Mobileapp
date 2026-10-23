@@ -68,6 +68,23 @@ function formatDisputeDate(iso) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// "1 hour ago" style — falls back to the absolute short date once it's more
+// than a week old, where a relative label stops being useful at a glance.
+function formatRelativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min${diffMin === 1 ? '' : 's'} ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  return formatShortDateTime(iso);
+}
+
 function getStatusStyle(status) {
   switch (status) {
     case 'Completed': return { bg: '#D1FAE5', text: '#059669' };
@@ -1345,61 +1362,72 @@ function JobDetail({ route, navigation }) {
 
         {isCompleted && job.report && (
           <View style={[styles.card, styles.reportCardWrap]}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={styles.sectionHeader}>
+            <View style={styles.reportHeaderStrip}>
+              <View style={[styles.sectionHeader, styles.reportHeaderTitleWrap]}>
                 <Icon name="description" size={18} color="#059669" />
-                <Text style={styles.sectionTitle}>Your Submitted Report</Text>
+                <Text style={styles.sectionTitle} numberOfLines={1} ellipsizeMode="tail">Your Submitted Report</Text>
               </View>
-            </View>
-            <Text style={styles.reportContent}>{job.report}</Text>
-            {job.reportMedia.length > 0 && (
-              <View style={styles.reportMediaRow}>
-                {job.reportMedia.map((url, i) => {
-                  const isPdf = /\.pdf(\?|$)/i.test(url);
-                  return (
-                    <TouchableOpacity key={i} style={styles.pdfThumb} onPress={() => openAttachment(url)} activeOpacity={0.7}>
-                      <Icon name={isPdf ? 'picture-as-pdf' : 'image'} size={26} color="#64748B" />
-                      <Text style={styles.pdfThumbText}>{isPdf ? 'PDF' : 'IMG'}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-            <View style={styles.reportTimeRow}>
-              <Icon name="schedule" size={13} color="#94A3B8" />
-              <Text style={styles.reportTime}>Submitted {job.reportSubmittedAt}</Text>
+              {job.sharedWithCustomer && (
+                <View style={styles.sharedBadge}>
+                  <Icon name="send" size={12} color="#059669" />
+                  <Text style={styles.sharedBadgeText} numberOfLines={1}>Shared with customer</Text>
+                </View>
+              )}
             </View>
 
-            {job.reportLat != null && job.reportLng != null && (
-              <TouchableOpacity style={styles.reportLocationRow} onPress={handleOpenReportLocation} activeOpacity={0.7}>
-                <Icon name="location-on" size={14} color="#2563EB" />
-                <Text style={styles.reportLocationText}>View submission location on map</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Attachments can only be appended before the report is shared with the customer. */}
-            {!job.canAddAttachments ? (
-              <View style={styles.sharedBadge}>
-                <Icon name="lock" size={12} color="#059669" />
-                <Text style={styles.sharedBadgeText}>{job.sharedWithCustomer ? 'Shared with customer — locked' : 'Attachments locked'}</Text>
+            <View style={styles.reportBody}>
+              <Text style={styles.reportContent}>{job.report}</Text>
+              {job.reportMedia.length > 0 && (
+                <View style={styles.reportMediaRow}>
+                  {job.reportMedia.map((url, i) => {
+                    const isPdf = /\.pdf(\?|$)/i.test(url);
+                    return (
+                      <TouchableOpacity key={i} style={styles.pdfThumb} onPress={() => openAttachment(url)} activeOpacity={0.7}>
+                        <Icon name={isPdf ? 'picture-as-pdf' : 'image'} size={26} color="#64748B" />
+                        <Text style={styles.pdfThumbText}>{isPdf ? 'PDF' : 'IMG'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+              <View style={styles.reportTimeRow}>
+                <Icon name="schedule" size={13} color="#94A3B8" />
+                <Text style={styles.reportTime}>Submitted {formatRelativeTime(job.reportSubmittedAtRaw) || job.reportSubmittedAt}</Text>
               </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.saveTrackingBtn, actionLoading && styles.btnDisabled]}
-                onPress={handleAddAttachments}
-                disabled={actionLoading}
-                activeOpacity={0.8}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator size="small" color="#2563EB" />
-                ) : (
-                  <>
-                    <Icon name="add-photo-alternate" size={16} color="#2563EB" />
-                    <Text style={styles.saveTrackingText}>Add Attachments</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+              {job.reportLat != null && job.reportLng != null && (
+                <TouchableOpacity style={styles.reportLocationRow} onPress={handleOpenReportLocation} activeOpacity={0.7}>
+                  <Icon name="location-on" size={14} color="#2563EB" />
+                  <Text style={styles.reportLocationText}>View submission location</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Attachments can only be appended before the report is shared with the customer;
+                  the shared pill above already covers the sharedWithCustomer case. */}
+              {!job.canAddAttachments ? (
+                !job.sharedWithCustomer && (
+                  <View style={styles.attachmentsLockedBadge}>
+                    <Icon name="lock" size={12} color="#64748B" />
+                    <Text style={styles.attachmentsLockedText}>Attachments locked</Text>
+                  </View>
+                )
+              ) : (
+                <TouchableOpacity
+                  style={[styles.saveTrackingBtn, actionLoading && styles.btnDisabled]}
+                  onPress={handleAddAttachments}
+                  disabled={actionLoading}
+                  activeOpacity={0.8}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#2563EB" />
+                  ) : (
+                    <>
+                      <Icon name="add-photo-alternate" size={16} color="#2563EB" />
+                      <Text style={styles.saveTrackingText}>Add Attachments</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         )}
 
@@ -1903,9 +1931,20 @@ const styles = StyleSheet.create({
   },
   saveTrackingText: { fontSize: 14, fontWeight: '700', color: '#2563EB' },
 
-  reportCardWrap: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
-  sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DCFCE7', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  reportCardWrap: { borderColor: '#BBF7D0', padding: 0, overflow: 'hidden' },
+  reportHeaderTitleWrap: { flexShrink: 1, minWidth: 0 },
+  reportHeaderStrip: {
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    backgroundColor: '#DCFCE7', paddingHorizontal: 20, paddingVertical: 14,
+  },
+  sharedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 0 },
   sharedBadgeText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  attachmentsLockedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    backgroundColor: '#F1F5F9', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  attachmentsLockedText: { fontSize: 11, fontWeight: '700', color: '#64748B' },
+  reportBody: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20, gap: 14 },
   reportMediaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   pdfThumb: {
     width: 72, height: 72, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E8F0',
@@ -1913,7 +1952,7 @@ const styles = StyleSheet.create({
   },
   pdfThumbText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
   reportTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  reportLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  reportLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4, paddingVertical: 2 },
   reportLocationText: { fontSize: 12, fontWeight: '600', color: '#2563EB', textDecorationLine: 'underline' },
 
   backToJobsBtn: {

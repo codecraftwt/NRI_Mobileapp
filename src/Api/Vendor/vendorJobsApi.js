@@ -180,6 +180,7 @@ export function mapJobDetail(raw) {
     sharedWithCustomer: !!report?.sent_to_customer_at || (report?.shared_with_customer ?? report?.shared ?? false),
     canAddAttachments: report?.can_add_attachments ?? (report ? !report?.sent_to_customer_at : false),
     reportSubmittedAt: formatDateTime(report?.submitted_at || report?.created_at),
+    reportSubmittedAtRaw: report?.submitted_at || report?.created_at || null,
     // Optional GPS geotag captured around report submission — null when no
     // location was captured (denied/unavailable), same idea as a null media
     // entry. Render a "view on map" affordance conditionally on both being set.
