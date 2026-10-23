@@ -189,25 +189,32 @@ function CustomPlanNew({ navigation, route }) {
     && (!!presetService || (!!stateId && !!cityId)) && !!paymentMethod && !!customTaskServiceId;
   const busy = createLoading || payingRazorpay || pollingPayment || resolvingService || quoteLoading;
 
-  // Identifies which exact field values a fetched quote/draft belongs to —
-  // so a stale quote (fields edited after fetching) is never charged against.
-  const fieldsFingerprint = `${subject.trim()}|${message.trim()}|${stateId || ''}|${cityId || ''}|${paymentMethod}|${currency}`;
+  // Enough to preview the fee — the fee is a property of the service/
+  // currency/gateway, NOT of the request text or location, so the preview
+  // only needs to refetch when one of those two actually changes. It's keyed
+  // separately from Subject/Message/State/City on purpose: those are still
+  // required to submit (see isValid), but typing/picking them shouldn't
+  // re-trigger this preview call and flicker the amount on every keystroke.
+  const canPreviewFee = !!paymentMethod && !!customTaskServiceId;
+  const previewFingerprint = `${paymentMethod}|${currency}`;
 
-  const fetchQuote = async (fingerprint) => {
+  const fetchQuotePreview = async (fingerprint) => {
     setQuoteLoading(true);
     setQuoteError(null);
     try {
+      // Subject/Message/State/City here are just placeholders to satisfy the
+      // endpoint's required fields — they don't affect the fee, and this
+      // draft gets overwritten with the customer's real values at submit
+      // time (handleSubmit always calls create() fresh, never reuses this).
       const result = await create({
-        subject: subject.trim(),
-        message: message.trim(),
+        subject: 'Custom Plan Request',
+        message: 'Details to follow — this is a fee preview.',
         serviceId: customTaskServiceId,
-        stateId,
-        cityId,
         gateway: paymentMethod,
         currency,
       }).unwrap();
       lastFetchedFingerprintRef.current = fingerprint;
-      setQuote({ fingerprint, ...result });
+      setQuote(result);
     } catch (error) {
       setQuoteError(error?.message || "Couldn't calculate the fee for this request.");
     } finally {
@@ -215,15 +222,15 @@ function CustomPlanNew({ navigation, route }) {
     }
   };
 
-  // Debounced live fee preview — waits for the user to stop typing/selecting
-  // before calling create() again, so a fresh draft isn't saved on every
-  // keystroke.
+  // Fires once per gateway/currency combo — not on every Subject/Message
+  // keystroke or State/City pick, so the fee doesn't reload/flicker while
+  // the customer is still filling in the rest of the form.
   useEffect(() => {
-    if (!isValid || lastFetchedFingerprintRef.current === fieldsFingerprint) return;
-    const timer = setTimeout(() => fetchQuote(fieldsFingerprint), 900);
+    if (!canPreviewFee || lastFetchedFingerprintRef.current === previewFingerprint) return;
+    const timer = setTimeout(() => fetchQuotePreview(previewFingerprint), 400);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isValid, fieldsFingerprint]);
+  }, [canPreviewFee, previewFingerprint]);
 
   // Deep-links into the newly created ticket once payment settles. Retries a
   // few times if the backend hasn't raised the SupportTicket yet — the rare
@@ -287,20 +294,18 @@ function CustomPlanNew({ navigation, route }) {
   const handleSubmit = async () => {
     if (!isValid) return;
     try {
-      // Reuse the already-fetched quote/draft if it matches exactly what's on
-      // screen right now — avoids saving a second draft / opening a second
-      // payment order for the same request.
-      const result = (quote && quote.fingerprint === fieldsFingerprint)
-        ? quote
-        : await create({
-          subject: subject.trim(),
-          message: message.trim(),
-          serviceId: customTaskServiceId,
-          stateId,
-          cityId,
-          gateway: paymentMethod,
-          currency,
-        }).unwrap();
+      // Always save fresh with the customer's real Subject/Message/State/City
+      // — the live `quote` above is only a fee preview (placeholder text,
+      // and may predate the customer's actual input), never reused here.
+      const result = await create({
+        subject: subject.trim(),
+        message: message.trim(),
+        serviceId: customTaskServiceId,
+        stateId,
+        cityId,
+        gateway: paymentMethod,
+        currency,
+      }).unwrap();
 
       if (result.ticket) {
         resetCreate();
@@ -465,7 +470,7 @@ function CustomPlanNew({ navigation, route }) {
               a consultation fee now to open this request — not the price for the work itself.
             </Text>
             {quoteError && (
-              <TouchableOpacity onPress={() => fetchQuote(fieldsFingerprint)}>
+              <TouchableOpacity onPress={() => fetchQuotePreview(previewFingerprint)}>
                 <Text style={styles.retryText}>{quoteError} Tap to retry.</Text>
               </TouchableOpacity>
             )}
