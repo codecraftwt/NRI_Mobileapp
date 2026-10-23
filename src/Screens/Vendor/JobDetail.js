@@ -881,16 +881,21 @@ function JobDetail({ route, navigation }) {
         {isAssigned && !alreadyAccepted && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Icon name="gavel" size={18} color="#D94625" />
+              <View style={styles.sectionIconBadge}>
+                <Icon name="gavel" size={16} color="#D94625" />
+              </View>
               <Text style={styles.sectionTitle}>Job Actions</Text>
             </View>
 
             {awaitingPriceConfirmation ? (
               <>
                 <View style={styles.priceWaitBanner}>
-                  <Icon name="hourglass-empty" size={18} color="#92400E" />
+                  <View style={styles.priceWaitIconWrap}>
+                    <Icon name="hourglass-empty" size={16} color="#D97706" />
+                  </View>
                   <Text style={styles.priceWaitBannerText}>
-                    You can't accept this job yet — the price hasn't been confirmed and paid by the customer. Propose a price below if you haven't already.
+                    <Text style={styles.priceBannerTextBold}>You can't accept this job yet</Text>
+                    {' '}— the price hasn't been confirmed and paid by the customer. Propose a price below if you haven't already.
                   </Text>
                 </View>
 
@@ -909,7 +914,7 @@ function JobDetail({ route, navigation }) {
                   </View>
                 )}
 
-                <TouchableOpacity style={[styles.rejectBtnFull, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading}>
+                <TouchableOpacity style={[styles.rejectBtnFull, actionLoading && styles.btnDisabled]} onPress={handleReject} disabled={actionLoading} activeOpacity={0.8}>
                   {actionLoading ? (
                     <ActivityIndicator size="small" color="#DC2626" />
                   ) : (
@@ -987,19 +992,35 @@ function JobDetail({ route, navigation }) {
 
         {isAssigned && !alreadyAccepted && job.requiresPriceConfirmation && (
           <View style={[styles.card, styles.priceCard, isPricePaid && styles.priceCardPaid]}>
-            <View style={styles.priceCardHeader}>
-              <Icon name={isPricePaid ? 'check-circle' : 'sell'} size={18} color={isPricePaid ? '#059669' : '#92400E'} />
-              <Text style={[styles.priceCardHeaderText, isPricePaid && styles.priceCardHeaderTextPaid]}>
-                {isPricePaid ? 'Price Confirmed & Paid' : 'Price Not Yet Confirmed'}
-              </Text>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.sectionIconBadge, styles.priceIconBadge, isPricePaid && styles.priceIconBadgePaid]}>
+                  <Icon name={isPricePaid ? 'check-circle' : 'sell'} size={16} color={isPricePaid ? '#059669' : '#D97706'} />
+                </View>
+                <Text style={[styles.priceCardHeaderText, isPricePaid && styles.priceCardHeaderTextPaid]}>
+                  {isPricePaid ? 'Price Confirmed & Paid' : 'Price Not Yet Confirmed'}
+                </Text>
+              </View>
+              <View style={[styles.priceStatusPill, isPricePaid && styles.priceStatusPillPaid]}>
+                <Text style={[styles.priceStatusPillText, isPricePaid && styles.priceStatusPillTextPaid]}>
+                  {isPricePaid ? 'Paid' : 'Pending'}
+                </Text>
+              </View>
             </View>
 
             <View style={[styles.priceInfoBanner, isPricePaid && styles.pricePaidBanner]}>
-              <Icon name={isPricePaid ? 'check-circle' : 'warning-amber'} size={16} color={isPricePaid ? '#059669' : '#92400E'} />
+              <View style={[styles.priceWaitIconWrap, isPricePaid && styles.priceWaitIconWrapPaid]}>
+                <Icon name={isPricePaid ? 'check-circle' : 'warning-amber'} size={16} color={isPricePaid ? '#059669' : '#D97706'} />
+              </View>
               <Text style={[styles.priceInfoBannerText, isPricePaid && styles.pricePaidBannerText]}>
-                {isPricePaid
-                  ? `Payment of ₹${Number(job.quote.amount || 0).toFixed(2)} has been received. This job will be available to accept shortly.`
-                  : "Customer payment: Incomplete — this service has no fixed price. Propose what it should cost so the customer can be asked to pay."}
+                {isPricePaid ? (
+                  `Payment of ₹${Number(job.quote.amount || 0).toFixed(2)} has been received. This job will be available to accept shortly.`
+                ) : (
+                  <>
+                    <Text style={styles.priceBannerTextBold}>Customer payment: Incomplete</Text>
+                    {' '}— this service has no fixed price. Propose what it should cost so the customer can be asked to pay.
+                  </>
+                )}
               </Text>
             </View>
 
@@ -1640,6 +1661,10 @@ const styles = StyleSheet.create({
     ...typography.sectionTitle, fontFamily: typography.h2.fontFamily,
     color: '#0F172A', marginBottom: 0, flexShrink: 1,
   },
+  sectionIconBadge: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: '#FFF1EC', justifyContent: 'center', alignItems: 'center',
+  },
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   infoIconWrap: {
@@ -1721,28 +1746,44 @@ const styles = StyleSheet.create({
   },
   rejectBtnText: { fontSize: 13.5, fontWeight: '700', color: '#DC2626' },
   rejectBtnFull: {
-    flexDirection: 'row', gap: 6, paddingVertical: 10, borderRadius: 12,
-    backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#DC2626',
+    flexDirection: 'row', gap: 8, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#FECACA',
     justifyContent: 'center', alignItems: 'center',
   },
 
   // Quote-only job gating (requires_price_confirmation)
   priceWaitBanner: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#FDE68A',
   },
-  priceWaitBannerText: { flex: 1, fontSize: 13, color: '#78350F', lineHeight: 19 },
-  priceCard: { borderColor: '#FDE68A' },
-  priceCardPaid: { borderColor: '#A7F3D0' },
-  priceCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  priceWaitIconWrap: {
+    width: 28, height: 28, borderRadius: 14, marginTop: 1,
+    backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center',
+  },
+  priceWaitIconWrapPaid: { backgroundColor: '#D1FAE5' },
+  priceWaitBannerText: { flex: 1, fontSize: 13, color: '#57534E', lineHeight: 19 },
+  priceBannerTextBold: { fontWeight: '700', color: '#292524' },
+  priceCard: { borderColor: '#FDE68A', backgroundColor: '#FFFDF7' },
+  priceCardPaid: { borderColor: '#A7F3D0', backgroundColor: '#F0FDF9' },
+  priceIconBadge: { backgroundColor: '#FEF3C7' },
+  priceIconBadgePaid: { backgroundColor: '#D1FAE5' },
   priceCardHeaderText: { fontSize: 16, fontWeight: '700', color: '#78350F' },
   priceCardHeaderTextPaid: { color: '#065F46' },
-  priceInfoBanner: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#FEF9C3', borderRadius: 12, padding: 14,
+  priceStatusPill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+    backgroundColor: '#FEF3C7',
   },
-  priceInfoBannerText: { flex: 1, fontSize: 13, color: '#78350F', lineHeight: 19 },
-  pricePaidBanner: { backgroundColor: '#D1FAE5' },
+  priceStatusPillPaid: { backgroundColor: '#D1FAE5' },
+  priceStatusPillText: { fontSize: 11, fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.3 },
+  priceStatusPillTextPaid: { color: '#065F46' },
+  priceInfoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: '#FDE68A',
+  },
+  priceInfoBannerText: { flex: 1, fontSize: 13, color: '#57534E', lineHeight: 19 },
+  pricePaidBanner: { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
   pricePaidBannerText: { color: '#065F46' },
   priceRejectionText: { fontSize: 13, color: '#DC2626', lineHeight: 18 },
   quoteStatusRow: {

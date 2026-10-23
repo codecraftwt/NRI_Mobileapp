@@ -63,9 +63,6 @@ export default function FamilyMemberPicker({
     ? (members || []).filter(m => m.name.toLowerCase().includes(query))
     : (members || []);
 
-  // A new name has to come with a relation; a saved pick already has one.
-  const showRelationField = !isSavedSelected && name.trim().length > 0;
-
   const nameError = nameTouched && !isSavedSelected && name.trim().length > 0 && !isValidFamilyMemberName(name)
     ? "That doesn't look like a real name — please check it."
     : null;
@@ -142,38 +139,36 @@ export default function FamilyMemberPicker({
       </View>
       {!!nameError && <Text style={styles.errorText}>{nameError}</Text>}
 
-      {showRelationField && (
-        <View style={styles.fieldWrap}>
-          <Text style={styles.label}>Relation<Text style={styles.required}> *</Text></Text>
-          <TouchableOpacity style={styles.selectBox} onPress={() => setRelationOpen(true)} activeOpacity={0.7}>
-            <Text style={[styles.selectText, !relation && styles.placeholderText]} numberOfLines={1}>
-              {relation || 'Select...'}
-            </Text>
-            <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
+      <View style={styles.fieldWrap}>
+        <Text style={styles.label}>Relation<Text style={styles.required}> *</Text></Text>
+        <TouchableOpacity style={styles.selectBox} onPress={() => setRelationOpen(true)} activeOpacity={0.7}>
+          <Text style={[styles.selectText, !relation && styles.placeholderText]} numberOfLines={1}>
+            {relation || 'Select...'}
+          </Text>
+          <Icon name="keyboard-arrow-down" size={20} color="#64748B" />
+        </TouchableOpacity>
+        <Modal visible={relationOpen} transparent animationType="fade" onRequestClose={() => setRelationOpen(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setRelationOpen(false)}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>Relation</Text>
+              <FlatList
+                data={RELATION_OPTIONS}
+                keyExtractor={item => item}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.modalOption}
+                    onPress={() => { onChangeRelation(item); setRelationOpen(false); }}
+                  >
+                    <Text style={[styles.modalOptionText, item === relation && styles.modalOptionTextActive]}>{item}</Text>
+                    {item === relation && <Icon name="check" size={20} color="#D94625" />}
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
           </TouchableOpacity>
-          <Modal visible={relationOpen} transparent animationType="fade" onRequestClose={() => setRelationOpen(false)}>
-            <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setRelationOpen(false)}>
-              <View style={styles.modalSheet}>
-                <View style={styles.modalHandle} />
-                <Text style={styles.modalTitle}>Relation</Text>
-                <FlatList
-                  data={RELATION_OPTIONS}
-                  keyExtractor={item => item}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.modalOption}
-                      onPress={() => { onChangeRelation(item); setRelationOpen(false); }}
-                    >
-                      <Text style={[styles.modalOptionText, item === relation && styles.modalOptionTextActive]}>{item}</Text>
-                      {item === relation && <Icon name="check" size={20} color="#D94625" />}
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
-            </TouchableOpacity>
-          </Modal>
-        </View>
-      )}
+        </Modal>
+      </View>
     </View>
   );
 }

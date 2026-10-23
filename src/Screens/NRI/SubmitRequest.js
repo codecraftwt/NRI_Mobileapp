@@ -1459,21 +1459,28 @@ function SubmitRequest({ navigation, route }) {
                 <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Currency</Text>
                 <CurrencyToggle value={currency} onChange={setCurrency} />
                 <Text style={styles.fieldLabel}>Payment Method</Text>
-                {gateways.map(g => (
-                  <TouchableOpacity
-                    key={g.value}
-                    style={[styles.gatewayRow, paymentMethod === g.value && styles.gatewayRowActive]}
-                    activeOpacity={0.8}
-                    onPress={() => setPaymentMethod(g.value)}
-                  >
-                    <Icon name={gatewayIcon(g.value)} size={20} color={paymentMethod === g.value ? '#20304C' : '#64748B'} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.gatewayName}>{g.label}</Text>
-                      {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
-                    </View>
-                    <View style={[styles.radio, paymentMethod === g.value && styles.radioActive]} />
-                  </TouchableOpacity>
-                ))}
+                {gateways.map(g => {
+                  const active = paymentMethod === g.value;
+                  return (
+                    <TouchableOpacity
+                      key={g.value}
+                      style={[styles.gatewayRow, active && styles.gatewayRowActive]}
+                      activeOpacity={0.8}
+                      onPress={() => setPaymentMethod(g.value)}
+                    >
+                      <View style={[styles.gatewayIconWrap, active && styles.gatewayIconWrapActive]}>
+                        <Icon name={gatewayIcon(g.value)} size={20} color={active ? '#D94625' : '#64748B'} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.gatewayName, active && styles.gatewayNameActive]}>{g.label}</Text>
+                        {!!GATEWAY_META[g.value]?.desc && <Text style={styles.gatewayDesc}>{GATEWAY_META[g.value].desc}</Text>}
+                      </View>
+                      <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
+                        {active && <View style={styles.radioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </>
             )}
 
@@ -1687,12 +1694,29 @@ const styles = StyleSheet.create({
   couponDescText: { fontSize: 12, color: '#64748B', marginTop: 4 },
   couponReasonText: { fontSize: 11.5, color: '#EF4444', marginTop: 4 },
 
-  gatewayRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, marginBottom: 10 },
-  gatewayRowActive: { borderColor: '#D94625', backgroundColor: '#FDF0ED' },
-  gatewayName: { fontSize: 14, fontFamily: typography.h4.fontFamily, color: '#1E293B' },
-  gatewayDesc: { fontSize: 11.5, color: '#94A3B8', marginTop: 2 },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: '#CBD5E1' },
-  radioActive: { borderColor: '#D94625', backgroundColor: '#D94625' },
+  gatewayRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16,
+    padding: 14, marginBottom: 12, backgroundColor: '#FFFFFF',
+  },
+  gatewayRowActive: {
+    borderColor: '#D94625', backgroundColor: '#FFF7F5',
+    shadowColor: '#D94625', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 2,
+  },
+  gatewayIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center',
+  },
+  gatewayIconWrapActive: { backgroundColor: '#FFFFFF' },
+  gatewayName: { fontSize: 14.5, fontFamily: typography.h4.fontFamily, color: '#1E293B' },
+  gatewayNameActive: { color: '#0F172A' },
+  gatewayDesc: { fontSize: 12, color: '#94A3B8', marginTop: 3 },
+  radioOuter: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#CBD5E1',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  radioOuterActive: { borderColor: '#D94625' },
+  radioDot: { width: 11, height: 11, borderRadius: 5.5, backgroundColor: '#D94625' },
 
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   sumLabel: { fontSize: 14, color: '#64748B' },

@@ -352,7 +352,7 @@ function TicketDetail({ route, navigation }) {
         extraHeight={80}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#D94625']} tintColor="#D94625" />}
       >
-        <View style={styles.card}>
+        <View style={[styles.card, styles.summaryCard]}>
           <View style={styles.topRow}>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: statusStyle.bg }]}>
@@ -370,28 +370,24 @@ function TicketDetail({ route, navigation }) {
             </View>
           </View>
 
-          <Text style={styles.ticketId}>{ticket.ticketNumber}</Text>
+          <Text style={[styles.ticketId, styles.summaryTicketId]}>{ticket.ticketNumber}</Text>
 
-          <View style={styles.infoGrid}>
+          <View style={[styles.infoGrid, styles.summaryInfoGrid]}>
             <View style={styles.infoBlock}>
               <Text style={styles.label}>Service</Text>
-              <Text style={styles.value}>{ticket.serviceName}</Text>
+              <Text style={[styles.value, styles.summaryValue]}>{ticket.serviceName}</Text>
             </View>
-            <View style={styles.infoBlock}>
-              <Text style={styles.label}>Vendor</Text>
-              <Text style={styles.value}>{ticket.vendorName || 'Pending Assignment'}</Text>
-            </View>
+            {!!ticket.familyMember?.name && (
+              <View style={styles.infoBlock}>
+                <Text style={styles.label}>For</Text>
+                <Text style={[styles.value, styles.summaryValue]}>{ticket.familyMember.name}</Text>
+              </View>
+            )}
             {!!ticket.location?.address && (
               <View style={styles.infoBlock}>
                 <Text style={styles.label}>Location</Text>
-                <Text style={styles.value}>{ticket.location.address}</Text>
+                <Text style={[styles.value, styles.summaryValue]}>{ticket.location.address}</Text>
                 {!!locationLine && <Text style={styles.subValue}>{locationLine}</Text>}
-              </View>
-            )}
-            {!!ticket.customerNotes && (
-              <View style={styles.infoBlock}>
-                <Text style={styles.label}>Notes</Text>
-                <Text style={styles.value}>{ticket.customerNotes}</Text>
               </View>
             )}
           </View>
@@ -886,6 +882,11 @@ const styles = StyleSheet.create({
   label: { ...typography.small, fontFamily: typography.labelMedium.fontFamily, color: '#64748B' },
   value: { ...typography.h4, color: '#0F172A' },
   subValue: { ...typography.small, color: '#64748B' },
+
+  summaryCard: { padding: 16, gap: 12 },
+  summaryTicketId: { fontSize: 20 },
+  summaryInfoGrid: { gap: 12, marginTop: 4 },
+  summaryValue: { fontSize: 15 },
 
   slaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   overdueText: { color: '#DC2626' },
