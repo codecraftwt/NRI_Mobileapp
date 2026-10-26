@@ -136,7 +136,8 @@ export async function getTelecallerCallOptions() {
       partyTypes: mapOptionList(data.party_types || [
         { value: 'customer', label: 'Customer' },
         { value: 'vendor', label: 'Vendor' },
-        { value: 'lead', label: 'Lead / Prospect' },
+        { value: 'field_executive', label: 'Field Executive' },
+        { value: 'other', label: 'Other' },
       ]),
       directions: mapOptionList(data.directions || [
         { value: 'outbound', label: 'Outbound (Outgoing)' },

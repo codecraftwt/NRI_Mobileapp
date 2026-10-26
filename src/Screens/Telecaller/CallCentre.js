@@ -10,6 +10,8 @@ import {
   RefreshControl,
   StatusBar,
   Linking,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -49,6 +51,7 @@ function CallCentre({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [queuePickerVisible, setQueuePickerVisible] = useState(false);
 
   const fetchData = useCallback(async (isRefresh = false) => {
     try {
@@ -172,41 +175,31 @@ function CallCentre({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Queue Selection Pills (Horizontal Scroll) */}
+          {/* Queue Selector (opens a modal instead of horizontal scroll) */}
           <View style={styles.queueHeaderSection}>
             <Text style={styles.sectionHeaderTitle}>CALL QUEUES</Text>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.queuesScroll}>
-            {queues.map(q => {
-              const isSelected = selectedQueueKey === q.key;
-              const badge = getBadgeColor(q.key, q.count);
-              const iconName = getQueueIcon(q.key);
-
-              return (
-                <TouchableOpacity
-                  key={q.key}
-                  style={[styles.queuePill, isSelected && styles.queuePillActive]}
-                  onPress={() => setSelectedQueueKey(q.key)}
-                  activeOpacity={0.7}
-                >
-                  <Icon
-                    name={iconName}
-                    size={16}
-                    color={isSelected ? '#059669' : '#64748B'}
-                  />
-                  <Text style={[styles.queuePillText, isSelected && styles.queuePillTextActive]}>
-                    {q.label}
+          <TouchableOpacity
+            style={styles.queueSelectorBar}
+            onPress={() => setQueuePickerVisible(true)}
+            activeOpacity={0.8}
+          >
+            {selectedQueue && (
+              <>
+                <Icon name={getQueueIcon(selectedQueue.key)} size={18} color="#059669" />
+                <Text style={styles.queueSelectorText} numberOfLines={1}>
+                  {selectedQueue.label}
+                </Text>
+                <View style={[styles.queueCountBadge, { backgroundColor: getBadgeColor(selectedQueue.key, selectedQueue.count).bg }]}>
+                  <Text style={[styles.queueCountText, { color: getBadgeColor(selectedQueue.key, selectedQueue.count).text }]}>
+                    {selectedQueue.count}
                   </Text>
-                  <View style={[styles.queueCountBadge, { backgroundColor: badge.bg }]}>
-                    <Text style={[styles.queueCountText, { color: badge.text }]}>
-                      {q.count}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                </View>
+              </>
+            )}
+            <Icon name="unfold-more" size={18} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
 
           {/* Selected Queue Panel */}
           {selectedQueue && (
@@ -218,9 +211,6 @@ function CallCentre({ navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.queueBannerTitle}>{selectedQueue.label}</Text>
-                  {selectedQueue.description ? (
-                    <Text style={styles.queueBannerDesc}>{selectedQueue.description}</Text>
-                  ) : null}
                 </View>
                 <View style={styles.queueBannerCount}>
                   <Text style={styles.queueBannerCountNum}>{selectedQueue.count}</Text>
@@ -327,6 +317,60 @@ function CallCentre({ navigation }) {
           </View>
         </ScrollView>
       )}
+
+      {/* Queue Picker Modal */}
+      <Modal
+        visible={queuePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQueuePickerVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setQueuePickerVisible(false)}>
+          <Pressable style={styles.modalSheet} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select a Call Queue</Text>
+              <TouchableOpacity onPress={() => setQueuePickerVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Icon name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              {queues.map(q => {
+                const isSelected = selectedQueueKey === q.key;
+                const badge = getBadgeColor(q.key, q.count);
+                const iconName = getQueueIcon(q.key);
+
+                return (
+                  <TouchableOpacity
+                    key={q.key}
+                    style={[styles.queueModalRow, isSelected && styles.queueModalRowActive]}
+                    onPress={() => {
+                      setSelectedQueueKey(q.key);
+                      setQueuePickerVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.queueModalIconWrap, isSelected && styles.queueModalIconWrapActive]}>
+                      <Icon name={iconName} size={18} color={isSelected ? '#059669' : '#64748B'} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.queueModalLabel, isSelected && styles.queueModalLabelActive]}>
+                        {q.label}
+                      </Text>
+                    </View>
+                    <View style={[styles.queueCountBadge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.queueCountText, { color: badge.text }]}>
+                        {q.count}
+                      </Text>
+                    </View>
+                    {isSelected && <Icon name="check" size={18} color="#059669" style={{ marginLeft: 8 }} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -486,34 +530,22 @@ const styles = StyleSheet.create({
     color: '#64748B',
     letterSpacing: 0.5,
   },
-  queuesScroll: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  queuePill: {
+  queueSelectorBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 6,
+    gap: 8,
   },
-  queuePillActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  queuePillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  queuePillTextActive: {
-    color: '#065F46',
+  queueSelectorText: {
+    fontSize: 13,
     fontWeight: '700',
+    color: '#0F172A',
+    flexShrink: 1,
   },
   queueCountBadge: {
     paddingHorizontal: 6,
@@ -522,6 +554,39 @@ const styles = StyleSheet.create({
   },
   queueCountText: {
     fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // Queue Picker Modal rows
+  queueModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 10,
+  },
+  queueModalRowActive: {
+    backgroundColor: '#ECFDF5',
+  },
+  queueModalIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  queueModalIconWrapActive: {
+    backgroundColor: '#D1FAE5',
+  },
+  queueModalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  queueModalLabelActive: {
+    color: '#065F46',
     fontWeight: '700',
   },
 
@@ -559,11 +624,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#065F46',
-  },
-  queueBannerDesc: {
-    fontSize: 11,
-    color: '#047857',
-    marginTop: 2,
   },
   queueBannerCount: {
     alignItems: 'center',

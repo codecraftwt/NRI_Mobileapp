@@ -23,9 +23,11 @@ import {
   getTelecallerCallHistory,
 } from '../../Api/Telecaller/telecallerCallsApi';
 
-const PARTY_TYPES = [
+const DEFAULT_PARTY_TYPES = [
   { value: 'customer', label: 'Customer' },
   { value: 'vendor', label: 'Vendor' },
+  { value: 'field_executive', label: 'Field Executive' },
+  { value: 'other', label: 'Other' },
 ];
 
 const DIRECTIONS = [
@@ -246,6 +248,9 @@ function LogCall({ route, navigation }) {
     return vendors.filter(v => (v.businessName || v.name || '').toLowerCase().includes(q) || (v.phone || '').includes(q));
   };
 
+  const partyTypeList = options.partyTypes.length > 0 ? options.partyTypes : DEFAULT_PARTY_TYPES;
+  const isSearchableParty = partyType === 'customer' || partyType === 'vendor';
+
   const outcomeList = options.outcomes.length > 0 ? options.outcomes : [
     { value: 'connected', label: 'Connected' },
     { value: 'no_answer', label: 'No Answer' },
@@ -310,75 +315,85 @@ function LogCall({ route, navigation }) {
                   onPress={() => setPickerModalType('partyType')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.dropdownValText}>
-                    {PARTY_TYPES.find(p => p.value === partyType)?.label || 'Customer'}
+                  <Text style={styles.dropdownValText} numberOfLines={1} ellipsizeMode="tail">
+                    {partyTypeList.find(p => p.value === partyType)?.label || 'Customer'}
                   </Text>
                   <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
 
-              {/* Customer / Vendor Selector */}
+              {/* Customer / Vendor Selector, or manual name entry for other party types */}
               <View style={styles.colHalf}>
-                <Text style={styles.inputLabel}>{partyType === 'vendor' ? 'Vendor' : 'Customer'}</Text>
-                <TouchableOpacity
-                  style={styles.dropdownInput}
-                  onPress={() => {
-                    setPickerSearchQuery('');
-                    setPickerModalType('partyPicker');
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={selectedParty ? styles.dropdownValText : styles.dropdownPlaceholder}
-                    numberOfLines={1}
+                <Text style={styles.inputLabel}>
+                  {partyTypeList.find(p => p.value === partyType)?.label || 'Party'}
+                </Text>
+                {isSearchableParty ? (
+                  <TouchableOpacity
+                    style={styles.dropdownInput}
+                    onPress={() => {
+                      setPickerSearchQuery('');
+                      setPickerModalType('partyPicker');
+                    }}
+                    activeOpacity={0.7}
                   >
-                    {selectedParty?.name || selectedParty?.businessName || `Search ${partyType}s in your area...`}
-                  </Text>
-                  <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
-                </TouchableOpacity>
+                    <Text
+                      style={selectedParty ? styles.dropdownValText : styles.dropdownPlaceholder}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {selectedParty?.name || selectedParty?.businessName || `Search ${partyType}s in your area...`}
+                    </Text>
+                    <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+                  </TouchableOpacity>
+                ) : (
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter name"
+                    placeholderTextColor="#94A3B8"
+                    value={selectedParty?.name || ''}
+                    onChangeText={text => setSelectedParty(text ? { name: text } : null)}
+                  />
+                )}
               </View>
             </View>
 
-            {/* Row 2: Phone number & Direction */}
-            <View style={styles.rowTwoCols}>
-              {/* Phone number with inline Call button */}
-              <View style={styles.colHalf}>
-                <Text style={styles.inputLabel}>Phone number</Text>
-                <View style={styles.phoneInputWrap}>
-                  <TextInput
-                    style={styles.phoneTextInput}
-                    placeholder="+91..."
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                  <TouchableOpacity
-                    style={styles.inlineCallBtn}
-                    onPress={handleCall}
-                    activeOpacity={0.8}
-                  >
-                    <Icon name="call" size={13} color="#FFFFFF" />
-                    <Text style={styles.inlineCallBtnText}>Call</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.helperText}>Opens your phone / softphone app.</Text>
-              </View>
-
-              {/* Direction */}
-              <View style={styles.colHalf}>
-                <Text style={styles.inputLabel}>Direction</Text>
+            {/* Row 2: Phone number */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Phone number</Text>
+              <View style={styles.phoneInputWrap}>
+                <TextInput
+                  style={styles.phoneTextInput}
+                  placeholder="+91..."
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
                 <TouchableOpacity
-                  style={styles.dropdownInput}
-                  onPress={() => setPickerModalType('direction')}
-                  activeOpacity={0.7}
+                  style={styles.inlineCallBtn}
+                  onPress={handleCall}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.dropdownValText} numberOfLines={1}>
-                    {DIRECTIONS.find(d => d.value === direction)?.label || 'Outgoing (we called)'}
-                  </Text>
-                  <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+                  <Icon name="call" size={13} color="#FFFFFF" />
+                  <Text style={styles.inlineCallBtnText}>Call</Text>
                 </TouchableOpacity>
               </View>
+              <Text style={styles.helperText}>Opens your phone / softphone app.</Text>
+            </View>
+
+            {/* Row 3: Direction */}
+            <View style={styles.fullWidthField}>
+              <Text style={styles.inputLabel}>Direction</Text>
+              <TouchableOpacity
+                style={styles.dropdownInput}
+                onPress={() => setPickerModalType('direction')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.dropdownValText} numberOfLines={1} ellipsizeMode="tail">
+                  {DIRECTIONS.find(d => d.value === direction)?.label || 'Outgoing (we called)'}
+                </Text>
+                <Icon name="keyboard-arrow-down" size={20} color="#94A3B8" />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -389,17 +404,17 @@ function LogCall({ route, navigation }) {
               <Text style={styles.cardTitle}>What happened</Text>
             </View>
 
-            {/* Purpose, Outcome, Duration */}
-            <View style={styles.rowThreeCols}>
+            {/* Purpose & Outcome */}
+            <View style={styles.rowTwoCols}>
               {/* Purpose */}
-              <View style={styles.colThird}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Purpose <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
                   style={styles.dropdownInput}
                   onPress={() => setPickerModalType('purpose')}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.dropdownValText} numberOfLines={1}>
+                  <Text style={styles.dropdownValText} numberOfLines={1} ellipsizeMode="tail">
                     {purposeList.find(p => p.value === purpose)?.label || 'General follow-up'}
                   </Text>
                   <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
@@ -407,32 +422,32 @@ function LogCall({ route, navigation }) {
               </View>
 
               {/* Outcome */}
-              <View style={styles.colThird}>
+              <View style={styles.colHalf}>
                 <Text style={styles.inputLabel}>Outcome <Text style={styles.requiredStar}>*</Text></Text>
                 <TouchableOpacity
-                  style={[styles.dropdownInput, !outcome && { borderColor: '#EA580C' }]}
+                  style={styles.dropdownInput}
                   onPress={() => setPickerModalType('outcome')}
                   activeOpacity={0.7}
                 >
-                  <Text style={outcome ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1}>
-                    {outcomeList.find(o => o.value === outcome)?.label || 'Select...'}
+                  <Text style={outcome ? styles.dropdownValText : styles.dropdownPlaceholder} numberOfLines={1} ellipsizeMode="tail">
+                    {outcomeList.find(o => o.value === outcome)?.label || 'Select an outcome...'}
                   </Text>
                   <Icon name="keyboard-arrow-down" size={18} color="#94A3B8" />
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Duration (min) */}
-              <View style={styles.colThird}>
-                <Text style={styles.inputLabel}>Duration (min)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. 2"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="numeric"
-                  value={durationMinutes}
-                  onChangeText={setDurationMinutes}
-                />
-              </View>
+            {/* Duration (min) */}
+            <View style={styles.durationField}>
+              <Text style={styles.inputLabel}>Duration (min)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. 2"
+                placeholderTextColor="#94A3B8"
+                keyboardType="numeric"
+                value={durationMinutes}
+                onChangeText={setDurationMinutes}
+              />
             </View>
 
             {/* Notes */}
@@ -474,9 +489,6 @@ function LogCall({ route, navigation }) {
                   </Text>
                   <Icon name="calendar-today" size={16} color="#94A3B8" />
                 </TouchableOpacity>
-                <Text style={styles.helperText}>
-                  You'll get a notification when it's due, and it appears under Callbacks Due in the Call Centre.
-                </Text>
               </View>
 
               {/* Reminder note */}
@@ -491,6 +503,10 @@ function LogCall({ route, navigation }) {
                 />
               </View>
             </View>
+
+            <Text style={styles.helperText}>
+              You'll get a notification when it's due, and it appears under Callbacks Due in the Call Centre.
+            </Text>
           </View>
 
           {/* CARD 4: Pass this on (optional) */}
@@ -638,7 +654,7 @@ function LogCall({ route, navigation }) {
             <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator={false}>
               {/* Party Type Options */}
               {pickerModalType === 'partyType' && (
-                PARTY_TYPES.map(p => (
+                partyTypeList.map(p => (
                   <TouchableOpacity
                     key={p.value}
                     style={styles.modalItemRow}
@@ -916,15 +932,11 @@ const styles = StyleSheet.create({
   colHalf: {
     flex: 1,
   },
-  rowThreeCols: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  colThird: {
-    flex: 1,
-  },
   fullWidthField: {
     width: '100%',
+  },
+  durationField: {
+    width: '45%',
   },
 
   // Labels & Inputs
@@ -948,7 +960,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 42,
+    height: 44,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -969,7 +981,7 @@ const styles = StyleSheet.create({
   },
 
   textInput: {
-    height: 42,
+    height: 44,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D1D5DB',
@@ -995,7 +1007,7 @@ const styles = StyleSheet.create({
   phoneInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 42,
+    height: 44,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D1D5DB',

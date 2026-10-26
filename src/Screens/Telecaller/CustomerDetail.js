@@ -21,6 +21,30 @@ function formatDate(iso) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function formatDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const datePart = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${datePart}, ${timePart}`;
+}
+
+function getOutcomeBadge(outcome, outcomeLabel) {
+  const label = outcomeLabel || 'Unknown';
+  const key = (outcome || '').toLowerCase();
+  if (['accepted', 'completed', 'connected', 'resolved'].includes(key)) {
+    return { label, bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' };
+  }
+  if (['declined', 'rejected', 'failed', 'no_answer', 'cancelled'].includes(key)) {
+    return { label, bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' };
+  }
+  if (['scheduled', 'pending', 'follow_up', 'callback'].includes(key)) {
+    return { label, bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' };
+  }
+  return { label, bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' };
+}
+
 function getMembershipBadge(status, hasActive) {
   if (hasActive || status === 'active') {
     return { label: 'Active Member', bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' };
@@ -272,34 +296,53 @@ function CustomerDetail({ route, navigation }) {
           {/* TAB 1: CALL HISTORY / LOGS */}
           {activeTab === 'calls' && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Latest Call Logs (Staff Timeline)</Text>
+              <Text style={styles.cardTitle}>Call History</Text>
 
               {customer.callLogs && customer.callLogs.length > 0 ? (
                 <View style={{ gap: 10 }}>
-                  {customer.callLogs.map((call, idx) => (
-                    <View key={String(call.id || idx)} style={styles.timelineItem}>
-                      <View style={styles.timelineIcon}>
-                        <Icon
-                          name={call.direction === 'incoming' ? 'call-received' : 'call-made'}
-                          size={15}
-                          color={call.direction === 'incoming' ? '#059669' : '#2563EB'}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.timelineTopRow}>
-                          <Text style={styles.timelineCallerText}>{call.telecallerName}</Text>
-                          {call.duration && (
-                            <Text style={styles.timelineDurationText}>{call.duration}</Text>
-                          )}
+                  {customer.callLogs.map((call, idx) => {
+                    const outcomeBadge = getOutcomeBadge(call.outcome, call.outcomeLabel);
+                    const directionLabel = call.direction === 'incoming' || call.direction === 'inbound' ? 'incoming' : 'outgoing';
+                    return (
+                      <View key={String(call.id || idx)} style={styles.timelineItem}>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.timelineTopRow}>
+                            <View style={[styles.outcomeBadge, { backgroundColor: outcomeBadge.bg, borderColor: outcomeBadge.border }]}>
+                              <Text style={[styles.outcomeBadgeText, { color: outcomeBadge.text }]}>
+                                {outcomeBadge.label}
+                              </Text>
+                            </View>
+                            {call.createdAt && (
+                              <Text style={styles.timelineDateText}>{formatDateTime(call.createdAt)}</Text>
+                            )}
+                          </View>
+
+                          <Text style={styles.timelinePartyText}>
+                            {call.partyName}
+                            {call.partyTypeLabel ? (
+                              <Text style={styles.timelinePartyMetaText}> ({call.partyTypeLabel}, {directionLabel})</Text>
+                            ) : null}
+                          </Text>
+
+                          <View style={styles.timelineDetailRow}>
+                            {call.purposeLabel ? <Text style={styles.timelineDetailText}>{call.purposeLabel}</Text> : null}
+                            {call.purposeLabel ? <Text style={styles.timelineDetailDot}> · </Text> : null}
+                            <Text style={styles.timelineDetailText}>by {call.byName}</Text>
+                            {call.ticketNumber ? <Text style={styles.timelineDetailDot}> · </Text> : null}
+                            {call.ticketNumber ? (
+                              <TouchableOpacity
+                                onPress={() => navigation.navigate('TicketDetail', { ticketId: call.ticketId, ticket: call.ticketNumber })}
+                              >
+                                <Text style={styles.timelineTicketLink}>{call.ticketNumber}</Text>
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
+
+                          {call.notes ? <Text style={styles.timelineNoteText}>{call.notes}</Text> : null}
                         </View>
-                        {call.title ? <Text style={styles.timelineTitleText}>{call.title}</Text> : null}
-                        {call.note ? <Text style={styles.timelineNoteText}>{call.note}</Text> : null}
-                        {call.createdAt && (
-                          <Text style={styles.timelineDateText}>{formatDate(call.createdAt)}</Text>
-                        )}
                       </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               ) : (
                 <View style={styles.tabEmptyState}>
@@ -705,35 +748,50 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     gap: 10,
   },
-  timelineIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
   timelineTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  timelineCallerText: {
+  outcomeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  outcomeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  timelinePartyText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0F172A',
+    marginTop: 6,
   },
-  timelineDurationText: {
-    fontSize: 11,
+  timelinePartyMetaText: {
+    fontSize: 12,
+    fontWeight: '400',
     color: '#64748B',
   },
-  timelineTitleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#334155',
+  timelineDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     marginTop: 2,
+  },
+  timelineDetailText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  timelineDetailDot: {
+    fontSize: 12,
+    color: '#94A3B8',
+  },
+  timelineTicketLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563EB',
   },
   timelineNoteText: {
     fontSize: 12,
@@ -741,9 +799,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   timelineDateText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94A3B8',
-    marginTop: 4,
   },
 
   // Requests
