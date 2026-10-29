@@ -299,6 +299,7 @@ function CustomPlanPayment({ route, navigation }) {
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
+        paymentId={checkoutSession?.paymentId}
         title="Pay with Stripe"
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}

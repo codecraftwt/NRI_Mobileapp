@@ -121,6 +121,7 @@ export default function PendingRecurringBundleModal({ visible, bundle, onClose, 
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
+        paymentId={checkoutSession?.paymentId}
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}
         title="Secure Payment"

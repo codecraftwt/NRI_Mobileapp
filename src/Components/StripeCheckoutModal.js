@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Pla
 import { WebView } from 'react-native-webview';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { extractStripeSessionIdFromRedirect } from '../Utils/paymentGateway';
+import { reportPaymentFailed } from '../Api/paymentsApi';
 
 // In-app Stripe hosted-checkout. Loads `checkoutUrl` (the checkout_url the
 // backend returns for gateway: "stripe") in a WebView and watches every
@@ -12,7 +13,7 @@ import { extractStripeSessionIdFromRedirect } from '../Utils/paymentGateway';
 // { session_id } — the call that actually activates the purchase. This
 // mirrors the web app's Stripe-redirect flow (PaymentSheet is not used, since
 // the backend never returns a client_secret for Stripe).
-export default function StripeCheckoutModal({ visible, checkoutUrl, onSuccess, onCancel, title = 'Complete Payment' }) {
+export default function StripeCheckoutModal({ visible, checkoutUrl, paymentId, onSuccess, onCancel, title = 'Complete Payment' }) {
   // Guards against acting twice — onNavigationStateChange can fire several
   // times for a single redirect, and we only want to verify once.
   const handledRef = useRef(false);
@@ -30,11 +31,19 @@ export default function StripeCheckoutModal({ visible, checkoutUrl, onSuccess, o
     }
   };
 
+  // The server never hears about the customer closing this screen unless we
+  // tell it — there's no webhook for "user tapped close" on a hosted
+  // checkout page.
+  const handleCancel = () => {
+    reportPaymentFailed(paymentId, { cancelled: true });
+    onCancel();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onCancel} presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="slide" onRequestClose={handleCancel} presentationStyle="fullScreen">
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.closeBtn} onPress={onCancel} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity style={styles.closeBtn} onPress={handleCancel} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Icon name="close" size={24} color="#1E293B" />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>

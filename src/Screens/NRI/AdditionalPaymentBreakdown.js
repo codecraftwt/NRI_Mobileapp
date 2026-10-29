@@ -266,6 +266,7 @@ function AdditionalPaymentBreakdown({ route, navigation }) {
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
+        paymentId={checkoutSession?.paymentId}
         title="Complete Payment"
         onSuccess={handleCheckoutSuccess}
         onCancel={() => setCheckoutSession(null)}

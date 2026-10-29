@@ -1,5 +1,6 @@
 import { Linking } from 'react-native';
 import RazorpayCheckout from 'react-native-razorpay';
+import { reportPaymentFailed } from '../Api/paymentsApi';
 
 // On some failure paths (e.g. bank/network declines), Razorpay's native SDK
 // puts a JSON-stringified error object — {"error":{"code","description",
@@ -15,6 +16,28 @@ function extractRazorpayMessage(raw) {
     return parsed?.error?.description || parsed?.description || parsed?.error?.reason || null;
   } catch {
     return trimmed;
+  }
+}
+
+// Same JSON-stringified error (see extractRazorpayMessage above) but pulls
+// out the fields POST /customer/payments/{id}/failed accepts, instead of
+// just a display message.
+function extractRazorpayFailureFields(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    const e = parsed?.error || parsed;
+    return {
+      code: e?.code,
+      description: e?.description,
+      reason: e?.reason,
+      step: e?.step,
+      payment_id: e?.metadata?.payment_id,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -92,6 +115,9 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
     err.isCancelled = isCancelled;
     err.code = error?.code;
     err.description = rawDesc;
+    err.failurePayload = isCancelled
+      ? { cancelled: true }
+      : (extractRazorpayFailureFields(error?.description) || { code: error?.code, description: rawDesc });
     throw err;
   }
 }
@@ -106,7 +132,13 @@ export async function openRazorpayCheckout({ order, name, description, user }) {
 // Returns whatever `verify` resolves to (e.g. verifyPayment's { message, data }),
 // so callers can read fields like data.pendingRecurringBundle off the result.
 export async function runRazorpayPayment({ order, paymentId, name, description, user, verify }) {
-  const rp = await openRazorpayCheckout({ order, name, description, user });
+  let rp;
+  try {
+    rp = await openRazorpayCheckout({ order, name, description, user });
+  } catch (error) {
+    reportPaymentFailed(paymentId, error.failurePayload);
+    throw error;
+  }
   return verify({
     paymentId,
     razorpayOrderId: rp.razorpayOrderId,

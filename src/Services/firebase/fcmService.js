@@ -107,7 +107,6 @@ export function listenTokenRefresh(callback) {
  */
 export function onForegroundMessage(callback) {
   return messaging().onMessage((remoteMessage) => {
-    console.log('[FCM] Foreground message:', remoteMessage);
     callback(remoteMessage);
   });
 }

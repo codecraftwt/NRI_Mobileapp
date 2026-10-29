@@ -562,6 +562,7 @@ function CustomPlanNew({ navigation, route }) {
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
+        paymentId={checkoutSession?.paymentId}
         title="Pay Opening Fee"
         onSuccess={handleCheckoutSuccess}
         onCancel={handleCheckoutCancel}

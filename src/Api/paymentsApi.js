@@ -166,3 +166,13 @@ export async function getPaymentHistory({ page } = {}) {
 export function getReceiptDownloadUrl(paymentId) {
   return `${API_BASE_URL}/customer/payments/${paymentId}/receipt`;
 }
+
+// Tells the backend a payment attempt failed or was cancelled inside the
+// gateway SDK (Razorpay/Stripe/PayPal) — the server has no other way to find
+// out, since these run entirely client-side. Always returns 204 and the
+// payment stays pending either way, so fire-and-forget: don't await this or
+// surface its outcome to the user.
+export function reportPaymentFailed(paymentId, payload = {}) {
+  if (!paymentId) return;
+  apiClient.post(`/customer/payments/${paymentId}/failed`, payload).catch(() => {});
+}

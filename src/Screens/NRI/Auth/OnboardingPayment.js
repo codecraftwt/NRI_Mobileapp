@@ -1549,6 +1549,7 @@ function OnboardingPayment({ route, navigation }) {
       <StripeCheckoutModal
         visible={!!checkoutSession}
         checkoutUrl={checkoutSession?.url}
+        paymentId={checkoutSession?.paymentId}
         onSuccess={handleCheckoutSuccess}
         onCancel={handleCheckoutCancel}
         title="Secure Payment"
