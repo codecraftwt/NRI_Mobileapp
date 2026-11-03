@@ -147,12 +147,11 @@ class SecurityService {
    */
   async isBiometricsEnabled() {
     try {
+      // Opt-in only: biometrics must be explicitly enabled by the user (via the setup
+      // consent screen or the Password & Security toggle). Never auto-enable just
+      // because the device hardware happens to be available.
       const val = await AsyncStorage.getItem(STORAGE_KEYS.BIOMETRICS_ENABLED);
-      if (val === 'false') return false;
-      if (val === 'true') return true;
-      // If not explicitly set, default to enabled if hardware is available
-      const bio = await this.checkBiometricsAvailable();
-      return !!bio.available;
+      return val === 'true';
     } catch (e) {
       return false;
     }
