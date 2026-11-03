@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginUser, syncDeviceToken } from '../../../Redux/slices/userSlice';
+import { loginUser, syncDeviceToken, login } from '../../../Redux/slices/userSlice';
 import { selectOnboardingRoute, setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
 import { isQuotedItem } from '../../../Redux/slices/cartSlice';
 import { store } from '../../../Redux/store';
 import { lightColors as baseColors } from '../../../theme/colors';
 import { spacing, radius } from '../../../theme';
+import securityService from '../../../Services/securityService';
+import PasscodeModal from '../../../Components/Security/PasscodeModal';
 
 const C = {
   ...baseColors,
@@ -29,6 +32,53 @@ function Login({ navigation, route }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [errorDialog, setErrorDialog] = useState(null);
 
+  // Security layer states (Fingerprint & Passcode)
+  const [quickAuthInfo, setQuickAuthInfo] = useState(null);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showPasscodeSetupPrompt, setShowPasscodeSetupPrompt] = useState(false);
+  const [showPasscodeSetupModal, setShowPasscodeSetupModal] = useState(false);
+  const [pendingLoginResult, setPendingLoginResult] = useState(null);
+
+  const checkQuickAuth = useCallback(async () => {
+    try {
+      const saved = await securityService.getQuickAuthSession();
+      const hasPasscode = await securityService.isPasscodeSet();
+      const bio = await securityService.checkBiometricsAvailable();
+      const bioEnabled = await securityService.isBiometricsEnabled();
+
+      // Show quick unlock card whenever:
+      // 1. Device has biometric hardware available (bio.available)
+      // 2. OR user has a 4-digit passcode configured (hasPasscode)
+      // 3. OR user has enabled biometrics (bioEnabled)
+      // 4. OR device has a saved profile/email from previous session
+      if (bio.available || hasPasscode || bioEnabled || saved?.email || saved?.user) {
+        setQuickAuthInfo({
+          ...saved,
+          email: saved?.email || '',
+          name: saved?.name || '',
+          hasPasscode,
+          bioAvailable: bio.available,
+          bioEnabled: bioEnabled && bio.available,
+          biometryType: bio.biometryType || 'Biometrics',
+        });
+      } else {
+        setQuickAuthInfo(null);
+      }
+    } catch (e) {
+      console.log('[Login] checkQuickAuth error:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkQuickAuth();
+  }, [checkQuickAuth]);
+
+  useFocusEffect(
+    useCallback(() => {
+      checkQuickAuth();
+    }, [checkQuickAuth])
+  );
+
   const clearError = (field) => {
     if (fieldErrors[field]) setFieldErrors(prev => ({ ...prev, [field]: undefined }));
   };
@@ -38,6 +88,195 @@ function Login({ navigation, route }) {
     if (!value) return null;
     return Array.isArray(value) ? value[0] : value;
   };
+
+  const isQuickAuthenticatingRef = useRef(false);
+
+  const quickAuthUserProfile = useMemo(() => ({
+    name: quickAuthInfo?.name,
+    email: quickAuthInfo?.email,
+  }), [quickAuthInfo?.name, quickAuthInfo?.email]);
+
+  // Reusable post-login destination routing
+  const navigatePostLogin = useCallback((resultUser, token, isQuickUnlock = false) => {
+    securityService.setJustLoggedIn(true);
+    dispatch(syncDeviceToken());
+    const role = String(resultUser?.role || '').toLowerCase();
+    const roles = (resultUser?.roles || []).map(r => String(r?.name || r || '').toLowerCase());
+
+    if (/(state|district|taluka)[-_ ]?admin/i.test(role) || roles.some(r => /(state|district|taluka)[-_ ]?admin/i.test(r))) {
+      navigation.reset({ index: 0, routes: [{ name: 'StateAdminHome' }] });
+      return;
+    }
+    if (/vendor/.test(role) || roles.some(r => /vendor/.test(r))) {
+      if (resultUser?.emailVerified === false) {
+        navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: resultUser?.email || email.trim(), nextRoute: 'VendorHome' } }] });
+        return;
+      }
+      navigation.reset({ index: 0, routes: [{ name: 'VendorHome' }] });
+      return;
+    }
+    if (/relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r))) {
+      if (resultUser?.emailVerified === false) {
+        navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: resultUser?.email || email.trim(), nextRoute: 'RMHome' } }] });
+        return;
+      }
+      navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
+      return;
+    }
+    if (/telecaller/.test(role) || roles.some(r => /telecaller/.test(r))) {
+      if (resultUser?.emailVerified === false) {
+        navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: resultUser?.email || email.trim(), nextRoute: 'TelecallerHome' } }] });
+        return;
+      }
+      navigation.reset({ index: 0, routes: [{ name: 'TelecallerHome' }] });
+      return;
+    }
+    if (/admin/.test(role) || roles.some(r => /admin/.test(r))) {
+      if (resultUser?.emailVerified === false) {
+        navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: resultUser?.email || email.trim(), nextRoute: 'AdminHome' } }] });
+        return;
+      }
+      navigation.reset({ index: 0, routes: [{ name: 'AdminHome' }] });
+      return;
+    }
+
+    if (resultUser?.emailVerified === false) {
+      navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: resultUser?.email || email.trim(), nextRoute: 'AppHome' } }] });
+      return;
+    }
+
+    const onboardingTargetRoute = selectOnboardingRoute(store.getState());
+    // Existing user quick-unlocking with biometrics/passcode navigates straight to AppHome
+    if (isQuickUnlock || onboardingTargetRoute === 'AppHome') {
+      const state = store.getState();
+      const cartItems = state.cart?.items || [];
+      const hasQuotedItem = cartItems.some(isQuotedItem);
+      const pendingQuoted = state.cart?.pendingQuotedService || route?.params?.service || route?.params?.quotedService;
+      const user = resultUser || state.user?.user;
+      const membership = user?.membership;
+      const hasMembership = (!!membership && membership !== 'None' && membership !== 'none') || (user?.membershipStatus === 'active') || (user?.has_membership === true);
+
+      if ((hasQuotedItem || pendingQuoted) && hasMembership) {
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'AppHome',
+              params: {
+                screen: 'Services',
+                params: {
+                  screen: 'Cart',
+                  params: {
+                    service: pendingQuoted,
+                    isQuoted: true,
+                  },
+                },
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      if (route?.params?.nextRoute === 'CustomPlanNew') {
+        dispatch(setPendingCustomPlanRequest(false));
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'AppHome',
+              params: {
+                screen: 'Services',
+                params: {
+                  screen: 'CustomPlanNew',
+                  params: {
+                    service: route?.params?.customPlanService,
+                  },
+                },
+              },
+            },
+          ],
+        });
+        return;
+      }
+
+      navigation.reset({ index: 0, routes: [{ name: 'AppHome' }] });
+    } else {
+      navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: onboardingTargetRoute }] });
+    }
+  }, [navigation, route, dispatch, email]);
+
+  // Handle Quick Sign In with Fingerprint or Passcode
+  const handleQuickUnlockSuccess = useCallback(async () => {
+    if (isQuickAuthenticatingRef.current) return;
+    isQuickAuthenticatingRef.current = true;
+    setShowVerifyModal(false);
+
+    try {
+      // 1. Fetch latest stored session directly from storage
+      const saved = await securityService.getQuickAuthSession();
+      const currentEmail = saved?.email || quickAuthInfo?.email || email.trim();
+      const currentPassword = saved?.password || quickAuthInfo?.password || password;
+      const currentUser = saved?.user || quickAuthInfo?.user;
+      const currentToken = saved?.token || quickAuthInfo?.token;
+
+      // 2. If we have saved email & password, authenticate with backend for a fresh valid token
+      if (currentEmail && currentPassword) {
+        try {
+          const result = await dispatch(
+            loginUser({ login: currentEmail, password: currentPassword })
+          ).unwrap();
+
+          await securityService.saveQuickAuthSession({
+            email: currentEmail,
+            password: currentPassword,
+            name: result?.user?.name,
+            token: result?.token,
+            user: result?.user,
+            role: result?.user?.role,
+          });
+
+          navigatePostLogin(result?.user, result?.token, true);
+          return;
+        } catch (err) {
+          console.log('[Login] Auto-login with saved credentials failed, falling back to session user/token:', err);
+        }
+      }
+
+      // 3. If we have saved user, log in directly and navigate straight to dashboard!
+      if (currentUser) {
+        dispatch(login({ user: currentUser, token: currentToken || 'persisted' }));
+        navigatePostLogin(currentUser, currentToken || 'persisted', true);
+        return;
+      }
+
+      // 4. Fallback only if no account is linked to this device yet
+      if (currentEmail) {
+        setEmail(currentEmail);
+      }
+      setErrorDialog({
+        type: 'info',
+        title: 'Sign In Once to Link Account',
+        message: 'Please sign in with your password once below to link your account. After this, fingerprint unlock will log you in directly!',
+        btnText: 'Enter Password',
+      });
+    } finally {
+      isQuickAuthenticatingRef.current = false;
+    }
+  }, [quickAuthInfo, email, password, dispatch, navigatePostLogin]);
+
+  const handleOpenQuickAuth = useCallback(() => {
+    if (!quickAuthInfo?.hasPasscode && !quickAuthInfo?.bioEnabled && !quickAuthInfo?.email && !email.trim()) {
+      setErrorDialog({
+        type: 'info',
+        title: 'Sign In Once to Link Account',
+        message: 'Please enter your email and password below and tap Sign In once. Your fingerprint and passcode will then be linked for instant 1-touch sign in!',
+        btnText: 'Understood',
+      });
+      return;
+    }
+    setShowVerifyModal(true);
+  }, [quickAuthInfo, email]);
 
   const handleSignIn = () => {
     const errors = {};
@@ -51,126 +290,41 @@ function Login({ navigation, route }) {
 
     dispatch(loginUser({ login: email.trim(), password }))
       .unwrap()
-      .then((result) => {
-        dispatch(syncDeviceToken());
-        // Role-based routing: vendor / relationship-manager accounts get their
-        // own app shells (and, crucially, the auth token loginUser just stored,
-        // so their APIs authenticate). Everyone else falls through to the
-        // customer onboarding/dashboard flow.
-        const role = String(result?.user?.role || '').toLowerCase();
-        const roles = (result?.user?.roles || []).map(r => String(r?.name || r || '').toLowerCase());
-        // State/District/Taluka-Admin all share the same admin app shell —
-        // the backend scopes their dashboard/vendors/users data to each
-        // one's own coverage (state vs. district vs. taluka), so one route
-        // covers all three. Must come before the generic /admin/ check below,
-        // which would otherwise wrongly send district-admin/taluka-admin into
-        // the super-admin (AdminHome) shell instead.
-        if (/(state|district|taluka)[-_ ]?admin/i.test(role) || roles.some(r => /(state|district|taluka)[-_ ]?admin/i.test(r))) {
-          navigation.reset({ index: 0, routes: [{ name: 'StateAdminHome' }] });
-          return;
-        }
-        if (/vendor/.test(role) || roles.some(r => /vendor/.test(r))) {
-          if (result?.user?.emailVerified === false) {
-            // Same token-authenticated OTP screen the customer flow uses —
-            // just points it at VendorHome instead of OnboardingProfile once verified.
-            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'VendorHome' } }] });
-            return;
-          }
-          navigation.reset({ index: 0, routes: [{ name: 'VendorHome' }] });
-          return;
-        }
-        if (/relationship|manager|\brm\b/.test(role) || roles.some(r => /relationship|manager|\brm\b/.test(r))) {
-          if (result?.user?.emailVerified === false) {
-            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'RMHome' } }] });
-            return;
-          }
-          navigation.reset({ index: 0, routes: [{ name: 'RMHome' }] });
-          return;
-        }
-        if (/telecaller/.test(role) || roles.some(r => /telecaller/.test(r))) {
-          if (result?.user?.emailVerified === false) {
-            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'TelecallerHome' } }] });
-            return;
-          }
-          navigation.reset({ index: 0, routes: [{ name: 'TelecallerHome' }] });
-          return;
-        }
-        if (/admin/.test(role) || roles.some(r => /admin/.test(r))) {
-          if (result?.user?.emailVerified === false) {
-            navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: 'VerifyEmail', params: { email: email.trim(), nextRoute: 'AdminHome' } }] });
-            return;
-          }
-          navigation.reset({ index: 0, routes: [{ name: 'AdminHome' }] });
-          return;
-        }
-        // Uses the persistent per-user onboarding record so signing out
-        // mid-onboarding resumes the wizard instead of the dashboard.
-        const onboardingTargetRoute = selectOnboardingRoute(store.getState());
-        if (onboardingTargetRoute === 'AppHome') {
-          const state = store.getState();
-          const cartItems = state.cart?.items || [];
-          const hasQuotedItem = cartItems.some(isQuotedItem);
-          const pendingQuoted = state.cart?.pendingQuotedService || route?.params?.service || route?.params?.quotedService;
-          const user = result?.user || state.user?.user;
-          const membership = user?.membership;
-          const hasMembership = (!!membership && membership !== 'None' && membership !== 'none') || (user?.membershipStatus === 'active') || (user?.has_membership === true);
+      .then(async (result) => {
+        const newUserId = result?.user?._id || result?.user?.id;
+        const newEmail = (result?.user?.email || email.trim()).toLowerCase();
 
-          if ((hasQuotedItem || pendingQuoted) && hasMembership) {
-            navigation.reset({
-              index: 0,
-              routes: [
-                {
-                  name: 'AppHome',
-                  params: {
-                    screen: 'Services',
-                    params: {
-                      screen: 'Cart',
-                      params: {
-                        service: pendingQuoted,
-                        isQuoted: true,
-                      },
-                    },
-                  },
-                },
-              ],
-            });
-            return;
-          }
+        // 1. Detect if the device had credentials from a DIFFERENT user
+        const previousSession = await securityService.getQuickAuthSession();
+        const prevUserId = previousSession?.user?._id || previousSession?.user?.id;
+        const prevEmail = (previousSession?.email || '').toLowerCase();
 
-          if (route?.params?.nextRoute === 'CustomPlanNew') {
-            // Reopening the exact tapped service via these route params —
-            // clear the redux-persisted flag/service (Services.js's other
-            // fallback for a brand-new guest who instead registers) so it
-            // doesn't go stale and bundle an unrelated custom-plan request
-            // into some other guest's registration later on this device.
-            dispatch(setPendingCustomPlanRequest(false));
-            navigation.reset({
-              index: 0,
-              routes: [
-                {
-                  name: 'AppHome',
-                  params: {
-                    screen: 'Services',
-                    params: {
-                      screen: 'CustomPlanNew',
-                      params: {
-                        service: route?.params?.customPlanService,
-                      },
-                    },
-                  },
-                },
-              ],
-            });
-            return;
-          }
+        const isDifferentUser = (prevUserId && newUserId && String(prevUserId) !== String(newUserId)) ||
+                                (prevEmail && newEmail && prevEmail !== newEmail);
 
-          // Fully onboarded → dashboard as the sole root (no back to auth).
-          navigation.reset({ index: 0, routes: [{ name: 'AppHome' }] });
+        if (isDifferentUser) {
+          // Purge previous user's passcode, biometrics, and lock settings
+          await securityService.resetAllSecurityCredentials();
+        }
+
+        // 2. Save current user's session
+        await securityService.saveQuickAuthSession({
+          email: email.trim(),
+          password,
+          name: result?.user?.name,
+          user: result?.user,
+          token: result?.token,
+          role: result?.user?.role,
+        });
+
+        // 3. Check if THIS user already has a passcode
+        const hasPasscode = await securityService.isPasscodeSet(newUserId || newEmail);
+        if (!hasPasscode) {
+          // Offer 4-digit passcode & fingerprint setup
+          setPendingLoginResult(result);
+          setShowPasscodeSetupPrompt(true);
         } else {
-          // Not onboarded → land on the wizard but keep Login directly beneath
-          // it, so the onboarding back button returns to Login (and nothing
-          // else — no intro carousel / stale pre-login stack).
-          navigation.reset({ index: 1, routes: [{ name: 'Login' }, { name: onboardingTargetRoute }] });
+          navigatePostLogin(result?.user, result?.token);
         }
       })
       .catch((error) => {
@@ -187,6 +341,7 @@ function Login({ navigation, route }) {
   const handleForgotPassword = () => {
     navigation.navigate('ForgotPassword');
   };
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]}>
@@ -247,24 +402,44 @@ function Login({ navigation, route }) {
         {!!errorFor('password') && <Text style={styles.errorText}>{errorFor('password')}</Text>}
 
         <View style={styles.optionsRow}>
-          <TouchableOpacity style={styles.checkboxRow} onPress={() => setKeepSignedIn(v => !v)} activeOpacity={0.7}>
-            {/* <View style={[styles.checkbox, keepSignedIn && { backgroundColor: C.accent, borderColor: C.accent }]}>
-              {keepSignedIn && <Icon name="check" size={14} color="white" />}
-            </View> */}
-            {/* <Text style={styles.checkboxLabel}>Keep me signed in</Text> */}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleForgotPassword}>
+          <TouchableOpacity onPress={handleForgotPassword} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={[styles.forgotText, { color: C.primary }]}>Forgot password?</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: C.accent }, submitting && styles.ctaBtnDisabled]} onPress={handleSignIn} disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Text style={styles.ctaText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.ctaRow}>
+          {quickAuthInfo ? (
+            <TouchableOpacity
+              style={styles.biometricActionBtn}
+              onPress={handleOpenQuickAuth}
+              activeOpacity={0.8}
+            >
+              <View style={styles.biometricActionIconWrap}>
+                <Icon
+                  name={quickAuthInfo.biometryType === 'FaceID' ? 'face' : 'fingerprint'}
+                  size={26}
+                  color={C.primary}
+                />
+              </View>
+            </TouchableOpacity>
+          ) : null}
+
+          <TouchableOpacity
+            style={[
+              styles.ctaBtn,
+              { backgroundColor: C.accent },
+              submitting && styles.ctaBtnDisabled,
+            ]}
+            onPress={handleSignIn}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Text style={styles.ctaText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.signUpRow} onPress={() => navigation.navigate('Register')} disabled={submitting}>
           <Text style={styles.signUpText}>New to NRI Circle? <Text style={[styles.signUpLink, { color: C.accent }]}>Create an account</Text></Text>
@@ -274,7 +449,7 @@ function Login({ navigation, route }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Styled Sign In Failed Dialog */}
+      {/* Styled Dialog */}
       <Modal
         visible={!!errorDialog}
         transparent
@@ -283,21 +458,97 @@ function Login({ navigation, route }) {
       >
         <View style={styles.dialogOverlay}>
           <View style={styles.dialogCard}>
-            <View style={styles.dialogIconWrap}>
-              <Icon name="error-outline" size={34} color="#EF4444" />
+            <View style={[styles.dialogIconWrap, errorDialog?.type === 'info' && { backgroundColor: '#EFF6FF' }]}>
+              <Icon
+                name={errorDialog?.type === 'info' ? 'check-circle' : 'error-outline'}
+                size={34}
+                color={errorDialog?.type === 'info' ? '#2563EB' : '#EF4444'}
+              />
             </View>
             <Text style={styles.dialogTitle}>{errorDialog?.title}</Text>
             <Text style={styles.dialogMessage}>{errorDialog?.message}</Text>
             <TouchableOpacity
-              style={[styles.dialogBtn, { backgroundColor: C.accent }]}
+              style={[styles.dialogBtn, { backgroundColor: errorDialog?.type === 'info' ? C.primary : C.accent }]}
               onPress={() => setErrorDialog(null)}
               activeOpacity={0.85}
             >
-              <Text style={styles.dialogBtnText}>Try Again</Text>
+              <Text style={styles.dialogBtnText}>{errorDialog?.btnText || 'Try Again'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Post-Login Setup Passcode Prompt Modal */}
+      <Modal
+        visible={showPasscodeSetupPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPasscodeSetupPrompt(false);
+          if (pendingLoginResult) navigatePostLogin(pendingLoginResult.user, pendingLoginResult.token);
+        }}
+      >
+        <View style={styles.dialogOverlay}>
+          <View style={styles.setupPromptCard}>
+            <View style={styles.setupPromptIconWrap}>
+              <Icon name="fingerprint" size={28} color={C.primary} />
+            </View>
+            <Text style={styles.setupPromptTitle}>Enable Fast Unlock?</Text>
+            <Text style={styles.setupPromptMessage}>
+              Use a 4-digit PIN or fingerprint to sign in quickly without typing your password.
+            </Text>
+            <TouchableOpacity
+              style={styles.setupPromptPrimaryBtn}
+              onPress={() => {
+                setShowPasscodeSetupPrompt(false);
+                setShowPasscodeSetupModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.setupPromptPrimaryBtnText}>Set Up Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.setupPromptSkipBtn}
+              onPress={() => {
+                setShowPasscodeSetupPrompt(false);
+                if (pendingLoginResult) navigatePostLogin(pendingLoginResult.user, pendingLoginResult.token);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.setupPromptSkipText}>Skip for now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Quick Unlock Verification Modal */}
+      <PasscodeModal
+        visible={showVerifyModal}
+        mode="verify"
+        userProfile={quickAuthUserProfile}
+        onSuccess={handleQuickUnlockSuccess}
+        onCancel={() => setShowVerifyModal(false)}
+        onFallbackToPassword={() => setShowVerifyModal(false)}
+      />
+
+      {/* Passcode Setup Modal */}
+      <PasscodeModal
+        visible={showPasscodeSetupModal}
+        mode="setup"
+        onSuccess={async () => {
+          setShowPasscodeSetupModal(false);
+          await checkQuickAuth();
+          if (pendingLoginResult) {
+            navigatePostLogin(pendingLoginResult.user, pendingLoginResult.token);
+          }
+        }}
+        onCancel={() => {
+          setShowPasscodeSetupModal(false);
+          if (pendingLoginResult) {
+            navigatePostLogin(pendingLoginResult.user, pendingLoginResult.token);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -445,7 +696,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 10,
     paddingHorizontal: 4,
   },
   checkboxRow: {
@@ -473,20 +724,51 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-SemiBold'
   },
 
-  // Glowing CTA
-  ctaBtn: {
-    flexDirection: 'row',
-    height: 60,
+  // Glowing CTA Row
+  ctaRow: {
     width: '100%',
-    borderRadius: radius.full,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 22,
+  },
+  biometricActionBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 10,
+    marginRight: 12,
+    elevation: 4,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  },
+  biometricActionIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EEF2F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Glowing CTA
+  ctaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 58,
+    borderRadius: 29,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
     shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    marginTop: 24,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
   ctaBtnDisabled: {
     opacity: 0.7
@@ -581,6 +863,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins-Bold',
     letterSpacing: 0.5,
+  },
+  setupPromptCard: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingTop: 22,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+  },
+  setupPromptIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EEF2F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  setupPromptTitle: {
+    fontSize: 18,
+    fontFamily: 'Montserrat-Bold',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  setupPromptMessage: {
+    fontSize: 13,
+    fontFamily: 'Poppins-Regular',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+    paddingHorizontal: 6,
+  },
+  setupPromptPrimaryBtn: {
+    width: '100%',
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: C.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  setupPromptPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  setupPromptSkipBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  setupPromptSkipText: {
+    color: '#64748B',
+    fontSize: 13,
+    fontFamily: 'Poppins-Medium',
   },
 });
 

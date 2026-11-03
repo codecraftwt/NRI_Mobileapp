@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as authApi from '../../Api/authApi';
 import { getDeviceName } from '../../Utils/device';
 import { getFcmToken } from '../../Services/firebase/fcmService';
+import securityService from '../../Services/securityService';
 
 // The backend doesn't currently promise an `onboarded` field on login/me
 // responses — onboarding-wizard completion is tracked purely client-side via
@@ -91,6 +92,11 @@ export const logoutUser = createAsyncThunk(
       }
     } catch (error) {
       console.log('[Logout] Server logout error (proceeding with local sign-out):', error);
+    }
+    try {
+      await securityService.resetAllSecurityCredentials();
+    } catch (secErr) {
+      console.log('[Logout] Error clearing security credentials:', secErr);
     }
     return true;
   }
@@ -275,6 +281,7 @@ const userSlice = createSlice({
       state.isAuthenticated = true;
     },
     logout: (state) => {
+      securityService.resetAllSecurityCredentials().catch(() => {});
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;

@@ -8,6 +8,10 @@
     <!-- Notification Permission -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- Biometric & Fingerprint Permissions -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

@@ -10,12 +10,13 @@ import { lightColors as colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { STATUS_BAR_HEIGHT } from '../../theme/spacing';
 import { logoutUser, uploadUserProfilePhoto, removeUserProfilePhoto, fetchCurrentUser } from '../../Redux/slices/userSlice';
+import securityService from '../../Services/securityService';
 
 const MENU_ITEMS = [
   { key: 'nri', label: 'NRI & Membership', subtitle: 'View your plan', icon: 'card-membership', route: 'ProfileNri' },
   { key: 'personal', label: 'Personal Info', subtitle: 'View and edit details', icon: 'person-outline', route: 'ProfilePersonal' },
   { key: 'address', label: 'Address', subtitle: 'View your address', icon: 'place', route: 'ProfileAddress' },
-  { key: 'password', label: 'Password', subtitle: 'Update your password', icon: 'lock-outline', route: 'ProfilePassword' },
+  { key: 'password', label: 'Password & Security', subtitle: 'Password, PIN & biometrics', icon: 'security', route: 'ProfilePassword' },
 ];
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -34,7 +35,15 @@ function Profile({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       dispatch(fetchCurrentUser());
-    }, [dispatch])
+      if (user) {
+        securityService.saveQuickAuthSession({
+          email: user?.email,
+          name: user?.name,
+          user,
+          role: user?.role,
+        });
+      }
+    }, [dispatch, user])
   );
 
   const name = user?.name || '';

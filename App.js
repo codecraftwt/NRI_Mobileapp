@@ -10,6 +10,7 @@ import AppNavigator from './src/Navigations/AppNavigator';
 import { navigationRef } from './src/Navigations/navigationRef';
 import NetworkStatusBanner from './src/Components/NetworkStatusBanner';
 import AppUpdateModal from './src/Components/AppUpdateModal';
+import SessionLockManager from './src/Components/Security/SessionLockManager';
 import useAppVersionCheck from './src/Hooks/useAppVersionCheck';
 import {
   requestUserPermission,
@@ -76,6 +77,7 @@ function App() {
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
         <SafeAreaProvider>
+          <SessionLockManager>
             <ToastProvider>
               <NavigationContainer ref={navigationRef}>
                 <AppNavigator />
@@ -88,6 +90,7 @@ function App() {
                 onClose={appUpdate.onClose}
               />
             </ToastProvider>
+          </SessionLockManager>
         </SafeAreaProvider>
       </PersistGate>
     </Provider>
