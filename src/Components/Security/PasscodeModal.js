@@ -247,6 +247,19 @@ export default function PasscodeModal({
   };
 
   const handleEnableBiometrics = async (enable) => {
+    const label = biometryType === 'FaceID' ? 'Face ID' : 'fingerprint';
+    if (enable) {
+      // Verify the sensor actually works right now, before turning it on — otherwise
+      // a broken/misconfigured sensor would only surface at the next login attempt.
+      setLoading(true);
+      const result = await securityService.promptBiometrics(`Confirm your ${label} to enable sign-in`);
+      setLoading(false);
+      if (!result.success) {
+        setErrorMessage(`We couldn't verify your ${label}. Please try again.`);
+        return;
+      }
+    }
+    setErrorMessage('');
     await securityService.setBiometricsEnabled(enable);
     setBiometricsEnabled(enable);
     if (onSuccess) onSuccess({ method: 'setup_complete', biometrics: enable });
@@ -352,11 +365,21 @@ export default function PasscodeModal({
               <Text style={styles.mainTitle}>{header.title}</Text>
               <Text style={styles.subTitle}>{header.subtitle}</Text>
 
+              {loading ? (
+                <ActivityIndicator size="small" color="#20304C" style={{ marginBottom: 8 }} />
+              ) : errorMessage ? (
+                <View style={styles.errorRow}>
+                  <Icon name="error-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
+                  <Text style={styles.errorText}>{errorMessage}</Text>
+                </View>
+              ) : null}
+
               <View style={styles.bioActions}>
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.primaryBtn]}
                   onPress={() => handleEnableBiometrics(true)}
                   activeOpacity={0.8}
+                  disabled={loading}
                 >
                   <Icon name="check" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
                   <Text style={styles.primaryBtnText}>
@@ -368,6 +391,7 @@ export default function PasscodeModal({
                   style={styles.bioSkipBtn}
                   onPress={() => handleEnableBiometrics(false)}
                   activeOpacity={0.7}
+                  disabled={loading}
                 >
                   <Text style={styles.bioSkipText}>Skip for Now</Text>
                 </TouchableOpacity>

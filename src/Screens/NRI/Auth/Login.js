@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
-import { loginUser, syncDeviceToken, login } from '../../../Redux/slices/userSlice';
+import { loginUser, syncDeviceToken, login, logout, fetchCurrentUser } from '../../../Redux/slices/userSlice';
 import { selectOnboardingRoute, setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
 import { isQuotedItem } from '../../../Redux/slices/cartSlice';
 import { store } from '../../../Redux/store';
@@ -244,14 +244,23 @@ function Login({ navigation, route }) {
         }
       }
 
-      // 3. If we have saved user, log in directly and navigate straight to dashboard!
-      if (currentUser) {
-        dispatch(login({ user: currentUser, token: currentToken || 'persisted' }));
-        navigatePostLogin(currentUser, currentToken || 'persisted', true);
-        return;
+      // 3. No saved password (e.g. biometrics was enabled without a password-based
+      // sign-in) — the cached token may already be server-revoked (e.g. by a prior
+      // logout), so it must be validated via /auth/me before trusting it. Never
+      // navigate into the app on an unverified token.
+      if (currentUser && currentToken) {
+        dispatch(login({ user: currentUser, token: currentToken }));
+        try {
+          const result = await dispatch(fetchCurrentUser()).unwrap();
+          navigatePostLogin(result?.user || currentUser, currentToken, true);
+          return;
+        } catch (err) {
+          console.log('[Login] Cached token is no longer valid, falling back to password prompt:', err);
+          dispatch(logout());
+        }
       }
 
-      // 4. Fallback only if no account is linked to this device yet
+      // 4. Fallback when no valid saved session is available for this device
       if (currentEmail) {
         setEmail(currentEmail);
       }

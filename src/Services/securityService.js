@@ -75,7 +75,7 @@ class SecurityService {
             biometryType: result.biometryType || (Platform.OS === 'ios' ? 'FaceID' : 'Fingerprint'),
             reason: 'NONE_ENROLLED',
             message: Platform.OS === 'ios'
-              ? 'Face ID is not set up on this device yet. Go to Settings > Face ID & Passcode to enable it, then return here.'
+              ? 'Face ID is not enabled on this device yet. Please enable it in your device settings first.'
               : 'Sensor detected, but no fingerprint is registered in your phone settings.',
           };
         }

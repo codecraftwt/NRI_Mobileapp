@@ -68,6 +68,16 @@ export default function ProfilePassword({ navigation }) {
   }, [loadSecurityState]);
 
   const handleToggleBiometrics = async (value) => {
+    const label = biometryType === 'FaceID' ? 'Face ID' : 'fingerprint';
+    if (value) {
+      // Verify the sensor actually works right now, before turning the toggle on —
+      // otherwise a broken/misconfigured sensor would only surface at the next login.
+      const result = await securityService.promptBiometrics(`Confirm your ${label} to enable sign-in`);
+      if (!result.success) {
+        showAlert('Verification Failed', `We couldn't verify your ${label}. Please try again.`);
+        return;
+      }
+    }
     await securityService.setBiometricsEnabled(value);
     setBiometricsEnabled(value);
     if (user && value) {
@@ -82,7 +92,7 @@ export default function ProfilePassword({ navigation }) {
     showAlert(
       value ? 'Biometrics Enabled' : 'Biometrics Disabled',
       value
-        ? `You can now sign in using ${biometryType === 'FaceID' ? 'Face ID' : 'fingerprint'}.${!hasPasscode ? ' We also recommend setting a 4-digit passcode as backup.' : ''}`
+        ? `You can now sign in using ${label}.${!hasPasscode ? ' We also recommend setting a 4-digit passcode as backup.' : ''}`
         : 'Biometric sign-in has been turned off.'
     );
   };
