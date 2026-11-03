@@ -1,4 +1,4 @@
-import { NativeModules } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sha256, generateSalt } from '../Utils/securityHash';
 
@@ -36,12 +36,15 @@ class SecurityService {
   async checkBiometricsAvailable() {
     const bridge = NativeModules?.ReactNativeBiometrics;
     if (!bridge) {
-      console.log('[SecurityService] NativeModules.ReactNativeBiometrics is missing. App rebuild required (npm run android).');
+      const rebuildHint = Platform.OS === 'ios'
+        ? 'cd ios && pod install, then rebuild (npm run ios)'
+        : 'npm run android';
+      console.log(`[SecurityService] NativeModules.ReactNativeBiometrics is missing. App rebuild required (${rebuildHint}).`);
       return {
         available: false,
         biometryType: null,
         reason: 'NATIVE_MODULE_NOT_LINKED',
-        message: 'Rebuild required: run "npm run android" to compile the new biometric library.',
+        message: `Rebuild required: run "${rebuildHint}" to compile the new biometric library.`,
       };
     }
 
