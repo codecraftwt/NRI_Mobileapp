@@ -244,8 +244,10 @@ export default function ProfilePassword({ navigation }) {
             <View style={[styles.securityItemRow, { borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 16, marginTop: 8 }]}>
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={styles.itemTitle}>App Lock</Text>
-                <Text style={styles.itemSubtitle}>
-                  Require fingerprint or passcode whenever you launch NRI Circle
+                <Text style={[styles.itemSubtitle, (!hasPasscode && !biometricsEnabled) && { color: '#B45309' }]}>
+                  {(!hasPasscode && !biometricsEnabled)
+                    ? `Set a 4-digit passcode or enable ${biometryType === 'FaceID' ? 'Face ID' : 'fingerprint'} above first`
+                    : 'Require fingerprint or passcode whenever you launch NRI Circle'}
                 </Text>
               </View>
               <Switch

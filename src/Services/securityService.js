@@ -60,27 +60,47 @@ class SecurityService {
     try {
       const result = await this.biometricsInstance.isSensorAvailable();
       if (!result.available) {
-        if (result.error === 'BIOMETRIC_ERROR_NONE_ENROLLED') {
+        const faceOrFinger = Platform.OS === 'ios' ? 'Face ID' : 'fingerprint';
+        const errorStr = String(result.error || '');
+
+        // Android reports semantic codes; iOS reports a raw NSError (LAError) string instead,
+        // so the "not enrolled" / "no hardware" cases must also be pattern-matched for iOS.
+        const notEnrolled = result.error === 'BIOMETRIC_ERROR_NONE_ENROLLED' || /not enrolled/i.test(errorStr);
+        const noHardware = result.error === 'BIOMETRIC_ERROR_NO_HARDWARE' || /not available|no hardware|biometryNone/i.test(errorStr);
+        const noDevicePasscode = /passcode is not set|passcodeNotSet/i.test(errorStr);
+
+        if (notEnrolled) {
           return {
             available: false,
-            biometryType: result.biometryType || 'Fingerprint',
+            biometryType: result.biometryType || (Platform.OS === 'ios' ? 'FaceID' : 'Fingerprint'),
             reason: 'NONE_ENROLLED',
-            message: 'Sensor detected, but no fingerprint is registered in your phone settings.',
+            message: Platform.OS === 'ios'
+              ? 'Face ID is not set up on this device yet. Go to Settings > Face ID & Passcode to enable it, then return here.'
+              : 'Sensor detected, but no fingerprint is registered in your phone settings.',
           };
         }
-        if (result.error === 'BIOMETRIC_ERROR_NO_HARDWARE') {
+        if (noDevicePasscode) {
+          return {
+            available: false,
+            biometryType: null,
+            reason: 'NO_DEVICE_PASSCODE',
+            message: `Set a device passcode in Settings first — ${faceOrFinger} requires one to be enabled.`,
+          };
+        }
+        if (noHardware) {
           return {
             available: false,
             biometryType: null,
             reason: 'NO_HARDWARE',
-            message: 'No fingerprint/biometric sensor found on this device.',
+            message: `No ${faceOrFinger.toLowerCase()} sensor found on this device.`,
           };
         }
+        // Never surface the raw native error string to end users.
         return {
           available: false,
           biometryType: result.biometryType || null,
           reason: result.error || 'UNAVAILABLE',
-          message: result.error || 'Biometric hardware is currently unavailable.',
+          message: `${faceOrFinger} is currently unavailable on this device.`,
         };
       }
 

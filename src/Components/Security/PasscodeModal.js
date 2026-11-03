@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import securityService from '../../Services/securityService';
 import PasscodeKeypad from './PasscodeKeypad';
 
@@ -43,6 +44,8 @@ export default function PasscodeModal({
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometryType, setBiometryType] = useState('Biometrics');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  // iOS Face ID gets Apple's scan-frame style glyph; Touch ID/Android fingerprint keep the standard fingerprint icon.
+  const isIosFaceId = Platform.OS === 'ios' && biometryType === 'FaceID';
 
   // Animations and execution tracking
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -340,11 +343,11 @@ export default function PasscodeModal({
           {mode === 'setup' && setupStep === 3 ? (
             <View style={styles.biometricPromptCard}>
               <View style={styles.bioIconCircle}>
-                <Icon
-                  name={biometryType === 'FaceID' ? 'face' : 'fingerprint'}
-                  size={46}
-                  color="#20304C"
-                />
+                {isIosFaceId ? (
+                  <MCIcon name="face-recognition" size={46} color="#20304C" />
+                ) : (
+                  <Icon name="fingerprint" size={46} color="#20304C" />
+                )}
               </View>
               <Text style={styles.mainTitle}>{header.title}</Text>
               <Text style={styles.subTitle}>{header.subtitle}</Text>

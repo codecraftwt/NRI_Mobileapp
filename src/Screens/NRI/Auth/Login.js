@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, StatusBar, Dimensions, SafeAreaView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser, syncDeviceToken, login } from '../../../Redux/slices/userSlice';
 import { selectOnboardingRoute, setPendingCustomPlanRequest } from '../../../Redux/slices/onboardingSlice';
@@ -415,11 +416,11 @@ function Login({ navigation, route }) {
               activeOpacity={0.8}
             >
               <View style={styles.biometricActionIconWrap}>
-                <Icon
-                  name={quickAuthInfo.biometryType === 'FaceID' ? 'face' : 'fingerprint'}
-                  size={26}
-                  color={C.primary}
-                />
+                {Platform.OS === 'ios' && quickAuthInfo.biometryType === 'FaceID' ? (
+                  <MCIcon name="face-recognition" size={26} color={C.primary} />
+                ) : (
+                  <Icon name="fingerprint" size={26} color={C.primary} />
+                )}
               </View>
             </TouchableOpacity>
           ) : null}

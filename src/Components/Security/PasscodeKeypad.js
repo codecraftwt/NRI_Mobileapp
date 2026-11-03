@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MCIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export default function PasscodeKeypad({
   onDigitPress,
@@ -10,10 +11,10 @@ export default function PasscodeKeypad({
   biometryType = 'Biometrics',
   disabled = false,
 }) {
-  const getBiometricIcon = () => {
-    if (biometryType === 'FaceID') return 'face';
-    return 'fingerprint';
-  };
+  // iOS Face ID gets Apple's scan-frame style glyph; Touch ID/Android fingerprint keep the standard fingerprint icon.
+  const isIosFaceId = Platform.OS === 'ios' && biometryType === 'FaceID';
+  const BiometricIcon = isIosFaceId ? MCIcon : Icon;
+  const biometricIconName = isIosFaceId ? 'face-recognition' : 'fingerprint';
 
   const rows = [
     ['1', '2', '3'],
@@ -40,7 +41,7 @@ export default function PasscodeKeypad({
                   activeOpacity={0.6}
                   accessibilityLabel="Use fingerprint or face recognition"
                 >
-                  <Icon name={getBiometricIcon()} size={32} color="#20304C" />
+                  <BiometricIcon name={biometricIconName} size={32} color="#20304C" />
                 </TouchableOpacity>
               );
             }

@@ -2,7 +2,6 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as authApi from '../../Api/authApi';
 import { getDeviceName } from '../../Utils/device';
 import { getFcmToken } from '../../Services/firebase/fcmService';
-import securityService from '../../Services/securityService';
 
 // The backend doesn't currently promise an `onboarded` field on login/me
 // responses — onboarding-wizard completion is tracked purely client-side via
@@ -82,6 +81,9 @@ export const syncDeviceToken = createAsyncThunk(
 
 // Call POST /api/v1/auth/logout before discarding the API token server-side,
 // ensuring the FCM token is detached from this user's account so pushes stop.
+// Biometric/passcode credentials are intentionally left in place (like HDFC/PayPal) so the
+// same user can quick-unlock on next login; they're only purged when a different user signs in
+// (see isDifferentUser check in Login.js's handleSignIn).
 export const logoutUser = createAsyncThunk(
   'user/logout',
   async (_, { getState }) => {
@@ -92,11 +94,6 @@ export const logoutUser = createAsyncThunk(
       }
     } catch (error) {
       console.log('[Logout] Server logout error (proceeding with local sign-out):', error);
-    }
-    try {
-      await securityService.resetAllSecurityCredentials();
-    } catch (secErr) {
-      console.log('[Logout] Error clearing security credentials:', secErr);
     }
     return true;
   }
@@ -281,7 +278,6 @@ const userSlice = createSlice({
       state.isAuthenticated = true;
     },
     logout: (state) => {
-      securityService.resetAllSecurityCredentials().catch(() => {});
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
