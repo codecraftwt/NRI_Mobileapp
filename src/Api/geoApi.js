@@ -33,9 +33,14 @@ function mapState(raw) {
   };
 }
 
-export async function getStates() {
+// Customer-facing screens must pass forCustomer so the backend scopes the
+// list to Maharashtra only; vendor sign-up/coverage screens call this with
+// no args to keep getting every active state.
+export async function getStates({ forCustomer } = {}) {
   try {
-    const response = await apiClient.get('/geo/states');
+    const params = {};
+    if (forCustomer) params.for = 'customer';
+    const response = await apiClient.get('/geo/states', { params });
     const list = response.data?.data || response.data || [];
     return list.map(mapState);
   } catch (error) {

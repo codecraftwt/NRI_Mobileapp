@@ -12,14 +12,19 @@ import { saveCustomerServiceLocation } from '../../Api/cartApi';
 // that every services screen depends on.
 export const saveServiceLocation = createAsyncThunk(
   'serviceLocation/save',
-  async ({ stateName, cityName, cityId, pincode }, { getState }) => {
+  async ({ stateId, stateName, cityName, cityId, pincode }, { getState, rejectWithValue }) => {
     try {
       const isAuthenticated = getState().user?.isAuthenticated;
       if (isAuthenticated && cityId) {
-        await saveCustomerServiceLocation({ cityId, pincode });
+        await saveCustomerServiceLocation({ stateId, cityId, pincode });
       }
     } catch (error) {
-      // Swallow — the local location still applies below regardless.
+      // The backend's Maharashtra-only check must block the save so the
+      // caller can show it inline — everything else (network hiccups, etc.)
+      // still swallows so the local location applies regardless.
+      if (error?.errors?.state_id) {
+        return rejectWithValue(error);
+      }
     }
     return { stateName, cityName, cityId, pincode: pincode ?? null };
   }

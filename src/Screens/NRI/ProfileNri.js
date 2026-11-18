@@ -122,7 +122,7 @@ export default function ProfileNri({ navigation }) {
   const user = useSelector(state => state.user.user);
   const dispatch = useDispatch();
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
 
   const { members: familyMembers, retry: retryFamily } = useFamilyMembers();
   const { properties, retry: retryProperties } = useProperties();

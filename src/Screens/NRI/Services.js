@@ -151,12 +151,18 @@ function Services({ navigation, route }) {
   );
 
   const savedLocation = useSelector(s => s.serviceLocation);
+  // Resolve against both state caches — this screen never fetches states
+  // itself, so whichever cache (unfiltered or Maharashtra-only) another
+  // screen happened to populate may hold the saved location's state name.
   const geoStates = useSelector(s => s.geo.states);
+  const geoCustomerStates = useSelector(s => s.geo.customerStates);
   const hasLocation = !!(savedLocation?.cityId && savedLocation?.stateName && savedLocation?.cityName);
   // Resolve the numeric state id from the saved state name — the /services API
   // needs state_id (alongside city_id) to return state-specific pricing;
   // without it some services come back with no price.
-  const stateId = savedLocation?.stateName ? geoStates.find(s => s.name === savedLocation.stateName)?.id || null : null;
+  const stateId = savedLocation?.stateName
+    ? (geoStates.find(s => s.name === savedLocation.stateName)?.id ?? geoCustomerStates.find(s => s.name === savedLocation.stateName)?.id ?? null)
+    : null;
 
   const displayCategories = categories.map(c => ({ ...c, ...detailsFor(c.name), displayName: detailsFor(c.name).displayName || c.name }));
   // "All Categories" first, then every category.

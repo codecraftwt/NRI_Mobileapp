@@ -140,7 +140,12 @@ function FinishRequest({ route, navigation }) {
     : mode === 'quoted' ? (form.city || pendingQuoted?.cityName)
     : pendingTicket?.cityName;
 
-  const { stateNames, states } = useStates();
+  const { stateNames, states } = useStates({ forCustomer: true });
+  // Unfiltered — needed to resolve a PIN lookup's state_id to a name for ANY
+  // state, since /geo/postal-codes isn't scoped to Maharashtra like the
+  // dropdown above is.
+  const { states: allStates } = useStates();
+  const [stateError, setStateError] = useState(null);
   const { cityNames, cities } = useCities(form.state);
   const { talukaNames, talukas } = useTalukas(null, cityName);
   const { priorities } = usePriorities();
@@ -161,6 +166,7 @@ function FinishRequest({ route, navigation }) {
 
   useEffect(() => {
     const code = form.pincode ? form.pincode.trim() : '';
+    setStateError(null);
     if (code.length !== 6) {
       setPincodeLocation(null);
       return;
@@ -174,7 +180,14 @@ function FinishRequest({ route, navigation }) {
           setPincodeLocation(null);
           return;
         }
-        const stateName = match.stateName || states.find(s => s.id === match.stateId)?.name || '';
+        const stateName = match.stateName || allStates.find(s => s.id === match.stateId)?.name || '';
+        if (stateName && stateName.trim().toLowerCase() !== 'maharashtra') {
+          // Not a state we serve — surface it like the dropdown's own 422
+          // would, instead of silently leaving State/City blank.
+          setPincodeLocation(null);
+          setStateError(`Sorry, we don't serve ${stateName} yet — we're currently available in Maharashtra only.`);
+          return;
+        }
         setPincodeLocation({
           code,
           stateName,
@@ -187,6 +200,7 @@ function FinishRequest({ route, navigation }) {
         if (match.talukaName) setField('taluka', match.talukaName);
         if (stateName && match.cityName && match.cityId) {
           dispatch(saveServiceLocation({
+            stateId: match.stateId,
             stateName,
             cityName: match.cityName,
             cityId: match.cityId,
@@ -314,6 +328,7 @@ function FinishRequest({ route, navigation }) {
 
   const handleSubmit = async () => {
     if (loading || !validate()) return;
+    setStateError(null);
     setSubmitting(true);
     try {
       const talukaId = talukas.find(t => t.name === form.taluka)?.id || null;
@@ -399,6 +414,11 @@ function FinishRequest({ route, navigation }) {
             { text: 'Choose Plan', onPress: () => navigation.navigate('MembershipCheckout', { mode: 'new' }) },
           ]
         );
+        return;
+      }
+      const stateMsg = error?.errors?.state_id;
+      if (stateMsg) {
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
         return;
       }
       showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
@@ -513,8 +533,9 @@ function FinishRequest({ route, navigation }) {
                 value={form.state}
                 placeholder="Select state"
                 options={stateNames}
-                onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }}
+                onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); setStateError(null); }}
               />
+              {!!stateError && <Text style={styles.fieldError}>{stateError}</Text>}
 
               <FormSelect
                 label="City / District"
@@ -656,6 +677,7 @@ const styles = StyleSheet.create({
 
   fieldLabel: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#20304C', marginBottom: 6, marginTop: 2 },
   fieldHint: { fontSize: 11.5, color: '#94A3B8', lineHeight: 17, marginBottom: 2 },
+  fieldError: { fontSize: 12.5, color: '#DC2626', marginTop: -8, marginBottom: 10 },
   input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 48, color: '#1E293B', fontSize: 14, marginBottom: 14 },
   inputMultiline: { height: 88, paddingTop: 12, textAlignVertical: 'top' },
   pincodeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

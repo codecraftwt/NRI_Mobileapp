@@ -163,7 +163,8 @@ function CreateTicket({ route, navigation }) {
   const [checkoutSession, setCheckoutSession] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
+  const [stateError, setStateError] = useState(null);
   // Real geo cities (GET /geo/cities?state_id=) — vendor availability and
   // pricing are keyed on the city, and city_id is now required at checkout.
   const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(state);
@@ -606,6 +607,7 @@ function CreateTicket({ route, navigation }) {
   // never accept files, so there's nothing to finalize afterward.
   const submitSubscription = async (gateway) => {
     if (!isValid) return;
+    setStateError(null);
     try {
       const talukaId = talukas.find(t => t.name === taluka)?.id || null;
       const result = await createSubscription({
@@ -670,12 +672,18 @@ function CreateTicket({ route, navigation }) {
         );
         return;
       }
+      const stateMsg = error?.errors?.state_id;
+      if (stateMsg) {
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
+        return;
+      }
       showAlert('Subscription Failed', error?.message || 'Could not start your subscription. Please try again.');
     }
   };
 
   const handleSubmit = async () => {
     if (!isValid) return;
+    setStateError(null);
     if (isRecurring) {
       // Billed through the customer's chosen international gateway.
       submitSubscription(paymentMethod);
@@ -788,6 +796,11 @@ function CreateTicket({ route, navigation }) {
           error?.message || 'Payment could not be completed. Your request has been saved, but it will not be processed until payment is completed.',
           [{ text: 'OK', onPress: () => navigation.navigate('TicketDetail', { ticketId: createdTicketId }) }]
         );
+        return;
+      }
+      const stateMsg = error?.errors?.state_id;
+      if (stateMsg) {
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
         return;
       }
       showAlert('Submission Failed', error?.message || 'Could not submit your request. Please try again.');
@@ -1081,9 +1094,11 @@ function CreateTicket({ route, navigation }) {
             onSelect={(v) => {
               setState(v);
               setCity('');
+              setStateError(null);
             }}
             loading={loadingStates}
           />
+          {!!stateError && <Text style={styles.retryText}>{stateError}</Text>}
           {statesFailed && !locationLocked && (
             <TouchableOpacity onPress={retryStates}>
               <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>

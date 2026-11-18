@@ -9,13 +9,19 @@ import { fetchServices } from '../Redux/slices/catalogSlice';
 export function useServicesByCategory(categoryName, stateName, { type = 'base', cityId = null } = {}) {
   const dispatch = useDispatch();
   const categories = useSelector(state => state.catalog.categories);
+  // Resolve against both state caches — the caller may have loaded the
+  // unfiltered list (vendor/staff screens) or the Maharashtra-only one
+  // (customer screens); either can hold the name being looked up here.
   const states = useSelector(state => state.geo.states);
+  const customerStates = useSelector(state => state.geo.customerStates);
   const services = useSelector(state => state.catalog[type].services);
   const status = useSelector(state => state.catalog[type].status);
   const error = useSelector(state => state.catalog[type].error);
 
   const categoryId = categoryName ? categories.find(c => c.name === categoryName)?.id : null;
-  const stateId = stateName ? states.find(s => s.name === stateName)?.id : null;
+  const stateId = stateName
+    ? (states.find(s => s.name === stateName)?.id ?? customerStates.find(s => s.name === stateName)?.id ?? null)
+    : null;
 
   const lastFilterRef = useRef(null);
 

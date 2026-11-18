@@ -154,9 +154,10 @@ function CustomPlanNew({ navigation, route }) {
   const [quote, setQuote] = useState(null); // { fingerprint, ...create() result }
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState(null);
+  const [stateError, setStateError] = useState(null);
   const lastFetchedFingerprintRef = useRef(null);
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
   const { cities, cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useCities(stateVal);
 
   useEffect(() => {
@@ -293,6 +294,7 @@ function CustomPlanNew({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (!isValid) return;
+    setStateError(null);
     try {
       // Always save fresh with the customer's real Subject/Message/State/City
       // — the live `quote` above is only a fee preview (placeholder text,
@@ -391,6 +393,11 @@ function CustomPlanNew({ navigation, route }) {
         );
         return;
       }
+      const stateMsg = error?.errors?.state_id;
+      if (stateMsg) {
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
+        return;
+      }
       showAlert('Could Not Submit', error?.message || 'Please try again.');
     }
   };
@@ -424,7 +431,7 @@ function CustomPlanNew({ navigation, route }) {
                   placeholder="Select state..."
                   options={stateNames}
                   loading={loadingStates}
-                  onSelect={(v) => { setStateVal(v); setCity(''); }}
+                  onSelect={(v) => { setStateVal(v); setCity(''); setStateError(null); }}
                   style={styles.rowItem}
                   required
                 />
@@ -440,6 +447,7 @@ function CustomPlanNew({ navigation, route }) {
                   required
                 />
               </View>
+              {!!stateError && <Text style={styles.retryText}>{stateError}</Text>}
               {statesFailed && (
                 <TouchableOpacity onPress={retryStates}>
                   <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>

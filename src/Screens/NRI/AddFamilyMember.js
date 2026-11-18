@@ -26,8 +26,29 @@ const RELATIONSHIP_OPTIONS = ['Myself', 'Parent', 'Spouse', 'Child', 'Sibling', 
 const RELATIONSHIP_TO_API = { Myself: 'myself', Parent: 'parent', Spouse: 'spouse', Child: 'child', Sibling: 'sibling', Other: 'other' };
 const RELATIONSHIP_FROM_API = { myself: 'Myself', parent: 'Parent', spouse: 'Spouse', child: 'Child', sibling: 'Sibling', other: 'Other' };
 
+// Centered picker dialog with search — same pattern as CustomPlanNew.js.
+function PickerSheet({ visible, onClose, title, children }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          {children}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 function SelectField({ label, required, value, placeholder, options, disabled, loading, onSelect }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const displayOptions = query ? options.filter(o => o.toLowerCase().includes(query.toLowerCase())) : options;
+
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.inputLabel}>
@@ -37,7 +58,7 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
       <TouchableOpacity
         style={[styles.selectBox, (disabled || loading) && styles.selectBoxDisabled]}
         disabled={disabled || loading}
-        onPress={() => setOpen(true)}
+        onPress={() => { setQuery(''); setOpen(true); }}
         activeOpacity={0.7}
       >
         {loading ? (
@@ -55,30 +76,42 @@ function SelectField({ label, required, value, placeholder, options, disabled, l
         )}
       </TouchableOpacity>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>{label}</Text>
-            <FlatList
-              data={options}
-              keyExtractor={item => item}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    onSelect(item);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={[styles.modalOptionText, item === value && { color: '#1E3A8A', fontWeight: '700' }]}>{item}</Text>
-                  {item === value && <Icon name="check" size={20} color="#1E3A8A" />}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      <PickerSheet visible={open} onClose={() => setOpen(false)} title={label}>
+        <View style={styles.searchWrap}>
+          <Icon name="search" size={20} color="#94A3B8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search..."
+            placeholderTextColor="#94A3B8"
+            value={query}
+            onChangeText={setQuery}
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} style={styles.searchClear} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Icon name="close" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <FlatList
+          data={displayOptions}
+          keyExtractor={(item, index) => `${item}-${index}`}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.modalOption}
+              onPress={() => {
+                onSelect(item);
+                setOpen(false);
+              }}
+            >
+              <Text style={[styles.modalOptionText, item === value && styles.modalOptionTextActive]}>{item}</Text>
+              {item === value && <Icon name="check-circle" size={20} color="#1E3A8A" />}
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={<Text style={styles.emptyText}>No matches found.</Text>}
+        />
+      </PickerSheet>
     </View>
   );
 }
@@ -99,9 +132,10 @@ function AddFamilyMember({ navigation, route }) {
   const [showDobPicker, setShowDobPicker] = useState(false);
   const [healthNotes, setHealthNotes] = useState('');
   const [hasPopulated, setHasPopulated] = useState(false);
+  const [stateError, setStateError] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
   const { loading: loadingDetail, failed: detailFailed, fetchDetail } = useFamilyMemberDetail();
   const submitting = useSelector(state => state.family.mutationStatus === 'loading');
@@ -158,6 +192,7 @@ function AddFamilyMember({ navigation, route }) {
       ? updateFamilyMember({ id: memberId, ...payload })
       : addFamilyMember(payload);
 
+    setStateError(null);
     dispatch(action)
       .unwrap()
       .then(() => {
@@ -166,7 +201,12 @@ function AddFamilyMember({ navigation, route }) {
         ]);
       })
       .catch((error) => {
-        showAlert('Failed', error?.message || `Could not ${isEditing ? 'update' : 'add'} this family member.`);
+        const stateMsg = error?.errors?.state_id;
+        if (stateMsg) {
+          setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
+        } else {
+          showAlert('Failed', error?.message || `Could not ${isEditing ? 'update' : 'add'} this family member.`);
+        }
       });
   };
 
@@ -244,9 +284,10 @@ function AddFamilyMember({ navigation, route }) {
                 value={stateVal}
                 placeholder="Select State..."
                 options={stateNames}
-                onSelect={(v) => { setStateVal(v); setCity(''); }}
+                onSelect={(v) => { setStateVal(v); setCity(''); setStateError(null); }}
                 loading={loadingStates}
               />
+              {!!stateError && <Text style={styles.retryText}>{stateError}</Text>}
               {statesFailed && (
                 <TouchableOpacity onPress={retryStates}>
                   <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
@@ -415,27 +456,26 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.5 },
   submitBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '60%',
-    paddingBottom: 24,
-    paddingTop: 12,
-  },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', paddingHorizontal: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  modalCard: { width: '100%', maxWidth: 420, maxHeight: '78%', backgroundColor: '#FFFFFF', borderRadius: 24, paddingTop: 18, paddingBottom: 12, overflow: 'hidden', elevation: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', textAlign: 'center' },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', marginHorizontal: 20, marginVertical: 12, borderRadius: 12, paddingHorizontal: 12, height: 48, borderWidth: 1, borderColor: '#E2E8F0' },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: '#1E293B', height: '100%' },
+  searchClear: { marginLeft: 8, padding: 2 },
+  listContent: { paddingBottom: 12 },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#F8FAFC',
   },
   modalOptionText: { fontSize: 15, color: '#0F172A' },
+  modalOptionTextActive: { color: '#1E3A8A', fontWeight: '700' },
+  emptyText: { textAlign: 'center', color: '#94A3B8', marginTop: 24, paddingHorizontal: 20, paddingBottom: 12 },
 });
 
 export default AddFamilyMember;

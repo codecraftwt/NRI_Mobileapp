@@ -274,7 +274,7 @@ function OnboardingProfile({ navigation }) {
   const cartItems = useSelector(selectCartItems);
   const [cartModalVisible, setCartModalVisible] = useState(false);
   const { countries, countryNames, loading: loadingCountries, failed: countriesFailed, retry: retryCountries } = useCountries();
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
   const [country, setCountry] = useState(draftProfile?.countryOfResidence || user?.countryOfResidence || '');
   const [stateProvince, setStateProvince] = useState(draftProfile?.stateProvince || user?.stateProvince || '');
   const [city, setCity] = useState(draftProfile?.city || user?.city || '');

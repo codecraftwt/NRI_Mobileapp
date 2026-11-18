@@ -15,11 +15,14 @@ export const fetchCountries = createAsyncThunk(
 );
 
 // Same caching rationale as fetchCountries, for the Indian state selector.
+// Cached per forCustomer flag in two separate slots (see initialState)
+// since customer screens get the Maharashtra-only list while vendor
+// screens get every state.
 export const fetchStates = createAsyncThunk(
   'geo/fetchStates',
-  async (_, { rejectWithValue }) => {
+  async (forCustomer, { rejectWithValue }) => {
     try {
-      return await geoApi.getStates();
+      return await geoApi.getStates({ forCustomer });
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -102,9 +105,16 @@ const initialState = {
   countries: [], // [{ id, name, isoCode }]
   countriesStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   countriesError: null,
-  states: [], // [{ id, name }]
+  states: [], // [{ id, name }] — unfiltered (vendor sign-up/coverage, staff screens)
   statesStatus: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
   statesError: null,
+  // Separate cache for the Maharashtra-only customer list — kept apart from
+  // `states` above so a screen using one doesn't thrash the other's status
+  // (two screens mounted at once with different forCustomer would otherwise
+  // fight over a single shared status/cache-key, looping fetches forever).
+  customerStates: [],
+  customerStatesStatus: 'idle',
+  customerStatesError: null,
   districts: [], // [{ id, stateId, name }]
   districtsStatus: 'idle',
   districtsError: null,
@@ -149,17 +159,33 @@ const geoSlice = createSlice({
         state.countriesStatus = 'failed';
         state.countriesError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
       })
-      .addCase(fetchStates.pending, (state) => {
-        state.statesStatus = 'loading';
-        state.statesError = null;
+      .addCase(fetchStates.pending, (state, action) => {
+        if (action.meta.arg) {
+          state.customerStatesStatus = 'loading';
+          state.customerStatesError = null;
+        } else {
+          state.statesStatus = 'loading';
+          state.statesError = null;
+        }
       })
       .addCase(fetchStates.fulfilled, (state, action) => {
-        state.statesStatus = 'succeeded';
-        state.states = action.payload;
+        if (action.meta.arg) {
+          state.customerStatesStatus = 'succeeded';
+          state.customerStates = action.payload;
+        } else {
+          state.statesStatus = 'succeeded';
+          state.states = action.payload;
+        }
       })
       .addCase(fetchStates.rejected, (state, action) => {
-        state.statesStatus = 'failed';
-        state.statesError = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+        const err = action.payload || { message: 'Something went wrong. Please try again.', errors: null };
+        if (action.meta.arg) {
+          state.customerStatesStatus = 'failed';
+          state.customerStatesError = err;
+        } else {
+          state.statesStatus = 'failed';
+          state.statesError = err;
+        }
       })
       .addCase(fetchDistricts.pending, (state, action) => {
         state.districtsStatus = 'loading';

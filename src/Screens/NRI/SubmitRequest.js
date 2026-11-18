@@ -205,7 +205,12 @@ function SubmitRequest({ navigation, route }) {
     }
   }, [isQuotedOnlyCart]);
 
-  const { stateNames, states } = useStates();
+  const { stateNames, states } = useStates({ forCustomer: true });
+  // Unfiltered — needed to resolve a PIN lookup's state_id to a name for ANY
+  // state, since /geo/postal-codes isn't scoped to Maharashtra like the
+  // dropdown above is.
+  const { states: allStates } = useStates();
+  const [stateError, setStateError] = useState(null);
   const { cityNames, cities } = useCities(reqForm.state);
   const { talukaNames, talukas } = useTalukas(null, reqForm.city);
   const { priorities } = usePriorities();
@@ -311,6 +316,7 @@ function SubmitRequest({ navigation, route }) {
 
   useEffect(() => {
     const code = reqForm.pincode.trim();
+    setStateError(null);
     if (code.length !== 6) {
       setPincodeLocation(null);
       return;
@@ -324,7 +330,14 @@ function SubmitRequest({ navigation, route }) {
           setPincodeLocation(null);
           return;
         }
-        const stateName = match.stateName || states.find(s => s.id === match.stateId)?.name || '';
+        const stateName = match.stateName || allStates.find(s => s.id === match.stateId)?.name || '';
+        if (stateName && stateName.trim().toLowerCase() !== 'maharashtra') {
+          // Not a state we serve — surface it like the dropdown's own 422
+          // would, instead of silently leaving State/City blank.
+          setPincodeLocation(null);
+          setStateError(`Sorry, we don't serve ${stateName} yet — we're currently available in Maharashtra only.`);
+          return;
+        }
         setPincodeLocation({
           code,
           stateName,
@@ -337,6 +350,7 @@ function SubmitRequest({ navigation, route }) {
         if (match.talukaName) setField('taluka', match.talukaName);
         if (stateName && match.cityName && match.cityId) {
           dispatch(saveServiceLocation({
+            stateId: match.stateId,
             stateName,
             cityName: match.cityName,
             cityId: match.cityId,
@@ -712,6 +726,7 @@ function SubmitRequest({ navigation, route }) {
 
   const handleSubmit = async () => {
     if (loading || submissionLockRef.current) return;
+    setStateError(null);
     if (!validateDetails()) { setStep('details'); return; }
     if (quoteBlocking) { showAlert('Not Available', quoteErrorMessage); return; }
     if (!isQuotedOnlyCart && !paymentMethod) {
@@ -996,6 +1011,12 @@ function SubmitRequest({ navigation, route }) {
           error?.message || 'Payment could not be completed. Your request has been saved, but it will not be processed until payment is completed.',
           [{ text: 'OK', onPress: () => goToTicketAfterExit(createdTicketId) }]
         );
+        return;
+      }
+      if (error?.errors?.state_id) {
+        const stateMsg = error.errors.state_id;
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
+        setStep('details');
         return;
       }
       // Surface the backend's exact reason (401 unauthenticated, 422 validation
@@ -1347,7 +1368,8 @@ function SubmitRequest({ navigation, route }) {
               relation={reqForm.relation}
               onChangeRelation={v => setField('relation', v)}
             />
-            <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); }} />
+            <FormSelect label="State" required value={reqForm.state} placeholder="Select state" options={stateNames} onSelect={v => { setField('state', v); setField('city', ''); setField('taluka', ''); setStateError(null); }} />
+            {!!stateError && <Text style={styles.fieldError}>{stateError}</Text>}
             <FormSelect label="City / District" required value={reqForm.city} placeholder={reqForm.state ? 'Select city' : 'Select state first'} options={cityNames} disabled={!reqForm.state} onSelect={v => { setField('city', v); setField('taluka', ''); }} />
             <FormSelect label="Taluka" value={reqForm.taluka} placeholder={reqForm.city ? 'Select taluka' : 'Select city first'} options={talukaNames} disabled={!reqForm.city} onSelect={v => setField('taluka', v)} />
 
@@ -1653,6 +1675,7 @@ const styles = StyleSheet.create({
 
   fieldLabel: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#20304C', marginBottom: 6, marginTop: 2 },
   fieldHint: { fontSize: 11.5, color: '#94A3B8', lineHeight: 17, marginBottom: 2 },
+  fieldError: { fontSize: 12.5, color: '#DC2626', marginTop: -8, marginBottom: 10 },
   docInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   docChooseBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 14, height: 44, backgroundColor: '#F8FAFC' },
   docChooseBtnText: { fontSize: 13, fontFamily: typography.h4.fontFamily, color: '#20304C' },

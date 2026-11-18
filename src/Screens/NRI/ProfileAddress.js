@@ -92,7 +92,7 @@ export default function ProfileAddress({ navigation }) {
   const user = useSelector(s => s.user.user);
   const indiaAddress = user?.indiaAddress || {};
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
 
   const [selectedState, setSelectedState] = useState(indiaAddress.state || '');
   const [selectedCity, setSelectedCity] = useState(indiaAddress.city || '');

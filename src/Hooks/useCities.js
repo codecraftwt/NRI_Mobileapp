@@ -4,13 +4,19 @@ import { fetchCities } from '../Redux/slices/geoSlice';
 
 export function useCities(stateName, districtName) {
   const dispatch = useDispatch();
+  // Resolve against both state caches — the caller may have loaded the
+  // unfiltered list (vendor/staff screens) or the Maharashtra-only one
+  // (customer screens); either can hold the name being looked up here.
   const states = useSelector(state => state.geo.states);
+  const customerStates = useSelector(state => state.geo.customerStates);
   const districts = useSelector(state => state.geo.districts);
   const cities = useSelector(state => state.geo.cities);
   const status = useSelector(state => state.geo.citiesStatus);
   const error = useSelector(state => state.geo.citiesError);
 
-  const stateId = stateName ? states.find(s => s.name === stateName)?.id : null;
+  const stateId = stateName
+    ? (states.find(s => s.name === stateName)?.id ?? customerStates.find(s => s.name === stateName)?.id ?? null)
+    : null;
   const districtId = districtName ? districts.find(d => d.name === districtName)?.id : null;
 
   const lastFilterRef = useRef(null);

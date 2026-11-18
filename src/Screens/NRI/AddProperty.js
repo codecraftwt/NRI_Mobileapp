@@ -517,9 +517,10 @@ function AddProperty({ navigation, route }) {
   // Add-mode only: files picked before the property exists, uploaded on save.
   const [pendingFiles, setPendingFiles] = useState([]);
   const [finishing, setFinishing] = useState(false);
+  const [stateError, setStateError] = useState(null);
   const { showAlert, alertProps } = useAppAlert();
 
-  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates();
+  const { states, stateNames, loading: loadingStates, failed: statesFailed, retry: retryStates } = useStates({ forCustomer: true });
   const { districts: cities, districtNames: cityNames, loading: loadingCities, failed: citiesFailed, retry: retryCities } = useDistricts(stateVal);
   const { loading: loadingPostalLookup, lookup: lookupPostalCode } = usePostalCodeLookup();
   const { detail, loading: loadingDetail, failed: detailFailed, fetchDetail, uploadAttachment } = usePropertyDetail();
@@ -605,6 +606,7 @@ function AddProperty({ navigation, route }) {
       notes,
     };
 
+    setStateError(null);
     setFinishing(true);
     try {
       const result = isEdit
@@ -632,7 +634,12 @@ function AddProperty({ navigation, route }) {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
+      const stateMsg = error?.errors?.state_id;
+      if (stateMsg) {
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : stateMsg);
+      } else {
+        showAlert('Failed', error?.message || `Could not ${isEdit ? 'update' : 'add'} this property.`);
+      }
     } finally {
       setFinishing(false);
     }
@@ -702,7 +709,7 @@ function AddProperty({ navigation, route }) {
                   value={stateVal}
                   placeholder="Select State..."
                   options={stateNames}
-                  onSelect={(v) => { setStateVal(v); setCity(''); }}
+                  onSelect={(v) => { setStateVal(v); setCity(''); setStateError(null); }}
                   style={styles.rowItem}
                   loading={loadingStates}
                 />
@@ -717,6 +724,7 @@ function AddProperty({ navigation, route }) {
                   style={styles.rowItem}
                 />
               </View>
+              {!!stateError && <Text style={styles.retryText}>{stateError}</Text>}
               {statesFailed && (
                 <TouchableOpacity onPress={retryStates}>
                   <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>

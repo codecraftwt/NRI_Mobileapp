@@ -12,7 +12,13 @@ import { usePostalCodeLookup } from '../Hooks/usePostalCodeLookup';
 // it up (/geo/postal-codes) and resolve the state + city from the geo chain,
 // then persist { stateName, cityName, cityId } to the serviceLocation slice so
 // every services list/detail refetches for that city. State name isn't in the
-// payload (only city.state_id) — it's resolved from the cached states list.
+// payload (only city.state_id) — it's resolved from the states list.
+//
+// This resolution has to use the unfiltered (non-customer) states list, not
+// the Maharashtra-only one: /geo/postal-codes itself isn't scoped to
+// Maharashtra, so a PIN from any state can come back here, and we need the
+// real name to tell the customer "we don't serve <state> yet" instead of
+// silently failing to resolve a name at all.
 export default function LocationPickerModal({ visible, onClose, onSaved, title = 'Select Location', subtitle = "Enter the PIN code of where the service is needed (e.g. your family's home in India) — not necessarily your own location — to see the exact services and pricing available there." }) {
   const dispatch = useDispatch();
   const saved = useSelector(s => s.serviceLocation);
@@ -20,6 +26,8 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
   const { results, loading, failed, lookup } = usePostalCodeLookup();
 
   const [pin, setPin] = useState('');
+  const [stateError, setStateError] = useState(null);
+  const [saving, setSaving] = useState(false);
   // The lookup result we've locked onto for the currently-entered pincode.
   const match = results && results[0];
   const isForCurrentPin = !!match && String(match.code) === pin.trim();
@@ -29,7 +37,9 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
     : null;
   const resolvedCityName = isForCurrentPin ? match.cityName : null;
   const resolvedCityId = isForCurrentPin ? match.cityId : null;
-  const canSave = !!(resolvedStateName && resolvedCityName && resolvedCityId);
+  const resolvedStateId = isForCurrentPin ? (match.stateId || states.find(s => s.name === resolvedStateName)?.id) : null;
+  const isUnservedState = !!resolvedStateName && resolvedStateName.trim().toLowerCase() !== 'maharashtra';
+  const canSave = !!(resolvedStateName && resolvedCityName && resolvedCityId) && !isUnservedState;
 
   // Reset when the sheet opens; prefill with the last-saved pincode if we kept one.
   useEffect(() => {
@@ -40,6 +50,7 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
   // Auto-look up as soon as a full 6-digit pincode is entered.
   useEffect(() => {
     const code = pin.trim();
+    setStateError(null);
     if (code.length === 6) lookup(code);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin]);
@@ -55,9 +66,19 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
       cityId: resolvedCityId,
       pincode: pin.trim(),
     };
-    dispatch(saveServiceLocation(loc));
-    onClose?.();
-    onSaved?.(loc);
+    setStateError(null);
+    setSaving(true);
+    dispatch(saveServiceLocation({ ...loc, stateId: resolvedStateId }))
+      .unwrap()
+      .then(() => {
+        onClose?.();
+        onSaved?.(loc);
+      })
+      .catch((error) => {
+        const stateMsg = error?.errors?.state_id;
+        setStateError(Array.isArray(stateMsg) ? stateMsg[0] : (stateMsg || null));
+      })
+      .finally(() => setSaving(false));
   };
 
   // Clear the entered pincode and any saved location — services then show for
@@ -116,19 +137,27 @@ export default function LocationPickerModal({ visible, onClose, onSaved, title =
               </View>
             )}
 
+            {isUnservedState && (
+              <Text style={styles.errorText}>
+                Sorry, we don't serve {resolvedStateName} yet — we're currently available in Maharashtra only.
+              </Text>
+            )}
+
             {notFound && (
               <Text style={styles.errorText}>
                 We couldn't find that PIN code. Please check and try again.
               </Text>
             )}
 
+            {!!stateError && <Text style={styles.errorText}>{stateError}</Text>}
+
             <TouchableOpacity
-              style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+              style={[styles.saveBtn, (!canSave || saving) && styles.saveBtnDisabled]}
               onPress={handleSave}
-              disabled={!canSave}
+              disabled={!canSave || saving}
               activeOpacity={0.85}
             >
-              <Text style={styles.saveBtnText}>Save Location</Text>
+              {saving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.saveBtnText}>Save Location</Text>}
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>

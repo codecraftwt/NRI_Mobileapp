@@ -408,7 +408,7 @@ function OnboardingPayment({ route, navigation }) {
   });
   const setField = (key, val) => setReqForm(prev => ({ ...prev, [key]: val }));
 
-  const { stateNames, states } = useStates();
+  const { stateNames, states } = useStates({ forCustomer: true });
   const { cityNames, cities } = useCities(reqForm.state);
   const { talukaNames, talukas } = useTalukas(null, reqForm.city);
   const { priorities } = usePriorities();

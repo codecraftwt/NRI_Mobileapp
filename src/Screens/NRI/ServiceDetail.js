@@ -119,7 +119,7 @@ function ServiceDetail({ route, navigation }) {
   const [locModalOpen, setLocModalOpen] = useState(false);
   const [selState, setSelState] = useState('');
   const [selCity, setSelCity] = useState('');
-  const { stateNames, loading: loadingStates } = useStates();
+  const { stateNames, loading: loadingStates } = useStates({ forCustomer: true });
   const { cities, cityNames, loading: loadingCities } = useCities(selState);
   const selCityId = selCity ? cities.find(c => c.name === selCity)?.id : null;
   const canSaveLoc = !!(selState && selCity && selCityId);

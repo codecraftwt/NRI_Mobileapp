@@ -99,9 +99,10 @@ function mapCart(data) {
 // (confirmed live with backend) and GET /customer/cart / the ticket-quote
 // endpoint permanently fall back to 'nationwide' average pricing instead of
 // the real 'city'-basis price — this is the only thing that flips that over.
-export async function saveCustomerServiceLocation({ cityId, pincode }) {
+export async function saveCustomerServiceLocation({ stateId, cityId, pincode }) {
   try {
     const response = await apiClient.put('/customer/service-location', {
+      state_id: stateId || undefined,
       city_id: cityId,
       pincode: pincode || undefined,
     });
