@@ -159,7 +159,7 @@ export default function Splash({ navigation }) {
           <View style={[styles.modernDivider, { backgroundColor: C.accent }]} />
 
           <Text style={[styles.subtitle, { color: C.textSecondary }]}>
-            India's Most Trusted{'\n'}Family & Property Care
+            Distance Ends.{'\n'}Care Begins.
           </Text>
 
           <View style={[styles.badgeContainer, { backgroundColor: C.surfaceHighlight, borderColor: C.primary + '30' }]}>

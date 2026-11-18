@@ -1286,7 +1286,7 @@ function SubmitRequest({ navigation, route }) {
                     <SummaryRow label="Estimated Total" value={currency === 'INR' ? formatAmount(estTotalInr, 'INR') : fmt(estTotal)} strong />
                   </>
                 )}
-                <Text style={styles.disclaimer}>Final amount is set by the verified vendor covering your exact address.</Text>
+                <Text style={styles.disclaimer}>Final amount is set by the local vendor covering your exact address.</Text>
               </>
             ) : (
               <Text style={styles.disclaimer}>No one-time services in your cart.</Text>

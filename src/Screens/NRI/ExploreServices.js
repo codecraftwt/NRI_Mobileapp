@@ -30,7 +30,7 @@ function ExploreServices({ navigation }) {
           <Text style={styles.eyebrow}>NRI CIRCLE</Text>
           <Text style={styles.title}>Explore Services{'\n'}for your family</Text>
           <Text style={styles.subtitle}>
-            Verified local vendors, photo proof and a dedicated Relationship Manager —
+            Local vendors, photo proof and regular updates —
             everything your family back home needs, in one place.
           </Text>
         </View>

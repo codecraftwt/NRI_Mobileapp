@@ -13,15 +13,15 @@ import { useToast } from '../../context/ToastContext';
 // approved design). The trust/process story is the same for all services —
 // only name, price and duration are service-specific.
 const WHATS_INCLUDED = [
-  'Vendor matched by service, area and rating — background-checked',
+  'Local vendor matched by service, area and rating',
   'GPS check-in with geo-tagged photos before and after',
-  'Written report from your Relationship Manager on WhatsApp',
+  'Written report sent to you on WhatsApp',
   'Re-do or refund if the time guarantee is missed',
 ];
 
 const HOW_IT_RUNS = [
-  { step: '01', title: 'Request', desc: 'App, website or a call to your manager.' },
-  { step: '02', title: 'Assign', desc: 'Verified local vendor matched and briefed.' },
+  { step: '01', title: 'Request', desc: 'App, website or a call to our support team.' },
+  { step: '02', title: 'Assign', desc: 'Local vendor matched and briefed.' },
   { step: '03', title: 'Execute', desc: 'Job done with photo and video proof.' },
   { step: '04', title: 'Report', desc: 'Summary and receipt sent to your phone.' },
 ];
@@ -301,7 +301,7 @@ function ServiceInfo({ route, navigation }) {
         <View style={styles.proofBox}>
           <Text style={styles.proofLabel}>PROOF OF WORK</Text>
           <Text style={styles.proofText}>
-            GPS check-in, geo-tagged photos and a written report from your Relationship Manager
+            GPS check-in, geo-tagged photos and a written report
             land on WhatsApp the same day.
           </Text>
         </View>

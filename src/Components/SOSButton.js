@@ -6,10 +6,10 @@ function SOSButton() {
   const handleSOS = () => {
     Alert.alert(
       'Emergency SOS',
-      'An emergency alert will be sent to your Relationship Manager and our Operations Team immediately. Do you wish to proceed?',
+      'An emergency alert will be sent to our Operations Team immediately. Do you wish to proceed?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Send SOS', style: 'destructive', onPress: () => Alert.alert('SOS Sent', 'Your RM and Operations Team have been notified. You will receive a call shortly.') },
+        { text: 'Send SOS', style: 'destructive', onPress: () => Alert.alert('SOS Sent', 'Our Operations Team has been notified. You will receive a call shortly.') },
       ]
     );
   };

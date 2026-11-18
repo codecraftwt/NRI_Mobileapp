@@ -178,7 +178,7 @@ function Cart({ navigation, route }) {
           <View style={styles.trustRow}>
             <View style={styles.trustItem}>
               <Icon name="verified-user" size={18} color="#20304C" />
-              <Text style={styles.trustText}>Verified Vendors</Text>
+              <Text style={styles.trustText}>Local Vendors</Text>
             </View>
             <View style={styles.trustItem}>
               <Icon name="price-check" size={18} color="#20304C" />
@@ -251,7 +251,7 @@ function Cart({ navigation, route }) {
             </View>
             <Text style={styles.disclaimer}>
               Services above reflect the average vendor rate in your city — the final amount is
-              set by the verified vendor covering your exact address. Membership activates your
+              set by the local vendor covering your exact address. Membership activates your
               account and is billed once, annually.
             </Text>
 
@@ -267,7 +267,7 @@ function Cart({ navigation, route }) {
 
             <View style={styles.footRow}>
               <View style={styles.footItem}><Icon name="shield" size={14} color="#10B981" /><Text style={styles.footText}>Secure checkout</Text></View>
-              <View style={styles.footItem}><Icon name="check-circle" size={14} color="#10B981" /><Text style={styles.footText}>Verified local vendors only</Text></View>
+              <View style={styles.footItem}><Icon name="check-circle" size={14} color="#10B981" /><Text style={styles.footText}>Local vendors only</Text></View>
               <View style={styles.footItem}><Icon name="autorenew" size={14} color="#10B981" /><Text style={styles.footText}>7-day refund policy</Text></View>
             </View>
           </View>

@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import StepIndicator from '../../../Components/StepIndicator';
 import OnboardingTopBar from '../../../Components/OnboardingTopBar';
 import { ONBOARDING_STEPS } from '../../../Constants/onboardingCatalog';
-import { updateProfile, setOnboarded } from '../../../Redux/slices/userSlice';
+import { setOnboarded } from '../../../Redux/slices/userSlice';
 import { markOnboardingComplete, onboardingUserKey } from '../../../Redux/slices/onboardingSlice';
 import { lightColors as baseColors, typography, spacing, radius } from '../../../theme';
 
@@ -20,7 +20,7 @@ const { width: W, height: H } = Dimensions.get('window');
 
 const NEXT_STEPS = [
   { icon: 'person-add', title: 'Add your family & property details', desc: "Tell us who and what we're looking after so vendors can be matched." },
-  { icon: 'chat-bubble-outline', title: 'Meet your Relationship Manager', desc: "They'll message you on WhatsApp within 24 hours to get started." },
+  { icon: 'chat-bubble-outline', title: "We'll be in touch", desc: "Our team will message you on WhatsApp within 24 hours to get started." },
   { icon: 'phone-iphone', title: 'Track everything from your dashboard', desc: 'Follow visits, photos, and reports live as they happen.' },
 ];
 
@@ -34,14 +34,11 @@ function OnboardingWelcome({ route, navigation }) {
     navigation.replace('AppHome');
   };
   // Select a STABLE primitive key, not the whole user object — the effect
-  // below mutates the user (updateProfile/setOnboarded), so depending on the
-  // object would re-run it every render and hit "Maximum update depth".
+  // below mutates the user (setOnboarded), so depending on the object would
+  // re-run it every render and hit "Maximum update depth".
   const userId = useSelector(s => onboardingUserKey(s.user.user));
 
   useEffect(() => {
-    dispatch(updateProfile({
-      rm: { name: 'Rahul RM', email: 'rm@nricircle.com', phone: '+91 99887 76655', avatar: 'RA' },
-    }));
     dispatch(setOnboarded(true));
     // Persist completion so it survives logout — this is what stops a
     // re-login from resuming the wizard once onboarding is genuinely done.
@@ -81,7 +78,7 @@ function OnboardingWelcome({ route, navigation }) {
           </View>
           <Text style={styles.title}>You're all set, welcome to NRI Circle 🎉</Text>
           <Text style={styles.desc}>
-            Your {plan?.name || 'Family'} membership is active. Your dedicated Relationship Manager will reach out on WhatsApp within 24 hours to introduce themselves and confirm your family's details.
+            Your {plan?.name || 'Family'} membership is active. Our team will reach out on WhatsApp within 24 hours to confirm your family's details.
           </Text>
 
           {!!customPlanTicket && (

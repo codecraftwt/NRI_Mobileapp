@@ -416,7 +416,7 @@ function OnboardingProfile({ navigation }) {
 
         <Text style={styles.eyebrow}>STEP 1 · YOUR PROFILE</Text>
         <Text style={styles.title}>Tell us a little about yourself</Text>
-        <Text style={styles.subtitle}>This helps us show prices in your currency and connect you with a Relationship Manager who knows your home state.</Text>
+        <Text style={styles.subtitle}>This helps us show prices in your currency and tailor support to your home state.</Text>
 
         <View style={styles.card}>
           <View style={styles.sectionHeaderRow}>
@@ -494,7 +494,7 @@ function OnboardingProfile({ navigation }) {
               <Text style={styles.retryText}>Couldn't load states. Tap to retry.</Text>
             </TouchableOpacity>
           )}
-          <Text style={styles.hint}>We'll try to match you with a Relationship Manager from this state.</Text>
+          <Text style={styles.hint}>This helps us tailor support to your home state.</Text>
 
           <PhoneField
             label="Phone Number"

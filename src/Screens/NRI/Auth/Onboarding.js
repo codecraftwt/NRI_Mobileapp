@@ -30,7 +30,7 @@ function Onboarding({ navigation }) {
     },
     {
       title: '24x7 Emergency Support',
-      description: 'Instant medical help, ambulance coordination, or break-in response. A dedicated manager on call.',
+      description: 'Instant medical help, ambulance coordination, or break-in response — help whenever you need it.',
       image: require('../../../Assets/images/onbgn3.png'),
     }
   ];
