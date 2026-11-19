@@ -168,6 +168,13 @@ export default function Splash({ navigation }) {
               Trusted by 50,000+ NRI Families
             </Text>
           </View>
+
+          <View style={[styles.stateBadge, { backgroundColor: '#2D3F5C', borderColor: '#ffffff25' }]}>
+            <View style={styles.stateDot} />
+            <Text style={styles.stateBadgeText}>
+              Currently serving Maharashtra · more states coming soon.
+            </Text>
+          </View>
         </Animated.View>
       </View>
 
@@ -282,6 +289,29 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-SemiBold',
     fontSize: 13,
     letterSpacing: 0.3,
+  },
+  stateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 4,
+    borderRadius: 100,
+    borderWidth: 1,
+  },
+  stateDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF7A1A',
+    marginRight: 6,
+  },
+  stateBadgeText: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    letterSpacing: 0.1,
+    color: '#FFFFFF',
   },
   footer: {
     position: 'absolute',
